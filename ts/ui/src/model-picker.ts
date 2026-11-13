@@ -20,6 +20,7 @@ import { t, uiLang } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
 import { providerNeedsKey, type Provider } from './settings.js';
 import type { KvStorage } from '../../src/platform/storage.js';
+import { compareVersions, modelLine } from '../../src/llm/model-line.js';
 import { createKv } from './adapters/kv.js';
 
 /** Display names for the aloud cloud allowlist, so the dropdown reads "Claude
@@ -142,7 +143,7 @@ export async function probeClaudeProxyModel(model: string): Promise<ProbeStatus>
     }
 }
 
-interface ModelOption {
+export interface ModelOption {
     value: string;
     label: string;
     /** Typical-session credits/hr for a hosted model (/me/models), absent for
@@ -165,6 +166,9 @@ interface ModelOption {
     zhDefault?: boolean;
     zhCurated?: boolean;
     zhExpanded?: boolean;
+    /** Older picks of this model's line are not moved onto it (aloud cloud
+     *  only, pricing/providers.ts noAutoUpgrade). See lineSuccessor. */
+    noAutoUpgrade?: boolean;
 }
 
 /** The "Show all available models" state, shared by every mounted picker
@@ -185,8 +189,11 @@ async function setShowAllModels(value: boolean): Promise<void> {
 
 /**
  * Shortlist follow-through (aloud cloud): a saved pick that has left the
- * curated list moves to the default, so dropping a model from the shortlist
- * moves its sitters with it - no per-model migration. Two exceptions:
+ * curated list, or the catalog altogether, moves to the newer version of its
+ * own line (lineSuccessor) and otherwise to the default. So dropping a model
+ * from the shortlist moves the people on it with it, onto its successor when
+ * the shortlist has one - no per-model migration. Two exceptions, both for a
+ * model still in the catalog (a delisted one has nowhere to stay):
  *  - picks made while ALREADY off the shortlist (via "Show all") are
  *    deliberate and stay. Recorded here, in their own key rather than
  *    AppSettings, because the Settings view saves its whole in-memory settings
@@ -216,6 +223,54 @@ async function loadShortlistState(): Promise<void> {
 
 function saveDeliberatePicks(): void {
     if (deliberatePicks) void kv().set(DELIBERATE_PICKS_KEY, JSON.stringify([...deliberatePicks])).catch(() => {});
+}
+
+/**
+ * Where a pick that has left the shortlist goes: the newest shortlisted model
+ * of its own line (src/llm/model-line.ts) that is newer than it.
+ *  - a model: move there (Fable 5.1 to 5.2).
+ *  - 'stay': that model is flagged noAutoUpgrade, so the line's older picks
+ *    are left on what they chose.
+ *  - null: nothing newer of its line is shortlisted, or the id has no line.
+ *    The caller's default applies.
+ * Only ever upward: a pick newer than the shortlist's (its model was pulled)
+ * takes the default path, not the older version.
+ */
+export function lineSuccessor(pick: string, shortlist: readonly ModelOption[]): ModelOption | 'stay' | null {
+    const from = modelLine(pick);
+    if (!from) return null;
+    let newest: { model: ModelOption; version: readonly [number, number] } | null = null;
+    for (const model of shortlist) {
+        const at = modelLine(model.value);
+        if (!at || at.line !== from.line || compareVersions(at.version, from.version) <= 0) continue;
+        if (!newest || compareVersions(at.version, newest.version) > 0) newest = { model, version: at.version };
+    }
+    if (!newest) return null;
+    return newest.model.noAutoUpgrade ? 'stay' : newest.model;
+}
+
+/**
+ * A saved pick after shortlist follow-through (see DELIBERATE_PICKS_KEY): the
+ * pick itself while it is shortlisted or kept, its line's successor once it
+ * has left the shortlist or the catalog, and '' when the default should take
+ * over.
+ */
+export function followShortlist(
+    pick: string,
+    models: readonly ModelOption[],
+    opts: {
+        offShortlist: (m: ModelOption) => boolean;
+        keepOffShortlist: boolean;
+        deliberate: ReadonlySet<string>;
+    }
+): string {
+    if (!pick) return '';
+    const current = models.find((m) => m.value === pick);
+    if (current && (!opts.offShortlist(current) || opts.keepOffShortlist || opts.deliberate.has(pick))) return pick;
+    const next = lineSuccessor(pick, models.filter((m) => !opts.offShortlist(m)));
+    // 'stay' needs somewhere to stay: a delisted pick has only the default.
+    if (next === 'stay') return current ? pick : '';
+    return next?.value ?? '';
 }
 
 const cache = new Map<string, ModelOption[]>();
@@ -263,6 +318,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                     zhDefault?: boolean;
                     zhCurated?: boolean;
                     zhExpanded?: boolean;
+                    noAutoUpgrade?: boolean;
                 }>;
             };
             if (!data.models?.length) return null;
@@ -285,6 +341,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 ...(m.zhDefault ? { zhDefault: true } : {}),
                 ...(m.zhCurated ? { zhCurated: true } : {}),
                 ...(m.zhExpanded ? { zhExpanded: true } : {}),
+                ...(m.noAutoUpgrade ? { noAutoUpgrade: true } : {}),
             }));
             cache.set(provider, opts);
             return opts;
@@ -399,10 +456,11 @@ export function mountModelPicker(
                 if (!expandedHere(m) && deliberatePicks.delete(m.value)) pruned = true;
             }
             if (pruned) saveDeliberatePicks();
-            const current = models.find((m) => m.value === currentValue);
-            if (current && expandedHere(current) && !keepOffShortlist && !deliberatePicks.has(current.value)) {
-                currentValue = ''; // left the shortlist: fall through to the default below
-            }
+            currentValue = followShortlist(currentValue, models, {
+                offShortlist: expandedHere,
+                keepOffShortlist,
+                deliberate: deliberatePicks,
+            });
         }
         const visible =
             provider === 'aloud' && !showAll

@@ -50,6 +50,15 @@ export interface ModelPricing extends TokenRates {
      *  For an id installed builds still name on their own after it has left
      *  the catalog: deleting the entry would refuse those calls outright. */
     unlisted?: boolean;
+    /** Saved picks of this model's older versions are NOT moved onto it.
+     *  When a pick leaves the shortlist or the catalog, the picker moves it to
+     *  the newest shortlisted model of the same line (ui model-picker.ts
+     *  lineSuccessor: Fable 5.1 to 5.2), so adding a model and demoting its
+     *  predecessor upgrades the people on the predecessor. Set this on the
+     *  new model when it is not a clear step up for them (the Opus releases
+     *  after 4.5 conversed worse for a while): a demoted predecessor's picks
+     *  then stay on it, and a delisted one's fall to the default. */
+    noAutoUpgrade?: boolean;
     /** zh picker overrides (2026-09-01, native-listener pass: the GPT family
      *  reads better in Chinese than the Claudes). When the app language is
      *  Chinese the client rebuilds the shortlist from these three flags;
@@ -112,8 +121,12 @@ const M = 1_000_000;
  *    it.
  * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
  *    decide curated vs expanded-tier (`expanded: true` hides it behind the
- *    picker's "Show all available models" toggle). No per-model rate or flag
- *    tests: this table is their one home, and
+ *    picker's "Show all available models" toggle). A curated model that
+ *    replaces an older version of its line takes over that version's saved
+ *    picks once the old one is demoted or removed; `noAutoUpgrade: true` on
+ *    the new entry says not to. Before deleting an entry, check nothing still
+ *    serves it (the refusal fallback's targets): mark it `unlisted` instead.
+ *    No per-model rate or flag tests: this table is their one home, and
  *    server/tests/model-allowlist.test.ts checks its shape for every entry.
  */
 
@@ -173,14 +186,14 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 6.25 / M, // 5m write, 1.25x input
         cacheCreation1h: 10 / M, // 1h write, 2x input
     },
-    // Opus 4.8, expanded-tier: a former hosted default (ear-tested and
-    // cache-verified here), kept because older personalities speak
-    // differently, not worse. Thinking off by default. Drop the entry when the
-    // API retires it.
+    // Opus 4.8, off the picker (2026-11) but still priced: it is one of the two
+    // models Anthropic's refusal fallback re-runs a declined Fable or Opus
+    // 5.5 turn on (the other is Opus 5), and a served model missing from this
+    // table bills as zero (meter.ts llmCostUsd).
     'anthropic:claude-opus-4-8': {
         provider: 'anthropic',
         model: 'claude-opus-4-8',
-        expanded: true,
+        unlisted: true,
         input: 5 / M,
         output: 25 / M,
         cacheRead: 0.5 / M,
@@ -215,9 +228,10 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 2.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 4 / M, // 1h write, 2x input
     },
-    // Sonnet 4.6, expanded-tier on the same logic as Opus 4.8. Still $3/$15,
-    // so DEARER than its successor: the picker shows it at a higher rate.
-    // Thinking off by default. Same retirement caveat as 4.8.
+    // Sonnet 4.6, expanded-tier: kept because older personalities speak
+    // differently, not worse. Still $3/$15, so DEARER than its successor: the
+    // picker shows it at a higher rate. Thinking off by default. Drop the
+    // entry when the API retires it.
     'anthropic:claude-sonnet-4-6': {
         provider: 'anthropic',
         model: 'claude-sonnet-4-6',
