@@ -5,6 +5,6 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>aloud uses the microphone to hear you during meditation sessions.</string>
+	<string>aloud uses the microphone to hear what you say.</string>
 </dict>
 </plist>

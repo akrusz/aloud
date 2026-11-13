@@ -26,7 +26,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>aloud uses the microphone to hear what you say during a session.</string>
+	<string>aloud uses the microphone to hear what you say.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>aloud turns your speech into text so the facilitator can reply.</string>
 	<!-- Google Sign-In redirect (native mobile sign-in, meditation-pal-tpj4).
