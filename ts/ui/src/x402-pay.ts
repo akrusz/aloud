@@ -8,8 +8,10 @@
  * Flow: POST the buy endpoint with no payment, the 402 carries the payment
  * requirements, the wallet signs a transferWithAuthorization, re-POST with an
  * X-PAYMENT header, the server verifies + settles + credits. All cryptography
- * stays in the wallet, so a wrong field here only means the signature won't
- * verify (caught on testnet), never that funds move incorrectly.
+ * stays in the wallet, so a wrong field in the typed data only means the
+ * signature won't verify (caught on testnet). What the wallet is asked to sign
+ * is still the server's say, so the challenge is checked against the pack that
+ * was clicked first (x402-sign.ts challengeProblem).
  */
 
 import { cloudUrl } from './cloud-base.js';
@@ -18,6 +20,7 @@ import {
     CHAIN_ID,
     buildAuthorization,
     buildTypedData,
+    challengeProblem,
     encodeXPayment,
     type X402Network,
     type X402Requirements,
@@ -96,10 +99,12 @@ export interface X402PurchaseResult {
 }
 
 /**
- * Buy a pack with USDC via x402. Throws WalletError on a missing wallet or user
+ * Buy a pack with USDC via x402. `priceUsdCents` is the price shown on the
+ * pack that was clicked; a challenge asking for anything else is refused
+ * before the wallet opens. Throws WalletError on a missing wallet or user
  * cancellation, or a friendly Error on a server/settlement failure.
  */
-export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
+export async function payWithUsdc(packId: string, priceUsdCents: number): Promise<X402PurchaseResult> {
     let token = await getCloudToken();
     if (!token) throw new Error(t('Sign in to buy credits.'));
     const url = cloudUrl(`/billing/x402/buy/${encodeURIComponent(packId)}`);
@@ -127,6 +132,11 @@ export async function payWithUsdc(packId: string): Promise<X402PurchaseResult> {
     }
     const req = ((await challenge.json()) as { accepts?: X402Requirements[] }).accepts?.[0];
     if (!req) throw new Error(t('The server did not return payment requirements.'));
+    const problem = challengeProblem(req, priceUsdCents);
+    if (problem) {
+        console.warn(`[x402] refused the payment challenge: ${problem}`);
+        throw new Error(t("The payment request didn't match this pack, so nothing was signed."));
+    }
 
     // 2) Connect the wallet, switch to Base, sign the transfer authorization.
     const provider = injected();

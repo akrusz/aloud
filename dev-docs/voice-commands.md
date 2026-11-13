@@ -16,13 +16,85 @@ Setup holds Begin the same way while local Whisper's model is still downloading
 or loading (`ui/src/whisper-ready.ts` polls the shell's `/stt/whisper/warm`,
 optimistic on any probe failure), so a first-launch session can't start deaf.
 
-## Bare "mute"
+## The two that need no judge
 
-`isMuteCommand` (`mute-command.ts`): a bare "mute" outranks every dispatch
-route, since it's the one thing you say when you want the app to stop hearing
-you. It is judge-free, so it works on every provider. Deliberately strict -
-losing the mic mid-sentence beats reaching for the button - so the whole
-utterance must be the command. Unmuting is button-only.
+Recognized outright, so they work on every provider, signed out, offline, and
+when the judge is down. They cost nothing.
+
+**Bare "mute".** `isMuteCommand` (`mute-command.ts`): a bare "mute" outranks
+every dispatch route, since it's the one thing you say when you want the app to
+stop hearing you. Deliberately strict - losing the mic mid-sentence beats
+reaching for the button - so the whole utterance must be the command. Unmuting
+is button-only.
+
+**"End the session", and the yes or no after it.** `isEndCommand` and
+`endConfirmReply` (`end-command.ts`). A sit that can be started by voice has to
+be leavable by voice, and before this a BYOK or local sit that hadn't opted in
+could only be ended by hand. The request is a verb (end, stop, finish, close,
+quit) plus what is being ended (session, sit, meditation) and nothing else but
+the words that politely surround a request, so "can we end the session" and
+"I'd like to stop the meditation now" match and "I don't want this session to
+end" does not. Looser than mute, because the failure is cheaper: ending is only
+ever a bid, and a wrong match gets asked "Would you like to end the session?".
+The answer is a small vocabulary where any no-word wins and one unknown word
+makes it an ordinary turn ("yes, I think my leg is asleep").
+
+A noting circle has its own listen loop (`views/noting-session.ts`) and no
+judge at all, so these two are its whole command set: on the meditator's turn
+"mute" pauses the circle as the mic button does, and "end the session" asks,
+listens once (past the echo window, since the question was just spoken), and
+ends on a yes. A reply that is neither yes nor no is taken as the note it most
+likely is.
+
+Where there is a judge it still hears everything first. These run after it:
+`isEndCommand` when the judge named no command (down, timed out, or missed),
+`endConfirmReply` when its answer to the open question was `other`. The
+save/discard variants ("end without saving") and every other command stay
+judge-only.
+
+## Starting by voice (opt-in)
+
+Settings → Advanced → **Start by voice (experimental)**
+(`AppSettings.voiceStart`, off by default). On the setup screen the mic
+listens for "begin" (`parseBeginRequest`, `begin-command.ts`: begin or start,
+optionally the session, and the words people wrap around it) and starts the
+session the Begin button would. The request can name the two choices worth
+making with eyes closed: a mode by its setup-screen name and a length, as in
+"begin a twenty minute felt sense session". The mode is a tab tap; the length
+becomes the session timer the way an in-session "set a timer" does, default
+included. Voice, model and focuses stay whatever they were. With the judge-free "end the session" this
+makes a sitting hands-free after the first touch: begin, speak, end, begin
+again.
+
+A mic open before a session exists is held to narrower rules than one inside
+it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
+
+- **Free recognizers only**: the browser's, the phone's, local Whisper. A
+  session set to hosted STT gets no listening before Begin, since a room with
+  a television in it would be billed for the television. The word is matched
+  on the device, not by the judge, so the lobby costs nothing on any account.
+- **Never prompts.** It runs only when the mic is already granted
+  (`micAlreadyGranted`; unknown counts as no, which rules out Safari).
+- **Two minutes**, then the mic closes (`VOICE_START_WINDOW_MS`) and the
+  status line offers to listen again. It also closes the moment the setup
+  screen goes away.
+- **One touch first.** A page nobody has interacted with can't play sound, so
+  a session begun there would be silent (`pageTouched`). This is the one thing
+  between here and a start with no hands at all, and it is the platform's rule
+  on the web; whether the desktop and mobile shells need it is untested.
+
+The listener belongs to one mount of the setup screen and one begin attempt.
+The view has no teardown, so its probe callbacks keep firing after it is
+replaced (`setupMounts` / `isLiveMount` in `views/setup.ts`), and a begin that
+is under way holds the mic closed until it has become a session or been
+turned back (`beginning`). Both were found the hard way: a second listener on
+the next setup screen, and one that reopened for half a second under a
+starting session.
+
+Opt-in until it has been through real devices: the Android recognizer's
+start/stop chime, what local Whisper costs in CPU while idle, and WebKit's
+activation rules in the Tauri and Capacitor webviews
+([manual-smoke.md](manual-smoke.md)).
 
 ## Spoken commands (judge sessions)
 
@@ -50,7 +122,8 @@ Each command speaks a canned acknowledgment (`COMMAND_LINES`).
 
 ## How an utterance is checked
 
-1. The bare-mute check (`isMuteCommand`).
+1. The bare-mute check (`isMuteCommand`). If the end question is open, the
+   reply goes to `handleEndConfirm` instead of the steps below.
 2. **Gate.** Short utterances (`mightBeCommand`) first get one cheap ask
    (`command-gate`, ~600 tokens: "an instruction to the app at all?", bar 0.2,
    fails open). The full command set costs ~4,200 tokens whatever the answer,
@@ -89,8 +162,9 @@ Around that:
 - **Misses.** A request that misses the judge reaches the model as an ordinary
   turn, so `appControlsFragment` (`prompts.ts`) tells it that it cannot work
   the app and must never say it did.
-- **No judge** (not opted in, signed out, outage) means no commands, only the
-  bare "mute".
+- **No judge** (not opted in, signed out, outage) means only the two above:
+  the bare "mute" and the plain "end the session". The info panel's Voice
+  commands row says so rather than "Off".
 
 ## Opt-in and discovery
 
@@ -107,6 +181,13 @@ mute button by hand shows a one-time `You can just say "..."`; and the session
 info panel's Voice commands row opens the list.
 
 ## Changing a command
+
+The judge-free matchers have unit tests (`tests/mute-command.test.ts`,
+`end-command.test.ts`, `begin-command.test.ts`), and
+`node ts/scripts/voice-loop-check.mjs` runs a whole sitting through the real
+web UI with a scripted recognizer and a mocked model (`npm run web:dev` up; no
+mic, no keys). It is the only thing short of a real session that exercises the
+listen loop's dispatch in `views/session.ts`.
 
 `npm run jev:commands` scores every ask (through the gate) against a labelled
 corpus and prints the thinnest margins, then runs the pointing-back cases

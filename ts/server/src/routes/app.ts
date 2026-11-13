@@ -26,7 +26,7 @@ import { fetchModels } from '../providers/models.js';
  *  rather than usable. */
 const WEB_PROVIDERS = ['anthropic', 'openai', 'openrouter', 'venice', 'groq'];
 
-export function appBackendRoutes(_deps: Deps): Hono {
+export function appBackendRoutes(deps: Deps): Hono {
     const app = new Hono();
 
     app.get('/system-info', (c) =>
@@ -67,7 +67,7 @@ export function appBackendRoutes(_deps: Deps): Hono {
     // key-validation oracle or traffic relay; 30/min dwarfs any legitimate
     // picker refresh.
     const modelsGuard = new RateGuard(30, 60_000);
-    app.get('/models/:provider', ipRateLimit(modelsGuard), async (c) => {
+    app.get('/models/:provider', ipRateLimit(modelsGuard, deps.config), async (c) => {
         const provider = c.req.param('provider');
         const key = c.req.header('x-provider-key') ?? null;
         return c.json(await fetchModels(provider, key));

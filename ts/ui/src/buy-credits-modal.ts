@@ -302,7 +302,7 @@ export function showBuyCreditsModal(options: BuyCreditsModalOptions = {}): Promi
             if (method === 'usdc') {
                 setPacksDisabled(true);
                 try {
-                    const { credits, creditsRemaining } = await payWithUsdc(pack.id);
+                    const { credits, creditsRemaining } = await payWithUsdc(pack.id, pack.priceUsdCents);
                     setKnownBalance(creditsRemaining);
                     showSuccess(
                         t('Added {added}, balance {balance}.', {

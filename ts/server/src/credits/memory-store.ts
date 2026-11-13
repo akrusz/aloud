@@ -52,6 +52,16 @@ export class MemoryCreditsStore implements CreditsStore {
             .sort((a, b) => a.createdAt - b.createdAt)[0];
     }
 
+    async setAccountEmailVerified(accountId: string): Promise<void> {
+        const account = this.accounts.get(accountId);
+        if (account) account.emailVerified = true;
+    }
+
+    async setSessionsValidAfter(accountId: string, ts: number): Promise<void> {
+        const account = this.accounts.get(accountId);
+        if (account) account.sessionsValidAfter = ts;
+    }
+
     async setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void> {
         const account = this.accounts.get(accountId);
         if (!account) return;

@@ -16,6 +16,7 @@ import {
     regiftReturned,
     claimReturned,
     pendingGiftsForAccount,
+    giftsAwaitingVerification,
 } from '../credits/gifts.js';
 import { log } from '../logger.js';
 import { errorJson } from '../http.js';
@@ -38,7 +39,10 @@ export function giftRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 };
             })
         );
-        return c.json({ gifts: views });
+        // Gifts an unverified address can't see yet, as a bare count: enough
+        // for the app to say "connect Google or Apple to accept it".
+        const awaitingVerification = await giftsAwaitingVerification(deps, account, Date.now() / 1000);
+        return c.json({ gifts: views, ...(awaitingVerification > 0 ? { awaitingVerification } : {}) });
     });
 
     app.post('/:id/accept', requireAuth(deps), async (c) => {

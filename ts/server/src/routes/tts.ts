@@ -310,6 +310,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         try {
             audio = await synth(text, rate);
         } catch (err) {
+            gate.release();
             log.error('tts forward failed', { err: String(err) });
             incident('tts_error', `${billedChars}c: ${String(err)}`);
             return synthFailure(c, err);

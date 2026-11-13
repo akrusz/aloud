@@ -68,6 +68,9 @@ export type {
 export { routeUtterance, HOLD_REENTRY_GRACE_MS } from './silence-dispatch.js';
 export type { UtteranceRoute, SilenceDispatchState } from './silence-dispatch.js';
 export { isMuteCommand } from './mute-command.js';
+export { isEndCommand, endConfirmReply } from './end-command.js';
+export { isBeginCommand, parseBeginRequest } from './begin-command.js';
+export type { BeginRequest, BeginMode } from './begin-command.js';
 export {
     CommandPrefetch,
     detectVoiceCommand,

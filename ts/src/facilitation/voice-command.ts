@@ -323,6 +323,10 @@ const EN_TENS: Record<string, number> = {
 /** "twenty five" / "forty-five" / "12" / "an" as a number, else null. */
 function enNumber(words: string[]): number | null {
     if (words.length === 1 && /^\d+(\.\d+)?$/.test(words[0]!)) return Number(words[0]);
+    // "a" and "an" are one only by themselves ("a minute", "an hour"). Beside
+    // another number they are the article in front of it: "a ten minute timer"
+    // read as 1 + 10 armed eleven minutes, and "a one hour timer" two hours.
+    if (words.length > 1 && words.some((w) => w === 'a' || w === 'an')) return null;
     let total = 0;
     let seen = false;
     for (const w of words) {

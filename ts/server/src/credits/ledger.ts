@@ -89,6 +89,11 @@ export class Ledger {
         reason: string,
         holdId?: string
     ): Promise<LedgerEntry> {
+        // A NaN amount would make every later balance NaN, and NaN compares
+        // false against everything: each "can it afford this?" check would
+        // pass from then on. No caller should produce one; refuse it here so
+        // none can.
+        if (!Number.isFinite(amount)) throw new Error(`ledger: refusing a non-finite ${kind} amount`);
         const entry: LedgerEntry = {
             id: randomUUID(),
             accountId,
@@ -221,6 +226,21 @@ export class Ledger {
             const available = await this.balance(accountId);
             if (available < credits) throw new InsufficientCreditsError(credits, available);
             await this.append(accountId, 'debit', -Math.abs(credits), reason);
+        });
+    }
+
+    /** Debit up to `credits`, clamped to what the account can cover, and return
+     *  the credits debited. For a call whose provider cost is already spent
+     *  (the upfront STT/TTS legs, after the provider answered): the balance
+     *  gate ran before the call, so falling short here means another spend
+     *  landed in between, and the right move is to take what is left rather
+     *  than fail a call that has already been paid for. Never overdraws. */
+    debitUpTo(accountId: string, credits: number, reason: string): Promise<number> {
+        return this.runExclusive(accountId, async () => {
+            const debit = Math.min(credits, Math.max(0, await this.balance(accountId)));
+            if (!(debit > 0)) return 0;
+            await this.append(accountId, 'debit', -debit, reason);
+            return debit;
         });
     }
 

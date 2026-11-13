@@ -76,7 +76,10 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     if let Some(system) = req.system.as_deref().filter(|s| !s.is_empty()) {
         cmd.arg("--system-prompt").arg(system);
     }
-    cmd.arg(format_history(&req.messages));
+    // `--` ends the options. A lone user turn is passed verbatim, and without
+    // it one starting with a dash was parsed as a CLI option (`--help` printed
+    // the usage; `--settings`/`--mcp-config` take inline config).
+    cmd.arg("--").arg(format_history(&req.messages));
 
     let output = match timeout(TIMEOUT, cmd.output()).await {
         Ok(Ok(o)) => o,
@@ -164,21 +167,35 @@ fn cli_failure_detail(output: &std::process::Output) -> String {
 }
 
 /// Encode multi-turn history as the single prompt string the `claude` CLI
-/// takes. System turns are dropped (they go via `--system-prompt`); a lone user
-/// turn is verbatim; otherwise turns become a `User:`/`Assistant:` transcript.
+/// takes. A leading system turn is dropped (`--system-prompt` carries it); a
+/// later one is a mid-sit note (a phase change, a setting, a timer event) and
+/// goes inline as user text, the same wrapping as core's `formatHistory`
+/// (`ts/src/llm/claude-proxy.ts`, `systemNoteAsUserText`). A lone user turn is
+/// verbatim; otherwise turns become a `User:`/`Assistant:` transcript.
 fn format_history(messages: &[Msg]) -> String {
-    let convo: Vec<&Msg> = messages.iter().filter(|m| m.role != "system").collect();
+    let convo: Vec<(&str, String)> = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, m)| !(*i == 0 && m.role == "system"))
+        .map(|(_, m)| {
+            if m.role == "system" {
+                ("user", format!("<system-reminder>\n{}\n</system-reminder>", m.content))
+            } else {
+                (m.role.as_str(), m.content.clone())
+            }
+        })
+        .collect();
     if convo.is_empty() {
         return String::new();
     }
-    if convo.len() == 1 && convo[0].role == "user" {
-        return convo[0].content.clone();
+    if convo.len() == 1 && convo[0].0 == "user" {
+        return convo[0].1.clone();
     }
     convo
         .iter()
-        .map(|m| {
-            let role = if m.role == "user" { "User" } else { "Assistant" };
-            format!("{role}: {}", m.content)
+        .map(|(role, content)| {
+            let role = if *role == "user" { "User" } else { "Assistant" };
+            format!("{role}: {content}")
         })
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -299,9 +316,27 @@ mod tests {
     }
 
     #[test]
-    fn system_turns_are_dropped_from_prompt() {
+    fn leading_system_turn_is_dropped_from_prompt() {
         let h = format_history(&[msg("system", "be calm"), msg("user", "hi")]);
         assert_eq!(h, "hi");
+    }
+
+    // A system turn inside the conversation is a mid-sit note. Dropping it
+    // (as this did) meant a Claude Subscription sit on desktop never saw a
+    // phase change or a setting note.
+    #[test]
+    fn mid_conversation_system_turn_goes_inline_as_user_text() {
+        let h = format_history(&[
+            msg("user", "hi"),
+            msg("assistant", "hello"),
+            msg("system", "phase: ask"),
+            msg("user", "more"),
+        ]);
+        assert_eq!(
+            h,
+            "User: hi\n\nAssistant: hello\n\n\
+             User: <system-reminder>\nphase: ask\n</system-reminder>\n\nUser: more"
+        );
     }
 
     #[test]

@@ -33,6 +33,50 @@ export interface X402Authorization {
 
 export const CHAIN_ID: Record<X402Network, number> = { base: 8453, 'base-sepolia': 84532 };
 
+/** USDC's contract per network, the same constants the server builds its
+ *  challenge from (server/src/billing/x402.ts `USDC`). Pinned here too, so the
+ *  app only ever asks a wallet to sign against the real token. */
+export const USDC_ADDRESS: Record<X402Network, string> = {
+    base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    'base-sepolia': '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+};
+
+/** Longest authorization window the app will sign. The server asks for 300 s. */
+export const MAX_AUTHORIZATION_SECONDS = 600;
+
+/**
+ * Is this challenge the purchase the person clicked? Returns what is wrong
+ * with it, or null.
+ *
+ * The 402's requirements come from the server, and the wallet signs what the
+ * app builds from them: a bearer authorization to move `maxAmountRequired` of
+ * `asset` to `payTo`. A wallet shows that as raw atomic units most people
+ * can't read. So before anything reaches the wallet, the amount has to be the
+ * pack's price, the token real USDC on a network we know, and the window
+ * short. That leaves a wrong or hostile challenge able to take the price
+ * that was agreed to, and nothing more. (The pay-to address can't be pinned
+ * here: it is the server's configuration.)
+ */
+export function challengeProblem(req: X402Requirements, expectedUsdCents: number): string | null {
+    if (req.scheme !== 'exact') return 'unsupported scheme';
+    const usdc = USDC_ADDRESS[req.network];
+    if (!usdc) return 'unknown network';
+    if (typeof req.asset !== 'string' || req.asset.toLowerCase() !== usdc.toLowerCase()) return 'not USDC';
+    // Atomic units: cents x 10^4 (USDC has 6 decimals). Compared as strings of
+    // digits, so nothing is lost to a number conversion.
+    if (!Number.isInteger(expectedUsdCents) || expectedUsdCents <= 0) return 'no price to check against';
+    if (req.maxAmountRequired !== String(expectedUsdCents * 10_000)) return 'amount differs from the price';
+    if (!/^0x[0-9a-fA-F]{40}$/.test(req.payTo ?? '')) return 'malformed recipient';
+    if (
+        !Number.isInteger(req.maxTimeoutSeconds) ||
+        req.maxTimeoutSeconds <= 0 ||
+        req.maxTimeoutSeconds > MAX_AUTHORIZATION_SECONDS
+    ) {
+        return 'authorization window too long';
+    }
+    return null;
+}
+
 /** Random EIP-3009 nonce: 32 bytes, hex. */
 export function randomNonce(): string {
     const b = crypto.getRandomValues(new Uint8Array(32));

@@ -78,6 +78,16 @@ Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
       names the right platform.
 - [ ] **A non-secure origin** (hit the dev server by LAN IP over http) explains
       itself rather than failing silently.
+- [ ] **A sitting with no hands after the first touch.** Settings → Advanced →
+      Start by voice, a BYOK or local provider with voice commands off. On
+      setup the footer reads `Listening for "begin"…`; say "begin", say a
+      sentence, say "end the session", answer "yes", and it is listening again
+      on setup. Talk about something else on setup and nothing starts. Leave it
+      two minutes and the mic closes. Scripted in a headless browser so far
+      (`ts/scripts/voice-loop-check.mjs`), never with a real mic: on **desktop** watch CPU while it listens (local
+      Whisper) and whether the first session speaks with no click since
+      launch; on **Android** listen for the recognizer's chime on every
+      listening turn.
 
 ## 3. Phone
 

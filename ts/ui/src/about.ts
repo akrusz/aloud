@@ -300,8 +300,8 @@ function renderUpdateAvailable(el: HTMLElement, update: DesktopUpdate): void {
  * the tab session) or the `aloud:previewUpdate` localStorage key, written by
  * the dev-settings "Preview update" field (handy inside the Tauri webview,
  * where editing the URL is awkward):
- *   - bare flag ("1" / "true" / empty) -> one patch above the running build
- *   - any other value -> used verbatim, e.g. ?previewUpdate=2.0.0
+ *   - a version (?previewUpdate=2.0.0) -> that version
+ *   - anything else, the bare flag included -> one patch above the running build
  * The URL flavor dies with the tab; clear the settings flavor by emptying the
  * field or removing the localStorage key.
  */
@@ -327,8 +327,14 @@ function previewUpdateVersion(): string | null {
         return null;
     }
     if (raw === null) return null;
-    return raw && raw !== '1' && raw !== 'true' ? raw : bumpPatch(__APP_VERSION__);
+    // Only something shaped like a version is shown. The param works in every
+    // build (it has to, to preview inside a bundled one), so a link can set it:
+    // free text here would be anyone's words in the app's own update notice.
+    return VERSION_SHAPED.test(raw) ? raw : bumpPatch(__APP_VERSION__);
 }
+
+/** "2.0.0", "2.20.0-rc.1". */
+const VERSION_SHAPED = /^\d{1,4}(\.\d{1,4}){1,3}(-[0-9A-Za-z.]{1,16})?$/;
 
 /** "1.0.8" → "1.0.9". Falls back to a clearly-fake version if unparseable. */
 function bumpPatch(version: string): string {

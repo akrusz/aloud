@@ -23,6 +23,8 @@ import {
     classifyHoldRequest,
     routeUtterance,
     isMuteCommand,
+    isEndCommand,
+    endConfirmReply,
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     type ClassifyResumeIntentOptions,
@@ -158,6 +160,7 @@ import {
 import { initKasinaMode } from '../kasina.js';
 import { initThemeToggle, setTheme, toggleTheme, updateThemeIcon, type Theme } from '../theme.js';
 import { t } from '../i18n.js';
+import { escapeHtml } from '../escape-html.js';
 import { showErrorToast } from '../toast.js';
 import { alertDialog, confirmDialog } from '../dialog.js';
 import { showBuyCreditsModal } from '../buy-credits-modal.js';
@@ -472,7 +475,7 @@ export async function mountSessionView(
         root.innerHTML = `
             <section class="session-stage">
                 <div class="status">
-                    <div id="status">${(err as Error).message}</div>
+                    <div id="status">${escapeHtml((err as Error).message)}</div>
                 </div>
             </section>
             <section class="controls">
@@ -657,9 +660,10 @@ export async function mountSessionView(
                 onClick: () => void showVoiceCommandExamples(appSettings.saveSessionLogs),
             });
         } else if (judgeAccess === 'off' || judgeAccess === 'signed-out') {
+            // Not "Off": the two that need no judge always work.
             rows.push({
                 label: t('Voice commands'),
-                value: t('Off'),
+                value: t('"Mute" and "end the session" only'),
                 onClick: () => void offerVoiceCommands(),
             });
         }
@@ -1780,6 +1784,8 @@ export async function mountSessionView(
     // Judge sessions only (voice-commands.ts): it is the only thing that can tell
     // "slow down a little" from "everything is slowing down", and there is no LLM
     // twin to fall back on. Shadow mode leaves them on; it is about the classifiers.
+    // Two need no judge and work everywhere: the bare "mute" and the plain
+    // "end the session" with its yes/no (core mute-command.ts, end-command.ts).
     //
     // "End the session" is a bid, like [HOLD]: the app asks, and this flag routes
     // the NEXT utterance to classifyEndConfirm instead of a turn. It expires:
@@ -2045,8 +2051,12 @@ export async function mountSessionView(
      *  consumed here; false sends it on as an ordinary utterance. */
     async function handleEndConfirm(userText: string): Promise<boolean> {
         endConfirmUntil = 0;
-        if (!cloudJudge || isNonSpeechOnly(userText)) return false;
-        const verdict = await classifyEndConfirm(cloudJudge, userText);
+        if (isNonSpeechOnly(userText)) return false;
+        // The judge reads the reply where there is one. A plain yes or no is
+        // also recognized outright (core end-command.ts): all a sit without
+        // the judge has, and what one whose judge failed falls back to.
+        let verdict = cloudJudge ? await classifyEndConfirm(cloudJudge, userText) : 'other';
+        if (verdict === 'other') verdict = endConfirmReply(userText) ?? 'other';
         tapEvent('note', `end-confirm:${verdict}`, { utterance: userText });
         if (torn) return true;
         if (verdict === 'yes') {
@@ -2646,21 +2656,31 @@ export async function mountSessionView(
                     // Commands come next and also outrank the silence routes: a
                     // timer set from inside a hold must not end it, and "end the
                     // session" must not be buffered as think-out-loud.
-                    if (cloudJudge) {
-                        // Taken even when unused below, so a verdict never
-                        // outlives the utterance it was asked about.
-                        const early = commandPrefetch?.take(text) ?? null;
-                        if (Date.now() < endConfirmUntil) {
-                            if (await handleEndConfirm(text)) continue;
-                        } else {
+                    // Taken even when unused below, so a verdict never
+                    // outlives the utterance it was asked about.
+                    const early = commandPrefetch?.take(text) ?? null;
+                    if (Date.now() < endConfirmUntil) {
+                        // The open end question takes the reply, judge or not.
+                        if (await handleEndConfirm(text)) continue;
+                    } else {
+                        let cmd: DetectedCommand | null = null;
+                        if (cloudJudge) {
                             if (early) tapEvent('note', 'command:prefetched');
-                            const cmd = await (early ?? detectVoiceCommand(cloudJudge, text, saidBefore()));
+                            cmd = await (early ?? detectVoiceCommand(cloudJudge, text, saidBefore()));
                             if (torn || muted) break;
-                            if (cmd) {
-                                await runVoiceCommand(cmd, text);
-                                if (torn || muted) break;
-                                continue;
-                            }
+                        }
+                        // The plain request to end is matched outright (core
+                        // end-command.ts), so a sit with no judge can still be
+                        // left by voice, and one whose judge is down or missed
+                        // it is not stuck either. Still only a bid: it asks.
+                        if (!cmd && isEndCommand(text)) {
+                            tapEvent('note', 'command:end-matched-locally', { judge: Boolean(cloudJudge) });
+                            cmd = { command: 'end_session', commands: ['end_session'], answers: {}, latencyMs: 0 };
+                        }
+                        if (cmd) {
+                            await runVoiceCommand(cmd, text);
+                            if (torn || muted) break;
+                            continue;
                         }
                     }
                     // Precedence between the silence handlers lives in

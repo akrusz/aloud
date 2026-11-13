@@ -147,6 +147,10 @@ export interface AppSettings {
      *  never touch, so it is a consent and defaults off. aloud cloud sessions
      *  ignore it (always on). See voice-commands.ts. */
     voiceCommandsViaCloud: boolean;
+    /** Listen for "begin" on the setup screen (voice-start.ts). Off by default:
+     *  it opens the mic before a session exists, so it is the user's to choose,
+     *  and it wants checking on real devices before it is anything but opt-in. */
+    voiceStart: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -191,6 +195,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     checkinContent: 'smart',
     silenceModeEnabled: true,
     voiceCommandsViaCloud: false,
+    voiceStart: false,
 };
 
 /**

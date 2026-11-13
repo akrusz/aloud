@@ -1324,6 +1324,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         }
         bindCheckbox('s-stt-speculation', 'sttSpeculation');
+        bindCheckbox('s-voice-start', 'voiceStart');
         const voiceCommands = root.querySelector<HTMLInputElement>('#s-voice-commands');
         if (voiceCommands) {
             voiceCommands.addEventListener('change', () => {
@@ -2248,6 +2249,15 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Keep my model when it leaves the shortlist')}</span>
                     </label>
                     <span class="form-hint">${t('Otherwise you move to the default model.')}</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group form-group-half">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-voice-start"${s.voiceStart ? ' checked' : ''}>
+                        <span>${t('Start by voice (experimental)')}</span>
+                    </label>
+                    <span class="form-hint">${t('On the setup screen, say "begin" to start a session. The mic listens for two minutes at a time, and only with speech recognition that costs nothing here (not aloud cloud).')}</span>
                 </div>
             </div>
             <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">

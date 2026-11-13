@@ -185,6 +185,38 @@ describe('POST /cloud/v1/judge', () => {
         expect((await post(a, token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
     });
 
+    it('cuts accounts with no credits off at the all-accounts ceiling, whichever account spent it', async () => {
+        // The per-account cap bounds nothing alone: an email signup is free to
+        // repeat, and each new account starts a fresh day.
+        const store = new MemoryCreditsStore();
+        const config = loadConfig({
+            OPENAI_API_KEY: 'sk-test',
+            TYPESAFE_API_KEY: 'ts-test',
+            ALOUD_JUDGE_CALLS_PER_DAY: '2',
+        });
+        const deps = buildDeps(config, { store });
+        const a = createApp(deps);
+        const signup = async (email: string) => {
+            const res = await a.request('/cloud/v1/auth/email/signup', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ email, password: 'hunter2hunter2' }),
+            });
+            return (await res.json()) as AuthResponse;
+        };
+        const one = await signup('one@example.com');
+        const two = await signup('two@example.com');
+        const three = await signup('three@example.com');
+
+        expect((await post(a, one.token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
+        expect((await post(a, two.token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
+        // A third account, its own cap untouched, is still refused.
+        expect((await post(a, three.token, { classifier: 'resume', text: 'hi' })).status).toBe(429);
+        // An account with credits is never cut off by either cap.
+        await deps.ledger.grant(three.account.id, 5, 'test:topup');
+        expect((await post(a, three.token, { classifier: 'resume', text: 'hi' })).status).toBe(200);
+    });
+
     it('records one content-free judge_error a minute, with a count of the rest', async () => {
         const { a, store } = app();
         const token = await devToken(a);

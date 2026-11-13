@@ -213,6 +213,25 @@ export async function deleteAccount(): Promise<void> {
     await signOutLocally();
 }
 
+/** POST /cloud/v1/auth/signout-all: end every session on the account, this one
+ *  included. Plain sign-out only forgets the token on this device, and a
+ *  session token renews itself, so a copy held anywhere else (a lost phone, a
+ *  shared browser) stays good; this is what ends it. A 401 means this token is
+ *  already dead, which is the thing that was asked for. Throws (with the
+ *  server message) on any other failure, leaving this device signed in. */
+export async function signOutEverywhere(): Promise<void> {
+    const token = await getCloudToken();
+    if (!token) return signOutLocally();
+    const res = await fetchImpl(cloudUrl('/auth/signout-all'), {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+    });
+    if (!res.ok && res.status !== 401) {
+        throw new Error((await serverErrorMessage(res)) || `Could not sign out everywhere (${res.status}).`);
+    }
+    await signOutLocally();
+}
+
 async function signOutLocally(): Promise<void> {
     await clearCloudToken();
     clearKnownBalance();

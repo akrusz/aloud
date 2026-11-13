@@ -5,8 +5,15 @@
 
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import type { Deps } from '../deps.js';
+import type { Config } from '../config.js';
 import type { RateGuard } from '../quota/freetier.js';
-import { REFRESH_AFTER_SECONDS, issueSessionToken, verifySessionToken } from './session.js';
+import {
+    REFRESH_AFTER_SECONDS,
+    issueSessionToken,
+    tokenStillValid,
+    verifySessionToken,
+    type SessionClaims,
+} from './session.js';
 import type { Account } from '../credits/store.js';
 import { errorJson, tooManyRequests } from '../http.js';
 
@@ -25,9 +32,16 @@ export function bearer(c: Context): string | undefined {
     return scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
 }
 
-/** Best-effort client IP. x-forwarded-for is set by the proxy in front of us
- *  (Fly/Render); first hop is the caller. */
-export function forwardedIp(c: Context): string | undefined {
+/** Best-effort client IP. The configured header when there is one
+ *  (config.clientIpHeader: `fly-client-ip` on Fly, which the proxy overwrites
+ *  on every request). Otherwise X-Forwarded-For's first hop, which is only as
+ *  good as the proxy: one that appends to a client-sent header (Fly does)
+ *  leaves the first hop to the client, and every limit keyed on it with it. */
+export function forwardedIp(c: Context, config: Pick<Config, 'clientIpHeader'>): string | undefined {
+    if (config.clientIpHeader) {
+        const trusted = c.req.header(config.clientIpHeader)?.trim();
+        if (trusted) return trusted;
+    }
     const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
     return fwd || c.req.header('x-real-ip') || undefined;
 }
@@ -35,34 +49,52 @@ export function forwardedIp(c: Context): string | undefined {
 /** forwardedIp for rate-limit keying: falls back to a shared 'unknown' bucket
  *  rather than skipping the limit, so a deploy without the header still has
  *  SOME ceiling. */
-export function clientIp(c: Context): string {
-    return forwardedIp(c) ?? 'unknown';
+export function clientIp(c: Context, config: Pick<Config, 'clientIpHeader'>): string {
+    return forwardedIp(c, config) ?? 'unknown';
 }
 
 /** Per-IP sliding-window rate limit for pre-auth surfaces (sign-in endpoints,
  *  unauthenticated forwarders) where there's no account id to key on. Same
  *  refusal shape as the per-account guard so clients handle both identically. */
-export function ipRateLimit(guard: RateGuard): MiddlewareHandler {
+export function ipRateLimit(guard: RateGuard, config: Pick<Config, 'clientIpHeader'>): MiddlewareHandler {
     return async (c: Context, next: Next) => {
-        if (!guard.allow(clientIp(c))) return tooManyRequests(c);
+        if (!guard.allow(clientIp(c, config))) return tooManyRequests(c);
         await next();
     };
 }
 
+export interface TokenSession {
+    account: Account;
+    claims: SessionClaims;
+}
+
+/**
+ * The live account a session token stands for, or undefined. One place for
+ * every way a well-signed token can still be nobody's: no such account, a
+ * soft-deleted one (the row stays for ledger FKs but must not authenticate,
+ * meditation-pal-8jc), or a token issued before the account's sessions were
+ * revoked (session.ts tokenStillValid). Every surface that honours a session
+ * token goes through here - requireAuth, the admin gate, and the sign-in
+ * routes' "link to the caller's account" - so none can honour one the others
+ * would refuse.
+ */
+export async function sessionForToken(deps: Deps, token: string | undefined): Promise<TokenSession | undefined> {
+    const claims = token ? await verifySessionToken(token, deps.config.sessionSecret) : undefined;
+    const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
+    if (!claims || !account || account.deletedAt != null || !tokenStillValid(claims, account)) return undefined;
+    return { account, claims };
+}
+
 export function requireAuth(deps: Deps): MiddlewareHandler {
     return async (c: Context, next: Next) => {
-        const token = bearer(c);
-        const claims = token ? await verifySessionToken(token, deps.config.sessionSecret) : undefined;
-        const account = claims ? await deps.store.getAccountById(claims.accountId) : undefined;
-        // A soft-deleted account keeps its row for ledger FKs but must not
-        // authenticate: treat its still-valid-signature token as signed out
-        // (meditation-pal-8jc).
-        if (!account || account.deletedAt != null) return errorJson(c, 'unauthenticated', 'sign in required');
+        const session = await sessionForToken(deps, bearer(c));
+        if (!session) return errorJson(c, 'unauthenticated', 'sign in required');
+        const { account, claims } = session;
         // Sliding session: a day-old token gets a fresh 90-day one in a response
         // header, adopted client-side (cloud-auth.ts fetchMe), so weekly users
         // never see a re-sign-in. Set BEFORE next(): the LLM proxy streams its
         // body, and headers can't change once it starts.
-        if (nowSeconds() - claims!.issuedAtSeconds > REFRESH_AFTER_SECONDS) {
+        if (nowSeconds() - claims.issuedAtSeconds > REFRESH_AFTER_SECONDS) {
             c.header(
                 'X-Session-Refresh',
                 await issueSessionToken(account.id, deps.config.sessionSecret)

@@ -200,14 +200,15 @@ const HOLD_CUSHION = 1.25;
  *  most one turn's cost) instead of pushing the account negative. */
 export const TURN_SIDECAR_RESERVE_CREDITS = 0.5;
 
-/** Credits to pre-auth for one turn: the request's whole prompt (system +
+/** What one turn could cost, in credits: the request's whole prompt (system +
  *  every message) at the model's fresh-input rate plus `maxTokens` of output,
- *  cushioned, capped at SESSION_HOLD_CREDITS. Real turns settle well below this
- *  - most input is a cache read at a fraction of the input rate - so this already
- *  bounds a cold-cache turn; pricing it as a cache write on top would only
- *  starve the sidecar legs again. A model outside the price table (can't happen
- *  past the allowlist) holds the cap. */
-export function holdForTurn(
+ *  cushioned. Uncapped, because this is also what the overdraft ceiling is
+ *  judged against (MAX_UNCOVERED_CREDITS): a caller chooses whether a prompt
+ *  hits the cache, so the worst case is the one to bound. Real turns settle
+ *  well below it - most input is a cache read at a fraction of the input rate.
+ *  A model outside the price table (can't happen past the allowlist) reads as
+ *  the hold cap. */
+export function estimateTurnCredits(
     provider: ProviderId,
     model: string,
     promptTexts: readonly string[],
@@ -219,7 +220,44 @@ export function holdForTurn(
     for (const text of promptTexts) promptTokens += estimateTokens(text);
     const r = ratesFor(p, promptTokens);
     const usd = promptTokens * r.input + Math.max(0, maxTokens) * r.output;
-    return Math.min(SESSION_HOLD_CREDITS, usdToCredits(usd) * HOLD_CUSHION);
+    return usdToCredits(usd) * HOLD_CUSHION;
+}
+
+/** Credits to pre-auth for one turn: its estimate, capped at
+ *  SESSION_HOLD_CREDITS. The estimate already bounds a cold-cache turn; pricing
+ *  it as a cache write on top would only starve the sidecar legs again. */
+export function holdForTurn(
+    provider: ProviderId,
+    model: string,
+    promptTexts: readonly string[],
+    maxTokens: number
+): number {
+    return Math.min(SESSION_HOLD_CREDITS, estimateTurnCredits(provider, model, promptTexts, maxTokens));
+}
+
+/**
+ * The most a turn's estimate may run past what is held for it, summed over
+ * every turn an account has in flight (deps.overdraft, routes/llm.ts).
+ *
+ * A hold is deliberately smaller than the estimate at a small balance
+ * (holdAgainstBalance), and settleHold absorbs whatever the turn then costs
+ * past the balance, so a near-empty account still finishes its last turn. This
+ * is the ceiling on that absorbed part. Without it the turn a 0.01-credit
+ * balance buys could be a 200K-token prompt on the priciest model, sixty of
+ * them at once (each new hold takes half of what the last one left), all
+ * forwarded and none paid for.
+ *
+ * One hold's worth: every real turn fits under it (a sit's prompt estimates at
+ * a credit or two), and it is what a free account can cost beyond its grant.
+ */
+export const MAX_UNCOVERED_CREDITS = SESSION_HOLD_CREDITS;
+
+/** What to hold for a turn estimated at `estimate`: the estimate up to the
+ *  cap, as before, and past cap + MAX_UNCOVERED_CREDITS enough more that an
+ *  account which can afford an oversized turn is not refused it for being
+ *  under-held. */
+export function holdTarget(estimate: number): number {
+    return Math.max(Math.min(estimate, SESSION_HOLD_CREDITS), estimate - MAX_UNCOVERED_CREDITS);
 }
 
 /** The hold to actually place for a turn against `balance`: the turn's

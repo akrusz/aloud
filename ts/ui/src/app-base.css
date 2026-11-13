@@ -5116,6 +5116,31 @@ input[type="range"].preview-range {
     margin: 0 auto;
 }
 
+/* "Listening for "begin"…" above the Begin button (voice-start.ts). A button
+   with no chrome: plain text while listening, underlined when a tap on it
+   reopens the mic. */
+.voice-start-status {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.35rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.voice-start-status:not(:disabled) {
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.voice-start-status.hidden {
+    display: none;
+}
+
 /* The session's cloud rate, "≈8☁/hr (?)", and the way into the "what are ☁?"
    explainer: right side of the Begin bar, absolutely positioned so the
    centered Begin column never shifts. Only visible when the session would
