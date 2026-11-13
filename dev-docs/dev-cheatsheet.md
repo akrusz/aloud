@@ -29,7 +29,7 @@ unavailable" (expected, harmless). `desktop:dev` runs the shell + Hono in one
 terminal. Both combined launchers (`desktop:dev`, `web:dev`) go through
 `ts/scripts/dev.mjs`: one Ctrl-C stops everything, and either side exiting (e.g.
 closing the Tauri window) tears the other down. `scripts/desktop-dev.sh` wraps
-`desktop:dev`: it runs `npm install` first when `package-lock.json` is newer
+`desktop:dev`: it runs `npm ci` first when `package-lock.json` is newer
 than `node_modules`, and starts the shell alone when there is no
 `ts/server/.env` or `:8787` is already taken.
 

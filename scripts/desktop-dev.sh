@@ -19,7 +19,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../ts"
 
 if [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
     echo "  Lockfile is newer than node_modules, installing…"
-    npm install
+    # ci, not install: install rewrites the lockfile in this npm's own dialect
+    # (11.4 drops the "libc" fields Dependabot's npm writes).
+    npm ci
 fi
 
 if [ ! -f server/.env ]; then
