@@ -9,14 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 // `via` pins the acceptance to the direct dependencies it was reasoned about:
 // the same advisory arriving through anything else blocks again.
-const ACCEPTED = {
-    // braces <= 3.0.3 overflows the stack on deeply nested patterns; no fixed
-    // release exists. Ours is patch-package -> find-yarn-workspace-root ->
-    // micromatch, which globs the `workspaces` of our own package.json at
-    // install time, so no outside input reaches it. Drop when braces ships a
-    // fix or patch-package sheds the dep.
-    'GHSA-vfj7-8cjw-p6xm': { via: ['patch-package'], why: 'braces, install-time only' },
-};
+const ACCEPTED = {};
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 // npm exits non-zero whenever it reports anything, so the status says nothing.
