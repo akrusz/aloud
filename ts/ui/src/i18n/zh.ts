@@ -472,7 +472,7 @@ export const ZH: Record<string, string> = {
     "Restart Ollama": "重启 Ollama",
     "Resume long sessions from a recap": "用摘要续上较长的冥想",
     "Keep my model when it leaves the shortlist": "模型移出推荐列表时保留我的选择",
-    "Otherwise you move to the default model.": "否则会切换到默认模型。",
+    "Otherwise you move to its newer version, or the default model.": "否则会切换到它的新版本，或默认模型。",
     "Resume session": "继续冥想",
     "Resume your session?": "继续你的冥想？",
     "Resuming…": "恢复中……",

@@ -2248,7 +2248,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <input type="checkbox" id="s-keep-model-off-shortlist"${s.keepModelOffShortlist ? ' checked' : ''}>
                         <span>${t('Keep my model when it leaves the shortlist')}</span>
                     </label>
-                    <span class="form-hint">${t('Otherwise you move to the default model.')}</span>
+                    <span class="form-hint">${t('Otherwise you move to its newer version, or the default model.')}</span>
                 </div>
             </div>
             <div class="form-row">
