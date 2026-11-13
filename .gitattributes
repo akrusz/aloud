@@ -8,3 +8,7 @@
 
 # Binary assets
 *.icns binary
+
+# Vendored crates stay byte-identical to the published tarball: ort-sys's build
+# script reads dist.txt and a CRLF checkout (Windows CI) breaks its hash parse.
+ts/src-tauri/patches/** -text
