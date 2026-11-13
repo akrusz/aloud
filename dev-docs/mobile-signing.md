@@ -116,6 +116,12 @@ one. `--upload` checks the archive against it.
 signed in (it can drop one between uploads): Xcode → Settings → Accounts, add
 it back, rerun the export. The archive is still good.
 
+`error: exportArchive You do not have required contracts to perform an operation`
+means Apple has an agreement waiting, usually a revised Apple Developer Program
+License Agreement. Only the Account Holder can accept it: a banner at
+developer.apple.com/account, and App Store Connect → Business for any others.
+Accept, give it a few minutes, rerun `--upload` with the same archive.
+
 An upload that sits at `Preparing to upload 'App.ipa'…` for more than a minute
 or two is stuck, not slow (a good one took 16 seconds there, 2026-10-11). Xcode
 27's upload helper (`swinfo`) asks `xcrun` for `dwarfdump-classic`, which Xcode
