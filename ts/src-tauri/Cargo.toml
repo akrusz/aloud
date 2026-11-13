@@ -82,3 +82,10 @@ windows-sys = { version = "0.61", features = [
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+# ort-sys rc.12 (pinned by piper-rs 0.2) with one guard added in
+# build/dynamic_link.rs: on Cargo >= 1.100 its Windows DLL copy panics on the new
+# build-dir layout. Delete this and patches/ort-sys once piper-rs depends on
+# ort >= 2.0.0-rc.14, which has the fix.
+[patch.crates-io]
+ort-sys = { path = "patches/ort-sys" }
