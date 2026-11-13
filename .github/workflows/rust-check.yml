@@ -7,20 +7,28 @@ name: Rust check
 # build scripts, hence cmake) but skips codegen/linking and the bundling
 # toolchain (no patchelf/libfuse2 needed). Path-filtered so pure TS pushes
 # don't pay for it; the cargo cache keeps the native deps warm between runs.
+# Windows too: its build scripts take paths Linux never does (ort-sys copies
+# DirectML.dll, the checkout is CRLF), and both broke only at release (2.20.x).
 on:
   push:
     paths:
       - "ts/src-tauri/**"
+      - ".gitattributes"
       - ".github/workflows/rust-check.yml"
   pull_request:
     paths:
       - "ts/src-tauri/**"
+      - ".gitattributes"
       - ".github/workflows/rust-check.yml"
 
 jobs:
   cargo-check:
-    # 24.04 to match tauri-release.yml (WebKitGTK 4.1 packages).
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24.04 to match tauri-release.yml (WebKitGTK 4.1 packages).
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -30,6 +38,7 @@ jobs:
       # whisper-rs / espeak-rs. Bundling-only tools (patchelf, libfuse2)
       # are not needed for `cargo check`.
       - name: Install system dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
