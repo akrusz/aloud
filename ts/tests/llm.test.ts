@@ -132,7 +132,7 @@ describe('AnthropicProvider', () => {
         // family: a point release must work with no code edit.
         // Opus joins them at 5.5, where the disable 400s at every effort.
         for (const model of [
-            'claude-fable-5', 'claude-fable-5-1', 'claude-fable-6', 'claude-mythos-5-1',
+            'claude-fable-5', 'claude-fable-5-1', 'claude-fable-5-2', 'claude-fable-6', 'claude-mythos-5-1',
             'claude-opus-5-5', 'claude-opus-6',
         ]) {
             const body = await bodyFor(model);

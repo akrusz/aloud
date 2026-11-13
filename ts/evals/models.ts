@@ -26,11 +26,18 @@ export interface EvalModel {
 export const ROSTER: EvalModel[] = [
     // --- Shipped: Anthropic -------------------------------------------------
     {
+        id: 'fable-5.2',
+        model: 'claude-fable-5-2',
+        provider: 'anthropic',
+        shipped: true,
+        note: 'Top capability tier at $8/$40 (the curated Fable since Nov 2026; 5.1 moved to the expanded list). Same request surface as 5.1: thinking always on, pinned to effort low. Not yet run through Phase 1/2 here.',
+    },
+    {
         id: 'fable-5.1',
         model: 'claude-fable-5-1',
         provider: 'anthropic',
         shipped: true,
-        note: 'Top capability tier (replaced Fable 5 in the allowlist, Sept 2026). Hypothesis: best at holding the felt-sense arc without rushing [NEXT]. Risk: thinking is always on, turns run long - watch latency.',
+        note: 'The curated Fable from Sept to Nov 2026, now expanded-tier, kept for A/B against 5.2. Hypothesis: best at holding the felt-sense arc without rushing [NEXT]. Risk: thinking is always on, turns run long - watch latency.',
     },
     {
         id: 'fable-5',

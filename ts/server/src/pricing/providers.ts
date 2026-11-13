@@ -134,14 +134,26 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 5 / M, // 5m write, 1.25x input
         cacheCreation1h: 8 / M, // 1h write, 2x input
     },
-    // Fable 5.1: the premium tier above Opus. Same 5m/1h caching as the Opus
-    // family (verified on the metered request shape), but cache READS are only
-    // 0.025x input, the rate that drives $/hr here. Opt-in, not the default:
-    // slow (always reasons) and the priciest. Its tokenizer (~30% more tokens
-    // than 4.6) inflates token COUNTS, not these rates.
+    // Fable 5.2: the premium tier above Opus. Same 5m/1h caching as the Opus
+    // family, but cache READS are only 0.025x input, the rate that drives
+    // $/hr here. Opt-in, not the default: slow (always reasons) and the
+    // priciest. Its tokenizer (~30% more tokens than 4.6) inflates token
+    // COUNTS, not these rates.
+    'anthropic:claude-fable-5-2': {
+        provider: 'anthropic',
+        model: 'claude-fable-5-2',
+        input: 8 / M,
+        output: 40 / M,
+        cacheRead: 0.2 / M,
+        cacheCreation: 10 / M, // 5m write, 1.25x input
+        cacheCreation1h: 16 / M, // 1h write, 2x input
+    },
+    // Fable 5.1, expanded-tier: the premium pick before 5.2, at the older
+    // $10/$50.
     'anthropic:claude-fable-5-1': {
         provider: 'anthropic',
         model: 'claude-fable-5-1',
+        expanded: true,
         input: 10 / M,
         output: 50 / M,
         cacheRead: 0.25 / M,
