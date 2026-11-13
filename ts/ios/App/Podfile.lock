@@ -1,5 +1,4 @@
 PODS:
-  - Alamofire (5.10.2)
   - AppAuth (2.1.0):
     - AppAuth/Core (= 2.1.0)
     - AppAuth/ExternalUserAgent (= 2.1.0)
@@ -12,21 +11,20 @@ PODS:
     - PromisesObjC (~> 2.4)
     - PromisesSwift (~> 2.4)
     - RecaptchaInterop (~> 101.0)
-  - Capacitor (8.5.2):
+  - Capacitor (8.6.0):
     - CapacitorCordova
-  - CapacitorApp (8.1.1):
+  - CapacitorApp (8.1.2):
     - Capacitor
-  - CapacitorBrowser (8.0.4):
+  - CapacitorBrowser (8.0.5):
     - Capacitor
   - CapacitorCommunityKeepAwake (7.1.0):
     - Capacitor
   - CapacitorCommunitySpeechRecognition (7.0.1):
     - Capacitor
-  - CapacitorCordova (8.5.2)
+  - CapacitorCordova (8.6.0)
   - CapacitorPreferences (8.0.1):
     - Capacitor
-  - CapgoCapacitorSocialLogin (8.5.11):
-    - Alamofire (~> 5.10.2)
+  - CapgoCapacitorSocialLogin (8.7.6):
     - Capacitor
     - GoogleSignIn (~> 9.0.0)
   - GoogleSignIn (9.0.0):
@@ -64,7 +62,6 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
-    - Alamofire
     - AppAuth
     - AppCheckCore
     - GoogleSignIn
@@ -94,17 +91,16 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capgo/capacitor-social-login"
 
 SPEC CHECKSUMS:
-  Alamofire: 7193b3b92c74a07f85569e1a6c4f4237291e7496
   AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
   AppCheckCore: 214137f5c378d1dec88a68425c467fe65aaff637
-  Capacitor: 89067779e14fb7ea56af07b4817f45d1f0c2a269
-  CapacitorApp: 305bd13c44f6f9d164e2ee66a4faa956ed8c0e06
-  CapacitorBrowser: 752e0208aa07c7aa63d1f7cde895a3e9519b2656
+  Capacitor: 62cab4ab4ba04ea925576ddd1be188869e90d9ea
+  CapacitorApp: 7b7e43debe505bc61beedb83796aa1368c86078b
+  CapacitorBrowser: f94f92654e92a97981bf346b3681af76527dace0
   CapacitorCommunityKeepAwake: 05c75aab989f60e621870cf03b24a144a5544c30
   CapacitorCommunitySpeechRecognition: 3e03566c44c2bb3b52391a33d4518b1adbdeb38f
-  CapacitorCordova: 5bec5648cbd09a176ce34ce5e7b6cdabb2c8a327
+  CapacitorCordova: 922f0a94dae286165215f0c7cf16fbde662d5ee4
   CapacitorPreferences: cca2021f386efb75947c850334447d9ff22b14f1
-  CapgoCapacitorSocialLogin: 58f18bb66be3dcb5b26ee3795579d74adc512366
+  CapgoCapacitorSocialLogin: 6dcdde6fc6a5d69824da03d9d6e778e548031b3e
   GoogleSignIn: c7f09cfbc85a1abf69187be091997c317cc33b77
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
