@@ -18,6 +18,7 @@ ones, so `npm test`, `npm run typecheck`, `npm run ui:dev`, `npm run web:dev`,
 ```bash
 cd ts && npm run tauri:dev       # desktop shell only
 cd ts && npm run desktop:dev     # desktop shell + Hono server (:8787) together
+scripts/desktop-dev.sh           # desktop:dev from anywhere, after installing if the lockfile moved
 ```
 
 `tauri:dev` starts Vite (UI on **:4649**) + compiles and runs the Rust shell,
@@ -27,7 +28,10 @@ whose embedded backend serves `/app/v1/*` on a loopback port. Hosted features
 unavailable" (expected, harmless). `desktop:dev` runs the shell + Hono in one
 terminal. Both combined launchers (`desktop:dev`, `web:dev`) go through
 `ts/scripts/dev.mjs`: one Ctrl-C stops everything, and either side exiting (e.g.
-closing the Tauri window) tears the other down.
+closing the Tauri window) tears the other down. `scripts/desktop-dev.sh` wraps
+`desktop:dev`: it runs `npm install` first when `package-lock.json` is newer
+than `node_modules`, and starts the shell alone when there is no
+`ts/server/.env` or `:8787` is already taken.
 
 ### Web UI in a browser (Vite)
 
