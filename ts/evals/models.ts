@@ -170,6 +170,20 @@ export const ROSTER: EvalModel[] = [
         note: 'Released 2026-07-21. Direct upgrade path for the gemini-2.5-flash-lite slot.',
     },
     {
+        id: 'gemini-3.8-flash',
+        model: 'gemini-3.8-flash',
+        provider: 'google',
+        shipped: false,
+        note: "Google's recommended replacement for 3.6/3.7 Flash (Nov 2026). $0.75/$3.75 promo to 2026-12-31, then $1.50/$7.50 list (cache read $0.15).",
+    },
+    {
+        id: 'gemini-4-hydrogen',
+        model: 'gemini-4-hydrogen',
+        provider: 'google',
+        shipped: false,
+        note: 'Released 2026-11-12, the fast tier of Gemini 4 at $1.50/$7.50 (cache read $0.075), no promo. Hypothesis: a real Google midrange voice at Sonnet 5.5 money, if the reasoning floor keeps it quick.',
+    },
+    {
         id: 'kimi-k3',
         model: 'moonshotai/kimi-k3',
         provider: 'openrouter',

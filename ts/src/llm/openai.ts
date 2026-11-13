@@ -433,12 +433,18 @@ const GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai
 const GOOGLE_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 
 /** Lowest `reasoning_effort` each Gemini generation takes on the OpenAI-compat
- *  endpoint (probed Oct 2026). 2.x maps 'none' to thinking off. 3.x 400s on
- *  'none' ("Request contains an invalid argument") and bottoms out at
- *  'minimal', which billed no reasoning tokens on 3.5 Flash-Lite. */
+ *  endpoint. 2.x maps 'none' to thinking off. 3.0-3.7 400 on 'none' ("Request
+ *  contains an invalid argument") and bottom out at 'minimal', which billed no
+ *  reasoning tokens on 3.5 Flash-Lite (probed Oct 2026). 3.8 and 4.x flip
+ *  back: they 400 on 'minimal' and take 'none' (probed Nov 2026), which turns
+ *  3.8 Flash's thinking off but still leaves 4 Hydrogen ~150 hidden thinking
+ *  tokens a turn - counted in total_tokens, NOT in completion_tokens. */
 function geminiReasoningFloor(model: string): 'none' | 'minimal' {
-    const gen = /^gemini-(\d+)/.exec(model);
-    return gen && Number(gen[1]) >= 3 ? 'minimal' : 'none';
+    const gen = /^gemini-(\d+)(?:\.(\d+))?/.exec(model);
+    if (!gen) return 'none';
+    const major = Number(gen[1]);
+    const minor = Number(gen[2] ?? 0);
+    return major === 3 && minor < 8 ? 'minimal' : 'none';
 }
 
 /** Google Gemini via its OpenAI-compatible endpoint, direct (no OpenRouter

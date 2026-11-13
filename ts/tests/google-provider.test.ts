@@ -34,12 +34,13 @@ describe('GoogleProvider', () => {
         expect(result.text).toBe('hi');
     });
 
-    it("sends each Gemini generation its own thinking floor: 'none' on 2.x, 'minimal' on 3.x", async () => {
-        // 3.x 400s on 'none', so the wrong floor fails every turn.
+    it("sends each Gemini generation its own thinking floor: 'minimal' on 3.0-3.7, 'none' otherwise", async () => {
+        // Each side 400s on the other's floor, so the wrong one fails every turn.
         for (const [model, floor] of [
             ['gemini-2.5-flash-lite', 'none'],
             ['gemini-3.5-flash-lite', 'minimal'],
-            ['gemini-3.8-flash', 'minimal'],
+            ['gemini-3.8-flash', 'none'],
+            ['gemini-4-hydrogen', 'none'],
         ] as const) {
             const { calls, fetchImpl } = captureFetch();
             await new GoogleProvider({ apiKey: 'k', model, fetchImpl }).complete([{ role: 'user', content: 'hello' }]);
