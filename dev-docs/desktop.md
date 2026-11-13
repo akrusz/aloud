@@ -39,9 +39,13 @@ server. 4649 is aloud's dev port (see `ui/vite.config.ts`).
 The app's own backend (STT/TTS/providers/shell escapes) is served by the **Rust
 shell** in both dev and production. It starts an embedded `axum` server
 (`src-tauri/src/server.rs`) on an ephemeral loopback port and injects its base as
-`window.__ALOUD_API_BASE__` via an `initialization_script`; `appUrl()`
-(`ui/src/app-base.ts`) reads it, so `/app/v1/*` calls hit Rust whether the
-webview is the Vite dev server (`tauri:dev`) or the bundled UI (`tauri:build`).
+`window.__ALOUD_API_BASE__` (with the per-launch `__ALOUD_API_TOKEN__`) via an
+`initialization_script`, skipped on any http(s) page that isn't localhost /
+127.0.0.1 / tauri.localhost, so a remote page that lands in the window (the
+Stripe fallback navigation) gets neither (`lib.rs`; a new dev host means
+adding it there). `appUrl()` (`ui/src/app-base.ts`) reads it, so `/app/v1/*`
+calls hit Rust whether the webview is the Vite dev server (`tauri:dev`) or the
+bundled UI (`tauri:build`).
 Empty means relative paths, which is the browser case: there the Vite proxy
 forwards `/app/v1` and `/cloud/v1` to Hono on :8787. Hosted features
 (`/cloud/v1/*`) always go to aloud cloud, via `cloudUrl()` and the build-time

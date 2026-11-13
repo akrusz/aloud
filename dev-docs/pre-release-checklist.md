@@ -165,6 +165,21 @@ check each of these still reflects reality:
   the inline zh), the `help` sample, the session info panel's list, the
   `voice-command-hints.ts` nudge if it has a by-hand twin, and the command
   examples quoted in README, the site FAQ and the store description.
+- **Added/changed a judge-free command** (`mute-command.ts`, `end-command.ts`,
+  `begin-command.ts`: matched on the device, no judge) → its zh pattern in the
+  same file, the info panel's no-judge Voice commands row (`views/session.ts`)
+  and its zh, the noting circle's listen loop (`views/noting-session.ts`, which
+  takes only these), README's "work everywhere" tip, `voice-commands.md`, and a
+  rerun of `node ts/scripts/voice-loop-check.mjs`.
+- **Changed when the mic listens** (e.g. Start by voice opening it on setup,
+  before a session) → the iOS mic purpose string in `ios/App/App/Info.plist`
+  (`NSMicrophoneUsageDescription`, today "during a session"; quoted in
+  `mobile.md`) and the privacy policy's "Your voice" section.
+- **Added or demoted a hosted model** (`pricing/providers.ts` `MODELS`) → the
+  housekeeping list in that file's header. A curated model of the same line
+  as a demoted or delisted one takes over its saved picks (`lineSuccessor` in
+  `ui/src/model-picker.ts`), so decide `noAutoUpgrade`; any site or store copy
+  naming models; `evals/models.ts`.
 - **Edited any user-facing English string** → see `zh.ts` in Part A. The
   translation is keyed on the English text; changing the text un-translates it.
 - **Changed platform support** (e.g. mobile ships) → the "coming soon" lines on the

@@ -128,6 +128,12 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       full circle, and a saved session with no cloud call. Then add an AI
       participant and confirm the modal **does** appear (`meditation-pal-vr3w`). This is the
       claim the store reviewer note rests on.
+- [ ] **Noting takes "mute" and "end the session".** In a signed-out circle,
+      on your turn: "mute" pauses it like the mic button; "end the session"
+      asks, "no" carries on, and asking again then "yes" ends it. Neither
+      shows up as a note. Scripted headless only so far
+      (`ts/scripts/voice-loop-check.mjs`); on the phone, check the question's
+      echo isn't heard as the answer.
 - [ ] **Sign-in survives a restart.** Sign in, force-stop, reopen - still signed
       in. Then sign out, force-stop, reopen - still signed **out**
       (`meditation-pal-7n22`).

@@ -279,6 +279,10 @@ The Dockerfile is host-agnostic. On Render: a Docker web service, root
 directory `ts`, Dockerfile path `server/Dockerfile`, a persistent disk mounted
 at `/data`, and the same env vars. Any box with Node 22 can also run it
 directly: `cd ts && npm ci && ALOUD_ENV=production ALOUD_DB_PATH=/var/lib/aloud/aloud.db npm run start -w @aloud/server` behind a TLS-terminating reverse proxy.
+Off Fly, set `ALOUD_CLIENT_IP_HEADER` to the header that proxy sets with the
+real client IP ([ts-server.md](ts-server.md) env table); unset, the per-IP
+limits and the stored signup IP read the first `X-Forwarded-For` hop, which the
+client picks behind a proxy that appends to it.
 
 ---
 
@@ -347,7 +351,9 @@ nothing needs baking into the build.
 
 - **Email/password** - always on, zero config. New email accounts get **no free
   credits** until they connect Google or Apple (the anti-farming lever,
-  meditation-pal-116).
+  meditation-pal-116). Their address is also unverified until a Google/Apple
+  login for the same mailbox signs in to them (`auth/identity.ts`
+  `adoptVerifiedEmail`), so gifts and retreat invites sent to it wait until then.
 - **Google** - set `GOOGLE_CLIENT_IDS` (see below). Trusted → connecting unlocks
   the free grant.
 - **Apple** - set `APPLE_CLIENT_IDS`. Trusted, same as Google.
