@@ -11,13 +11,13 @@ import {
 
 describe('llmCostUsd', () => {
     it('prices input, output, and cache-read separately (never summed)', () => {
-        // sonnet 5.5: 2/M in, 10/M out, 0.2/M cache-read
+        // sonnet 5.5: 2/M in, 10/M out, 0.1/M cache-read
         const cost = llmCostUsd('anthropic', 'claude-sonnet-5-5', {
             tokensIn: 1_000_000,
             tokensOut: 1_000_000,
             cacheRead: 1_000_000,
         });
-        expect(cost).toBeCloseTo(2 + 10 + 0.2, 6);
+        expect(cost).toBeCloseTo(2 + 10 + 0.1, 6);
     });
 
     it('prices the 1h cache anchor at 2x and the rest of cache-creation at 5m (1.25x)', () => {

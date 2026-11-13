@@ -224,7 +224,7 @@ const MODELS: Record<string, ModelPricing> = {
         zhExpanded: true, // zh shortlist carries the GPTs instead (see zh flags above)
         input: 2 / M,
         output: 10 / M,
-        cacheRead: 0.2 / M,
+        cacheRead: 0.1 / M, // 0.05x input, not the usual 0.1x (as Opus 5.5)
         cacheCreation: 2.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 4 / M, // 1h write, 2x input
     },
