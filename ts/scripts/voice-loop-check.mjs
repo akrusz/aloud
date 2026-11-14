@@ -35,6 +35,8 @@ const browser = await chromium.launch({
 });
 
 const failures = [];
+/** The page of the scenario under way, for a look at the screen when one throws. */
+let lastPage = null;
 function check(name, ok, detail = '') {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`);
     if (!ok) failures.push(name);
@@ -56,7 +58,7 @@ async function open(settings, setupPatch = {}) {
         provider: 'openai', model: 'gpt-5-nano' });
     merge('preview:setup', ${JSON.stringify(setupPatch)});
     merge('app:settings', Object.assign({ defaultProvider: 'openai', defaultModel: 'gpt-5-nano', sttEngine: 'web-speech',
-        ttsEngine: 'browser', defaultVoice: null, checkinTiming: 'fixed', checkinContent: 'canned', silenceCheckinSec: 600,
+        ttsEngine: 'browser', defaultVoice: 'browser:Samantha', checkinTiming: 'fixed', checkinContent: 'canned', silenceCheckinSec: 600,
         silenceModeEnabled: true, sessionClockMode: 'elapsed', saveSessionLogs: false, autoQuitAfterSilence: false,
         showAllModels: true, enableByok: true, voiceCommandsViaCloud: false }, ${JSON.stringify(settings)}));
     localStorage.setItem(P + 'apikey:openai', 'sk-test-not-real');
@@ -107,6 +109,7 @@ async function open(settings, setupPatch = {}) {
     });
 
     const page = await context.newPage();
+    lastPage = page;
     const until = async (fn, ms = 15_000) => {
         const t0 = Date.now();
         while (Date.now() - t0 < ms) {
@@ -219,8 +222,8 @@ try {
         await s.setup();
         await s.page.mouse.click(5, 300); // one touch, on nothing
         check(
-            'setup listens for "begin"',
-            (await s.until(async () => /Listening for "begin"/.test(await s.status()))) && (await s.until(s.recognizerOpen))
+            'setup listens',
+            (await s.until(async () => /^Listening\./.test(await s.status()))) && (await s.until(s.recognizerOpen))
         );
         await s.say('When does the movie start?');
         await s.page.waitForTimeout(1500);
@@ -231,14 +234,14 @@ try {
         await s.shown(/Would you like to end the session\?/);
         await s.say('Yes.');
         check('ended by voice', await s.until(async () => !(await s.inSession())));
-        check('back on setup and listening, with no touch', await s.until(async () => /Listening for "begin"/.test(await s.status())));
+        check('back on setup and listening, with no touch', await s.until(async () => /^Listening\./.test(await s.status())));
         await s.say('Begin.');
         check('"begin" starts a second session', await s.until(s.inSession));
         await s.say('End the session.');
         await s.until(async () => (await s.asked()) > 0);
         await s.say('Yes.');
         await s.until(async () => !(await s.inSession()));
-        await s.until(async () => /Listening for "begin"/.test(await s.status()));
+        await s.until(async () => /^Listening\./.test(await s.status()));
         await s.page.evaluate(() => document.querySelector('[data-nav="settings"]')?.click());
         check('leaving setup closes the mic', await s.until(async () => !(await s.recognizerOpen()), 5_000));
         await s.context.close();
@@ -249,7 +252,7 @@ try {
         const s = await open({ setupVoice: true, showSessionClock: true });
         await s.setup();
         await s.page.mouse.click(5, 300);
-        await s.until(async () => /Listening for "begin"/.test(await s.status()));
+        await s.until(async () => /^Listening\./.test(await s.status()));
         await s.say('Begin a ten minute felt sense session.');
         check('a request naming a mode and a length starts the session', await s.until(s.inSession));
         const stored = await s.page.evaluate(() => ({
@@ -267,6 +270,81 @@ try {
         await s.shown(/Would you like to end the session\?/);
         await s.say('Yes.');
         check('and it ends by voice like any other', await s.until(async () => !(await s.inSession())));
+        await s.context.close();
+    }
+
+    // ---- the setup, changed by voice ---------------------------------------------
+    {
+        const s = await open({ setupVoice: true });
+        await s.setup();
+        // Past the welcome card's entrance: this touch also has to dismiss it,
+        // since the mic gets tapped below and the card holds the page inert.
+        await s.page.waitForTimeout(800);
+        await s.page.mouse.click(5, 300);
+        await s.until(async () => /^Listening\./.test(await s.status()));
+        const stored = () =>
+            s.page.evaluate(() => ({
+                setup: JSON.parse(localStorage.getItem('aloud:preview:setup') || '{}'),
+                app: JSON.parse(localStorage.getItem('aloud:app:settings') || '{}'),
+            }));
+        const note = () => s.page.evaluate(() => {
+            const el = document.querySelector('#voice-start-note');
+            return el && !el.classList.contains('hidden') ? el.textContent : '';
+        });
+
+        await s.say('Add playful and spacious.');
+        check(
+            'a vibe named out loud is checked',
+            await s.until(async () => {
+                const q = (await stored()).setup.qualities ?? [];
+                return q.includes('playful') && q.includes('spacious');
+            })
+        );
+        check('and its box on the form shows it', await s.page.locator('input[name="quality"][value="playful"]').isChecked());
+        check('and the answer is on screen', /Playful is on\. Spacious is on\./.test(await note()), `(${await note()})`);
+
+        await s.say('Change the vibe to loving.');
+        check(
+            '"change the vibe to" replaces the set',
+            await s.until(async () => JSON.stringify((await stored()).setup.qualities) === '["loving"]')
+        );
+
+        await s.say('Twenty five minutes.');
+        check(
+            'a length sets the timer',
+            await s.until(async () => {
+                const { app } = await stored();
+                return app.sessionClockMode === 'timer' && app.sessionTimerMin === 25;
+            })
+        );
+        check('and the clock button says so', await s.shown(/25 min timer/));
+
+        await s.say('More guidance.');
+        check('"more guidance" moves the slider a stop', await s.until(async () => (await stored()).setup.dirStep === 3));
+
+        await s.say('My intention is to rest.');
+        check('an intention lands in its field', await s.until(async () => (await s.page.locator('#intention').inputValue()) === 'to rest'));
+
+        await s.say('I love playing with my kids.');
+        await s.page.waitForTimeout(1200);
+        check('room talk changes nothing', JSON.stringify((await stored()).setup.qualities) === '["loving"]' && !(await s.inSession()));
+
+        await s.say('Felt sense.');
+        check('a mode by name switches the tab', await s.until(async () => (await stored()).setup.meditationType === 'felt_sense'));
+        check('and the mic is still open for the next request', await s.until(async () => /^Listening\./.test(await s.status())));
+        await s.say('Add playful.');
+        check('a setting from another mode is not applied', await s.until(async () => /part of exploration/.test(await note())), `(${await note()})`);
+        check('and the stored vibes are as they were', JSON.stringify((await stored()).setup.qualities) === '["loving"]');
+
+        await s.say('Stop listening.');
+        check('"stop listening" closes the mic', await s.until(async () => !(await s.recognizerOpen()), 8_000));
+        check('and says it is closed', (await s.status()) === 'Tap to listen', `(${await s.status()})`);
+        await s.page.waitForTimeout(4000);
+        check('and it stays closed until tapped', (await s.status()) === 'Tap to listen' && !(await s.recognizerOpen()));
+        await s.page.locator('#voice-start-mic').click();
+        check('a tap opens it again', await s.until(async () => /^Listening\./.test(await s.status())));
+        await s.say('Begin.');
+        check('and "begin" still begins', await s.until(s.inSession));
         await s.context.close();
     }
 
@@ -302,6 +380,8 @@ try {
 } catch (err) {
     failures.push(`threw: ${err.message}`);
     console.log('ERROR', err.message);
+    const screen = await lastPage?.evaluate(() => document.body.innerText).catch(() => '');
+    if (screen) console.log('ON SCREEN:', screen.replace(/\s+/g, ' ').slice(0, 700));
 }
 
 await browser.close();

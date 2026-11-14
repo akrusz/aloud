@@ -1,0 +1,135 @@
+/**
+ * The few words the setup tour answers to when the microphone is on: next,
+ * back, repeat, close, quiet, and on the step that offers two voices, which
+ * one. Matched on the device like "begin" (begin-command.ts), by the same
+ * rule: the whole utterance has to be the request, so a sentence that happens
+ * to contain "next" moves nothing.
+ *
+ * The tour's buttons do all of this too. Voice is the second way, never the
+ * only one.
+ */
+
+export type TourCommand =
+    | { kind: 'next' }
+    | { kind: 'back' }
+    | { kind: 'repeat' }
+    /** Leave the tour. */
+    | { kind: 'close' }
+    /** Stop speaking the steps; the cards stay. */
+    | { kind: 'quiet' }
+    | { kind: 'speak' }
+    /** The voice step: 0 is the first voice offered, 1 the second. */
+    | { kind: 'voice'; index: number };
+
+const SAID: ReadonlyArray<readonly [TourCommand['kind'], readonly string[]]> = [
+    ['next', ['next', 'next one', 'next step', 'continue', 'go on', 'keep going', 'carry on', 'got it', 'go ahead', 'move on']],
+    ['back', ['back', 'go back', 'previous', 'previous one', 'previous step', 'last one']],
+    ['repeat', ['repeat', 'repeat that', 'again', 'say that again', 'say it again', 'one more time', 'what was that']],
+    ['close', ['skip', 'skip it', 'skip this', 'skip the tour', 'close', 'close this', 'close the tour', 'end the tour', 'stop the tour', 'exit', "that's enough", 'thats enough', "i'm done", 'im done']],
+    ['quiet', ['mute', 'quiet', 'be quiet', 'stop talking', 'no talking', 'silence', 'hush', 'sound off', 'voice off']],
+    ['speak', ['unmute', 'talk to me', 'speak', 'sound on', 'voice on', 'read it to me']],
+];
+
+const SAID_ZH: ReadonlyArray<readonly [TourCommand['kind'], readonly string[]]> = [
+    ['next', ['下一步', '下一个', '继续', '接着说', '往下', '知道了', '明白了']],
+    ['back', ['上一步', '上一个', '返回', '回去', '后退']],
+    ['repeat', ['再说一遍', '再说一次', '重复', '重复一遍', '再来一遍']],
+    ['close', ['跳过', '关闭', '结束导览', '退出', '不看了', '够了']],
+    ['quiet', ['静音', '安静', '别说了', '不要说话', '别说话']],
+    ['speak', ['取消静音', '说吧', '读给我听', '打开声音']],
+];
+
+const POLITE = new Set(['please', 'ok', 'okay', 'hey', 'aloud', 'thanks', 'now', 'yes', 'yeah', 'sure']);
+
+/** A voice on offer at the voice step. */
+export interface OfferedVoice {
+    name: string;
+    gender: string;
+}
+
+const PLACE: Record<string, number> = { first: 0, former: 0, second: 1, latter: 1, two: 1 };
+const GENDER: Record<string, string> = {
+    her: 'female', she: 'female', woman: 'female', female: 'female', lady: 'female', girl: 'female',
+    him: 'male', he: 'male', man: 'male', male: 'male', guy: 'male',
+};
+const PICK_FILLER = new Set([
+    'the', 'a', 'i', "i'd", "i'll", 'id', 'ill', 'like', 'want', 'pick', 'choose', 'take', 'go', 'with', 'one', 'voice',
+    'prefer', 'would', 'have', "let's", 'lets', 'use', 'to', 'hear', 'me', 'give', 'you', 'number',
+]);
+
+function words(utterance: string): string[] {
+    return utterance
+        .toLowerCase()
+        .replace(/[’‘]/g, "'")
+        .replace(/[^a-z0-9' ]+/g, ' ')
+        .split(' ')
+        .filter(Boolean);
+}
+
+/**
+ * Which of the two offered voices an answer names, or null: by name
+ * ("Harper"), by place ("the first one"), or by how it sounds ("the woman",
+ * where the two differ that way). Both at once is no answer.
+ */
+function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number | null {
+    const byGender = (gender: string): number | null => {
+        const matches = voices.flatMap((voice, i) => (voice.gender === gender ? [i] : []));
+        return matches.length === 1 ? matches[0]! : null;
+    };
+    const picked = new Set<number>();
+    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    if (/[㐀-鿿]/.test(zh)) {
+        if (/第一|前一个|前者/.test(zh)) picked.add(0);
+        if (/第二|后一个|后者/.test(zh)) picked.add(1);
+        const female = /女/.test(zh) ? byGender('female') : null;
+        const male = /男/.test(zh) ? byGender('male') : null;
+        if (female !== null) picked.add(female);
+        if (male !== null) picked.add(male);
+        voices.forEach((voice, i) => {
+            if (zh.toLowerCase().includes(voice.name.toLowerCase())) picked.add(i);
+        });
+        return picked.size === 1 ? [...picked][0]! : null;
+    }
+    const said = words(utterance).filter((w) => !POLITE.has(w));
+    if (said.length === 0 || said.length > 8) return null;
+    // "One", "number one": the only way "one" is a pick and not "the first one".
+    if (said.join(' ') === 'one' || said.join(' ') === 'number one') return 0;
+    for (const word of said) {
+        const named = voices.findIndex((voice) => voice.name.toLowerCase() === word);
+        if (named >= 0) picked.add(named);
+        else if (word in PLACE) picked.add(PLACE[word]!);
+        else if (word in GENDER) {
+            const index = byGender(GENDER[word]!);
+            if (index === null) return null;
+            picked.add(index);
+        } else if (!PICK_FILLER.has(word)) return null;
+    }
+    return picked.size === 1 ? [...picked][0]! : null;
+}
+
+/**
+ * What a tour utterance asks for, or null when it is not (only) one of the
+ * tour's words. `voices` are the two on offer while the voice step is up
+ * (first offered first), absent on every other step.
+ */
+export function parseTourCommand(utterance: string, voices?: readonly OfferedVoice[]): TourCommand | null {
+    if (voices && voices.length === 2) {
+        const index = pickedVoice(utterance, voices);
+        if (index !== null) return { kind: 'voice', index };
+    }
+    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '').replace(/^(?:好的?|请)+/u, '').replace(/(?:吧|了)+$/u, '');
+    if (/[㐀-鿿]/.test(zh)) {
+        for (const [kind, phrases] of SAID_ZH) {
+            if (phrases.includes(zh)) return { kind } as TourCommand;
+        }
+        return null;
+    }
+    const said = words(utterance)
+        .filter((w) => !POLITE.has(w))
+        .join(' ');
+    if (!said) return null;
+    for (const [kind, phrases] of SAID) {
+        if (phrases.includes(said)) return { kind } as TourCommand;
+    }
+    return null;
+}

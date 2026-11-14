@@ -14,7 +14,6 @@
  */
 
 import {
-    SETUP_LINES,
     setupLanguage,
     setupLineText,
     type SetupLineId,
@@ -94,6 +93,12 @@ export function clipPlaybackRate(wpm: number, fixedPace: boolean): number {
     return Math.min(1.5, Math.max(0.6, wpm / 160));
 }
 
+/** A line that has not finished by this long after it should have is given up
+ *  on: the listener is waiting on it, and a wedged synthesizer or a stalled
+ *  download must not leave the mic shut. */
+const CLIP_TIMEOUT_MS = 20_000;
+const localTimeoutMs = (text: string): number => 4_000 + text.length * 120;
+
 export interface SetupSpeakerOptions {
     /** The session voice as stored (`aloud:Harper`, `server:...`, `browser:...`). */
     voiceId: () => string | null;
@@ -142,6 +147,9 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
             audio.addEventListener('error', done, { once: true });
             // stop() pauses it; a paused clip is a finished one.
             audio.addEventListener('pause', done, { once: true });
+            setTimeout(() => {
+                if (playing === audio) audio.pause();
+            }, CLIP_TIMEOUT_MS);
             playing = audio;
             audio.play().catch(done);
         });
@@ -150,8 +158,18 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
     async function speakLocally(text: string, voiceId: string | null): Promise<void> {
         try {
             const { engine } = await createTtsForVoice(voiceId, {});
-            cancelLocal = () => void engine.cancel().catch(() => undefined);
-            await engine.speak(text, { rate: opts.rate() });
+            const cancel = (): void => void engine.cancel().catch(() => undefined);
+            cancelLocal = cancel;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            await Promise.race([
+                engine.speak(text, { rate: opts.rate() }),
+                new Promise<void>((resolve) => {
+                    timer = setTimeout(() => {
+                        cancel();
+                        resolve();
+                    }, localTimeoutMs(text));
+                }),
+            ]).finally(() => clearTimeout(timer));
         } catch {
             /* no voice to say it with: the caption stands alone */
         } finally {
@@ -199,6 +217,3 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
         lastSpoken: () => last,
     };
 }
-
-/** Every line id, for a check that the manifest and the lines agree. */
-export const SETUP_LINE_COUNT = Object.keys(SETUP_LINES).length;

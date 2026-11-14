@@ -82,6 +82,8 @@ export {
     setupOutcomeLines,
 } from './setup-lines.js';
 export type { SetupLanguage, SetupLineId, SetupOutcome, SpokenSetupLine } from './setup-lines.js';
+export { parseTourCommand } from './tour-command.js';
+export type { TourCommand, OfferedVoice } from './tour-command.js';
 export {
     CommandPrefetch,
     detectVoiceCommand,

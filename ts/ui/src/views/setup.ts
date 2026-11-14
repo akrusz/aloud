@@ -1207,8 +1207,9 @@ export async function mountSetupView(
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
         if (!actions || !isLiveMount() || beginning) return false;
         const outcomes = applyActions(actions);
-        await answer(outcomes);
+        // Closed before it is said to be: the mic shows off while the line plays.
         if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
+        await answer(outcomes);
         return true;
     }
 

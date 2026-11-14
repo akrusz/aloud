@@ -18,6 +18,8 @@ import {
     LOBBY_STT,
     micPermission,
     voiceStartBlocker,
+    SPEECH_TAIL_MS,
+    VOICE_START_MAX_OPEN_MS,
     VOICE_START_WINDOW_MS,
     type VoiceStartEnd,
 } from '../ui/src/voice-start.js';
@@ -160,7 +162,11 @@ describe('listenOnSetup', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    function run(engine: SttEngine, alive: () => boolean = () => true) {
+    function run(
+        engine: SttEngine,
+        alive: () => boolean = () => true,
+        onHeard?: (text: string) => boolean | Promise<boolean>
+    ) {
         const ends: VoiceStartEnd[] = [];
         const order: string[] = [];
         const requests: BeginRequest[] = [];
@@ -171,6 +177,7 @@ describe('listenOnSetup', () => {
                 requests.push(request);
                 order.push('begin');
             },
+            ...(onHeard ? { onHeard } : {}),
             onEnd: (why) => {
                 ends.push(why);
                 order.push(`end:${why}`);
@@ -264,5 +271,97 @@ describe('listenOnSetup', () => {
         await vi.advanceTimersByTimeAsync(3_000);
         // One empty turn every ~300 ms, not a thousand in a tick.
         expect(engine.starts).toBeLessThan(15);
+    });
+
+    it('hands over what is not "begin", with the recognizer stopped while it is answered', async () => {
+        const engine = scriptedEngine(['add playful', 'begin']);
+        const heard: string[] = [];
+        let startsWhileAnswering = -1;
+        const { ends } = run(engine, () => true, async (text) => {
+            heard.push(text);
+            const before = engine.starts;
+            await new Promise((r) => setTimeout(r, 2_000));
+            startsWhileAnswering = engine.starts - before;
+            return true;
+        });
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(heard).toEqual(['add playful']);
+        expect(engine.starts).toBe(1);
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 50);
+        expect(startsWhileAnswering).toBe(0);
+        expect(ends).toEqual(['begin']);
+    });
+
+    it('never hands "begin" to the settings path', async () => {
+        const engine = scriptedEngine(['begin a noting session']);
+        const heard: string[] = [];
+        run(engine, () => true, (text) => {
+            heard.push(text);
+            return true;
+        });
+        await vi.advanceTimersByTimeAsync(100);
+        expect(heard).toEqual([]);
+    });
+
+    it('stays open while requests keep coming, and closes on the room alone', async () => {
+        const engine = scriptedEngine([]);
+        const { handle, ends } = run(engine);
+        await vi.advanceTimersByTimeAsync(VOICE_START_WINDOW_MS - 5_000);
+        handle.keepOpen();
+        await vi.advanceTimersByTimeAsync(VOICE_START_WINDOW_MS - 5_000);
+        expect(ends).toEqual([]);
+        await vi.advanceTimersByTimeAsync(6_000);
+        expect(ends).toEqual(['window']);
+    });
+
+    it('closes at the ceiling however many requests it has understood', async () => {
+        const engine = scriptedEngine([]);
+        const { handle, ends } = run(engine);
+        for (let t = 0; t < VOICE_START_MAX_OPEN_MS - 30_000; t += 30_000) {
+            await vi.advanceTimersByTimeAsync(30_000);
+            handle.keepOpen();
+        }
+        expect(ends).toEqual([]);
+        await vi.advanceTimersByTimeAsync(31_000);
+        expect(ends).toEqual(['window']);
+    });
+
+    it('hold() stops the recognizer for a line and listens again after its tail', async () => {
+        const engine = scriptedEngine([]);
+        const { handle, ends } = run(engine);
+        await vi.advanceTimersByTimeAsync(100);
+        expect(engine.starts).toBe(1);
+        let done = false;
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 3_000))).then(() => (done = true));
+        await vi.advanceTimersByTimeAsync(2_900);
+        // Stopped, and not started again under the line.
+        expect(engine.stops).toBeGreaterThanOrEqual(1);
+        expect(engine.starts).toBe(1);
+        await vi.advanceTimersByTimeAsync(100 + SPEECH_TAIL_MS + 400);
+        expect(done).toBe(true);
+        expect(engine.starts).toBe(2);
+        expect(ends).toEqual([]);
+    });
+
+    it('a hold over a recognizer that errors when stopped is not a failure', async () => {
+        // Browser recognition reports its own abort as an error.
+        let release: (() => void) | null = null;
+        let starts = 0;
+        const engine: SttEngine = {
+            async *start(): AsyncIterable<SttEvent> {
+                starts++;
+                await new Promise<void>((r) => (release = r));
+                yield { type: 'error', error: new Error('aborted') };
+            },
+            async stop(): Promise<void> {
+                release?.();
+            },
+        } as SttEngine;
+        const { handle, ends } = run(engine);
+        await vi.advanceTimersByTimeAsync(100);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 500)));
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(ends).toEqual([]);
+        expect(starts).toBe(2);
     });
 });
