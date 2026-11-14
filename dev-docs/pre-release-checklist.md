@@ -171,7 +171,20 @@ check each of these still reflects reality:
   and its zh, the noting circle's listen loop (`views/noting-session.ts`, which
   takes only these), README's "work everywhere" tip, `voice-commands.md`, and a
   rerun of `node ts/scripts/voice-loop-check.mjs`.
-- **Changed when the mic listens** (e.g. Start by voice opening it on setup,
+- **Added/changed something sayable on the setup screen** (`setup-command.ts`:
+  a `SetupAction`, a phrase, a `HEARD_AS` entry) → its zh pattern in the same
+  file, `setupVocabulary` (what the recognizers are told to expect; never
+  "begin"), the action in `ui/src/setup-actions.ts` and its outcome's line in
+  `setup-lines.ts`, the Jev asks in `setup-command-specs.ts` and a rerun of
+  `npm run jev:setup`, the read-aloud sheet in `manual-smoke.md`, and a rerun
+  of `node ts/scripts/voice-loop-check.mjs`.
+- **Edited a spoken setup line** (`SETUP_LINES` in `setup-lines.ts`, en or zh)
+  → `npm run clips:render` (it renders only what changed and prices the run
+  first; a line edited without it is silently not played on hosted voices),
+  listen to anything it lists as suspect, commit the new clips with the
+  manifest, and `npm run clips:render -- --check` before a release. The same
+  after changing which voices are flagged `house` in `voice-catalog.ts`.
+- **Changed when the mic listens** (e.g. voice control opening it on setup,
   before a session) → the iOS mic purpose string in `ios/App/App/Info.plist`
   (`NSMicrophoneUsageDescription`, today "to hear what you say", with no
   "when"; quoted in `mobile.md`; the desktop twin is `src-tauri/Info.plist`) and the privacy policy's "Your voice" section.

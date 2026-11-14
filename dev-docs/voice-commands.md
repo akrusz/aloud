@@ -52,19 +52,97 @@ Where there is a judge it still hears everything first. These run after it:
 save/discard variants ("end without saving") and every other command stay
 judge-only.
 
-## Starting by voice (opt-in)
+## Voice on the setup screen
 
-Settings → Advanced → **Start by voice (experimental)**
-(`AppSettings.voiceStart`, off by default). On the setup screen the mic
-listens for "begin" (`parseBeginRequest`, `begin-command.ts`: begin or start,
-optionally the session, and the words people wrap around it) and starts the
-session the Begin button would. The request can name the two choices worth
-making with eyes closed: a mode by its setup-screen name and a length, as in
-"begin a twenty minute felt sense session". The mode is a tab tap; the length
-becomes the session timer the way an in-session "set a timer" does, default
-included. Voice, model and focuses stay whatever they were. With the judge-free "end the session" this
-makes a sitting hands-free after the first touch: begin, speak, end, begin
-again.
+Settings → Language & Speech Recognition → **Voice control on the setup
+screen** (`AppSettings.setupVoice`, on by default). The mic on the setup screen
+hears two kinds of request, and they are held to different standards.
+
+**"Begin"** starts the session the Begin button would (`parseBeginRequest`,
+`begin-command.ts`: begin or start, optionally the session, and the words
+people wrap around it). It can name a mode and a length, as in "begin a twenty
+minute felt sense session". The match is strict and on the device, and nothing
+looser ever reaches it: a wrong Begin is the one costly thing to mishear.
+
+**Changes to the setup** are read by `parseSetupCommand` (`setup-command.ts`)
+into a list of `SetupAction`s:
+
+- a mode by the name on its tab ("noting", "switch to felt sense");
+- a length ("twenty minutes", "half an hour", "no timer");
+- focuses and vibes: a name adds it, "no" / "remove" / "off" takes it away,
+  "change the vibe to" / "only" replaces the set, "clear the vibes" empties it;
+- guidance, by step ("more guidance", "guide me less") or by stop
+  ("balanced", "somewhat directing");
+- response length ("shorter responses", "keep your replies brief");
+- the intention ("my intention is to rest", "clear my intention"), kept in the
+  meditator's own words and case;
+- check-ins on or off (felt sense);
+- "stop listening" / "mute" (closes the mic until tapped), and "what can I
+  say?".
+
+Several can ride one utterance ("felt sense and twenty minutes"). Voice,
+model, provider and speech recognition stay button-only.
+
+The whole utterance has to be the request, as with "begin": one word this
+doesn't know and it is the room talking. Inside that rule the value words are
+matched in three grades:
+
+1. A name the setup screen shows ("Playful.", "Noting.") is a request by
+   itself.
+2. An everyday word that also means one ("light", "kind", "space") counts only
+   beside a word that asks (`ASKING`: add, set, more, no, a target like "vibe"
+   or "mode"). Alone it is what a room says.
+3. A word that only *sounds* like one (`nearestWord`: the same `soundKey` and
+   a small edit distance, so "living" for "loving", "nothing" for "noting")
+   also needs a word that asks. Mishearings a recognizer has actually been
+   seen to write go in `HEARD_AS`, which counts as the phrase itself.
+
+zh is exact-match only (no homophone table).
+
+### What happens to a request
+
+`views/setup.ts` hands the actions to `applySetupActions`
+(`ui/src/setup-actions.ts`), the same layer the form's own click handlers go
+through (`SetupForm`). Each action returns a `SetupOutcome`: what the form now
+says, after clamping and stepping. A setting said under a mode that has no
+such thing (a vibe on the felt sense tab) is not applied, and the outcome says
+whose it is.
+
+`setupOutcomeLines` (`setup-lines.ts`) turns the outcomes into the lines said
+back, and the same words show above Begin for six seconds
+(`#voice-start-note`): the answer for anyone with the sound off, and where a
+mishearing shows. A clear that only made room is not announced; more than
+three lines become one "Okay, all set."
+
+### Who speaks
+
+`ui/src/setup-speech.ts`. Nothing on this screen is synthesized per user on a
+hosted voice:
+
+- **A local session voice** (Piper, `say`, the browser's) says the line
+  itself, exact minutes included. Free, and already the voice of someone
+  signed out.
+- **A hosted session voice** is answered with a pre-rendered clip in a *house
+  voice*: the session voice itself when it is one, else the one picked in the
+  tour (`AppSettings.houseVoice`), else the language's default (the female
+  one). House voices are the catalog entries flagged `house`
+  (`server/src/providers/voice-catalog.ts`): Harper and Ethan for English,
+  Serena and Yunfan for Chinese.
+- Where neither can speak (no clip, a browser tab that won't play without a
+  gesture), the caption is the answer.
+
+Clips are static files under `ui/public/voice-clips/`, listed in
+`ui/src/voice-clips.json` with the text each was rendered from. A line edited
+in `setup-lines.ts` without a re-render is simply not played (`clipFor`
+compares the text), and the hash in the file name makes a re-rendered line a
+new URL. `npm run clips:render` (`server/scripts/render-voice-clips.ts`)
+renders what changed, prices the run first, and checks each clip for the two
+faults these voices have (a short line said twice, a first word cut),
+re-rendering up to four times; `-- --check` lists what is missing or stale.
+Clips play at the speed setting by playback rate with pitch kept, except on a
+styled voice, which ignores the speed setting in a session too.
+
+### The mic
 
 The mic beside the Begin button is the indicator and the switch
 (`#voice-start-mic`, the session's mic icon): lit while it listens, slashed
@@ -73,7 +151,7 @@ the bar keeps its height. Hidden when the setting is off or Begin itself
 can't run.
 
 A mic open before a session exists is held to narrower rules than one inside
-it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
+it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
 
 - **Never prompts by itself.** `micPermission` reads what is already decided:
   `granted` listens at once, `ask` (unknown, or never asked) shows the slashed
@@ -89,17 +167,43 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
     System Settings says (measured 2026-11-13; it does flip to `granted`
     after a capture);
   - the browser's Permissions API. Safari throwing on the descriptor is `ask`.
-- **Two minutes**, then the mic closes (`VOICE_START_WINDOW_MS`) and stays
-  closed until tapped. It also closes the moment the setup screen goes away.
+- **Two minutes with nothing asked**, then the mic closes
+  (`VOICE_START_WINDOW_MS`) and stays closed until tapped. Each request it
+  understands starts the two minutes over, up to ten minutes since it opened
+  (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
+  open past that. It also closes the moment the setup screen goes away.
+- **It does not hear the app.** A request is answered with the recognizer
+  stopped (`onHeard` runs between turns), and a line nobody asked for, like a
+  step of the tour, stops it first (`hold`). Listening resumes
+  `SPEECH_TAIL_MS` after the line. As a backstop, something heard within a few
+  seconds of a line that is nothing but that line's words is dropped
+  (`previewLooksLikeTtsEcho`).
 - **The session's own recognizer, tuned for a few words** (`LOBBY_STT`): the
   turn ends on a 0.7-1.5s pause instead of a session's 3s+, no utterance runs
-  past 10s, and there are no speculative passes. Hosted speech recognition is
-  allowed (it was not until 2026-11-13, when a hosted pick meant the feature
-  silently never ran, which is the default on Safari, Firefox and the mobile
-  facilitated modes). It bills the account by the second sent, and the
-  tuning is the bound: one window is at most two minutes of audio, about a
-  third of a cent, and the word is still matched on the device, not by the
-  judge. The Settings hint says it uses credits.
+  past 10s, and there are no speculative passes.
+- **Told what to expect** (`setupListening` in `LOBBY_STT`, read by
+  `stt-picker.ts`; the words are `setupVocabulary` in `setup-command.ts`).
+  Local Whisper gets them as an initial prompt (the shell's
+  `/app/v1/stt/whisper` takes `prompt`, one decoder state per request so it
+  can't carry over). The phone recognizers get them as phrases
+  (`biasPhrases`: `contextualStrings` on iOS, `EXTRA_BIASING_STRINGS` on
+  Android 13+, in the patched plugin; both compile, neither has run on a
+  phone). Hosted recognition gets a flag and the server builds the prompt
+  itself, below. Chrome's browser recognizer gets nothing: its phrase biasing
+  is on-device only and makes a cloud recognizer fail at start. "Begin" is in
+  none of it, since a prompted word is the one a recognizer writes over
+  noise. A session sends none of it.
+- **Hosted listening here is not billed, inside an allowance.**
+  `POST /cloud/v1/stt?setup=1` (`server/src/routes/stt.ts`) costs nothing
+  while the clip is short (`SETUP_MAX_CLIP_SECONDS`, 15) and the account has
+  setup seconds left that day (`SETUP_STT_SECONDS_PER_DAY`, 600, in
+  `server/src/deps.ts`, with an all-accounts ceiling beside it). Past either
+  it is metered like any session audio, so the flag can't make a session's
+  recognition free; the bound is the server's, not the client's. An account at
+  zero can still say "begin". Usage is recorded with `purpose: 'setup'` and
+  has its own row in the admin panel's cost split ("STT setup listening"),
+  kept out of the session numbers. A server that predates this ignores the
+  flag and bills as before.
 - **A touch only where sound needs one.** A browser tab nobody has interacted
   with can't play sound, so a session begun there would be silent; the mic
   shows slashed until any touch (`pageTouched`). The webviews don't have the
@@ -113,13 +217,30 @@ replaced (`setupMounts` / `isLiveMount` in `views/setup.ts`), and a begin that
 is under way holds the mic closed until it has become a session or been
 turned back (`beginning`). Both were found the hard way: a second listener on
 the next setup screen, and one that reopened for half a second under a
-starting session.
+starting session. A listener rebuilt mid-line (a mode with its own recognizer
+pick) waits for the line to finish (`speaking`).
 
-Opt-in until it has been through real devices: the Android recognizer's
-start/stop chime (now reachable there by a tap on the mic), what local
-Whisper costs in CPU while idle, and whether a session begun with no touch
-since launch speaks in the Tauri and Capacitor webviews
-([manual-smoke.md](manual-smoke.md)).
+### The tour, spoken
+
+The setup tour (`ui/src/tour/index-guide.ts`) is also the voiced onboarding.
+The setup view hands it a `TourVoice`; with one, each step is read out as it
+goes up, a step offers the two house voices (each introduces itself; the pick
+becomes the voice everywhere, the session's included), a step offers to turn
+the microphone on where a tap could, and with it on the tour answers to
+"next", "back", "repeat", "skip", "mute" and a voice's name or place
+(`parseTourCommand`, `tour-command.ts`, the same whole-utterance rule). Every
+one of those is also a button. The speaker on each card stops the reading and
+is remembered. The voice step is skipped for someone whose session voice is a
+local one: the pick is between hosted voices and would move them off it.
+
+### Not verified on a device
+
+Everything above has run through the real UI with a scripted recognizer
+(`voice-loop-check.mjs`) and never with a microphone and a speaker in a room.
+What that leaves is in [manual-smoke.md](manual-smoke.md): that a spoken
+answer is audible and not heard back, the phone recognizers with the phrase
+lists, how a clip sounds on Android once the mic has opened (call stream),
+and what a television does over five minutes.
 
 ## Spoken commands (judge sessions)
 
@@ -208,11 +329,13 @@ info panel's Voice commands row opens the list.
 ## Changing a command
 
 The judge-free matchers have unit tests (`tests/mute-command.test.ts`,
-`end-command.test.ts`, `begin-command.test.ts`), and
+`end-command.test.ts`, `begin-command.test.ts`, `setup-command.test.ts`,
+`tour-command.test.ts`), and
 `node ts/scripts/voice-loop-check.mjs` runs a whole sitting through the real
 web UI with a scripted recognizer and a mocked model (`npm run web:dev` up; no
-mic, no keys). It is the only thing short of a real session that exercises the
-listen loop's dispatch in `views/session.ts`.
+mic, no keys), the setup screen's voice controls included. It is the only
+thing short of a real session that exercises the listen loop's dispatch in
+`views/session.ts`.
 
 `npm run jev:commands` scores every ask (through the gate) against a labelled
 corpus and prints the thinnest margins, then runs the pointing-back cases

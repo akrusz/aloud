@@ -78,19 +78,156 @@ Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
       names the right platform.
 - [ ] **A non-secure origin** (hit the dev server by LAN IP over http) explains
       itself rather than failing silently.
-- [ ] **A sitting with no hands after the first touch.** Settings → Advanced →
-      Start by voice, a BYOK or local provider with voice commands off. On
-      setup the mic beside Begin is lit; say "begin", say a
-      sentence, say "end the session", answer "yes", and it is lit again
-      on setup. Talk about something else on setup and nothing starts. Tap the
-      mic and it goes slashed and stops hearing; tap again and it is back.
-      Leave it two minutes and the mic closes. Scripted in a headless browser
-      so far (`ts/scripts/voice-loop-check.mjs`), never with a real mic: on
-      **desktop** it should be lit from launch with no click (the shell reads
-      the macOS grant), so check that the first session speaks, watch CPU
-      while it listens (local Whisper), and try it once on aloud cloud speech
-      recognition; on **Android** and **iOS** the mic starts slashed, so tap
-      it and listen for the recognizer's chime on every listening turn.
+- [ ] **A sitting with no hands after the first touch.** Voice control on the
+      setup screen is on by default (Settings → Language & Speech
+      Recognition); use a BYOK or local provider with voice commands off. On
+      setup the mic beside Begin is lit; say "begin", say a sentence, say "end
+      the session", answer "yes", and it is lit again on setup. Talk about
+      something else on setup and nothing starts. Tap the mic and it goes
+      slashed and stops hearing; tap again and it is back. Leave it two
+      minutes with nothing asked and the mic closes. On **desktop** it should
+      be lit from launch with no click (the shell reads the macOS grant), so
+      check that the first session speaks, watch CPU while it listens (local
+      Whisper), and try it once on aloud cloud speech recognition; on
+      **Android** and **iOS** the mic starts slashed, so tap it and listen
+      for a recognizer chime on every listening turn.
+
+### Voice on the setup screen
+
+Scripted through the real UI (`node ts/scripts/voice-loop-check.mjs`) and
+never run with a microphone and a speaker in a room. That is what these are
+for. `dev-docs/voice-commands.md` ("Voice on the setup screen") says how it is
+meant to work.
+
+- [ ] **A change is heard, made and said back.** With the mic lit, say "add
+      playful". The Playful box checks, "Playful is on." shows above Begin and
+      is spoken. With a hosted voice the line is a clip in a house voice
+      (Harper unless the tour picked another); with Piper or `say` it is that
+      voice. The mic icon stays lit afterwards.
+- [ ] **It does not hear itself.** Speakers, not headphones, at a normal
+      volume. Say "following", then "balanced", then "noting": each is
+      answered once and nothing fires a second time. Worst case to try: a
+      Bluetooth speaker.
+- [ ] **The sheet below, read aloud**, once per recognizer you care about
+      (local Whisper, aloud cloud, the phone's own). Note what was misheard:
+      what you said and what showed above Begin, or that nothing happened.
+      Those notes are the corpus `npm run jev:setup` and `HEARD_AS` in
+      `setup-command.ts` are waiting for.
+- [ ] **A television or a conversation in the room, five minutes.** Count
+      settings changed and sessions begun. Sessions begun should be zero. The
+      mic should be closed by itself at two minutes if nothing it understood
+      was said.
+- [ ] **Signed out on desktop**, local Whisper and a local voice: all of the
+      above works with no account.
+- [ ] **An account at zero ☁** on aloud cloud speech recognition can still say
+      "begin" (the request only fails later, where a session needs credits).
+- [ ] **Android: how a clip sounds once the mic has opened.** The WebView is
+      in call mode by then, so the clip plays on the call stream. With the
+      phone's speaker, and with Bluetooth headphones.
+- [ ] **Phones: the recognizer still starts** with the phrase list (the
+      patched plugin's `biasPhrases`; compiled, never run). If the setup mic
+      fails on Android 13+ where sessions don't, `adb logcat -s AloudSTT`
+      right after `startListening`.
+- [ ] **The tour, spoken.** A fresh profile, "Show me around". Where the mic
+      is not yet allowed: the first card offers to turn it on and a voice
+      reads it; allow it. The voice card: both voices introduce themselves,
+      say a name (or "the second one"), the pick confirms itself and becomes
+      the Voice on the form. Then "next", "back", "repeat", "mute" by voice,
+      and the speaker on the card by hand. On "Say it out loud", say "twenty
+      minutes". Listen to the two voices' introductions and the picked line
+      for a first word cut short or a line said twice.
+- [ ] **zh**: the same quick pass with the language set to 中文 (Serena and
+      Yunfan; the lines are an unreviewed draft).
+
+**The sheet.** Read each line as its own utterance, with a pause between.
+Lines marked ✗ must do nothing.
+
+Modes and lengths:
+
+    Noting.
+    Switch to felt sense.
+    Let's do exploration.
+    Twenty minutes.
+    Set the timer for ten minutes.
+    Half an hour.
+    An hour and a half.
+    No timer.
+    Felt sense and twenty minutes.
+
+Vibes and focuses (on the Exploration tab):
+
+    Playful.
+    Add spacious.
+    Feeling good.
+    Loving and kind.
+    Remove playful.
+    No loving.
+    Change the vibe to spacious.
+    Only compassionate.
+    Clear the vibes.
+    Body.
+    Focus on emotions.
+    Add parts.
+    Drop the body focus.
+    Change the focus to emotions.
+
+Guidance and responses:
+
+    More guidance.
+    Guide me less.
+    Balanced.
+    Somewhat directing.
+    Following.
+    Shorter responses.
+    Talk less.
+    Keep your replies brief.
+    Longer responses.
+
+Intention, check-ins, the mic:
+
+    My intention is to rest.
+    Set my intention to letting go of the day.
+    Clear my intention.
+    (felt sense tab) I want to sit with the job decision.
+    (felt sense tab) Check-ins off.
+    (felt sense tab) Add playful.            → "That's part of exploration."
+    What can I say?
+    Stop listening.
+
+Beginning:
+
+    Begin.
+    Okay, let's begin.
+    Begin a ten minute noting session.
+
+Must do nothing (✗):
+
+    I love playing with my kids.
+    It started twenty minutes ago.
+    Nothing.
+    Light.
+    We should begin to think about dinner.
+    More.
+    The timer on the oven is broken.
+
+中文:
+
+    标记。
+    切换到体会。
+    二十分钟。
+    不要计时。
+    加上开阔。
+    去掉慈悲。
+    多一点引导。
+    回应简短。
+    我的意图是好好休息。
+    停止聆听。
+    开始。
+    ✗ 今天天气不错。
+
+A longer labelled list, with what each line should come to, is in
+`ts/scripts/setup-voice/phrases.ts`; `ts/scripts/setup-voice/run.ts` plays it
+through `say` and local Whisper.
 
 ## 3. Phone
 

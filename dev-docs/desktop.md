@@ -70,6 +70,10 @@ Endpoints:
   request's `model_size`/`lang` params pick the model file (see first-run notes
   above). Body is raw mono PCM: Int16 with `?format=i16` (what current clients
   send - half the bytes), Float32 otherwise.
+  An optional `prompt` is Whisper's initial prompt for that request only
+  (`stt_prompt`: control characters blanked, the last `MAX_STT_PROMPT_CHARS`
+  kept). The setup screen's listener sends the setup vocabulary there
+  ([voice-commands.md](voice-commands.md)); a session sends none.
 - `/app/v1/stt/whisper/warm` - the session-start probe: GET with the
   session's `model_size`/`lang` proves the route exists (web Hono 404s) and
   starts loading that model during setup, so the first utterance never 503s.
