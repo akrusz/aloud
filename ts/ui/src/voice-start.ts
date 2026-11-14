@@ -47,8 +47,9 @@ export const VOICE_START_WINDOW_MS = 120_000;
 export const VOICE_START_MAX_OPEN_MS = 600_000;
 
 /** After the app has finished speaking, before the recognizer listens again:
- *  room for the last syllable to leave the speaker and the room. */
-export const SPEECH_TAIL_MS = 350;
+ *  room for the last syllable to leave the speaker (a Bluetooth one runs a
+ *  couple of hundred milliseconds behind the page) and the room. */
+export const SPEECH_TAIL_MS = 450;
 
 /**
  * How the recognizer is tuned on the setup screen, in place of a session's

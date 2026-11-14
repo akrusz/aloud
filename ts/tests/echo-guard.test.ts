@@ -103,3 +103,31 @@ describe('previewLooksLikeTtsEcho', () => {
         expect(previewLooksLikeTtsEcho('I notice a warmth in my chest', spoken)).toBe(false);
     });
 });
+
+describe('looksLikeSpokenTail', () => {
+    const line = 'Guidance set to following.';
+    it('catches the end of the line and nothing else of it', async () => {
+        const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
+        expect(looksLikeSpokenTail('following', line)).toBe(true);
+        expect(looksLikeSpokenTail('Set to following.', line)).toBe(true);
+        expect(looksLikeSpokenTail('guidance', line)).toBe(false);
+        expect(looksLikeSpokenTail('guidance set', line)).toBe(false);
+        expect(looksLikeSpokenTail('balanced', line)).toBe(false);
+        expect(looksLikeSpokenTail('', line)).toBe(false);
+    });
+    it('lets a request through that a line happened to mention', async () => {
+        const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
+        const tour = "You can change all of this out loud. Say twenty minutes, and I'll set a timer.";
+        expect(looksLikeSpokenTail('twenty minutes', tour)).toBe(false);
+        expect(looksLikeSpokenTail('set a timer', tour)).toBe(true);
+    });
+    it('takes more than the last few words as the person', async () => {
+        const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
+        expect(looksLikeSpokenTail('Okay the timer is set', 'Okay, the timer is set.')).toBe(false);
+    });
+    it('reads zh by its characters', async () => {
+        const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
+        expect(looksLikeSpokenTail('跟随', '引导设为跟随。')).toBe(true);
+        expect(looksLikeSpokenTail('均衡', '引导设为跟随。')).toBe(false);
+    });
+});

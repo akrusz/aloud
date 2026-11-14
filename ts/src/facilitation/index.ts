@@ -140,7 +140,7 @@ export {
     TIMER_COMPLETION_FALLBACKS,
     type TimerEventOptions,
 } from './session-timer.js';
-export { looksLikeTtsEcho, previewLooksLikeTtsEcho, MIN_ECHO_WORDS } from './echo-guard.js';
+export { looksLikeTtsEcho, previewLooksLikeTtsEcho, looksLikeSpokenTail, MIN_ECHO_WORDS } from './echo-guard.js';
 
 export {
     generateNotingLabel,

@@ -78,7 +78,7 @@ import {
 } from '../voice-start.js';
 import {
     parseSetupCommand,
-    previewLooksLikeTtsEcho,
+    looksLikeSpokenTail,
     setupOutcomeLines,
     type BeginRequest,
     type SetupAction,
@@ -1196,13 +1196,11 @@ export async function mountSetupView(
     /** Something said on this screen that was not "begin". True when it was a
      *  request, which keeps the mic open for the next. */
     async function heardOnSetup(text: string): Promise<boolean> {
-        // The app's own line, come back through the room.
+        // The tail of the app's own line, late out of a slow speaker or
+        // still in the room when the recognizer opened again. Without this
+        // "Guidance set to following." could hear itself ask for "following".
         const spoken = speaker.lastSpoken();
-        if (
-            spoken &&
-            Date.now() - spoken.endedAt < SETUP_ECHO_WINDOW_MS &&
-            previewLooksLikeTtsEcho(text, spoken.text)
-        ) {
+        if (spoken && Date.now() - spoken.endedAt < SETUP_ECHO_WINDOW_MS && looksLikeSpokenTail(text, spoken.text)) {
             return false;
         }
         // The tour's own words ("next", a voice's name) while it is up.
@@ -1992,8 +1990,10 @@ export async function mountSetupView(
 /** How long the line just spoken stays on screen above Begin. */
 const VOICE_NOTE_MS = 6000;
 
-/** After the app speaks, how long something heard may still be its own words. */
-const SETUP_ECHO_WINDOW_MS = 4000;
+/** After the app speaks, how long something heard may still be the end of its
+ *  own line. A recognizer takes a second or so to hand over what it caught as
+ *  it opened; someone answering takes longer than that to be heard out. */
+const SETUP_ECHO_WINDOW_MS = 2500;
 
 const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['exploration', 'exploration-panel'],

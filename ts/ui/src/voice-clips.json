@@ -179,8 +179,8 @@
                     "text": "Vibes set my tone. Playful, spacious, loving, any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "ethan/en/tour-voice-control.791e9952.mp3",
-                    "text": "You can change all of this out loud. Try saying: twenty minutes."
+                    "file": "ethan/en/tour-voice-control.28f76ffa.mp3",
+                    "text": "You can change all of this out loud. Say twenty minutes, and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "ethan/en/tour-voice-picked.cbfc69c6.mp3",
@@ -434,8 +434,8 @@
                     "text": "Vibes set my tone. Playful, spacious, loving, any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "harper/en/tour-voice-control.b40b6f31.mp3",
-                    "text": "You can change all of this out loud. Try saying: twenty minutes."
+                    "file": "harper/en/tour-voice-control.71e7f437.mp3",
+                    "text": "You can change all of this out loud. Say twenty minutes, and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "harper/en/tour-voice-picked.d225b060.mp3",
@@ -689,8 +689,8 @@
                     "text": "氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "serena/zh/tour-voice-control.fb203966.mp3",
-                    "text": "这些都可以直接说出来改。试着说：二十分钟。"
+                    "file": "serena/zh/tour-voice-control.c44da71e.mp3",
+                    "text": "这些都可以直接说出来改。说“二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "serena/zh/tour-voice-picked.44429823.mp3",
@@ -944,8 +944,8 @@
                     "text": "氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "yunfan/zh/tour-voice-control.46e83f12.mp3",
-                    "text": "这些都可以直接说出来改。试着说：二十分钟。"
+                    "file": "yunfan/zh/tour-voice-control.947a7e5c.mp3",
+                    "text": "这些都可以直接说出来改。说“二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "yunfan/zh/tour-voice-picked.84eec0e6.mp3",

@@ -109,3 +109,26 @@ function lcsLength(a: string[], b: string[]): number {
     }
     return prev[b.length]!;
 }
+
+/**
+ * True when `utterance` is nothing but the last words of `spoken`. For a
+ * listener that is shut while the app speaks and opens again just after (the
+ * setup screen, voice-start.ts): all it can catch of a line is its tail, late
+ * out of a slow speaker or still in the room. Short on purpose, so the echo of
+ * "Guidance set to following." can't be taken as a request for "following",
+ * and anything said from the middle of a line, or more than its last few
+ * words, is the person. Same timing gate on the caller.
+ */
+export function looksLikeSpokenTail(utterance: string, spoken: string, maxWords = 4): boolean {
+    if (/[㐀-鿿]/.test(utterance)) {
+        // No word breaks to count: two characters stand in for a word.
+        const compact = (text: string): string => text.replace(/[^㐀-鿿a-z0-9]+/giu, '').toLowerCase();
+        const said = compact(utterance);
+        return said.length <= maxWords * 2 && compact(spoken).endsWith(said);
+    }
+    const u = normalizedWords(utterance);
+    if (u.length === 0 || u.length > maxWords) return false;
+    const s = normalizedWords(spoken);
+    return u.length <= s.length && u.every((word, i) => s[s.length - u.length + i] === word);
+}
+

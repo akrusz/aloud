@@ -5500,6 +5500,19 @@ input[type="range"].preview-range {
     gap: 0.35rem;
 }
 
+/* On a phone the speaker and one more step's dot don't fit beside Back and
+   Next at the dots' full size. */
+@media (max-width: 480px) {
+    .tour-lead ~ .tour-dots {
+        gap: 4px;
+    }
+
+    .tour-lead ~ .tour-dots .tour-dot {
+        width: 6px;
+        height: 6px;
+    }
+}
+
 .tour-sound {
     display: inline-flex;
     align-items: center;
@@ -5531,11 +5544,12 @@ input[type="range"].preview-range {
 
 /* The voice step: the two house voices side by side, each lit while it
    introduces itself and once it is the one chosen. */
-.tour-voices {
+.tour-choices.tour-voices {
     flex-direction: row;
 }
 
 .tour-voices .tour-choice {
+    flex: 1;
     text-align: center;
 }
 

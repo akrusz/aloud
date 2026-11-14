@@ -125,8 +125,10 @@ export const SETUP_LINES = {
         zh: '氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。',
     },
     'tour-voice-control': {
-        en: 'You can change all of this out loud. Try saying: twenty minutes.',
-        zh: '这些都可以直接说出来改。试着说：二十分钟。',
+        // Not ending on the request itself: the tail of a line is what the
+        // microphone could catch as it reopens (echo-guard.ts looksLikeSpokenTail).
+        en: "You can change all of this out loud. Say twenty minutes, and I'll set a timer.",
+        zh: '这些都可以直接说出来改。说“二十分钟”，我就会设好计时。',
     },
     'tour-done': {
         en: "That's everything. Say begin when you're ready.",
