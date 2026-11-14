@@ -52,14 +52,9 @@ type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
  *  voice (either nesting order, even rate 1.05 - measured 2026-08-31, bead
  *  p23f), so a styled voice with a rate is a contradiction - the style IS the
  *  pacing, and its natural pace (~1.5x slower) is the sound these voices were
- *  curated for. The speed slider therefore no-ops on styled voices.
- *
- *  The pace normalization is for English only. Each bias was timed on the
- *  English audition sample, and in Chinese Serena's 1.1 read as a bit fast
- *  to the dev (2026-11-14), so Chinese text is spoken at the voice's own pace. */
-function effectiveRate(resolved: ResolvedVoice, rate: number, text: string): number {
+ *  curated for. The speed slider therefore no-ops on styled voices. */
+function effectiveRate(resolved: ResolvedVoice, rate: number): number {
     if (resolved.style) return 1;
-    if (/[\u3400-\u9FFF]/.test(text)) return rate;
     return rate * (resolved.paceBias ?? 1);
 }
 
@@ -88,7 +83,7 @@ export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | nu
                   synthesizeWithAzure(
                       text,
                       resolved.voiceId,
-                      effectiveRate(resolved, rate, text),
+                      effectiveRate(resolved, rate),
                       key,
                       config.azureSpeechRegion,
                       resolved.style
@@ -99,14 +94,14 @@ export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | nu
         const key = config.inworldApiKey;
         return key
             ? (text, rate) =>
-                  synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate, text), key).then(
+                  synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate), key).then(
                       withLeadSilence
                   )
             : null;
     }
     const key = config.googleTtsApiKey;
     return key
-        ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate, text), key)
+        ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key)
         : null;
 }
 
@@ -121,7 +116,7 @@ export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: numb
     // SSML actually sent (a pace-biased voice carries a prosody wrapper even
     // at slider-neutral rate 1).
     return resolved.provider === 'azure'
-        ? azureBilledChars(text, effectiveRate(resolved, rate, text), resolved.style)
+        ? azureBilledChars(text, effectiveRate(resolved, rate), resolved.style)
         : text.length;
 }
 

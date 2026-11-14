@@ -65,8 +65,7 @@ export interface CuratedVoice {
      *  and DragonHD voices read the audition sample in 19-24s where the norm
      *  is ~13s; these biases close about half that gap (deliberately not all
      *  of it - the unhurried delivery is why they were picked). Tuned by ear,
-     *  not formula. English text only: Chinese is spoken at the voice's own
-     *  pace (routes/tts.effectiveRate).
+     *  not formula.
      *
      *  MUTUALLY EXCLUSIVE with `style`: on MAI-Voice-2 any <prosody> tag
      *  silently reverts express-as to the standard voice (measured
@@ -124,7 +123,9 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
+    // heard it as a bit fast in both languages (2026-11-14).
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium' },
     // Serena's model with a Mandarin persona; the dev heard it in both
     // languages (2026-11-14). No zhNative until a native speaker has listened.
     { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium' },
