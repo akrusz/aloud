@@ -7,7 +7,7 @@ import { judgeRoutes } from '../src/routes/judge.js';
 import { MemoryCreditsStore } from '../src/credits/memory-store.js';
 import { DailyCap } from '../src/quota/freetier.js';
 import type { AuthResponse, JudgeResponse } from '../src/contract.js';
-import { VOICE_COMMAND_IDS } from '@aloud/core/facilitation';
+import { SETUP_GATE_ASK, SETUP_SPECS, VOICE_COMMAND_IDS } from '@aloud/core/facilitation';
 
 // Stub TypeSafe so the route never hits the network; records what was asked.
 let calls: Array<{ auth: string | null; body: any }> = [];
@@ -118,6 +118,27 @@ describe('POST /cloud/v1/judge', () => {
         expect(events).toHaveLength(1);
         expect(events[0]).toMatchObject({ kind: 'llm', provider: 'typesafe', sessionId: 's1', tokensIn: 400, credits: 0 });
         expect(events[0]!.providerCostUsd).toBeCloseTo(400 * 42e-9, 12);
+    });
+
+    it("answers the setup screen's ids and records them as setup, with no session", async () => {
+        const { a, store } = app();
+        const token = await devToken(a);
+        const gate = await post(a, token, { classifier: 'setup-gate', text: 'Make it more spacious.', sessionId: 'stale' });
+        expect(gate.status).toBe(200);
+        expect(Object.keys(((await gate.json()) as JudgeResponse).answers)).toEqual([SETUP_GATE_ASK]);
+        const full = await post(a, token, { classifier: 'setup-command', text: 'Make it more spacious.' });
+        expect(Object.keys(((await full.json()) as JudgeResponse).answers).sort()).toEqual(
+            Object.keys(SETUP_SPECS['setup-command'].asks).sort()
+        );
+        expect(calls[1]!.body.state.situation).toBe(SETUP_SPECS['setup-command'].situation);
+        await post(a, token, { classifier: 'command', text: 'Slow down.', sessionId: 's1' });
+
+        const events = await store.allUsage();
+        expect(events.map((e) => [e.purpose, e.sessionId])).toEqual([
+            ['setup', null],
+            ['setup', null],
+            ['utility', 's1'],
+        ]);
     });
 
     it('requires auth', async () => {

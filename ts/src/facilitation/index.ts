@@ -74,6 +74,18 @@ export type { BeginRequest, BeginMode } from './begin-command.js';
 export { parseSetupCommand, isSetupCommand, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
 export type { SetupAction, SetupFocus } from './setup-command.js';
 export {
+    SETUP_SPECS,
+    SETUP_JUDGE_IDS,
+    SETUP_GATE_ASK,
+    SETUP_GATE_BAR,
+    SETUP_JUDGE_MAX_WORDS,
+    isSetupJudgeId,
+    mightBeSetupRequest,
+    resolveSetupAnswers,
+    judgeSetupCommand,
+} from './setup-command-specs.js';
+export type { SetupJudgeId } from './setup-command-specs.js';
+export {
     SETUP_LINES,
     SETUP_LINE_IDS,
     setupLanguage,

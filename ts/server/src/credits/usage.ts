@@ -31,14 +31,23 @@ export type UsageKind = 'llm' | 'stt' | 'tts';
 export type LlmPurpose = 'facilitation' | 'utility';
 
 /** What a call was for, where its kind doesn't say: an LLM call's LlmPurpose,
- *  or 'setup' on an STT call from the setup screen's listening (routes/stt.ts
- *  setup=1), which happens before any session exists. */
+ *  or 'setup' on a call from the setup screen, which happens before any
+ *  session exists: its listening (STT, routes/stt.ts setup=1) and the judge
+ *  reading what it heard (routes/judge.ts, the setup ids). */
 export type UsagePurpose = LlmPurpose | 'setup';
 
+/** Any call from the setup screen. Never part of a session: clustered by time
+ *  like the rest, a visit to the setup screen would count as one. */
+export function isSetupScreen(e: Pick<UsageEvent, 'purpose'>): boolean {
+    return e.purpose === 'setup';
+}
+
 /** Setup-screen listening: reported on its own line (UsageReport
- *  setupListening) and kept out of every session-level number. */
+ *  setupListening) and kept out of every session-level number. The setup
+ *  screen's judge calls stay in the LLM line with the other Jev calls, split
+ *  out in the model table (ModelAgg.setup). */
 export function isSetupListening(e: Pick<UsageEvent, 'kind' | 'purpose'>): boolean {
-    return e.kind === 'stt' && e.purpose === 'setup';
+    return e.kind === 'stt' && isSetupScreen(e);
 }
 
 export interface UsageEvent {
@@ -51,8 +60,8 @@ export interface UsageEvent {
      *  metered normally. Lets the admin attribute per-retreat spend. */
     passId: string | null;
     /** LLM rows: null on rows from clients that predate the tag
-     *  (facilitationFilter falls back to a per-session guess for those). STT
-     *  rows: 'setup' or null. */
+     *  (facilitationFilter falls back to a per-session guess for those), and
+     *  'setup' on the setup screen's judge calls. STT rows: 'setup' or null. */
     purpose: UsagePurpose | null;
     /** Seconds since epoch. */
     ts: number;
@@ -158,7 +167,8 @@ export interface ModelAgg {
     kind: UsageKind;
     provider: string;
     model: string;
-    /** Setup-screen listening, split from the same model's session STT. */
+    /** From the setup screen (isSetupScreen), split from the same model's
+     *  session use. */
     setup: boolean;
     events: number;
     providerCostUsd: number;
@@ -571,12 +581,13 @@ export function buildUsageReport(
         totalCost += e.providerCostUsd;
         totalCredits += e.credits;
 
-        const key = `${e.kind}:${e.provider}:${e.model}:${isSetup}`;
+        const fromSetup = isSetupScreen(e);
+        const key = `${e.kind}:${e.provider}:${e.model}:${fromSetup}`;
         const m = models.get(key) ?? {
             kind: e.kind,
             provider: e.provider,
             model: e.model,
-            setup: isSetup,
+            setup: fromSetup,
             events: 0,
             providerCostUsd: 0,
             credits: 0,
@@ -636,7 +647,7 @@ export function buildUsageReport(
     setup.costShare = totalCost > 0 ? setup.providerCostUsd / totalCost : 0;
     setup.accounts = setupAccounts.size;
 
-    const allSessions = clusterSessions(inWindow.filter((e) => !isSetupListening(e)));
+    const allSessions = clusterSessions(inWindow.filter((e) => !isSetupScreen(e)));
     // One bar (RealSit) for everything session-level below.
     const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
     const turnsIn = (s: UsageEvent[]): number => s.filter(facilitationFilter(s)).length;
@@ -1015,17 +1026,17 @@ export function buildUsageHistory(
 
     const dayAccounts = new Map<number, Set<string>>();
     const recent = events.filter((e) => e.ts >= firstDay);
-    // Setup-screen listening is spend, but not a session: clustered, a visit
-    // to the setup screen would count as one, and as a daily active account.
-    // Its money lands on the day it happened.
+    // The setup screen is spend, but not a session: clustered, a visit to it
+    // would count as one, and as a daily active account. Its money lands on
+    // the day it happened.
     for (const e of recent) {
-        if (!isSetupListening(e)) continue;
+        if (!isSetupScreen(e)) continue;
         const b = buckets.get(Math.floor(e.ts / DAY_SEC) * DAY_SEC);
         if (!b) continue;
         b.providerCostUsd += e.providerCostUsd;
         b.credits += e.credits;
     }
-    const sessions = clusterSessions(recent.filter((e) => !isSetupListening(e)));
+    const sessions = clusterSessions(recent.filter((e) => !isSetupScreen(e)));
     for (const s of sessions) {
         const day = Math.floor(s[0]!.ts / DAY_SEC) * DAY_SEC;
         const b = buckets.get(day);

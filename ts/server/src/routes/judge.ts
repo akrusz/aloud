@@ -8,12 +8,15 @@
  * Not charged: a silence-classifier call costs the server ~$0.00003 and a command
  * check ~$0.00018 (24 asks, ~4,200 tokens), both under anything the ledger can
  * express, and it stands in for a Haiku classifier call that was charged. Usage
- * is still recorded so the cost report sees the volume. Like llm.ts this sees
- * meditation content: forwarded, never stored or logged.
+ * is still recorded so the cost report sees the volume. The setup screen's ids
+ * (core setup-command-specs.ts) are recorded as purpose 'setup' with no
+ * session: they come before one exists, and credits/usage.ts keeps them out of
+ * session grouping. Like llm.ts this sees meditation content: forwarded, never
+ * stored or logged.
  */
 
 import { Hono } from 'hono';
-import { isJudgeId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
+import { isJudgeId, isSetupJudgeId, judgeQuestions, judgeState } from '@aloud/core/facilitation';
 import type { JudgeRequest, JudgeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -98,7 +101,10 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
             ...(typeof said['meditator'] === 'string' ? { meditator: said['meditator'].slice(-MAX_UTTERANCE_CHARS) } : {}),
         };
 
-        const sessionId = sessionIdOf(body.sessionId);
+        // A client still holding the last session's id would otherwise pin the
+        // setup screen's calls to it.
+        const setup = isSetupJudgeId(body.classifier);
+        const sessionId = setup ? null : sessionIdOf(body.sessionId);
         const t0 = Date.now();
         try {
             const result = await askNouls(
@@ -116,7 +122,7 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
                 provider: 'typesafe',
                 model: result.model,
                 sessionId,
-                purpose: 'utility',
+                purpose: setup ? 'setup' : 'utility',
                 tokensIn: result.inputTokens,
                 providerCostUsd: result.inputTokens * JEV_USD_PER_INPUT_TOKEN,
                 credits: 0,

@@ -464,6 +464,40 @@ describe('buildUsageReport', () => {
         expect(r.setupListening.events).toBe(1);
     });
 
+    it("keeps the setup screen's judge calls out of sessions, in the LLM line, and split in the model table", () => {
+        const session = 'sess-1';
+        const jev = { kind: 'llm' as const, provider: 'typesafe', model: 'jev-1.13.0' };
+        const events = [
+            // On the setup screen: a gate and a full set, no session id.
+            ev({ ...jev, ts: 1000, purpose: 'setup', tokensIn: 760, providerCostUsd: 0.000032 }),
+            ev({ ...jev, ts: 1001, purpose: 'setup', tokensIn: 4700, providerCostUsd: 0.000197 }),
+            // The session: six turns and one in-session judge call.
+            ...Array.from({ length: 6 }, (_, i) =>
+                ev({ sessionId: session, ts: 1100 + i * 120, kind: 'llm', purpose: 'facilitation', providerCostUsd: 0.01, credits: 0.2 })
+            ),
+            ev({ ...jev, sessionId: session, ts: 1150, purpose: 'utility', providerCostUsd: 0.0002 }),
+        ];
+        const r = buildUsageReport(events, 3000, 0, { allSessions: true });
+
+        expect(r.sessions.count).toBe(1);
+        expect(r.setupListening.events).toBe(0);
+        const llm = r.byService.find((s) => s.kind === 'llm')!;
+        expect(llm.events).toBe(9);
+        expect(r.totals.providerCostUsd).toBeCloseTo(0.06 + 0.0002 + 0.000229, 12);
+        const jevRows = r.byModel.filter((m) => m.provider === 'typesafe');
+        expect(jevRows.map((m) => [m.setup, m.events]).sort()).toEqual([
+            [false, 1],
+            [true, 2],
+        ]);
+    });
+
+    it('a setup-screen judge call alone is no session, even with every session counted', () => {
+        const events = [ev({ kind: 'llm', provider: 'typesafe', purpose: 'setup', providerCostUsd: 0.0002 })];
+        const r = buildUsageReport(events, 2000, 0, { allSessions: true });
+        expect(r.sessions.count).toBe(0);
+        expect(r.totals.providerCostUsd).toBeCloseTo(0.0002, 12);
+    });
+
     it('returns zeroed aggregates for an empty window', () => {
         const r = buildUsageReport([], 2000, 1000);
         expect(r.events).toBe(0);
@@ -565,6 +599,17 @@ describe('buildUsageHistory', () => {
         expect(yesterday.events).toBe(1);
         expect(yesterday.providerCostUsd).toBeCloseTo(0.201, 9);
         expect(yesterday.credits).toBeCloseTo(4.02, 9);
+    });
+
+    it('adds setup-screen judge calls to their day as spend, never as a session', () => {
+        const events = [
+            ev({ accountId: 'a2', ts: 99 * DAY + 50, kind: 'llm', provider: 'typesafe', purpose: 'setup', providerCostUsd: 0.0002 }),
+        ];
+        const yesterday = buildUsageHistory(events, NOW, 7).find((b) => b.dayStartTs === 99 * DAY)!;
+        expect(yesterday.sessions).toBe(0);
+        expect(yesterday.accounts).toBe(0);
+        expect(yesterday.events).toBe(0);
+        expect(yesterday.providerCostUsd).toBeCloseTo(0.0002, 12);
     });
 });
 

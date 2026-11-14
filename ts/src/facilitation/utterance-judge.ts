@@ -24,6 +24,7 @@
  */
 
 import { COMMAND_SPECS } from './voice-command-specs.js';
+import { isSetupJudgeId, SETUP_SPECS, type SetupJudgeId } from './setup-command-specs.js';
 
 export type ClassifierId = 'resume' | 'hold-confirm' | 'hold-request';
 
@@ -36,12 +37,15 @@ export function isClassifierId(v: unknown): v is ClassifierId {
 /**
  * Everything /cloud/v1/judge will answer: the three silence classifiers, which
  * have an LLM twin to fall back on, plus the voice-command ones
- * (voice-command.ts), which have none - no judge, no voice commands.
+ * (voice-command.ts), which have none - no judge, no voice commands - and the
+ * setup screen's pair (setup-command-specs.ts).
  */
-export type JudgeId = ClassifierId | 'command' | 'command-gate' | 'end-confirm';
+export type JudgeId = ClassifierId | 'command' | 'command-gate' | 'end-confirm' | SetupJudgeId;
 
 export function isJudgeId(v: unknown): v is JudgeId {
-    return isClassifierId(v) || v === 'command' || v === 'command-gate' || v === 'end-confirm';
+    return (
+        isClassifierId(v) || v === 'command' || v === 'command-gate' || v === 'end-confirm' || isSetupJudgeId(v)
+    );
 }
 
 /** One side of a noul question, in the contrastive shape Jev's guide asks for. */
@@ -250,7 +254,8 @@ export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
 };
 
 export function judgeSpec(id: JudgeId): JudgeSpec {
-    return isClassifierId(id) ? JUDGE_SPECS[id] : COMMAND_SPECS[id];
+    if (isClassifierId(id)) return JUDGE_SPECS[id];
+    return isSetupJudgeId(id) ? SETUP_SPECS[id] : COMMAND_SPECS[id];
 }
 
 /**

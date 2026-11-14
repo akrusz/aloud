@@ -25,6 +25,7 @@
         "zh:review-doc": "tsx scripts/zh-review.ts",
         "jev:ab": "tsx --tsconfig server/tsconfig.json scripts/jev-ab.ts",
         "jev:commands": "tsx --tsconfig server/tsconfig.json scripts/jev-commands.ts",
+        "jev:setup": "tsx --tsconfig server/tsconfig.json scripts/jev-setup.ts",
         "clips:render": "tsx --tsconfig server/tsconfig.json server/scripts/render-voice-clips.ts",
         "stt:replay": "tsx scripts/stt-replay.ts",
         "soak": "tsx soak/run.ts",
