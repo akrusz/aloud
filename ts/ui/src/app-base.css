@@ -6054,7 +6054,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         right: calc(100% + 0.6rem);
     }
     .clouds-help {
-        position: static;
+        /* In flow, but not static: its 44px touch box (::after, the block at
+           the end of this file) needs it as the containing block, or the box
+           fills the whole bar and takes Begin's taps. */
+        position: relative;
+        top: auto;
+        right: auto;
         transform: none;
         grid-column: 3;
         justify-self: center;
