@@ -9,7 +9,8 @@
  * What stands in for what:
  *   - the mic: a scripted SpeechRecognition (the Web Speech engine's own seam),
  *     which hands the app whatever transcript the script says was spoken;
- *   - the voice: speechSynthesis is left alone; lines are read off the transcript;
+ *   - the voice: a silent stand-in for speechSynthesis, and page audio muted (a
+ *     check nobody is meant to hear); lines are read off the transcript;
  *   - the model: the BYOK OpenAI endpoint, answered here ("Model reply N.").
  * The session is BYOK and signed out, so there is no judge: everything a
  * command does below is the judge-free tier (core mute-command.ts,
@@ -31,6 +32,10 @@ const browser = await chromium.launch({
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
         '--autoplay-policy=no-user-gesture-required',
+        // Nobody is meant to hear a check: page audio is muted here, and the
+        // system synthesizer (which this flag does not reach) is stood in for
+        // in the init script.
+        '--mute-audio',
     ],
 });
 
@@ -62,6 +67,20 @@ async function open(settings, setupPatch = {}) {
         silenceModeEnabled: true, sessionClockMode: 'elapsed', saveSessionLogs: false, autoQuitAfterSilence: false,
         showAllModels: true, enableByok: true, voiceCommandsViaCloud: false }, ${JSON.stringify(settings)}));
     localStorage.setItem(P + 'apikey:openai', 'sk-test-not-real');
+
+    // speechSynthesis speaks through the system, past --mute-audio, so it is
+    // stood in for: each utterance "plays" for about as long as it would take
+    // to say, in silence.
+    if (window.speechSynthesis) {
+        window.__quietSpeech = true;
+        let current = null;
+        speechSynthesis.speak = (u) => {
+            const mine = (current = {});
+            setTimeout(() => mine === current && u.onstart && u.onstart(new Event('start')), 30);
+            setTimeout(() => mine === current && u.onend && u.onend(new Event('end')), 30 + Math.min(2500, u.text.length * 55));
+        };
+        speechSynthesis.cancel = () => { current = null; };
+    }
 
     // The scripted recognizer. One instance is "listening" at a time; say()
     // delivers a finished transcript to it, as Chrome would after a pause.
