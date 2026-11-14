@@ -1,0 +1,351 @@
+SETUP-SCREEN SPEECH THROUGH LOCAL WHISPER (synthetic voices)
+Synthetic macOS voices through one recognizer: good for systematic mishearings and the
+prompt's effect, not a measure of accuracy in a real room with a real voice.
+Scored with the parser as of 2026-11-14T12:03:52.899Z.
+
+en: ggml-base.en.bin; voices: Samantha (English (US)), Daniel (English (UK)), Rishi (English (India)), Ava (Premium), Moira (English (Ireland)), Reed (English (US)), Karen, Eddy (English (UK)), Tessa (English (South Africa))
+  scope: core voices clean+noisy on every phrase; every third phrase far (one core voice) and one extra voice clean+noisy
+  prompt: "Exploration, noting, felt sense. Vibes: playful, compassionate, loving, spacious, effortless, feeling good. Focus: body and sensations, emotions, parts. More guidance, less guidance. Shorter responses. My intention is to rest. Check-ins off. Twenty minutes, no timer."
+zh: ggml-base.bin; voices: Tingting (Chinese (China mainland)), Eddy (Chinese (China mainland)), Meijia (Chinese (Taiwan)), Reed (Chinese (China mainland))
+  scope: core voices clean+noisy on every phrase; every third phrase far (one core voice) and one extra voice clean+noisy
+  prompt: "探索，标记，体会，氛围，焦点，身体与感受，情绪，内在部分，轻松有玩心，慈悲，慈爱，开阔，不费力，感觉不错，多一点引导，少一点引导，跟随，均衡，主导，简短，意图，二十分钟，计时器。"
+  NOTE: the app sends no prompt for zh. The prompt-on rows are what the one above did, which is why.
+rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 12 dB SNR);
+       far (highpass=f=120,lowpass=f=3000,aecho=0.8:0.6:29|67|121|188:0.45|0.3|0.2|0.12; speech -36 dBFS, noise at 6 dB SNR)
+
+== 1. Parser on the written phrases (no audio): 0 of 241 not as labelled
+
+== 2. Command phrases: exact / wrong (a different change, or a begin) / missed
+  lang room      n        no prompt: exact  wrong   miss     with prompt: exact  wrong   miss
+  en clean       474              94.3%   0.2%   5.5%                 96.2%   0.2%   3.6%
+  en noisy       474              82.7%   0.6%  16.7%                 88.0%   0.2%  11.8%
+  en far         48               39.6%   0.0%  60.4%                 58.3%   0.0%  41.7%
+  en all         996              86.1%   0.4%  13.5%                 90.5%   0.2%   9.3%
+  zh clean       108              53.7%   0.0%  46.3%                 64.8%   2.8%  32.4%
+  zh noisy       108              47.2%   0.0%  52.8%                 51.9%   3.7%  44.4%
+  zh far         16               18.8%   0.0%  81.3%                 18.8%  12.5%  68.8%
+  zh all         232              48.3%   0.0%  51.7%                 55.6%   3.9%  40.5%
+
+  by request kind (all rooms), exact share: no prompt -> with prompt
+  en: mode 91.7%->97.2%; length 88.6%->90.9%; focus 84.9%->90.5%; vibe 83.1%->89.3%; guidance 82.3%->89.6%; responses 83.3%->82.1%; intention 95.2%->95.2%; checkins 88.1%->92.9%; stop-listening 70.4%->77.8%; help 90.5%->100.0%; begin 91.0%->91.0%; combined 84.5%->91.7%
+  zh: mode 45.5%->63.6%; length 76.7%->66.7%; focus 73.7%->57.9%; vibe 36.6%->48.8%; guidance 21.7%->73.9%; responses 33.3%->40.0%; intention 27.3%->45.5%; checkins 63.6%->63.6%; stop-listening 0.0%->12.5%; help 63.6%->45.5%; begin 73.7%->57.9%; combined 40.9%->54.5%
+  by voice (all rooms), exact share: no prompt -> with prompt
+  en: Samantha (English (US)) 92.7%->95.7% (n=300); Daniel (English (UK)) 84.0%->91.3% (n=300); Rishi (English (India)) 83.7%->87.7% (n=300); Ava (Premium) 93.8%->93.8% (n=16); Moira (English (Ireland)) 87.5%->87.5% (n=16); Reed (English (US)) 62.5%->62.5% (n=16); Karen 100.0%->100.0% (n=16); Eddy (English (UK)) 56.3%->62.5% (n=16); Tessa (English (South Africa)) 81.3%->75.0% (n=16)
+  zh: Tingting (Chinese (China mainland)) 74.0%->82.0% (n=100); Eddy (Chinese (China mainland)) 24.0%->30.0% (n=100); Meijia (Chinese (Taiwan)) 50.0%->75.0% (n=16); Reed (Chinese (China mainland)) 37.5%->31.3% (n=16)
+
+  zh transcript artifacts (command + negative clips): no prompt -> with prompt
+    traditional characters: 162/273 -> 0/273
+    a stray fullwidth digit at the end ("...４"): 0/273 -> 55/273
+    a broken character (U+FFFD): 0/273 -> 6/273
+
+== 3. Clean-transcript failures (Whisper heard the phrase; the parser missed it)
+  3a. the written phrase itself fails: see section 1 (0 command phrases).
+  3b. the phrase passes as written but Whisper's spelling of it fails: 0 transcripts, 0 distinct
+
+== 4. Mishearings the parser misses or gets wrong: 456 transcripts over 116 phrases (plus 0 with no words at all)
+  "慈悲" (zh) 12/14 misheard-and-failed; want compassionate on
+        2x "拜拜~" -> nothing  [clean/noisy, 0/2 with prompt]
+        1x "詞:碧。" -> nothing  [clean, 0/1 with prompt]
+        1x "師傅" -> nothing  [noisy, 0/1 with prompt]
+        1x "左面" -> nothing  [clean, 0/1 with prompt]
+        1x "收音咧" -> nothing  [noisy, 0/1 with prompt]
+        1x "準備" -> nothing  [far, 0/1 with prompt]
+      ... 5 more
+  "跟随" (zh) 11/14 misheard-and-failed; want guidance 0
+        2x "乾水" -> nothing  [clean/noisy, 0/2 with prompt]
+        2x "，均衡，" -> WRONG: guidance 2  [noisy/far, 2/2 with prompt]
+        1x "乾脆" -> nothing  [clean, 0/1 with prompt]
+        1x "乾脆!" -> nothing  [noisy, 0/1 with prompt]
+        1x "再次回来" -> nothing  [far, 0/1 with prompt]
+        1x "跟水" -> nothing  [clean, 0/1 with prompt]
+      ... 3 more
+  "说少一点" (zh) 11/14 misheard-and-failed; want verbosity down
+        2x "说小意思啊!" -> nothing  [clean, 0/2 with prompt]
+        2x "说小意思啊。" -> nothing  [clean, 2/2 with prompt]
+        1x "縮少一點。" -> nothing  [clean, 0/1 with prompt]
+        1x "希望小一点儿!" -> nothing  [noisy, 0/1 with prompt]
+        1x "修小一样" -> nothing  [far, 0/1 with prompt]
+        1x "说小意思呀!" -> nothing  [noisy, 0/1 with prompt]
+      ... 3 more
+  "talk less" (en) 10/18 misheard-and-failed; want verbosity down
+        3x "Topless." -> nothing  [noisy/clean, 2/3 with prompt]
+        1x "So bless." -> nothing  [noisy, 0/1 with prompt]
+        1x ".less." -> nothing  [clean, 0/1 with prompt]
+        1x "Talk later." -> nothing  [far, 0/1 with prompt]
+        1x "tortless" -> nothing  [noisy, 0/1 with prompt]
+        1x "Tall glass." -> nothing  [noisy, 1/1 with prompt]
+      ... 2 more
+  "mute" (en) 10/18 misheard-and-failed; want stop-listening
+        2x "Mmm." -> nothing  [far, 1/2 with prompt]
+        2x "News." -> nothing  [clean, 1/2 with prompt]
+        2x "New it." -> nothing  [noisy, 1/2 with prompt]
+        1x "Mew." -> nothing  [noisy, 0/1 with prompt]
+        1x "You" -> nothing  [noisy, 0/1 with prompt]
+        1x "New." -> nothing  [noisy, 1/1 with prompt]
+      ... 1 more
+  "去掉所有氛围" (zh) 10/14 misheard-and-failed; want clear quality
+        1x "去之後有關為" -> nothing  [clean, 0/1 with prompt]
+        1x "雪之要說有關回" -> nothing  [noisy, 0/1 with prompt]
+        1x "順利入多久的圍" -> nothing  [far, 0/1 with prompt]
+        1x "確定要說有分為" -> nothing  [clean, 0/1 with prompt]
+        1x "雪之要說有關沒" -> nothing  [noisy, 0/1 with prompt]
+        1x "取得要说有分为，" -> nothing  [clean, 1/1 with prompt]
+      ... 4 more
+  "多一点引导，回应简短一点" (zh) 10/14 misheard-and-failed; want guidance up, verbosity low
+        1x "多一点音道,回忆坚断一点" -> nothing  [clean, 0/1 with prompt]
+        1x "多一点点稿,回应先转力点。" -> nothing  [noisy, 0/1 with prompt]
+        1x "注意點別高,回眻短力量。" -> nothing  [far, 0/1 with prompt]
+        1x "多一点音道,回忆坚断一点。" -> nothing  [clean, 0/1 with prompt]
+        1x "多一点灵魂,回应先转一点" -> nothing  [noisy, 0/1 with prompt]
+        1x "多一点引导，回尾尖短一点，" -> nothing  [clean, 1/1 with prompt]
+      ... 4 more
+  "切换到体会" (zh) 9/14 misheard-and-failed; want mode felt_sense
+        1x "切換到底會" -> nothing  [clean, 0/1 with prompt]
+        1x "貼換掉體會" -> nothing  [noisy, 0/1 with prompt]
+        1x "也萬不定會" -> nothing  [far, 0/1 with prompt]
+        1x "別換個機會" -> nothing  [noisy, 0/1 with prompt]
+        1x "先患，体会，" -> nothing  [clean, 1/1 with prompt]
+        1x "便欢迎教体会，" -> nothing  [noisy, 1/1 with prompt]
+      ... 3 more
+  "不费力" (zh) 9/14 misheard-and-failed; want effortless on
+        1x "不妃离。" -> nothing  [clean, 0/1 with prompt]
+        1x "很肥膩" -> nothing  [noisy, 0/1 with prompt]
+        1x "不便宜!" -> nothing  [clean, 0/1 with prompt]
+        1x "沒被逼" -> nothing  [noisy, 0/1 with prompt]
+        1x "好美" -> nothing  [far, 0/1 with prompt]
+        1x "補廢力" -> nothing  [clean, 0/1 with prompt]
+      ... 3 more
+  "我的意图是放松" (zh) 9/14 misheard-and-failed; want intention "放松"
+        2x "我的衣服是放鬆" -> nothing  [noisy, 0/2 with prompt]
+        1x "我這意圖寫法說" -> nothing  [clean, 0/1 with prompt]
+        1x "我就一圖寫放鬆" -> nothing  [noisy, 0/1 with prompt]
+        1x "做的一圖是放鬆" -> nothing  [far, 0/1 with prompt]
+        1x "我的衣服是放松，" -> nothing  [noisy, 1/1 with prompt]
+        1x "我个意图写法说Ｇ" -> nothing  [clean, 1/1 with prompt]
+      ... 2 more
+  "an hour" (en) 8/12 misheard-and-failed; want length 60
+        2x "Anah." -> nothing  [clean, 1/2 with prompt]
+        1x "I know" -> nothing  [noisy, 0/1 with prompt]
+        1x "and our." -> nothing  [clean, 0/1 with prompt]
+        1x "and are we?" -> nothing  [noisy, 0/1 with prompt]
+        1x "I know." -> nothing  [noisy, 1/1 with prompt]
+        1x "And other." -> nothing  [clean, 1/1 with prompt]
+      ... 1 more
+  "a spacious vibe" (en) 8/18 misheard-and-failed; want spacious on
+        2x "A spacious life." -> nothing  [noisy, 1/2 with prompt]
+        1x "Aspacious 5." -> nothing  [noisy, 0/1 with prompt]
+        1x "A spacious vine." -> nothing  [noisy, 0/1 with prompt]
+        1x "Aspacious vide." -> nothing  [clean, 0/1 with prompt]
+        1x "are spacious by you." -> nothing  [far, 0/1 with prompt]
+        1x "Oskatius 5." -> nothing  [noisy, 1/1 with prompt]
+      ... 1 more
+  "停止聆听" (zh) 8/8 misheard-and-failed; want stop-listening
+        1x "停止零停" -> nothing  [clean, 0/1 with prompt]
+        1x "聽著臨聽" -> nothing  [noisy, 0/1 with prompt]
+        1x "( 調配 調配 )" -> nothing  [clean, 0/1 with prompt]
+        1x "先回林林" -> nothing  [noisy, 0/1 with prompt]
+        1x "听指零听，" -> nothing  [clean, 1/1 with prompt]
+        1x "听着聆听，" -> nothing  [noisy, 1/1 with prompt]
+      ... 2 more
+  "帮助" (zh) 8/14 misheard-and-failed; want help
+        2x "方主，" -> nothing  [noisy, 2/2 with prompt]
+        1x "拜託!" -> nothing  [clean, 0/1 with prompt]
+        1x "馬克多" -> nothing  [noisy, 0/1 with prompt]
+        1x "放屋" -> nothing  [far, 0/1 with prompt]
+        1x "拜托，" -> nothing  [clean, 1/1 with prompt]
+        1x "马克多，" -> nothing  [noisy, 1/1 with prompt]
+      ... 1 more
+  "开始二十分钟的体会冥想" (zh) 8/8 misheard-and-failed; want begin felt_sense 20m
+        2x "开始二十分钟，计会影响。" -> nothing  [clean/noisy, 2/2 with prompt]
+        1x "開始20分鐘的體會名詳。" -> nothing  [clean, 0/1 with prompt]
+        1x "開始20分鐘的體會名詳" -> nothing  [noisy, 0/1 with prompt]
+        1x "開始20分鐘再提會影響" -> nothing  [clean, 0/1 with prompt]
+        1x "開始20分鐘的機會影響" -> nothing  [noisy, 0/1 with prompt]
+        1x "开始二十分钟的体会名响。" -> nothing  [clean, 1/1 with prompt]
+      ... 1 more
+  "静音" (zh) 7/8 misheard-and-failed; want stop-listening
+        1x "请音" -> nothing  [clean, 0/1 with prompt]
+        1x "今天" -> nothing  [noisy, 0/1 with prompt]
+        1x "许离" -> nothing  [clean, 0/1 with prompt]
+        1x "見面" -> nothing  [noisy, 0/1 with prompt]
+        1x "请因，" -> nothing  [clean, 1/1 with prompt]
+        1x "请热。" -> nothing  [clean, 1/1 with prompt]
+      ... 1 more
+  "体会和二十分钟" (zh) 7/14 misheard-and-failed; want mode felt_sense, length 20
+        2x "體會害20分鐘" -> nothing  [clean/noisy, 0/2 with prompt]
+        1x "提会合20分钟" -> nothing  [clean, 0/1 with prompt]
+        1x "體會從20分鐘" -> nothing  [noisy, 0/1 with prompt]
+        1x "他會從二十分鐘" -> nothing  [far, 0/1 with prompt]
+        1x "计位４二十分钟，" -> nothing  [far, 1/1 with prompt]
+        1x "体会害二十分钟４" -> nothing  [clean, 1/1 with prompt]
+  "one hour" (en) 6/18 misheard-and-failed; want length 60
+        2x "Wonder." -> nothing  [far, 1/2 with prompt]
+        1x "Wanna" -> nothing  [clean, 0/1 with prompt]
+        1x "Wanna..." -> nothing  [noisy, 0/1 with prompt]
+        1x "One other." -> nothing  [noisy, 0/1 with prompt]
+        1x "Wanna." -> nothing  [clean, 1/1 with prompt]
+  "parts" (en) 6/12 misheard-and-failed; want inner_parts on
+        2x "Pops." -> nothing  [noisy, 1/2 with prompt]
+        1x "Paraps" -> nothing  [clean, 0/1 with prompt]
+        1x "Bye!" -> nothing  [noisy, 0/1 with prompt]
+        1x "Perhaps." -> nothing  [clean, 1/1 with prompt]
+        1x "Pockets." -> nothing  [noisy, 1/1 with prompt]
+  "uncheck parts" (en) 6/12 misheard-and-failed; want inner_parts off
+        1x "on check cards." -> nothing  [noisy, 0/1 with prompt]
+        1x "uncheck pass" -> nothing  [noisy, 0/1 with prompt]
+        1x "unjacked parts" -> nothing  [clean, 0/1 with prompt]
+        1x "On check cards." -> nothing  [noisy, 1/1 with prompt]
+        1x "Uncheck paths." -> nothing  [noisy, 1/1 with prompt]
+        1x "Project parts." -> nothing  [clean, 1/1 with prompt]
+  "playful" (en) 6/18 misheard-and-failed; want playful on
+        2x "Maple." -> nothing  [clean/noisy, 2/2 with prompt]
+        1x "leafle." -> nothing  [noisy, 0/1 with prompt]
+        1x "navel." -> nothing  [clean, 0/1 with prompt]
+        1x "Naples." -> nothing  [noisy, 0/1 with prompt]
+        1x "Play full." -> nothing  [noisy, 1/1 with prompt]
+  "playful and spacious" (en) 6/18 misheard-and-failed; want playful on, spacious on
+        2x "Maple and spacious." -> nothing  [noisy, 1/2 with prompt]
+        1x "lethal and spacious." -> nothing  [noisy, 0/1 with prompt]
+        1x "Playful and space shuttle." -> nothing  [far, 0/1 with prompt]
+        1x "Lethal and spacious." -> nothing  [noisy, 1/1 with prompt]
+        1x "Faithful and spacious." -> nothing  [clean, 1/1 with prompt]
+  "set the vibe to playful and loving" (en) 6/18 misheard-and-failed; want clear quality, playful on, loving on
+        3x "Sit the vibe to playful and loving." -> nothing  [noisy/clean, 2/3 with prompt]
+        1x "Check the "Bye, Too Playful and Vlogging"" -> nothing  [far, 0/1 with prompt]
+        1x "Sit the vibe to playful and loving" -> nothing  [clean, 0/1 with prompt]
+        1x "Check the Vi-to-playful and loving." -> nothing  [far, 1/1 with prompt]
+  "lead more" (en) 6/12 misheard-and-failed; want guidance up
+        2x "Let more." -> nothing  [noisy, 1/2 with prompt]
+        1x "Ledmore." -> nothing  [clean, 0/1 with prompt]
+        1x "Leave more." -> nothing  [noisy, 0/1 with prompt]
+        1x "Led more." -> nothing  [clean, 1/1 with prompt]
+        1x "Lead mode." -> nothing  [noisy, 1/1 with prompt]
+  "say less" (en) 6/12 misheard-and-failed; want verbosity down
+        1x "St. Les." -> nothing  [noisy, 0/1 with prompt]
+        1x "See this." -> nothing  [clean, 0/1 with prompt]
+        1x "See you next time!" -> nothing  [noisy, 0/1 with prompt]
+        1x "Stay less." -> nothing  [noisy, 1/1 with prompt]
+        1x "See-less" -> nothing  [clean, 1/1 with prompt]
+        1x "See you." -> nothing  [noisy, 1/1 with prompt]
+  "begin" (en) 6/18 misheard-and-failed; want begin
+        4x "The game." -> nothing  [noisy/far, 2/4 with prompt]
+        1x "again." -> nothing  [noisy, 0/1 with prompt]
+        1x "Again." -> nothing  [noisy, 1/1 with prompt]
+  "均衡" (zh) 6/8 misheard-and-failed; want guidance 2
+        1x "君恒。" -> nothing  [clean, 0/1 with prompt]
+        1x "金康" -> nothing  [noisy, 0/1 with prompt]
+        1x "請客" -> nothing  [clean, 0/1 with prompt]
+        1x "見 for a long time!" -> nothing  [noisy, 0/1 with prompt]
+        1x "请扣，" -> nothing  [clean, 1/1 with prompt]
+        1x "请计时行为，" -> nothing  [noisy, 1/1 with prompt]
+  "问候我" (zh) 6/14 misheard-and-failed; want checkins on
+        2x "文化我。" -> nothing  [clean, 0/2 with prompt]
+        1x "為人保護我" -> nothing  [far, 0/1 with prompt]
+        1x "文库，" -> nothing  [clean, 1/1 with prompt]
+        1x "稳赴我，" -> nothing  [noisy, 1/1 with prompt]
+        1x "为了保护，" -> nothing  [far, 1/1 with prompt]
+  "add parts work" (en) 5/18 misheard-and-failed; want inner_parts on
+        2x "Add hard work." -> nothing  [far, 1/2 with prompt]
+        1x "and parts worked." -> nothing  [noisy, 0/1 with prompt]
+        1x "and Bart's work." -> nothing  [noisy, 0/1 with prompt]
+        1x "And parts worked." -> nothing  [noisy, 1/1 with prompt]
+  "guide me more" (en) 5/12 misheard-and-failed; want guidance up
+        3x "Diet me more." -> nothing  [noisy/clean, 2/3 with prompt]
+        1x "Give me more." -> nothing  [noisy, 0/1 with prompt]
+        1x "Diet Me More." -> nothing  [clean, 0/1 with prompt]
+  "felt sense and twenty minutes" (en) 5/12 misheard-and-failed; want mode felt_sense, length 20
+        1x "Health sense in 20 minutes" -> nothing  [noisy, 0/1 with prompt]
+        1x "Feldsensen 20 minutes." -> nothing  [clean, 0/1 with prompt]
+        1x "Felt sends them 20 minutes." -> nothing  [noisy, 0/1 with prompt]
+        1x "Fill since and 20 minutes." -> nothing  [clean, 0/1 with prompt]
+        1x "12 cents and 20 minutes." -> nothing  [noisy, 0/1 with prompt]
+  "playful, loving and feeling good" (en) 5/18 misheard-and-failed; want playful on, loving on, feeling_good on
+        2x "Play for loving and feeling good." -> nothing  [noisy, 1/2 with prompt]
+        1x "We are loving and feeling good." -> nothing  [far, 0/1 with prompt]
+        1x "Vlifer, loving and feeling good." -> nothing  [far, 1/1 with prompt]
+        1x "Plaiful, loving and feeling good." -> nothing  [noisy, 1/1 with prompt]
+  "半小时" (zh) 5/14 misheard-and-failed; want length 30
+        1x "半小學" -> nothing  [noisy, 0/1 with prompt]
+        1x "再表示" -> nothing  [far, 0/1 with prompt]
+        1x "慢小時" -> nothing  [noisy, 0/1 with prompt]
+        1x "再表现，" -> nothing  [far, 1/1 with prompt]
+        1x "犯小时４" -> nothing  [noisy, 1/1 with prompt]
+  "加上慈爱" (zh) 5/8 misheard-and-failed; want loving on
+        1x "接下來請問" -> nothing  [clean, 0/1 with prompt]
+        1x "接下來就來!" -> nothing  [noisy, 0/1 with prompt]
+        1x "将上此爱，" -> nothing  [noisy, 1/1 with prompt]
+        1x "接下来词位４" -> nothing  [clean, 1/1 with prompt]
+        1x "接下来，相识的。" -> nothing  [noisy, 1/1 with prompt]
+  "清除意图" (zh) 5/8 misheard-and-failed; want intention ""
+        1x "清楚一壶?" -> nothing  [noisy, 0/1 with prompt]
+        1x "去這裡做" -> nothing  [clean, 0/1 with prompt]
+        1x "先注意多" -> nothing  [noisy, 0/1 with prompt]
+        1x "剧绿图，" -> nothing  [clean, 1/1 with prompt]
+        1x "先处理。" -> nothing  [noisy, 1/1 with prompt]
+  "an hour and a half" (en) 4/12 misheard-and-failed; want length 90
+        2x "and over and a half." -> nothing  [clean/noisy, 0/2 with prompt]
+        1x "And I will end a half." -> nothing  [clean, 1/1 with prompt]
+        1x "And over and a half." -> nothing  [noisy, 1/1 with prompt]
+  "two hours" (en) 4/18 misheard-and-failed; want length 120
+        1x "Too others." -> nothing  [noisy, 0/1 with prompt]
+        1x "Come on baby." -> nothing  [far, 0/1 with prompt]
+        1x "Two others." -> nothing  [noisy, 1/1 with prompt]
+        1x "Come on, baby." -> nothing  [far, 1/1 with prompt]
+  "change the focus to parts" (en) 4/18 misheard-and-failed; want clear focus, inner_parts on
+        2x "Change the focus two parts." -> nothing  [clean, 1/2 with prompt]
+        2x "Change the focus to balance." -> nothing  [far, 1/2 with prompt]
+  "turn up the guidance" (en) 4/12 misheard-and-failed; want guidance up
+        4x "Turn off the guidance." -> nothing  [noisy, 2/4 with prompt]
+  "talk more" (en) 4/12 misheard-and-failed; want verbosity up
+        2x "Don't move." -> nothing  [noisy, 1/2 with prompt]
+        1x "TOT MORE." -> nothing  [noisy, 1/1 with prompt]
+        1x "Two more." -> nothing  [noisy, 1/1 with prompt]
+  "fewer words" (en) 4/18 misheard-and-failed; want verbosity down
+        2x "You are words." -> nothing  [noisy, 1/2 with prompt]
+        1x "You were mine." -> nothing  [far, 0/1 with prompt]
+        1x "Few in one." -> nothing  [far, 1/1 with prompt]
+  "check in on me if I'm quiet" (en) 4/12 misheard-and-failed; want checkins on
+        4x "Check in on me if I'm cloud." -> nothing  [clean/noisy, 2/4 with prompt]
+  "turn off the mic" (en) 4/12 misheard-and-failed; want stop-listening
+        1x "Turn off the mite." -> nothing  [noisy, 0/1 with prompt]
+        1x "turn off the motor." -> nothing  [noisy, 0/1 with prompt]
+        1x "Turn off the meat." -> nothing  [noisy, 0/1 with prompt]
+        1x "Turn off the motor." -> nothing  [noisy, 1/1 with prompt]
+  "noting for ten minutes" (en) 4/18 misheard-and-failed; want mode noting, length 10
+        1x "Load it for 10 minutes." -> nothing  [clean, 0/1 with prompt]
+        1x "voting for 10 minutes." -> nothing  [noisy, 0/1 with prompt]
+        1x "Loading for ten minutes." -> nothing  [clean, 1/1 with prompt]
+        1x "Voting for ten minutes." -> nothing  [noisy, 1/1 with prompt]
+  "探索" (zh) 4/14 misheard-and-failed; want mode exploration
+        1x "謝謝我" -> nothing  [clean, 0/1 with prompt]
+        1x "看起來了" -> nothing  [noisy, 0/1 with prompt]
+        1x "太多了" -> nothing  [far, 0/1 with prompt]
+        1x "太爽" -> nothing  [noisy, 0/1 with prompt]
+  ... 71 more phrases in results/summary.json
+
+== 5. False triggers
+  set                                  lang  prompt  n     setup   begin
+  negative phrases (room/TV talk)      en    off     309   0       0
+  negative phrases (room/TV talk)      en    on      309   0       0
+  negative phrases (room/TV talk)      zh    off     41    0       0
+  negative phrases (room/TV talk)      zh    on      41    0       0
+  noise only (10 s clips)              en    off     16    0       0
+  noise only (10 s clips)              en    on      16    0       0
+  noise only (10 s clips)              zh    off     16    0       0
+  noise only (10 s clips)              zh    on      16    0       0
+  prose under noise (3-10 s pieces)    en    off     45    0       0
+  prose under noise (3-10 s pieces)    en    on      45    0       0
+  prose under noise (3-10 s pieces)    zh    off     12    0       0
+  prose under noise (3-10 s pieces)    zh    on      12    0       0
+
+  Every false "begin" (0), verbatim:
+
+  False setup changes (0, 0 distinct transcripts):
+
+== 6. Does the prompt help? (same clip, prompt off vs on)
+  en all clips (n=996): exact 86.1% -> 90.5% (50 clips fixed by the prompt, 7 broken by it); wrong 0.4% -> 0.2% (0 newly wrong, 2 no longer wrong)
+      false begins 0 -> 0; false setup changes (negatives, noise, prose) 0 -> 0
+  en core voices, clean+noisy (n=852): exact 89.4% -> 93.4% (38 clips fixed by the prompt, 4 broken by it); wrong 0.1% -> 0.1% (0 newly wrong, 0 no longer wrong)
+  zh all clips (n=232): exact 48.3% -> 55.6% (33 clips fixed by the prompt, 16 broken by it); wrong 0.0% -> 3.9% (9 newly wrong, 0 no longer wrong)
+      false begins 0 -> 0; false setup changes (negatives, noise, prose) 0 -> 0
+  zh core voices, clean+noisy (n=184): exact 51.6% -> 59.2% (26 clips fixed by the prompt, 12 broken by it); wrong 0.0% -> 3.3% (6 newly wrong, 0 no longer wrong)

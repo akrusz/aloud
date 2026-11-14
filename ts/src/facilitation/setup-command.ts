@@ -24,6 +24,7 @@
 import type { BeginMode } from './begin-command.js';
 import type { Quality, Verbosity } from './prompts.js';
 import { parseTimerRequest } from './voice-command.js';
+import { toSimplified, trimHeardZh } from './zh-script.js';
 
 /** The focuses the setup screen offers (open awareness is no checkbox there). */
 export type SetupFocus = 'body_sensations' | 'emotions' | 'inner_parts';
@@ -109,6 +110,8 @@ const PHRASES: Record<string, Entry> = {
     noting: named(mode('noting')),
     'felt sense': named(mode('felt_sense')),
     feltsense: named(mode('felt_sense')),
+    // Gendlin's name for it, which the app does not use (felt-sense.ts).
+    focusing: also(mode('felt_sense')),
 
     body: named(focus('body_sensations')),
     sensations: named(focus('body_sensations')),
@@ -222,7 +225,17 @@ const HEARD_AS: Record<string, string> = {
     'check ends': 'check ins',
     'check inns': 'check ins',
     spaces: 'spacious',
+    auspicious: 'spacious',
+    'light hearted': 'lighthearted',
+    noding: 'noting',
 };
+
+/** One word a recognizer wrote for two, or the other way about. */
+const RESPELLED: ReadonlyArray<readonly [heard: string, meant: string]> = [
+    ['talkless', 'talk less'],
+    ['aspacious', 'a spacious'],
+    ['half and hour', 'half an hour'],
+];
 
 const LONGEST_PHRASE = Math.max(...[...Object.keys(PHRASES), ...Object.keys(HEARD_AS)].map((p) => p.split(' ').length));
 
@@ -260,7 +273,7 @@ const STEPS: Record<string, 'up' | 'down'> = {
 
 /** The words people wrap around a request. Exact only. */
 const FILLER = new Set([
-    'a', 'about', 'all', 'aloud', 'also', 'an', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
+    'a', 'about', 'all', 'aloud', 'also', 'an', 'back', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
     'have', 'hey', 'i', "i'd", 'id', 'in', 'it', 'just', 'keep', 'kinda', 'length', 'let',
     "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'now', 'of', 'ok', 'okay', 'one',
     'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'the',
@@ -296,10 +309,14 @@ const STOP_LISTENING = new Set([
     'stop listening', 'mute', 'mic off', 'microphone off', 'turn off the mic', 'turn off the microphone',
     'turn the mic off', 'turn the microphone off', 'close the mic', 'close the microphone', 'you can stop listening',
     'stop listening to me', 'mute the mic', 'mute the microphone',
+    // Whisper's "mute".
+    'muse',
 ]);
 const HELP = new Set([
     'help', 'what can i say', 'what can i say here', 'what can you do', 'what are my options',
     'what are the options', 'what can i change',
+    // Whisper's "help", in most of the clips it was given.
+    'hell', 'health', 'held',
 ]);
 const POLITE = new Set(['please', 'ok', 'okay', 'hey', 'aloud', 'now', 'thanks']);
 
@@ -483,6 +500,20 @@ interface Clause {
     needsAsking: boolean;
 }
 
+/** Vibes and focuses are one family for a carried "no"; everything else is its own. */
+function family(meaning: Meaning): string {
+    if (meaning.t === 'focus' || meaning.t === 'quality') return 'value';
+    if (meaning.t === 'target') return meaning.of === 'vibe' || meaning.of === 'focus' ? 'value' : meaning.of;
+    return meaning.t;
+}
+
+function respell(words: string[]): string[] {
+    // "On check parts" is Whisper's "uncheck parts"; "on check-ins" is not.
+    let said = ` ${words.join(' ')} `.replace(/^ on check (?!in |ins |ends |inns )/, ' uncheck ');
+    for (const [heard, meant] of RESPELLED) said = said.split(` ${heard} `).join(` ${meant} `);
+    return said.trim().split(' ').filter(Boolean);
+}
+
 /** One part of a request (between "and"s). Null when it isn't one. */
 function readClause(items: Item[], carried: Polarity | null): Clause | null {
     const meanings: Meaning[] = [];
@@ -591,6 +622,9 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         if (said.length === 0) {
             // "Clear the vibes", "no focus".
             if (named && negated) actions.push({ kind: 'clear', group });
+            // "Change the focus to balance": the focus was asked for and no
+            // focus was heard, so the rest is not to be trusted either.
+            else if (named && setter) return null;
             continue;
         }
         if (valuePolarity === 'on' && (only || (setter && named))) actions.push({ kind: 'clear', group });
@@ -599,7 +633,8 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         if (value.t === 'mode') {
             // "Not noting" is nothing; "check-ins off for felt sense" is
             // about the check-ins.
-            if (negated && !graded && !meanings.some((m) => m.t === 'checkin' || m.t === 'target')) return null;
+            // A "no" carried in from before the comma counts: "no, nothing".
+            if ((negated || carried === 'off') && !graded && !meanings.some((m) => m.t === 'checkin' || m.t === 'target')) return null;
             actions.push({ kind: 'mode', mode: value.mode });
         } else if (value.t === 'focus') actions.push({ kind: 'focus', focus: value.focus, on: valuePolarity === 'on' });
         else if (value.t === 'quality') actions.push({ kind: 'quality', quality: value.quality, on: valuePolarity === 'on' });
@@ -664,14 +699,15 @@ const ZH_VALUES: ReadonlyArray<[RegExp, (on: boolean) => SetupAction | null]> = 
     [/^(?:内在部分(?:与|和)?内心世界|内在部分|内心世界|部分)$/, (on) => ({ kind: 'focus', focus: 'inner_parts', on })],
     [/^(?:轻松有玩心|轻松|玩心|有玩心)$/, (on) => ({ kind: 'quality', quality: 'playful', on })],
     [/^慈悲$/, (on) => ({ kind: 'quality', quality: 'compassionate', on })],
-    [/^慈爱$/, (on) => ({ kind: 'quality', quality: 'loving', on })],
+    [/^[慈此]爱$/, (on) => ({ kind: 'quality', quality: 'loving', on })],
     [/^开阔$/, (on) => ({ kind: 'quality', quality: 'spacious', on })],
     [/^不费力$/, (on) => ({ kind: 'quality', quality: 'effortless', on })],
     [/^(?:感觉不错|感觉好|感觉良好)$/, (on) => ({ kind: 'quality', quality: 'feeling_good', on })],
-    [/^(?:氛围|所有氛围)$/, (on) => (on ? null : { kind: 'clear', group: 'quality' })],
-    [/^(?:焦点|注意焦点|所有焦点)$/, (on) => (on ? null : { kind: 'clear', group: 'focus' })],
-    [/^(?:计时器?|定时器?)$/, (on) => (on ? null : { kind: 'no-timer' })],
-    [/^(?:问候我?|打扰我?)$/, (on) => ({ kind: 'checkins', on })],
+    [/^(?:所有|全部)?的?氛围$/, (on) => (on ? null : { kind: 'clear', group: 'quality' })],
+    [/^(?:(?:所有|全部)?的?焦点|注意焦点)$/, (on) => (on ? null : { kind: 'clear', group: 'focus' })],
+    // 记时器, 计时期: what Whisper writes for 计时器.
+    [/^(?:[计记]时[器期计]?|定时器?)$/, (on) => (on ? null : { kind: 'no-timer' })],
+    [/^(?:问[候号]我?|打扰我?)$/, (on) => ({ kind: 'checkins', on })],
     [/^跟随$/, (on) => (on ? { kind: 'guidance', to: 0 } : null)],
     [/^均衡$/, (on) => (on ? { kind: 'guidance', to: 2 } : null)],
     [/^主导$/, (on) => (on ? { kind: 'guidance', to: 4 } : null)],
@@ -685,21 +721,32 @@ const ZH_STEPS: ReadonlyArray<[RegExp, SetupAction]> = [
     [/^(?:说多(?:一点|一些|点|些)|多说(?:一点|一些|点|些)?|回应长(?:一点|一些|点|些)|长(?:一点|一些|点|些))$/, { kind: 'verbosity', to: 'up' }],
     [/^(?:回应)?简短(?:一点|一些)?$/, { kind: 'verbosity', to: 'low' }],
     [/^(?:回应)?更长$/, { kind: 'verbosity', to: 'high' }],
-    [/^(?:安静时)?(?:轻声)?问候我$/, { kind: 'checkins', on: true }],
+    [/^(?:我?安静时)?(?:轻声)?问[候号]我?$/, { kind: 'checkins', on: true }],
     [/^(?:停止聆听|别听了|不要听了|停止收听|静音|关闭麦克风|关掉麦克风)$/, { kind: 'stop-listening' }],
     [/^(?:帮助|我可以说什么|我能说什么|可以说什么|有哪些选项)$/, { kind: 'help' }],
     [/^(?:清除|清空|删除|去掉|取消)(?:我的)?意图$/, { kind: 'intention', text: '' }],
 ];
 
-function parseZh(utterance: string): SetupAction[] | null {
-    const intention = /^(?:请|把)?(?:我的|这次的?)?意图(?:是|设为|设成|改成|为)(.+?)[。！？.!?]*$/u.exec(utterance.replace(/\s+/g, ''));
-    if (intention && intention[1]!.length <= 120) return [{ kind: 'intention', text: intention[1]! }];
+const ZH_INTENTION_RE = /^(?:请|把)?(?:我的|这次的?)?意图(?:是|设为|设成|改成|为)/u;
+const ZH_MODE_THEN_LENGTH_RE = new RegExp(`(探索|标记|体会)(?:模式)?(?=${ZH_LENGTH})`, 'gu');
 
-    const said = utterance.replace(/[\s。！？．.…!?~]+/gu, '');
+function parseZh(utterance: string): SetupAction[] | null {
+    // Matched in simplified characters; an intention keeps the ones it was
+    // said in (toSimplified is one character for one, so the indexes agree).
+    const heard = trimHeardZh(utterance.replace(/\s+/g, ''));
+    const flat = toSimplified(heard);
+    const intention = ZH_INTENTION_RE.exec(flat);
+    if (intention) {
+        const text = trimHeardZh(heard.slice(intention[0].length).replace(/[。！？.!?，,]+$/u, ''));
+        if (text && text.length <= 120) return [{ kind: 'intention', text }];
+    }
+
+    const said = flat.replace(/[。！？．.…!?~]+/gu, '');
     if (!said || said.length > 40) return null;
     const actions: SetupAction[] = [];
-    // 、 and 和 join values; 然后 / 还有 join requests.
-    for (const rawPart of said.split(/[，,、；;]|然后|还有|以及|和(?!感受)(?!内心)/u)) {
+    // 、 and 和 join values; 然后 / 还有 join requests. A mode and a length
+    // need nothing between them ("标记十分钟").
+    for (const rawPart of said.replace(ZH_MODE_THEN_LENGTH_RE, '$&，').split(/[，,、；;:：]|然后|还有|以及|和(?!感受)(?!内心)/u)) {
         // The polite wrapping, front and back.
         let part = rawPart.replace(/^(?:好的?|请|麻烦|我想要?|我要|帮我|给我|把|我们)+/u, '').replace(/(?:吧|了|一下|好吗|可以吗|谢谢|的?模式|的?氛围|的?焦点)+$/u, (tail) =>
             // "探索模式" keeps its name; only the trailing politeness goes.
@@ -720,24 +767,37 @@ function parseZh(utterance: string): SetupAction[] | null {
             continue;
         }
         let on = true;
+        let only = false;
         const off = new RegExp(`^${ZH_OFF}`, 'u').exec(part);
         if (off) {
             on = false;
             part = part.slice(off[0].length);
         } else {
-            const add = new RegExp(`^${ZH_ON}`, 'u').exec(part);
+            // "只要身体": that one and no other.
+            const just = /^(?:只要|只选|只用|只)/u.exec(part);
+            const add = just ?? new RegExp(`^${ZH_ON}`, 'u').exec(part);
             if (add) part = part.slice(add[0].length);
+            only = just !== null;
         }
-        part = part.replace(/(?:的?氛围|的?焦点)$/u, (tail) => (part === tail.replace(/^的/, '') ? tail : ''));
+        // "开阔的氛围" is 开阔; "所有氛围" and a bare "氛围" are the group.
+        part = part.replace(/(?:的?氛围|的?焦点)$/u, (tail) => (/^(?:所有|全部)?的?(?:氛围|焦点)$/u.test(part) ? tail : ''));
         const value = ZH_VALUES.find(([re]) => re.test(part));
         const action = value ? value[1](on) : null;
         if (!action) return null;
+        if (only) {
+            if (action.kind !== 'focus' && action.kind !== 'quality') return null;
+            actions.push({ kind: 'clear', group: action.kind });
+        }
         actions.push(action);
     }
     return actions.length > 0 ? dedupe(actions) : null;
 }
 
 // ---- the parser -------------------------------------------------------------
+
+/** The tail of the check-in toggle's label, "Check in if I'm quiet". It adds
+ *  nothing: "check in on me if I'm quiet" is "check in on me". */
+const IF_QUIET_RE = /(?<=\bcheck.*)\b(?:if|when|whenever)\s+(?:i['’]?m|i\s+am|i\s+go|i\s+get|i['’]?ve\s+gone)\s+(?:quiet|silent)\b/i;
 
 /**
  * The changes an utterance asks for, in the order said, or null when it is not
@@ -760,8 +820,10 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     if (exact.includes('begin') || exact.includes('start')) return null;
     if (exact.length > SETUP_MAX_WORDS) return null;
 
-    // Numbers are read exactly, so the length comes out first.
-    const length = takeLength(exact);
+    // Numbers are read exactly, so the length comes out first. A comma or a
+    // full stop parts a request as "and" does: "spacious and effortless, no
+    // check-ins".
+    const length = takeLength(respell(tokens(utterance.replace(IF_QUIET_RE, ' ').replace(/[,;:]+|[.!?]+(?=\s+\S)/g, ' and '))));
     if (!length) return null;
     // A minute is something to wait, not a session ("just a minute").
     if (length.minutes !== null && length.minutes < SETUP_MIN_MINUTES) return null;
@@ -778,13 +840,23 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     let asked = false;
     let needsAsking = false;
     let carried: Polarity | null = null;
+    // What the carried "no" was said of: "remove playful and loving" removes
+    // both, "no check-ins and spacious" adds spacious.
+    let carriedFor: ReadonlySet<string> | null = null;
     let part: Item[] = [];
     const parts: Item[][] = [];
-    for (const item of itemize(words, loose)) {
+    const items = itemize(words, loose);
+    for (const [at, item] of items.entries()) {
         if ('word' in item && JOINERS.has(item.word)) {
             parts.push(part);
             part = [];
             continue;
+        }
+        // A "no" between two things is said of the one after it: "effortless
+        // no check-ins". ("Playful off" looks back, and "off" is not one of these.)
+        if ('word' in item && DENIALS.has(item.word) && part.some((p) => 'entry' in p) && items.slice(at + 1).some((p) => 'entry' in p)) {
+            parts.push(part);
+            part = [];
         }
         if ('word' in item ? ASKING.has(item.word) : item.entry.meaning.t === 'target') asked = true;
         part.push(item);
@@ -792,9 +864,14 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     parts.push(part);
     for (const items of parts) {
         if (items.length === 0) continue;
-        const clause = readClause(items, carried);
+        const kinds = new Set(items.flatMap((item) => ('entry' in item ? [family(item.entry.meaning)] : [])));
+        const reaches: boolean = carried !== null && (carriedFor === null || [...kinds].some((kind) => carriedFor!.has(kind)));
+        const given: Polarity | null = reaches ? carried : null;
+        const clause = readClause(items, given);
         if (!clause) return null;
         actions.push(...clause.actions);
+        // A "no" with nothing beside it ("no, playful") is said of whatever follows.
+        if (clause.carry !== given || !reaches) carriedFor = kinds.size > 0 ? kinds : null;
         carried = clause.carry;
         needsAsking ||= clause.needsAsking;
     }
@@ -817,15 +894,20 @@ export function isSetupCommand(utterance: string): boolean {
  * prompt, a hosted model's prompt, the phone recognizers' phrase lists).
  * "Begin" is left out on purpose: a prompted word is the one a recognizer
  * writes over noise, and it is the one costly thing to hear by mistake.
+ *
+ * zh has phrases and no prompt. Measured on local Whisper (scripts/setup-voice):
+ * the prompt wrote its own words over unclear speech (开始 came out 开阔, 跟随
+ * came out 均衡), about one request in 25 changing the wrong thing against none
+ * without it, and it heard 开始 less often. The English one had no such cost.
  */
-export function setupVocabulary(language: string): { prompt: string; phrases: string[] } {
+export function setupVocabulary(language: string): { prompt: string | null; phrases: string[] } {
     if (language === 'zh') {
         const phrases = [
             '探索', '标记', '体会', '氛围', '焦点', '身体与感受', '情绪', '内在部分', '轻松有玩心', '慈悲', '慈爱',
             '开阔', '不费力', '感觉不错', '多一点引导', '少一点引导', '跟随', '均衡', '主导', '简短', '意图',
             '二十分钟', '计时器',
         ];
-        return { prompt: `${phrases.join('，')}。`, phrases };
+        return { prompt: null, phrases };
     }
     const phrases = [
         'exploration', 'noting', 'felt sense', 'vibes', 'focus', 'body and sensations', 'emotions', 'parts',

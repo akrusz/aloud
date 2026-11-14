@@ -29,6 +29,8 @@ describe('parseTourCommand', () => {
             ['skip this step', 'close'],
             ['unmute', 'speak'],
             ['下一步', 'next'],
+            ['下一個', 'next'],
+            ['繼續', 'next'],
             ['好的，继续吧', 'next'],
             ['返回', 'back'],
             ['再说一遍', 'repeat'],

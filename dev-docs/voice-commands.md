@@ -80,7 +80,11 @@ into a list of `SetupAction`s:
 - "stop listening" / "mute" (closes the mic until tapped), and "what can I
   say?".
 
-Several can ride one utterance ("felt sense and twenty minutes"). Voice,
+Several can ride one utterance ("felt sense and twenty minutes"). A comma or a
+full stop parts a request as "and" does, and so does a "no" between two things
+("effortless no check-ins"), which is said of the one after it. A "no" said
+ahead carries to more of the same ("remove playful and loving" removes both)
+and not to something else ("no check-ins and spacious" adds spacious). Voice,
 model, provider and speech recognition stay button-only.
 
 The whole utterance has to be the request, as with "begin": one word this
@@ -97,7 +101,10 @@ matched in three grades:
 3. A word that only *sounds* like one (`nearestWord`: the same `soundKey` and
    a small edit distance, so "living" for "loving", "nothing" for "noting")
    also needs a word that asks. Mishearings a recognizer has actually been
-   seen to write go in `HEARD_AS`, which counts as the phrase itself.
+   seen to write go in `HEARD_AS`, which counts as the phrase itself
+   ("light-hearted", "auspicious", "Noding"); `RESPELLED` is the same for a
+   word written as two or two as one ("Talkless"), and "Hell.", "Health." and
+   "Held." are what local Whisper wrote for "help" in 16 clips of 18.
 
 Around that, the things people say to each other in this vocabulary are
 turned away on purpose (`tests/setup-command.test.ts` lists them): a length
@@ -106,7 +113,10 @@ minutes" are not), nothing under two minutes is a session, check-ins need a
 direction ("just checking in" is not), a denial outranks an "on" in the same
 breath ("don't check in on me"), and an intention needs its "is".
 
-zh is exact-match only (no homophone table).
+zh is exact-match, in simplified characters, with the handful of sound-alikes
+local Whisper was seen to write for its own words (记时器 for 计时器, 此爱 for
+慈爱). Traditional characters are converted first (`zh-script.ts`); an
+intention keeps the script it was said in.
 
 ### What happens to a request
 
@@ -153,14 +163,17 @@ or start, which never comes through this tier.
 
 What it is good for, measured with `npm run jev:setup` (2026-11-14, synthetic
 voices and written lines, no real rooms): natural phrasing the parser misses
-("could you make it a bit more spacious", "I'd rather you led less"), 44 of 48
-and 22 of 24 held out, with 0 false positives on 271 room and television
-lines. It is **not** a mishearing fixer: it recovered about one real Whisper
-mishearing in six, and the scores of recovered mishearings sit where
-television lines with a value word in them sit ("Effortless style." 0.86), so
-the bars keep the room out and most mishearings with it. A mishearing a
-recognizer really makes belongs in `HEARD_AS`. Every threshold is marked
-provisional: they wait on transcripts of real voices in real rooms
+("could you make it a bit more spacious", "I'd rather you led less"), 47 of 51
+and 21 of 23 held out, with 0 false positives on 276 room and television
+lines. It is **not** a mishearing fixer: of 150 lines local Whisper wrote that
+the parser still misses (`scripts/setup-voice/misheard.ts`), it recovered 4,
+and the scores of recovered mishearings sit where television lines with a
+value word in them sit ("Effortless style." 0.86), so the bars keep the room
+out and most mishearings with it. A mishearing a recognizer really makes
+belongs in `HEARD_AS`. One begin-like line gets through as settings and never
+as a begin: "Look in ten minutes of exploration." (Whisper's "begin ten
+minutes of exploration") sets the mode and the length. Every threshold is
+marked provisional: they wait on transcripts of real voices in real rooms
 ([manual-smoke.md](manual-smoke.md)).
 
 Not billed. Usage rows carry `purpose: 'setup'` and stay out of the session
@@ -252,6 +265,46 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   is on-device only and makes a cloud recognizer fail at start. "Begin" is in
   none of it, since a prompted word is the one a recognizer writes over
   noise. A session sends none of it.
+- **zh has phrases and no prompt.** Measured (below), the zh prompt wrote its
+  own words over unclear speech: 开始 came out 开阔 and 跟随 came out 均衡. About
+  one request in 25 changed the wrong thing against none without it, and 开始
+  itself was heard less often. So `setupVocabulary('zh').prompt` is null, for
+  local Whisper and for hosted recognition alike (hosted zh was not measured;
+  it follows the cautious side). What the prompt was mostly buying was the
+  script: unprompted, Whisper's base model writes traditional characters for
+  most Mandarin. `zh-script.ts` (`toSimplified`, `trimHeardZh`) does that for
+  begin, the setup parser and the tour's words instead, and a recognizer set
+  to zh-TW needs it anyway.
+
+### Measured on synthetic speech
+
+`scripts/setup-voice/run.ts` says every phrase in `phrases.ts` (143 English
+and 46 Chinese requests, 52 things a room says, 8 paragraphs of prose) with
+macOS voices, in three rooms (clean, noise at 12 dB, a far microphone), and
+puts each clip through the shell's own Whisper settings
+(`src-tauri/examples/whisper_batch.rs` mirrors `transcribe` in `server.rs`)
+with the prompt off and on. `results/summary.txt` is the report and
+`results/cache.json` the transcripts, so `npx tsx scripts/setup-voice/run.ts
+--summary-only` rescores them against the parser as it now stands in seconds,
+with no audio and no Whisper. Run it after touching `setup-command.ts`.
+
+As of 2026-11-14, base models, 1,673 clips each transcribed twice:
+
+- **No false "begin" and no false setting**, from 350 room and television
+  lines, 32 clips of noise and 57 pieces of prose under noise, in either
+  language, prompt on or off.
+- **English, prompt on (what ships):** 90% of requests read exactly, 0.2%
+  read as something else, the rest missed (96% / 88% / 58% exact in the clean,
+  noisy and far rooms). The prompt is worth 4 points and costs nothing.
+- **Chinese, no prompt (what ships):** 48% exact, none wrong. Whisper's base
+  model is weak on short Mandarin from these voices (one of the two core
+  voices reads 74%, the other 24%).
+
+It is synthetic voices through one recognizer: good for what a recognizer
+systematically writes and for what the prompt does, not a measure of a real
+voice in a real room. What Whisper wrote and the parser still misses is
+regenerated into `misheard.ts`, which `npm run jev:setup` scores the judge
+tier on.
 - **Hosted listening here is not billed, inside an allowance.**
   `POST /cloud/v1/stt?setup=1` (`server/src/routes/stt.ts`) costs nothing
   while the clip is short (`SETUP_MAX_CLIP_SECONDS`, 15) and the account has

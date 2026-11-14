@@ -128,7 +128,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const language = langMatch ? langMatch[1]!.toLowerCase() : undefined;
         // Built here from core, never taken from the request: a client prompt
         // would be free-form text forwarded upstream on our key.
-        const prompt = setup ? setupVocabulary(language ?? 'en').prompt : undefined;
+        const prompt = setup ? (setupVocabulary(language ?? 'en').prompt ?? undefined) : undefined;
 
         let text: string;
         try {

@@ -289,6 +289,8 @@ describe('parseSetupCommand: intention, check-ins, the mic', () => {
             ["don't check in", [{ kind: 'checkins', on: false }]],
             ['turn on check-ins', [{ kind: 'checkins', on: true }]],
             ['check in if I am quiet', null],
+            ["check in on me if I'm quiet", [{ kind: 'checkins', on: true }]],
+            ["don't check in on me when I'm quiet", [{ kind: 'checkins', on: false }]],
         ]);
     });
 
@@ -329,6 +331,86 @@ describe('parseSetupCommand: combined requests', () => {
                     { kind: 'verbosity', to: 'down' },
                 ],
             ],
+        ]);
+    });
+});
+
+describe('parseSetupCommand: commas, and how far a "no" reaches', () => {
+    it('parts a request at a comma as at "and"', () => {
+        expectAll([
+            [
+                'spacious and effortless, no check-ins',
+                [
+                    { kind: 'quality', quality: 'spacious', on: true },
+                    { kind: 'quality', quality: 'effortless', on: true },
+                    { kind: 'checkins', on: false },
+                ],
+            ],
+            [
+                'playful, not loving',
+                [
+                    { kind: 'quality', quality: 'playful', on: true },
+                    { kind: 'quality', quality: 'loving', on: false },
+                ],
+            ],
+            ['no, less guidance', [{ kind: 'guidance', to: 'down' }]],
+            [
+                'Spacious and effortless. No check-ins.',
+                [
+                    { kind: 'quality', quality: 'spacious', on: true },
+                    { kind: 'quality', quality: 'effortless', on: true },
+                    { kind: 'checkins', on: false },
+                ],
+            ],
+            // With no punctuation at all (the browser's recognizer writes none).
+            [
+                'spacious and effortless no check-ins',
+                [
+                    { kind: 'quality', quality: 'spacious', on: true },
+                    { kind: 'quality', quality: 'effortless', on: true },
+                    { kind: 'checkins', on: false },
+                ],
+            ],
+            [
+                'body not emotions',
+                [
+                    { kind: 'focus', focus: 'body_sensations', on: true },
+                    { kind: 'focus', focus: 'emotions', on: false },
+                ],
+            ],
+            ['Noting, please.', [{ kind: 'mode', mode: 'noting' }]],
+        ]);
+    });
+
+    it('carries a "no" to more of the same, not to something else', () => {
+        expectAll([
+            [
+                'remove playful, loving and body',
+                [
+                    { kind: 'quality', quality: 'playful', on: false },
+                    { kind: 'quality', quality: 'loving', on: false },
+                    { kind: 'focus', focus: 'body_sensations', on: false },
+                ],
+            ],
+            [
+                'no check-ins and spacious',
+                [
+                    { kind: 'checkins', on: false },
+                    { kind: 'quality', quality: 'spacious', on: true },
+                ],
+            ],
+            ['no, playful', [{ kind: 'quality', quality: 'playful', on: false }]],
+            ['No, nothing.', null],
+            ['no, noting', null],
+        ]);
+    });
+
+    it('goes back to a mode, and takes felt sense by its other name when asked', () => {
+        expectAll([
+            ['go back to exploration', [{ kind: 'mode', mode: 'exploration' }]],
+            ['switch to focusing', [{ kind: 'mode', mode: 'felt_sense' }]],
+            ['focusing', null],
+            ['I was focusing', null],
         ]);
     });
 });
@@ -498,6 +580,37 @@ describe('parseSetupCommand: mishearings', () => {
         ]);
     });
 
+    it('reads what local Whisper wrote for the synthetic voices', () => {
+        expectAll([
+            ['More light-hearted.', [{ kind: 'quality', quality: 'playful', on: true }]],
+            ['More light hearted.', [{ kind: 'quality', quality: 'playful', on: true }]],
+            ['Talkless.', [{ kind: 'verbosity', to: 'down' }]],
+            ['Aspacious vibe.', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['auspicious vibe.', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['Noding.', [{ kind: 'mode', mode: 'noting' }]],
+            ['Half and hour.', [{ kind: 'length', minutes: 30 }]],
+            ['Hell.', [{ kind: 'help' }]],
+            ['Health.', [{ kind: 'help' }]],
+            ['Held.', [{ kind: 'help' }]],
+            ['Muse.', [{ kind: 'stop-listening' }]],
+            ['On check-parts.', [{ kind: 'focus', focus: 'inner_parts', on: false }]],
+            ['on check-ins', [{ kind: 'checkins', on: true }]],
+        ]);
+    });
+
+    it('does not trust the rest when the thing asked for was not heard', () => {
+        expectAll([
+            // "Change the focus to parts."
+            ['Change the focus to balance.', null],
+            ['set the vibe to following', null],
+            // The light is still the room's.
+            ['turn on the light', null],
+            ['what the hell', null],
+            // Whisper wrote this for "less playful" as well as for "playful".
+            ["Let's play full.", null],
+        ]);
+    });
+
     it('does not stretch to a far miss (the judge tier does)', () => {
         expectAll([
             ['change advice to spaces', null],
@@ -539,8 +652,55 @@ describe('parseSetupCommand: zh', () => {
         ]);
     });
 
+    it('reads traditional characters, and past what Whisper leaves at the end', () => {
+        expectAll([
+            ['去掉內在部分', [{ kind: 'focus', focus: 'inner_parts', on: false }]],
+            ['加上情緒', [{ kind: 'focus', focus: 'emotions', on: true }]],
+            ['半小時', [{ kind: 'length', minutes: 30 }]],
+            ['設定45分鐘', [{ kind: 'length', minutes: 45 }]],
+            ['幫助', [{ kind: 'help' }]],
+            ['多一點引導', [{ kind: 'guidance', to: 'up' }]],
+            ['不要問候我', [{ kind: 'checkins', on: false }]],
+            ['半小时４', [{ kind: 'length', minutes: 30 }]],
+            ['切换到体会\uFFFD', [{ kind: 'mode', mode: 'felt_sense' }]],
+            ['轻松和开阔\uFFFD', [
+                { kind: 'quality', quality: 'playful', on: true },
+                { kind: 'quality', quality: 'spacious', on: true },
+            ]],
+            // An intention keeps the characters it was said in.
+            ['我的意圖是放鬆', [{ kind: 'intention', text: '放鬆' }]],
+            ['我的意图是放松４', [{ kind: 'intention', text: '放松' }]],
+        ]);
+    });
+
+    it('reads a mode and a length run together, "only", and a whole group', () => {
+        const notingTen: SetupAction[] = [{ kind: 'mode', mode: 'noting' }, { kind: 'length', minutes: 10 }];
+        expectAll([
+            ['标记十分钟', notingTen],
+            ['标记十分钟，', notingTen],
+            ['標記:十分鐘', notingTen],
+            ['只要身体', [{ kind: 'clear', group: 'focus' }, { kind: 'focus', focus: 'body_sensations', on: true }]],
+            ['只要开阔', [{ kind: 'clear', group: 'quality' }, { kind: 'quality', quality: 'spacious', on: true }]],
+            ['去掉所有氛围', [{ kind: 'clear', group: 'quality' }]],
+            ['去掉所有焦点', [{ kind: 'clear', group: 'focus' }]],
+            ['开阔的氛围', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['只要二十分钟', null],
+            ['只要探索', null],
+        ]);
+    });
+
+    it('takes the sound-alikes Whisper writes for its own words', () => {
+        expectAll([
+            ['不要记时器。', [{ kind: 'no-timer' }]],
+            ['不要計時期', [{ kind: 'no-timer' }]],
+            ['加上此爱', [{ kind: 'quality', quality: 'loving', on: true }]],
+            ['问号我', [{ kind: 'checkins', on: true }]],
+            ['计时期', null],
+        ]);
+    });
+
     it('ignores the rest, and never begins', () => {
-        for (const text of ['今天天气不错', '开始', '开始冥想', '我二十分钟前到的', '他很慈悲', '身体不舒服']) {
+        for (const text of ['今天天气不错', '开始', '開始', '开始冥想', '我二十分钟前到的', '他很慈悲', '身体不舒服']) {
             expect(parseSetupCommand(text), text).toBeNull();
         }
     });
@@ -575,10 +735,15 @@ describe('setupVocabulary', () => {
     it('leaves begin out of what a recognizer is told to expect', () => {
         for (const language of ['en', 'zh']) {
             const { prompt, phrases } = setupVocabulary(language);
-            const all = [prompt, ...phrases].join(' ').toLowerCase();
+            const all = [prompt ?? '', ...phrases].join(' ').toLowerCase();
             expect(all).not.toMatch(/begin|start|开始/);
             expect(phrases.length).toBeGreaterThan(10);
         }
+    });
+
+    it('prompts in English only: the zh prompt wrote its own words over speech', () => {
+        expect(setupVocabulary('en').prompt).toMatch(/noting/i);
+        expect(setupVocabulary('zh').prompt).toBeNull();
     });
 
     it('names only things the parser reads', () => {

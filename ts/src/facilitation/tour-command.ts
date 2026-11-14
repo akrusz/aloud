@@ -9,6 +9,8 @@
  * only one.
  */
 
+import { toSimplified, trimHeardZh } from './zh-script.js';
+
 export type TourCommand =
     | { kind: 'next' }
     | { kind: 'back' }
@@ -81,7 +83,7 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
         return matches.length === 1 ? matches[0]! : null;
     };
     const picked = new Set<number>();
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    const zh = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '');
     if (/[㐀-鿿]/.test(zh)) {
         if (/第一|前一个|前者/.test(zh)) picked.add(0);
         if (/第二|后一个|后者/.test(zh)) picked.add(1);
@@ -123,7 +125,7 @@ export function parseTourCommand(utterance: string, voices?: readonly OfferedVoi
         const index = pickedVoice(utterance, voices);
         if (index !== null) return { kind: 'voice', index };
     }
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '').replace(/^(?:好的?|请)+/u, '').replace(/(?:吧|了)+$/u, '');
+    const zh = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '').replace(/^(?:好的?|请)+/u, '').replace(/(?:吧|了)+$/u, '');
     if (/[㐀-鿿]/.test(zh)) {
         for (const [kind, phrases] of SAID_ZH) {
             if (phrases.includes(zh)) return { kind } as TourCommand;

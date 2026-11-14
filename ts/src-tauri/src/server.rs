@@ -1480,6 +1480,9 @@ fn transcribe(
             text.push_str(piece.as_ref());
         }
     }
+    // The model can stop partway through a character (seen in zh); what is
+    // left of it decodes to U+FFFD, which nobody said.
+    text.truncate(text.trim_end_matches('\u{FFFD}').len());
     let duration = samples.len() as f64 / sample_rate as f64;
     Ok((text, duration))
 }

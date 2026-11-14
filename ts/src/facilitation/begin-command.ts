@@ -22,6 +22,7 @@
  */
 
 import { parseTimerRequest } from './voice-command.js';
+import { toSimplified, trimHeardZh } from './zh-script.js';
 
 /** The modes a request can name, by the names the setup screen shows. */
 export type BeginMode = 'exploration' | 'noting' | 'felt_sense';
@@ -108,7 +109,7 @@ const ZH_MODES: Record<string, BeginMode> = { 探索: 'exploration', 标记: 'no
  * begin. `{}` is a plain "begin".
  */
 export function parseBeginRequest(utterance: string): BeginRequest | null {
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    const zh = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '');
     if (/[㐀-鿿]/.test(zh)) {
         const match = ZH_BEGIN_RE.exec(zh);
         if (!match) return null;

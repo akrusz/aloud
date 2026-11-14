@@ -101,6 +101,11 @@ describe('parseBeginRequest', () => {
         expect(parseBeginRequest('开始二十分钟的冥想')).toEqual({ minutes: 20 });
         expect(parseBeginRequest('开始半小时的体会冥想吧')).toEqual({ mode: 'felt_sense', minutes: 30 });
         expect(parseBeginRequest('请开始标记练习')).toEqual({ mode: 'noting' });
+        // As local Whisper writes it: traditional characters, a broken last one.
+        expect(parseBeginRequest('開始!')).toEqual({});
+        expect(parseBeginRequest('開始二十分鐘的冥想')).toEqual({ minutes: 20 });
+        expect(parseBeginRequest('我们开始一个标记练习\uFFFD')).toEqual({ mode: 'noting' });
+        expect(parseBeginRequest('電影什麼時候開始')).toBeNull();
         expect(parseBeginRequest('二十分钟后开始')).toBeNull();
     });
 });

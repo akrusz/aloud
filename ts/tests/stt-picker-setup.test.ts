@@ -51,12 +51,19 @@ async function fetched(choice: SttEngineChoice, opts: Parameters<typeof createSt
 const isTranscription = (url: URL): boolean => url.searchParams.has('sample_rate');
 
 describe('local Whisper on the setup screen', () => {
-    it('prompts with the setup vocabulary for the language', async () => {
-        const all = await fetched('whisper', { setupListening: true, language: 'zh', whisperModelSize: 'base' });
+    it('prompts with the setup vocabulary', async () => {
+        const all = await fetched('whisper', { setupListening: true, language: 'en', whisperModelSize: 'base' });
         const post = all.find(isTranscription)!;
         expect(post.pathname).toBe('/app/v1/stt/whisper');
-        expect(post.searchParams.get('prompt')).toBe(setupVocabulary('zh').prompt);
+        expect(post.searchParams.get('prompt')).toBe(setupVocabulary('en').prompt);
         expect(post.searchParams.has('setup')).toBe(false);
+    });
+
+    it('sends no prompt in zh, where there is none', async () => {
+        const all = await fetched('whisper', { setupListening: true, language: 'zh', whisperModelSize: 'base' });
+        const post = all.find(isTranscription)!;
+        expect(post.searchParams.get('lang')).toBe('zh');
+        expect(post.searchParams.has('prompt')).toBe(false);
     });
 
     it('falls back to the English vocabulary with no language set', async () => {

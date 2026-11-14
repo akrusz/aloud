@@ -301,6 +301,7 @@ type SettingKey = keyof typeof SETTINGS;
  */
 const VALUE_THRESHOLD = 0.75;
 const THRESHOLDS: Partial<Record<string, number>> = {
+    mode_noting: 0.82, // "Noting that." 0.80
     vibe_compassionate: 0.8, // "Don't be so compassionate with him." 0.67
     vibe_effortless: 0.9, // "Effortless style." 0.86
     focus_parts: 0.8, // "Only the parts that matter." 0.64

@@ -441,11 +441,12 @@ describe('POST /cloud/v1/stt?setup=1 (setup-screen listening)', () => {
         expect(deps.setupSttDailyCap.fits(accountId, 600)).toBe(true);
     });
 
-    it('prompts with the setup vocabulary from core, in the request language', async () => {
+    it('prompts with the setup vocabulary from core, where the language has one', async () => {
         const { post } = await setupApp();
         await post(1);
         await post(1, '&setup=1&lang=zh-CN');
-        expect(sttCalls.map((c) => c.prompt)).toEqual([setupVocabulary('en').prompt, setupVocabulary('zh').prompt]);
+        expect(setupVocabulary('zh').prompt).toBeNull();
+        expect(sttCalls.map((c) => c.prompt)).toEqual([setupVocabulary('en').prompt, null]);
         expect(sttCalls[1]!.language).toBe('zh');
     });
 
