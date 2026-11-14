@@ -85,7 +85,7 @@ import {
 } from '../model-picker.js';
 import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
-import { CloudLlmProvider, type CloudProviderId } from '../adapters/cloud-llm.js';
+import { CloudLlmProvider, onCloudLlmRetry, type CloudProviderId } from '../adapters/cloud-llm.js';
 import { CloudJudge, type RemoteJudge } from '../adapters/cloud-judge.js';
 import { OwnKeyJudge } from '../adapters/own-key-judge.js';
 import { downloadSttClips } from '../stt-clip-recorder.js';
@@ -1126,6 +1126,11 @@ export async function mountSessionView(
             slowStatusTimer = null;
         }
     }
+    // A reply being re-sent through a dropped connection (net-retry.ts) says
+    // so, while the dots are still all there is to see.
+    const stopRetryNotice = onCloudLlmRetry(() => {
+        if (slowStatusTimer) setStatus(t('Connection lost - trying again'));
+    });
 
     // Persistent STT outage banner. The status line and a one-shot toast are
     // easy to miss, so a run of failed transcriptions raises a banner that stays
@@ -3582,6 +3587,7 @@ export async function mountSessionView(
         void appStateListener?.then((h) => h.remove());
         // Cleanly ended: drop the resume pointer so relaunch doesn't offer it.
         void clearActiveSession();
+        stopRetryNotice();
         // Embers are session-only.
         unmountEmberContainer();
         // Exit kasina if active: the toggle's exit branch restores the

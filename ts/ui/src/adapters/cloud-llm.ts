@@ -38,10 +38,23 @@ const DEFAULT_MAX_TOKENS = 512;
 // token speaks far sooner.
 const CLOUD_STALL_MS = 60_000;
 // How long a dropped connection is re-sent before the turn fails (net-retry.ts).
-// The meditator is waiting on the dots, and the slow-response status shows at
-// 15s (session.ts SLOW_RESPONSE_STATUS_MS), so about that long: enough for a
-// phone to settle onto a new cell or back from a dead patch.
-const CLOUD_RETRY_BUDGET_MS = 15_000;
+// As long as speech gets (whisper-pcm-stt CLOUD_FINAL_RETRY_BUDGET_MS): 15s ran
+// out on a phone taken off the network and put back by hand, where the web
+// view never reads as offline, so attempts back off to one every 4s and a
+// request only gets through about 2s after the network returns. The status
+// line says it is trying again (onCloudLlmRetry).
+const CLOUD_RETRY_BUDGET_MS = 30_000;
+
+/** Called each time a request is re-sent through a dropped connection, so the
+ *  session can say so: the dots alone read as nothing happening. */
+const retryListeners = new Set<() => void>();
+export function onCloudLlmRetry(listener: () => void): () => void {
+    retryListeners.add(listener);
+    return () => void retryListeners.delete(listener);
+}
+function noteRetry(): void {
+    for (const listener of retryListeners) listener();
+}
 
 export interface CloudLlmProviderOptions {
     provider: CloudProviderId;
@@ -136,7 +149,10 @@ export class CloudLlmProvider implements LLMProvider {
             {
                 budgetMs: CLOUD_RETRY_BUDGET_MS,
                 ...(signal ? { signal } : {}),
-                onRetry: (n, why) => console.warn(`[cloud-llm] retry ${n} after ${why}`),
+                onRetry: (n, why) => {
+                    console.warn(`[cloud-llm] retry ${n} after ${why}`);
+                    noteRetry();
+                },
             }
         );
     }
@@ -274,6 +290,7 @@ export class CloudLlmProvider implements LLMProvider {
                 } catch (err) {
                     if (replayed || !arrived || spoke || !isNetworkFailure(err) || ac.signal.aborted) throw err;
                     console.warn(`[cloud-llm] stream lost before any text (${(err as Error).message}), asking again`);
+                    noteRetry();
                 }
             }
         } finally {

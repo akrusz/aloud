@@ -560,6 +560,7 @@ export const ZH: Record<string, string> = {
     "Start fresh": "重新开始",
     "Starting…": "启动中……",
     "Still working - the response is taking longer than usual": "还在处理 - 这次回应比平时慢一些",
+    "Connection lost - trying again": "连接中断 - 正在重试",
     "Style Preview": "风格预览",
     "Switching to aloud cloud speech…": "正在切换到 aloud cloud 语音……",
     "System default": "系统默认",
