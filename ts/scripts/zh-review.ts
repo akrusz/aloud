@@ -40,6 +40,7 @@ import {
 } from '../src/facilitation/session-timer.js';
 import { FELT_SENSE_OPENERS, FELT_SENSE_CHECK_INS } from '../src/facilitation/felt-sense.js';
 import { NOTING_CHECK_IN_PROMPTS, NOTING_STATIC_OPENERS } from '../src/facilitation/noting.js';
+import { SETUP_LINES, SETUP_LINE_IDS } from '../src/facilitation/setup-lines.js';
 
 const out: string[] = [];
 
@@ -90,6 +91,13 @@ pool('Felt sense openers 体会模式开场', FELT_SENSE_OPENERS, ZH_FELT_SENSE_
 pool('Felt sense check-ins 体会模式问候', FELT_SENSE_CHECK_INS, ZH_FELT_SENSE_CHECK_INS);
 pool('Noting check-ins 标记模式问候', NOTING_CHECK_IN_PROMPTS, ZH_NOTING_CHECK_IN_PROMPTS);
 pool('Noting opener 标记模式开场', NOTING_STATIC_OPENERS, ZH_NOTING_STATIC_OPENERS);
+// Rendered once as clips in the house voices, so a change here also needs
+// `npm run clips:render`.
+pool(
+    'Setup screen answers and the tour 设置页面的回应与导览',
+    SETUP_LINE_IDS.map((id) => SETUP_LINES[id].en),
+    SETUP_LINE_IDS.map((id) => SETUP_LINES[id].zh)
+);
 for (const [key, en] of Object.entries(FOCUS_OPENERS)) {
     if (en) pool(`Focus openers · ${key}`, en, ZH_FOCUS_OPENERS[key] ?? []);
 }

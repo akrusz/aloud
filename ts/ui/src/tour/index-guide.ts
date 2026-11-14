@@ -562,7 +562,7 @@ function syncQuickStart(): void {
 function beginQuickStart(): void {
     const offer = quickStart;
     if (!offer || offer.blocker() !== null) return;
-    // Same standing as "I'll explore on my own": a start abandoned at the mic
+    // Same standing as closing the card: a start abandoned at the mic
     // or sign-in prompt leaves the card away for the rest of this visit.
     closeForNow();
     // No await before this: the mic prompt and the audio unlock both need the
