@@ -17,6 +17,10 @@ const EMBER_SHRINK_RATE = 0.3; // px/s
 
 const STORAGE_KEY = 'aloud-embers';
 
+/** The fifth flame's growth (0.4s, ember-block-grow) and time for a run of
+ *  taps on + to stop (wireEmberControls). */
+const EGG_SETTLE_MS = 1500;
+
 /** Flame outline (Lucide "flame", ISC) for the level control. */
 const FLAME_PATH =
     'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z';
@@ -300,6 +304,10 @@ export function wireEmberControls(root: ParentNode): void {
     if (!minus || !plus || !blocks) return;
 
     let eggClicks: number[] = [];
+    // The fifth flame grows in where + was, pushing + along: a finger still
+    // tapping + lands on the new flame, and a tap on the lit top flame turns
+    // the embers off. Taps on the flames wait until this time.
+    let flamesTakeTapsAt = 0;
 
     function shakeBlocks(): void {
         blocks!.classList.remove('shake');
@@ -319,6 +327,7 @@ export function wireEmberControls(root: ParentNode): void {
 
     function unlockFifth(): void {
         state.eggUnlocked = true;
+        flamesTakeTapsAt = Date.now() + EGG_SETTLE_MS;
         addFifthBlock();
         setTimeout(() => {
             const fifth = blocks!.querySelector<HTMLElement>('[data-level="5"]');
@@ -355,7 +364,7 @@ export function wireEmberControls(root: ParentNode): void {
 
     blocks.addEventListener('click', (e) => {
         const block = (e.target as HTMLElement).closest<HTMLElement>('.ember-block');
-        if (!block) return;
+        if (!block || Date.now() < flamesTakeTapsAt) return;
         const clicked = parseInt(block.dataset['level'] ?? '0', 10);
         const next = clicked === state.level ? 0 : clicked;
         setEmberLevel(next);
