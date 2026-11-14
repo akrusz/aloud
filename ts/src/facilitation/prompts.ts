@@ -662,9 +662,9 @@ const OPENER_CLOSING =
  *  session, which VOICE_STYLE_FRAGMENT otherwise rules out. */
 const FIRST_SIT_OPENER_LEAD =
     "This is the meditator's first time here, and nobody has told them how it works. " +
-    'Open by telling them, in two or three short sentences: they say out loud whatever they notice, ' +
-    'in their own words; you will listen and ask a question now and then; ' +
-    'pauses are fine, and there is nothing to get right. ' +
+    'Open by telling them, in two or three short sentences: they say out loud whatever they notice in the moment, ' +
+    "like body sensations or emotions. You'll listen and respond with questions to help them explore; " +
+    'pauses are fine, and there is nothing to try to make happen. ' +
     'Then, in one more sentence, invite them to begin. ' +
     'This opening may run longer than your usual replies, and it is the one time the session itself is the topic. ' +
     'No greeting or welcome line, and nothing about how good it is that they came.';
