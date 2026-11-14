@@ -13,6 +13,7 @@ import { allVoices, findVoice, type VoiceEntry } from '../voices.js';
 import { BrowserTtsEngine } from './browser-tts.js';
 import { CLOUD_TTS_RETRY_BUDGET_MS, CloudTtsEngine, type CloudTtsEngineOptions } from './cloud-tts.js';
 import { cloudUrl } from '../cloud-base.js';
+import { uiLang } from '../i18n.js';
 import { simulateTtsFault } from '../dev-sim.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 
@@ -60,6 +61,7 @@ export function createCloudAloudPreviewTts(voice: string): TtsEngine {
         // GET, no bearer: the endpoint is public and ignores sent text in favor
         // of its server-owned phrase.
         usePost: false,
+        previewLang: uiLang(),
     });
 }
 

@@ -163,6 +163,11 @@ export function defaultVoice(available?: ReadonlySet<TtsProvider>): CuratedVoice
  */
 export const PREVIEW_PHRASE = "Welcome to aloud. I'll be your facilitator.";
 
+/** The same line in Chinese, for a multilingual voice auditioned from a zh
+ *  app (`lang=zh` on the preview route). Mirrors the client's zh entry for
+ *  PREVIEW_PHRASE (ui/src/i18n/zh.ts); keep in sync. */
+export const PREVIEW_PHRASE_ZH = '欢迎来到 aloud。我是你的引导者。';
+
 /** The route uses `provider` to pick the key + synth call; `voiceId` is the
  *  provider-native id. */
 export interface ResolvedVoice {

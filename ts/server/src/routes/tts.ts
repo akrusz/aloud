@@ -31,6 +31,7 @@ import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
+    PREVIEW_PHRASE_ZH,
     resolveVoice,
     type ResolvedVoice,
     type TtsProvider,
@@ -125,7 +126,7 @@ export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: numb
  *  provider cost. Re-warmed lazily after a restart. */
 const CANNED_AUDIO = new Map<string, Uint8Array>();
 
-/** Synthesized voice-preview audio, keyed `${provider}:${voiceId}:${style}:${rate}`.
+/** Synthesized voice-preview audio, keyed `${provider}:${voiceId}:${style}:${rate}:${lang}`.
  *  Same rationale as CANNED_AUDIO: the phrase is fixed (PREVIEW_PHRASE), the
  *  voice must be curated and the rate is quantized (previewRate), so each is
  *  synthesized at most once per process and then served free to anyone: a
@@ -237,10 +238,15 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!synth) return errorJson(c, 'provider_error', 'TTS is not configured on this server');
 
         const rate = previewRate(c.req.query('rate'));
-        const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}:${rate}`;
+        // Chinese only from a voice flagged as able to speak it: the rest
+        // glitch on it (voice-catalog `multilingual`), and English is what
+        // they'd be picked for anyway.
+        const zh = c.req.query('lang') === 'zh' && curated.multilingual === true;
+        const phrase = zh ? PREVIEW_PHRASE_ZH : PREVIEW_PHRASE;
+        const cacheKey = `${resolved.provider}:${resolved.voiceId}:${resolved.style ?? ''}:${rate}:${zh ? 'zh' : 'en'}`;
         let audio: Uint8Array;
         try {
-            audio = await cachedClip(PREVIEW_AUDIO, cacheKey, () => synth(PREVIEW_PHRASE, rate));
+            audio = await cachedClip(PREVIEW_AUDIO, cacheKey, () => synth(phrase, rate));
         } catch (err) {
             log.error('preview tts synth failed', { err: String(err) });
             // No account: the route is public.

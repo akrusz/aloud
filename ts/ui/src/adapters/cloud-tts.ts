@@ -110,6 +110,10 @@ export interface CloudTtsEngineOptions {
      * LLM path self-heals. Wire to clearCloudToken for the hosted engine.
      */
     onAuthError?: () => Promise<void>;
+    /** GET only: the language the public hosted preview should speak its
+     *  fixed line in (the server owns the text, so this is all that can be
+     *  asked for). */
+    previewLang?: string;
     /** How long a synthesis re-sends through a dropped connection
      *  (net-retry.ts). Default 0 (no retry): the app backend is on loopback
      *  (desktop) or a preview nobody is waiting on mid-sit. */
@@ -135,6 +139,7 @@ export class CloudTtsEngine implements TtsEngine {
     private readonly authProvider: (() => Promise<string | null>) | undefined;
     private readonly onAuthError: (() => Promise<void>) | undefined;
     private readonly networkRetryMs: number;
+    private readonly previewLang: string | undefined;
 
     private currentAudio: HTMLAudioElement | null = null;
     private currentUrl: string | null = null;
@@ -155,6 +160,7 @@ export class CloudTtsEngine implements TtsEngine {
         this.authProvider = options.authProvider;
         this.onAuthError = options.onAuthError;
         this.networkRetryMs = options.networkRetryMs ?? 0;
+        this.previewLang = options.previewLang;
     }
 
     private async buildRequest(
@@ -179,6 +185,7 @@ export class CloudTtsEngine implements TtsEngine {
         const params = new URLSearchParams({ voice: this.voiceId, text });
         if (this.engine) params.set('engine', this.engine);
         if (options?.rate !== undefined) params.set('rate', String(options.rate));
+        if (this.previewLang) params.set('lang', this.previewLang);
         // Cache-buster for the public preview GET: a voice's server-side
         // treatment (style, pace) can change under an unchanged URL, leaving
         // stale clips in webview/browser HTTP caches. The server's max-age is

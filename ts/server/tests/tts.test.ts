@@ -331,6 +331,24 @@ describe('GET /cloud/v1/tts/preview', () => {
         expect(previewRate('0.1')).toBe(0.5);
     });
 
+    it('speaks the Chinese line for lang=zh, from a voice flagged multilingual only', async () => {
+        const a = createApp(
+            buildDeps(loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'az-key' }))
+        );
+        expect((await a.request('/cloud/v1/tts/preview?voice=Serena&lang=zh')).status).toBe(200);
+        expect(azureCalls).toHaveLength(1);
+        expect(azureCalls[0]!.body).toContain('<voice name="en-US-Serena:DragonHDLatestNeural">');
+        expect(azureCalls[0]!.body).toContain('欢迎来到');
+        // Its own clip, not the Chinese one served back for English.
+        await a.request('/cloud/v1/tts/preview?voice=Serena');
+        expect(azureCalls).toHaveLength(2);
+        expect(azureCalls[1]!.body).toContain('Welcome to aloud');
+        // Rigel can't speak it, so it says the English line whatever is asked.
+        await a.request('/cloud/v1/tts/preview?voice=Rigel&lang=zh');
+        const sent = googleCalls.at(-1)!.body as { input: { text: string } };
+        expect(sent.input.text).toContain('Welcome to aloud');
+    });
+
     it('400s on a non-curated voice (no free arbitrary synthesis)', async () => {
         const res = await app().request('/cloud/v1/tts/preview?voice=en-US-Chirp3-HD-Achernar');
         expect(res.status).toBe(400);
