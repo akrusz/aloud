@@ -50,6 +50,9 @@ export type SetupAction =
     | { kind: 'stop-listening' }
     | { kind: 'help' };
 
+/** The shortest session a spoken length can ask for. */
+const SETUP_MIN_MINUTES = 2;
+
 /** Past this many words it's a sentence, not a request (an intention aside). */
 const SETUP_MAX_WORDS = 14;
 /** An intention is a sentence of the meditator's own, so it runs longer. */
@@ -223,11 +226,28 @@ const HEARD_AS: Record<string, string> = {
 
 const LONGEST_PHRASE = Math.max(...[...Object.keys(PHRASES), ...Object.keys(HEARD_AS)].map((p) => p.split(' ').length));
 
+/** Two-word things a room says that are made of this vocabulary's words. */
+const NOT_A_REQUEST = new Set(['body parts']);
+
+/** Level words: they move the guidance, and say nothing of how much is said
+ *  ("speak up" asks for volume). */
+const LEVEL_STEPS = new Set(['up', 'down', 'higher', 'lower', 'raise']);
+
+/** What may stand around a length for it to be a request to set one. "Give me
+ *  five minutes" and "in twenty minutes" are what people say to each other. */
+const LENGTH_COMPANY = new Set([
+    'a', 'an', 'the', 'for', 'to', 'it', 'set', 'make', 'change', 'timer', 'clock', 'session', 'meditation',
+    'please', 'ok', 'okay', "let's", 'lets', 'do', 'i', "i'd", 'id', 'want', 'like', 'would',
+]);
+
 /** Said in front of (or after) a value to take it away. */
 const NEGATIONS = new Set([
     'no', 'not', 'without', 'remove', 'drop', 'off', 'stop', 'disable', 'lose', 'uncheck',
     'unselect', 'deselect', 'clear', 'cancel', "don't", 'dont', 'never',
 ]);
+/** These deny whatever else is said: "don't check in on me" is off, for all
+ *  its "on". */
+const DENIALS = new Set(['no', 'not', 'without', 'stop', "don't", 'dont', 'never']);
 /** Said to put one back. A value by itself already means this. */
 const ADDITIONS = new Set(['add', 'on', 'enable', 'include', 'plus', 'yes']);
 /** "Change the vibe to spacious" replaces the vibes; "add spacious" adds one. */
@@ -243,7 +263,7 @@ const FILLER = new Set([
     'a', 'all', 'aloud', 'also', 'an', 'are', 'be', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
     'have', 'hey', 'i', "i'd", "i'm", 'id', 'im', 'in', 'is', 'it', 'just', 'keep', 'kinda', 'length', 'let',
     "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'my', 'now', 'of', 'ok', 'okay', 'one',
-    'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'that', 'the',
+    'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'the',
     'this', 'to', 'too', 'try', 'turn', 'use', 'want', 'we', 'with', 'would', 'you', 'your',
 ]);
 
@@ -431,6 +451,12 @@ function itemize(words: string[], loose: ReadonlySet<number>): Item[] {
         let matched = false;
         for (let span = Math.min(LONGEST_PHRASE, words.length - i); span >= 1 && !matched; span--) {
             const said = words.slice(i, i + span).join(' ');
+            if (NOT_A_REQUEST.has(said)) {
+                items.push({ word: said });
+                i += span;
+                matched = true;
+                continue;
+            }
             const entry = PHRASES[HEARD_AS[said] ?? said];
             if (!entry) continue;
             let wasLoose = false;
@@ -460,11 +486,13 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     const meanings: Meaning[] = [];
     let needsAsking = false;
     let negated = false;
+    let denied = false;
     let added = false;
     let negatedFirst = false;
     let setter = false;
     let only = false;
     let step: 'up' | 'down' | null = null;
+    let levelStep = false;
 
     for (const [i, item] of items.entries()) {
         if ('entry' in item) {
@@ -478,6 +506,7 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         if (NEGATIONS.has(word)) {
             if (!negated && !added && meanings.every((m) => m.t === 'target')) negatedFirst = true;
             negated = true;
+            if (DENIALS.has(word)) denied = true;
         } else if (ADDITIONS.has(word)) added = true;
         else if (SETTERS.has(word)) setter = true;
         else if (ONLY.has(word)) only = true;
@@ -486,6 +515,7 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
             // two directions in one part mean nothing.
             if (step && step !== STEPS[word]) return null;
             step = STEPS[word]!;
+            if (LEVEL_STEPS.has(word)) levelStep = true;
         } else if (word === 'just') {
             // "Just spacious" is only spacious; "just a little more" is filler.
             const next = items[i + 1];
@@ -496,7 +526,10 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     }
 
     const has = (of: Target): boolean => meanings.some((m) => m.t === 'target' && m.of === of);
-    const own: Polarity | null = negated && !added ? 'off' : added || negated ? 'on' : null;
+    // "Playful off, no, on": taking away and putting back in one part, with
+    // nothing denying either, is not a request this can read.
+    if (negated && added && !denied) return null;
+    const own: Polarity | null = negated ? 'off' : added ? 'on' : null;
     const polarity: Polarity = own ?? carried ?? 'on';
     const carry = own === null ? carried : negatedFirst && own === 'off' ? 'off' : null;
     const actions: SetupAction[] = [];
@@ -530,33 +563,35 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         if (!has('responses')) return null;
         actions.push({ kind: 'verbosity', to: lengthWords[0]!.to });
     } else if (has('responses')) {
-        if (!step || stepUsed) return null;
+        if (!step || stepUsed || levelStep) return null;
         actions.push({ kind: 'verbosity', to: step });
         stepUsed = true;
     }
 
     if (meanings.some((m) => m.t === 'open-ended')) actions.push({ kind: 'no-timer' });
     // A timer by itself says nothing; with a length it is filler.
-    if (has('timer') && negated && !added) actions.push({ kind: 'no-timer' });
+    if (has('timer') && negated) actions.push({ kind: 'no-timer' });
 
     if (meanings.some((m) => m.t === 'checkin')) actions.push({ kind: 'checkins', on: polarity === 'on' });
 
-    // "More playful" is playful; "less playful" is not.
-    const valuePolarity: Polarity = step && !stepUsed ? (step === 'down' ? 'off' : 'on') : polarity;
-    if (values.length > 0 && step && !stepUsed) stepUsed = true;
+    // "More playful" is playful; "less playful" is not. There is no more or
+    // less of a mode: "nothing more" is not "noting".
+    const graded = values.some((m) => m.t !== 'mode');
+    const valuePolarity: Polarity = step && !stepUsed && graded ? (step === 'down' ? 'off' : 'on') : polarity;
+    if (graded && step && !stepUsed) stepUsed = true;
     for (const group of ['focus', 'quality'] as const) {
         const said = values.filter((m) => m.t === group);
         const named = has(group === 'quality' ? 'vibe' : 'focus');
         if (said.length === 0) {
             // "Clear the vibes", "no focus".
-            if (named && negated && !added) actions.push({ kind: 'clear', group });
+            if (named && negated) actions.push({ kind: 'clear', group });
             continue;
         }
         if (valuePolarity === 'on' && (only || (setter && named))) actions.push({ kind: 'clear', group });
     }
     for (const value of values) {
         if (value.t === 'mode') {
-            if (negated && !added) return null;
+            if (negated) return null;
             actions.push({ kind: 'mode', mode: value.mode });
         } else if (value.t === 'focus') actions.push({ kind: 'focus', focus: value.focus, on: valuePolarity === 'on' });
         else if (value.t === 'quality') actions.push({ kind: 'quality', quality: value.quality, on: valuePolarity === 'on' });
@@ -717,6 +752,8 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     // Numbers are read exactly, so the length comes out first.
     const length = takeLength(exact);
     if (!length) return null;
+    // A minute is something to wait, not a session ("just a minute").
+    if (length.minutes !== null && length.minutes < SETUP_MIN_MINUTES) return null;
     const loose = new Set<number>();
     const words = length.rest.map((word, at) => {
         if (EXACT_WORDS.has(word) || /^\d+$/.test(word)) return word;
@@ -751,6 +788,10 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
         needsAsking ||= clause.needsAsking;
     }
     if (needsAsking && !asked) return null;
+    // A length and nothing else has to be said like a request for one.
+    if (length.minutes !== null && actions.length === 1 && !length.rest.every((w) => w === 'and' || LENGTH_COMPANY.has(w))) {
+        return null;
+    }
     if (actions.filter((a) => a.kind === 'mode').length > 1) return null;
     return actions.length > 0 ? dedupe(actions) : null;
 }

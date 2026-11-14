@@ -87,6 +87,7 @@ import {
     type SetupOutcome,
 } from '../../../src/facilitation/index.js';
 import { applySetupActions, type SetupForm } from '../setup-actions.js';
+import { createSetupJudge } from '../setup-judge.js';
 import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice } from '../setup-speech.js';
 import {
     acquireMicOnce,
@@ -1397,11 +1398,13 @@ export async function mountSetupView(
         keepOpen: () => voiceStart?.handle.keepOpen(),
     };
 
-    /** The judge's reading of what the on-device parser could not place
-     *  (setup-judge.ts), where this setup may ask it. */
-    async function judgedSetupCommand(_text: string): Promise<SetupAction[] | null> {
-        return null;
-    }
+    // The judge's reading of what the on-device parser could not place, where
+    // this setup may ask it at all (setup-judge.ts): the same consent as a
+    // session's voice commands, and never a sign-in prompt from this screen.
+    const judgedSetupCommand = createSetupJudge({
+        provider: () => setup.provider,
+        optedIn: () => appSettings.voiceCommandsViaCloud,
+    });
 
     function updateBeginButton(): void {
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');

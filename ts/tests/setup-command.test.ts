@@ -372,6 +372,41 @@ describe('parseSetupCommand: what a room says', () => {
         }
     });
 
+    it('leaves alone what people say to each other in this vocabulary', () => {
+        for (const text of [
+            'give me five minutes',
+            'just a minute',
+            'In twenty minutes.',
+            'one minute',
+            'Speak up.',
+            'Body parts.',
+            'Noting that.',
+            'Nothing more.',
+            'no more noting',
+            'playful off on',
+        ]) {
+            expect(parseSetupCommand(text), text).toBeNull();
+        }
+    });
+
+    it('still takes a length asked for plainly', () => {
+        expectAll([
+            ['I want twenty minutes', [{ kind: 'length', minutes: 20 }]],
+            ["let's do ten minutes", [{ kind: 'length', minutes: 10 }]],
+            ['two minutes', [{ kind: 'length', minutes: 2 }]],
+        ]);
+    });
+
+    it('lets a denial outrank an "on" in the same breath', () => {
+        expectAll([
+            ["don't check in on me", [{ kind: 'checkins', on: false }]],
+            ["don't turn on check-ins", [{ kind: 'checkins', on: false }]],
+            ['no, not playful', [{ kind: 'quality', quality: 'playful', on: false }]],
+            ['turn the guidance up', [{ kind: 'guidance', to: 'up' }]],
+            ['say more', [{ kind: 'verbosity', to: 'up' }]],
+        ]);
+    });
+
     it('never reads a request to begin, however it sounds', () => {
         for (const text of [
             'begin',
