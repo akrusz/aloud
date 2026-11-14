@@ -10,9 +10,17 @@
  * Duration is computed server-side from the byte length, so a client can't
  * under-report seconds to underpay. Stateless: audio in, text out, nothing
  * persisted.
+ *
+ * `setup=1` marks the setup screen's listening (ui voice-start.ts), before any
+ * session exists: the transcription is prompted with the setup vocabulary, and
+ * it is free while the clip is short and the account has setup seconds left
+ * today. Anyone can send the flag, so those two bounds are all that keeps it
+ * from making a session's speech recognition free; past either one the clip
+ * is metered exactly as without it.
  */
 
 import { Hono } from 'hono';
+import { setupVocabulary } from '@aloud/core/facilitation';
 import { sttModelChoices } from '../config.js';
 import type { TranscribeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
@@ -21,6 +29,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
 import { sttBilledSeconds } from '../pricing/providers.js';
 import { serverIncidents } from '../credits/incidents.js';
+import { recordUsage } from '../credits/usage.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
 import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
@@ -30,6 +39,20 @@ import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
  *  output rates). Billing divides by this value, so it's an allowlist, not a
  *  range check. */
 const ALLOWED_SAMPLE_RATES = new Set([16_000, 24_000, 44_100, 48_000]);
+
+/**
+ * The longest clip setup listening gets free. The client cuts an utterance at
+ * LOBBY_STT.maxUtteranceMs (10 s) from speech onset, and the payload carries up
+ * to 2 s of pre-roll before it, plus a capture frame and the listen loop's
+ * 200 ms poll past the cut (ui whisper-pcm-stt.ts PRE_BUFFER_MS, FRAME_SIZE):
+ * about 12.5 s at most. The rest is room for one reopened utterance, which
+ * re-sends the buffer with whatever was said while the first pass was in
+ * flight. A session's longer turns stay metered whatever the flag says.
+ */
+export const SETUP_MAX_CLIP_SECONDS = 15;
+
+/** deps.setupSttGlobalCap's one key: it counts every account together. */
+const ALL_ACCOUNTS = '*';
 
 export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -74,8 +97,22 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
 
         const billedSeconds = sttBilledSeconds(seconds, model);
         const cost = priceSttSeconds(billedSeconds, model);
-        const gate = await gateUpfront(deps, account.id, cost);
-        if (!gate.fits) {
+
+        // Both allowances are checked before either is spent, so a clip the
+        // global one refuses doesn't eat into the account's.
+        const setup = c.req.query('setup') === '1';
+        const free =
+            setup &&
+            seconds <= SETUP_MAX_CLIP_SECONDS &&
+            deps.setupSttDailyCap.fits(account.id, billedSeconds) &&
+            deps.setupSttGlobalCap.fits(ALL_ACCOUNTS, billedSeconds);
+        if (free) {
+            deps.setupSttDailyCap.allow(account.id, billedSeconds);
+            deps.setupSttGlobalCap.allow(ALL_ACCOUNTS, billedSeconds);
+        }
+
+        const gate = free ? null : await gateUpfront(deps, account.id, cost);
+        if (gate && !gate.fits) {
             incident(
                 'insufficient_credits',
                 `stt: ${seconds.toFixed(1)}s needs ${cost.credits.toFixed(2)} > balance ${gate.balance.toFixed(2)}`
@@ -89,10 +126,13 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // regional tag ('zh-CN') is trimmed to its base.
         const langMatch = /^([a-z]{2,3})(-|$)/i.exec(c.req.query('lang') ?? '');
         const language = langMatch ? langMatch[1]!.toLowerCase() : undefined;
+        // Built here from core, never taken from the request: a client prompt
+        // would be free-form text forwarded upstream on our key.
+        const prompt = setup ? setupVocabulary(language ?? 'en').prompt : undefined;
 
         let text: string;
         try {
-            const result = await transcribeWhisper(samples, sampleRate, { ...stt, model }, language);
+            const result = await transcribeWhisper(samples, sampleRate, { ...stt, model }, { language, prompt });
             text = result.text;
             // The charge is our own count; the provider's is the tripwire for
             // a billing rule that has moved under it.
@@ -104,20 +144,30 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 });
             }
         } catch (err) {
-            gate.release();
+            gate?.release();
             log.error('stt forward failed', { err: String(err) });
             incident('stt_error', `${seconds.toFixed(1)}s: ${String(err)}`);
             return errorJson(c, 'provider_error', 'STT upstream error');
         }
 
-        const charged = await chargeUpfront(deps, gate, cost, `stt:${stt.provider}:${billedSeconds.toFixed(1)}s`, {
+        const usage = {
             accountId: account.id,
             sessionId,
-            kind: 'stt',
+            kind: 'stt' as const,
             provider: stt.provider,
             model,
             seconds: billedSeconds,
-        });
+            purpose: setup ? ('setup' as const) : null,
+        };
+        if (!gate) {
+            await recordUsage(deps.store, { ...usage, providerCostUsd: cost.providerCostUsd, credits: 0 });
+            return c.json({
+                text,
+                creditsCharged: 0,
+                creditsRemaining: await deps.ledger.balance(account.id),
+            } satisfies TranscribeResponse);
+        }
+        const charged = await chargeUpfront(deps, gate, cost, `stt:${stt.provider}:${billedSeconds.toFixed(1)}s`, usage);
         return c.json({ text, ...charged } satisfies TranscribeResponse);
     });
 

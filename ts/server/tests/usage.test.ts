@@ -411,9 +411,71 @@ describe('buildUsageReport', () => {
         expect(r.perHour.creditsPerHour).toBeCloseTo(12, 9);
     });
 
+    it('reports setup-screen listening on its own line, outside the services and sessions', () => {
+        const session = 'sess-1';
+        const events = [
+            // Before the session: two setup clips (one charged past a bound) from
+            // a1, one from a2, with no session id, as the setup screen sends.
+            ev({ ts: 1000, kind: 'stt', purpose: 'setup', model: 'gpt-transcribe', seconds: 3, providerCostUsd: 0.0002 }),
+            ev({ ts: 1010, kind: 'stt', purpose: 'setup', model: 'gpt-transcribe', seconds: 14, providerCostUsd: 0.001, credits: 0.02 }),
+            ev({ accountId: 'a2', ts: 1020, kind: 'stt', purpose: 'setup', model: 'gpt-transcribe', seconds: 2, providerCostUsd: 0.0001 }),
+            // The session itself: six turns with session STT, over ten minutes.
+            ...Array.from({ length: 6 }, (_, i) =>
+                ev({ sessionId: session, ts: 1100 + i * 120, kind: 'llm', purpose: 'facilitation', providerCostUsd: 0.01, credits: 0.2 })
+            ),
+            ev({ sessionId: session, ts: 1110, kind: 'stt', model: 'gpt-transcribe', seconds: 8, providerCostUsd: 0.0006, credits: 0.012 }),
+        ];
+        const r = buildUsageReport(events, 3000, 0);
+
+        expect(r.setupListening.events).toBe(3);
+        expect(r.setupListening.seconds).toBe(19);
+        expect(r.setupListening.providerCostUsd).toBeCloseTo(0.0013, 12);
+        expect(r.setupListening.credits).toBeCloseTo(0.02, 12);
+        expect(r.setupListening.chargedEvents).toBe(1);
+        expect(r.setupListening.accounts).toBe(2);
+
+        // Session STT holds only the session's clip.
+        const stt = r.byService.find((s) => s.kind === 'stt')!;
+        expect(stt.events).toBe(1);
+        expect(stt.providerCostUsd).toBeCloseTo(0.0006, 12);
+        // The totals keep every call, and the shares still sum to 1.
+        expect(r.totals.providerCostUsd).toBeCloseTo(0.0013 + 0.0006 + 0.06, 12);
+        const shares = r.byService.reduce((sum, s) => sum + s.costShare, 0) + r.setupListening.costShare;
+        expect(shares).toBeCloseTo(1, 9);
+
+        // The model table splits setup from session STT on the same model.
+        const sttModels = r.byModel.filter((m) => m.kind === 'stt');
+        expect(sttModels.map((m) => [m.setup, m.events]).sort()).toEqual([
+            [false, 1],
+            [true, 3],
+        ]);
+
+        // No setup clip becomes a session or moves the session numbers.
+        expect(r.sessions.count).toBe(1);
+        expect(r.sessions.excludedShort).toBe(0);
+        expect(r.perHour.stt.medianSeconds).toBe(8);
+        expect(r.perHour.stt.callsPerTurn).toBeCloseTo(1 / 6, 9);
+    });
+
+    it('a setup clip alone is no session, even with every session counted', () => {
+        const events = [ev({ kind: 'stt', purpose: 'setup', seconds: 2, providerCostUsd: 0.0001 })];
+        const r = buildUsageReport(events, 2000, 0, { allSessions: true });
+        expect(r.sessions.count).toBe(0);
+        expect(r.setupListening.events).toBe(1);
+    });
+
     it('returns zeroed aggregates for an empty window', () => {
         const r = buildUsageReport([], 2000, 1000);
         expect(r.events).toBe(0);
+        expect(r.setupListening).toEqual({
+            events: 0,
+            seconds: 0,
+            providerCostUsd: 0,
+            credits: 0,
+            costShare: 0,
+            accounts: 0,
+            chargedEvents: 0,
+        });
         expect(r.llmCacheHitRatio).toBe(0);
         expect(r.sessions.count).toBe(0);
         expect(r.sessions.costUsd.p90).toBe(0);
@@ -490,6 +552,19 @@ describe('buildUsageHistory', () => {
         const events = [ev({ ts: 50 * DAY, kind: 'llm', providerCostUsd: 99 })];
         const h = buildUsageHistory(events, NOW, 7);
         expect(h.every((b) => b.sessions === 0)).toBe(true);
+    });
+
+    it('adds setup listening to its day as spend, never as a session or an active account', () => {
+        const events = [
+            ev({ accountId: 'a2', ts: 99 * DAY + 50, kind: 'stt', purpose: 'setup', providerCostUsd: 0.001, credits: 0.02 }),
+            ev({ ts: 99 * DAY + 100, kind: 'llm', providerCostUsd: 0.2, credits: 4 }),
+        ];
+        const yesterday = buildUsageHistory(events, NOW, 7).find((b) => b.dayStartTs === 99 * DAY)!;
+        expect(yesterday.sessions).toBe(1);
+        expect(yesterday.accounts).toBe(1);
+        expect(yesterday.events).toBe(1);
+        expect(yesterday.providerCostUsd).toBeCloseTo(0.201, 9);
+        expect(yesterday.credits).toBeCloseTo(4.02, 9);
     });
 });
 

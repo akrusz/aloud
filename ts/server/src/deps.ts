@@ -25,6 +25,21 @@ const JUDGE_REQUESTS_PER_MINUTE = 90;
  *  loses commands (routes/judge.ts lets one with a balance through). */
 const JUDGE_REQUESTS_PER_DAY = 5000;
 
+/** Setup-screen listening on hosted STT (routes/stt.ts, setup=1) is free up to
+ *  this many billed audio seconds per account per UTC day; past it the clips
+ *  are metered like a session's. One two-minute listening window holds at
+ *  most ~120 s of speech and a spoken request bills 2-4 s, so this is five
+ *  windows of nonstop talk (a TV in the room) or a hundred-odd requests. At
+ *  gpt-transcribe's $0.27/hr it costs at most $0.045 per account per day. */
+export const SETUP_STT_SECONDS_PER_DAY = 600;
+
+/** The same allowance across every account together, for the reason
+ *  judgeGlobalCap exists: an email signup is free to repeat, so a
+ *  per-account cap alone bounds nothing. 100 hours, at most $27 a day; real
+ *  use stays far under it until thousands of accounts a day use the setup
+ *  screen. */
+export const SETUP_STT_SECONDS_PER_DAY_ALL_ACCOUNTS = 360_000;
+
 export interface Deps {
     config: Config;
     store: CreditsStore;
@@ -40,6 +55,11 @@ export interface Deps {
      *  per-account cap can't give, since an email signup costs nothing to
      *  repeat. Like that cap it only binds accounts with no credits. */
     judgeGlobalCap: DailyCap;
+    /** Free setup-screen STT seconds, per account and across all of them
+     *  (SETUP_STT_SECONDS_PER_DAY*). Unlike the judge caps these bind every
+     *  account: past them a clip is metered, not refused. */
+    setupSttDailyCap: DailyCap;
+    setupSttGlobalCap: DailyCap;
     grantBreaker: FreeGrantBreaker;
     /** How far the LLM turns an account has in flight could run past their
      *  holds, kept under MAX_UNCOVERED_CREDITS (routes/llm.ts). */
@@ -74,6 +94,8 @@ export function buildDeps(config: Config, options: BuildDepsOptions = {}): Deps 
         judgeGuard: new RateGuard(JUDGE_REQUESTS_PER_MINUTE),
         judgeDailyCap: new DailyCap(JUDGE_REQUESTS_PER_DAY),
         judgeGlobalCap: new DailyCap(config.judgeCallsPerDay),
+        setupSttDailyCap: new DailyCap(SETUP_STT_SECONDS_PER_DAY),
+        setupSttGlobalCap: new DailyCap(SETUP_STT_SECONDS_PER_DAY_ALL_ACCOUNTS),
         grantBreaker: new FreeGrantBreaker(config.freeGrantBudgetPerHour),
         overdraft: new InFlightSum(),
         upfrontPending: new InFlightSum(),

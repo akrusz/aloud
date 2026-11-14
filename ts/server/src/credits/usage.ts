@@ -30,6 +30,17 @@ export type UsageKind = 'llm' | 'stt' | 'tts';
  *  made alongside it (classifiers, the Jev judge, noting labels, recaps). */
 export type LlmPurpose = 'facilitation' | 'utility';
 
+/** What a call was for, where its kind doesn't say: an LLM call's LlmPurpose,
+ *  or 'setup' on an STT call from the setup screen's listening (routes/stt.ts
+ *  setup=1), which happens before any session exists. */
+export type UsagePurpose = LlmPurpose | 'setup';
+
+/** Setup-screen listening: reported on its own line (UsageReport
+ *  setupListening) and kept out of every session-level number. */
+export function isSetupListening(e: Pick<UsageEvent, 'kind' | 'purpose'>): boolean {
+    return e.kind === 'stt' && e.purpose === 'setup';
+}
+
 export interface UsageEvent {
     id: string;
     accountId: string;
@@ -39,9 +50,10 @@ export interface UsageEvent {
     /** Retreat pass that covered this call (meditation-pal-414), or null if
      *  metered normally. Lets the admin attribute per-retreat spend. */
     passId: string | null;
-    /** LLM rows only, and null on rows from clients that predate the tag:
-     *  facilitationFilter falls back to a per-session guess for those. */
-    purpose: LlmPurpose | null;
+    /** LLM rows: null on rows from clients that predate the tag
+     *  (facilitationFilter falls back to a per-session guess for those). STT
+     *  rows: 'setup' or null. */
+    purpose: UsagePurpose | null;
     /** Seconds since epoch. */
     ts: number;
     kind: UsageKind;
@@ -146,9 +158,32 @@ export interface ModelAgg {
     kind: UsageKind;
     provider: string;
     model: string;
+    /** Setup-screen listening, split from the same model's session STT. */
+    setup: boolean;
     events: number;
     providerCostUsd: number;
     credits: number;
+}
+
+/** Setup-screen listening on hosted STT (isSetupListening). Outside byService
+ *  and every session-level number: it happens before a session exists, and
+ *  folded into session STT it would read as chattier sessions. In the totals,
+ *  since the provider bills it all the same. */
+export interface SetupListeningAgg {
+    events: number;
+    /** Billed audio seconds. */
+    seconds: number;
+    providerCostUsd: number;
+    /** Credits charged, which only the calls past a free bound are. */
+    credits: number;
+    /** Share of total provider cost, 0..1, as ServiceAgg.costShare. */
+    costShare: number;
+    /** Distinct accounts that used it. */
+    accounts: number;
+    /** Calls charged because they were past a bound (the clip length or a
+     *  daily allowance, deps.ts SETUP_STT_SECONDS_PER_DAY*). Climbing on real
+     *  use means the allowance is too tight. */
+    chargedEvents: number;
 }
 
 /** Prompt-cache breakdown for the LLM leg: read/write/fresh token split, hit
@@ -334,8 +369,11 @@ export interface UsageReport {
     /** Distinct accounts with at least one metered call in the window. */
     accounts: number;
     totals: { providerCostUsd: number; credits: number };
-    /** Cost split by service: the "what drove the bill" answer. */
+    /** Cost split by service: the "what drove the bill" answer. Setup-screen
+     *  listening is the one line outside it (setupListening); the shares of
+     *  both sum to 1. */
     byService: ServiceAgg[];
+    setupListening: SetupListeningAgg;
     /** cacheRead / (input + cacheRead + cacheCreation) across the LLM events in
      *  the window. The most useful single number for predicting real session
      *  cost (a warm cache is ~10x cheaper than cold). */
@@ -491,6 +529,16 @@ export function buildUsageReport(
         stt: { kind: 'stt', events: 0, providerCostUsd: 0, credits: 0, costShare: 0 },
         tts: { kind: 'tts', events: 0, providerCostUsd: 0, credits: 0, costShare: 0 },
     };
+    const setup: SetupListeningAgg = {
+        events: 0,
+        seconds: 0,
+        providerCostUsd: 0,
+        credits: 0,
+        costShare: 0,
+        accounts: 0,
+        chargedEvents: 0,
+    };
+    const setupAccounts = new Set<string>();
     const models = new Map<string, ModelAgg>();
     let totalCost = 0;
     let totalCredits = 0;
@@ -506,18 +554,29 @@ export function buildUsageReport(
     const providerCache = new Map<string, { provider: string; events: number; fresh: number; read: number; create: number; create1h: number; cost: number; noCache: number }>();
 
     for (const e of inWindow) {
-        const svc = services[e.kind];
-        svc.events += 1;
-        svc.providerCostUsd += e.providerCostUsd;
-        svc.credits += e.credits;
+        const isSetup = isSetupListening(e);
+        if (isSetup) {
+            setup.events += 1;
+            setup.seconds += e.seconds;
+            setup.providerCostUsd += e.providerCostUsd;
+            setup.credits += e.credits;
+            if (e.credits > 0) setup.chargedEvents += 1;
+            setupAccounts.add(e.accountId);
+        } else {
+            const svc = services[e.kind];
+            svc.events += 1;
+            svc.providerCostUsd += e.providerCostUsd;
+            svc.credits += e.credits;
+        }
         totalCost += e.providerCostUsd;
         totalCredits += e.credits;
 
-        const key = `${e.kind}:${e.provider}:${e.model}`;
+        const key = `${e.kind}:${e.provider}:${e.model}:${isSetup}`;
         const m = models.get(key) ?? {
             kind: e.kind,
             provider: e.provider,
             model: e.model,
+            setup: isSetup,
             events: 0,
             providerCostUsd: 0,
             credits: 0,
@@ -574,8 +633,10 @@ export function buildUsageReport(
     for (const svc of Object.values(services)) {
         svc.costShare = totalCost > 0 ? svc.providerCostUsd / totalCost : 0;
     }
+    setup.costShare = totalCost > 0 ? setup.providerCostUsd / totalCost : 0;
+    setup.accounts = setupAccounts.size;
 
-    const allSessions = clusterSessions(inWindow);
+    const allSessions = clusterSessions(inWindow.filter((e) => !isSetupListening(e)));
     // One bar (RealSit) for everything session-level below.
     const realSit: RealSit = { ...DEFAULT_REAL_SIT, ...opts.realSit };
     const turnsIn = (s: UsageEvent[]): number => s.filter(facilitationFilter(s)).length;
@@ -824,6 +885,7 @@ export function buildUsageReport(
         accounts: new Set(inWindow.map((e) => e.accountId)).size,
         totals: { providerCostUsd: totalCost, credits: totalCredits },
         byService: Object.values(services),
+        setupListening: setup,
         llmCacheHitRatio: cacheableTokens > 0 ? cacheReadTokens / cacheableTokens : 0,
         llmCache,
         llmCacheByProvider,
@@ -952,7 +1014,18 @@ export function buildUsageHistory(
     }
 
     const dayAccounts = new Map<number, Set<string>>();
-    const sessions = clusterSessions(events.filter((e) => e.ts >= firstDay));
+    const recent = events.filter((e) => e.ts >= firstDay);
+    // Setup-screen listening is spend, but not a session: clustered, a visit
+    // to the setup screen would count as one, and as a daily active account.
+    // Its money lands on the day it happened.
+    for (const e of recent) {
+        if (!isSetupListening(e)) continue;
+        const b = buckets.get(Math.floor(e.ts / DAY_SEC) * DAY_SEC);
+        if (!b) continue;
+        b.providerCostUsd += e.providerCostUsd;
+        b.credits += e.credits;
+    }
+    const sessions = clusterSessions(recent.filter((e) => !isSetupListening(e)));
     for (const s of sessions) {
         const day = Math.floor(s[0]!.ts / DAY_SEC) * DAY_SEC;
         const b = buckets.get(day);

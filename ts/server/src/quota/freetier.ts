@@ -148,7 +148,8 @@ export class RateGuard {
 }
 
 /**
- * A per-account ceiling per UTC day, for calls too cheap to charge (the judge).
+ * A per-key ceiling per UTC day on something the server pays for and doesn't
+ * charge: judge calls (one each), setup-screen STT (billed audio seconds).
  * In memory: a restart forgets the day's counts, which is fine for a cost
  * ceiling and would not be for a quota someone is sold.
  */
@@ -160,16 +161,23 @@ export class DailyCap {
         private readonly now: () => number = Date.now
     ) {}
 
-    /** Returns true if allowed (and counts it), false once the day is spent. */
-    allow(accountId: string): boolean {
+    private usedToday(key: string, day: number): number {
+        const entry = this.counts.get(key);
+        return entry && entry.day === day ? entry.n : 0;
+    }
+
+    /** Whether `amount` more still fits today, without counting it. */
+    fits(key: string, amount = 1): boolean {
         const day = Math.floor(this.now() / 86_400_000);
-        const entry = this.counts.get(accountId);
-        if (!entry || entry.day !== day) {
-            this.counts.set(accountId, { day, n: 1 });
-            return true;
-        }
-        if (entry.n >= this.maxPerDay) return false;
-        entry.n++;
+        return this.usedToday(key, day) + amount <= this.maxPerDay;
+    }
+
+    /** Returns true if allowed (and counts it), false once the day is spent. */
+    allow(key: string, amount = 1): boolean {
+        const day = Math.floor(this.now() / 86_400_000);
+        const used = this.usedToday(key, day);
+        if (used + amount > this.maxPerDay) return false;
+        this.counts.set(key, { day, n: used + amount });
         return true;
     }
 }

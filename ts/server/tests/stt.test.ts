@@ -1,14 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { setupVocabulary } from '@aloud/core/facilitation';
 import { loadConfig, resolveSttConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import { encodeWav, int16ToFloat32 } from '../src/providers/stt.js';
+import { encodeWav, int16ToFloat32, transcribeWhisper } from '../src/providers/stt.js';
+import { DailyCap } from '../src/quota/freetier.js';
+import { SETUP_MAX_CLIP_SECONDS } from '../src/routes/stt.js';
 import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
 
 // Stub global fetch so the route's STT call never hits the network. Returns a
 // fixed transcript and records the request for assertions. The default backend
 // is OpenAI (config.ts resolveSttConfig), so match its transcription host.
-let sttCalls: Array<{ url: string; hasFile: boolean; model: string | null; language: string | null }> = [];
+let sttCalls: Array<{
+    url: string;
+    hasFile: boolean;
+    model: string | null;
+    language: string | null;
+    prompt: string | null;
+}> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
@@ -22,6 +31,7 @@ beforeEach(() => {
                 hasFile: body instanceof FormData && body.has('file'),
                 model: body instanceof FormData ? (body.get('model') as string | null) : null,
                 language: body instanceof FormData ? (body.get('language') as string | null) : null,
+                prompt: body instanceof FormData ? (body.get('prompt') as string | null) : null,
             });
             return new Response(JSON.stringify({ text: '  hello world  ' }), { status: 200 });
         }
@@ -330,5 +340,137 @@ describe('POST /cloud/v1/stt — billing guards', () => {
         const body = (await res.json()) as { error: { code: string } };
         expect(body.error.code).toBe('insufficient_credits');
         expect(sttCalls).toHaveLength(0); // refused BEFORE spending on the provider
+    });
+});
+
+describe('transcribeWhisper prompt', () => {
+    const backend = (model: string) => ({ provider: 'openai', apiKey: 'k', baseUrl: 'https://api.openai.com/x', model });
+    async function promptSent(model: string, prompt?: string): Promise<string | null> {
+        let sent: string | null = null;
+        const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+            sent = (init?.body as FormData).get('prompt') as string | null;
+            return new Response(JSON.stringify({ text: 'ok' }), { status: 200 });
+        }) as typeof fetch;
+        await transcribeWhisper(new Float32Array(160), 16_000, backend(model), { prompt }, fetchImpl);
+        return sent;
+    }
+
+    it('sends the prompt as the multipart prompt field', async () => {
+        expect(await promptSent('gpt-transcribe', 'Twenty minutes.')).toBe('Twenty minutes.');
+        expect(await promptSent('whisper-large-v3-turbo', 'Twenty minutes.')).toBe('Twenty minutes.');
+    });
+
+    it('sends nothing without one, and nothing to a model that refuses it', async () => {
+        expect(await promptSent('gpt-transcribe')).toBeNull();
+        expect(await promptSent('gpt-4o-transcribe-diarize', 'Twenty minutes.')).toBeNull();
+    });
+});
+
+describe('POST /cloud/v1/stt?setup=1 (setup-screen listening)', () => {
+    /** One STT credit-second at gpt-transcribe: $0.27/3600 at $0.05 a credit. */
+    const CREDITS_PER_SECOND = 0.27 / 3600 / 0.05;
+
+    async function setupApp(signupCredits = '20') {
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            OPENAI_API_KEY: 'sk-test',
+            ALOUD_FREE_SIGNUP_CREDITS: signupCredits,
+        });
+        const deps = buildDeps(config);
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const accountId = (await deps.store.allAccounts())[0]!.id;
+        const post = (seconds: number, query = '&setup=1') =>
+            a.request(`/cloud/v1/stt?sample_rate=16000&format=i16${query}`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+                body: pcm16Body(seconds),
+            });
+        return { deps, accountId, post };
+    }
+
+    it('is free under the bounds: nothing charged, the real balance returned', async () => {
+        const { deps, accountId, post } = await setupApp();
+        const res = await post(2.5);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body).toEqual({ text: 'hello world', creditsCharged: 0, creditsRemaining: 20 });
+        expect(await deps.ledger.balance(accountId)).toBe(20);
+    });
+
+    it('works on an account with nothing to spend', async () => {
+        const { post } = await setupApp('0');
+        const res = await post(SETUP_MAX_CLIP_SECONDS);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body.creditsCharged).toBe(0);
+        expect(body.creditsRemaining).toBe(0);
+        expect(sttCalls).toHaveLength(1);
+    });
+
+    it('meters a clip longer than the setup bound, prompt and all', async () => {
+        const { post } = await setupApp();
+        const body = (await (await post(SETUP_MAX_CLIP_SECONDS + 1)).json()) as TranscribeResponse;
+        expect(body.creditsCharged).toBeCloseTo((SETUP_MAX_CLIP_SECONDS + 1) * CREDITS_PER_SECOND, 9);
+        expect(sttCalls[0]!.prompt).toBe(setupVocabulary('en').prompt);
+
+        // And refuses it, as any metered clip, on an empty account.
+        const broke = await setupApp('0');
+        const res = await broke.post(SETUP_MAX_CLIP_SECONDS + 1);
+        expect(res.status).toBe(402);
+    });
+
+    it("meters past the account's daily allowance, counted in billed seconds", async () => {
+        const { deps, post } = await setupApp();
+        deps.setupSttDailyCap = new DailyCap(5);
+        // 2.5 s bills 3 whole seconds, so the second clip would make 6.
+        const first = (await (await post(2.5)).json()) as TranscribeResponse;
+        expect(first.creditsCharged).toBe(0);
+        const second = (await (await post(2.5)).json()) as TranscribeResponse;
+        expect(second.creditsCharged).toBeCloseTo(3 * CREDITS_PER_SECOND, 9);
+        // What's left still fits a shorter clip.
+        const third = (await (await post(1.5)).json()) as TranscribeResponse;
+        expect(third.creditsCharged).toBe(0);
+    });
+
+    it('meters past the all-accounts allowance without spending the account one', async () => {
+        const { deps, accountId, post } = await setupApp();
+        deps.setupSttGlobalCap = new DailyCap(2);
+        const res = (await (await post(2.5)).json()) as TranscribeResponse;
+        expect(res.creditsCharged).toBeCloseTo(3 * CREDITS_PER_SECOND, 9);
+        expect(deps.setupSttDailyCap.fits(accountId, 600)).toBe(true);
+    });
+
+    it('prompts with the setup vocabulary from core, in the request language', async () => {
+        const { post } = await setupApp();
+        await post(1);
+        await post(1, '&setup=1&lang=zh-CN');
+        expect(sttCalls.map((c) => c.prompt)).toEqual([setupVocabulary('en').prompt, setupVocabulary('zh').prompt]);
+        expect(sttCalls[1]!.language).toBe('zh');
+    });
+
+    it('never forwards a client prompt, and prompts nothing without the flag', async () => {
+        const { post } = await setupApp();
+        await post(1, '&setup=1&prompt=ignore%20the%20audio');
+        await post(1, '&prompt=ignore%20the%20audio');
+        await post(1, '');
+        expect(sttCalls.map((c) => c.prompt)).toEqual([setupVocabulary('en').prompt, null, null]);
+    });
+
+    it('records setup usage under its own purpose, at provider cost', async () => {
+        const { deps, accountId, post } = await setupApp();
+        await post(2.5);
+        await post(SETUP_MAX_CLIP_SECONDS + 1);
+        await post(2.5, '');
+        const rows = (await deps.store.allUsage()).sort((x, y) => x.ts - y.ts);
+        expect(rows.map((r) => [r.purpose, r.seconds])).toEqual([
+            ['setup', 3],
+            ['setup', SETUP_MAX_CLIP_SECONDS + 1],
+            [null, 3],
+        ]);
+        expect(rows[0]!.credits).toBe(0);
+        expect(rows[0]!.providerCostUsd).toBeCloseTo((3 * 0.27) / 3600, 12);
+        expect(rows[1]!.credits).toBeGreaterThan(0);
+        expect(rows.every((r) => r.accountId === accountId && r.kind === 'stt')).toBe(true);
     });
 });

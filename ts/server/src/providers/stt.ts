@@ -64,18 +64,31 @@ export interface SttResult {
     reportedSeconds?: number;
 }
 
-/**
- * Transcribe mono Float32 PCM via the configured backend. Throws on upstream
- * error. `language` is an optional ISO-639-1 hint (the session language,
- * meditation-pal-c3a0.2): these endpoints auto-detect without it, but a hint
- * removes the misfire where a soft zh utterance comes back transliterated or
- * translated.
- */
+export interface SttHints {
+    /** ISO-639-1 code of the expected speech (the session language,
+     *  meditation-pal-c3a0.2). These endpoints auto-detect without it, but a
+     *  hint removes the misfire where a soft zh utterance comes back
+     *  transliterated or translated. */
+    language?: string | undefined;
+    /** Vocabulary the audio is likely to contain, sent as the multipart
+     *  `prompt`: it biases spelling and word choice, it is not an instruction.
+     *  Server-built text only, never a client's (routes/stt.ts). */
+    prompt?: string | undefined;
+}
+
+/** Models that refuse a `prompt` (OpenAI's API reference), so a backend pinned
+ *  to one through STT_MODEL still transcribes, just unprompted. Every model
+ *  the stock backends allowlist takes it (gpt-transcribe, gpt-4o-transcribe,
+ *  Groq's Whisper). */
+const PROMPTLESS_MODELS = new Set(['gpt-4o-transcribe-diarize']);
+
+/** Transcribe mono Float32 PCM via the configured backend. Throws on upstream
+ *  error. */
 export async function transcribeWhisper(
     samples: Float32Array,
     sampleRate: number,
     backend: SttBackend,
-    language?: string,
+    hints: SttHints = {},
     fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
 ): Promise<SttResult> {
     const wav = encodeWav(samples, sampleRate);
@@ -83,7 +96,8 @@ export async function transcribeWhisper(
     form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
     form.append('model', backend.model);
     form.append('response_format', 'json');
-    if (language) form.append('language', language);
+    if (hints.language) form.append('language', hints.language);
+    if (hints.prompt && !PROMPTLESS_MODELS.has(backend.model)) form.append('prompt', hints.prompt);
 
     const res = await fetchImpl(backend.baseUrl, {
         method: 'POST',

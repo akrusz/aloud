@@ -32,7 +32,7 @@ import type {
     RetreatPassStatus,
 } from './store.js';
 import type { Incident, IncidentKind } from './incidents.js';
-import type { LlmPurpose, UsageEvent, UsageKind } from './usage.js';
+import type { UsageEvent, UsageKind, UsagePurpose } from './usage.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS usage_events (
     -- Subset of cache_creation written at the 1h TTL (the anchor breakpoint),
     -- billed at 2x input. Added after the table existed → also a migration.
     cache_creation_1h INTEGER NOT NULL DEFAULT 0,
-    purpose           TEXT -- LLM rows: 'facilitation' | 'utility'; NULL predates the tag
+    purpose           TEXT -- LLM rows: 'facilitation' | 'utility', NULL predates the tag; STT rows: 'setup' or NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);
@@ -282,7 +282,7 @@ function rowToUsage(r: Row): UsageEvent {
         accountId: String(r['account_id']),
         sessionId: r['session_id'] != null ? String(r['session_id']) : null,
         passId: r['pass_id'] != null ? String(r['pass_id']) : null,
-        purpose: r['purpose'] != null ? (String(r['purpose']) as LlmPurpose) : null,
+        purpose: r['purpose'] != null ? (String(r['purpose']) as UsagePurpose) : null,
         ts: Number(r['ts']),
         kind: String(r['kind']) as UsageKind,
         provider: String(r['provider']),

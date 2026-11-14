@@ -209,7 +209,7 @@ ${ADMIN_STYLE}</style>
       </table></div>
     </div>
     <div class="card">
-      <p class="sub help-text" style="margin:0 0 10px">Cost split by service - what drives the bill.</p>
+      <p class="sub help-text" style="margin:0 0 10px">Cost split by service - what drives the bill. <b>STT setup listening</b> is the setup screen's voice control on hosted recognition: free up to a daily allowance per account, then charged (the charged count), and kept out of every session number above.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Service</th><th class="num">Provider $</th><th class="num">Share</th><th class="num">Credits</th><th class="num">Calls</th></tr></thead>
         <tbody id="usageServiceRows"><tr><td colspan="5" class="muted">Connect to load.</td></tr></tbody>
@@ -698,14 +698,24 @@ ${ADMIN_STYLE}</style>
       }).join('') || '<tr><td colspan="7" class="muted">No LLM usage in this window.</td></tr>';
 
       var svc = u.byService.slice().sort(function (a, b) { return b.providerCostUsd - a.providerCostUsd; });
+      // Setup-screen listening on hosted STT, outside the session numbers. Its
+      // credits are the calls past a free bound; minutes are billed audio.
+      var sl = u.setupListening;
+      if (sl && sl.events > 0) {
+        svc.push({
+          kind: 'setup',
+          label: 'STT setup listening (' + num1(sl.seconds / 60) + ' min, ' + int(sl.accounts) + ' acct, ' + int(sl.chargedEvents) + ' charged)',
+          providerCostUsd: sl.providerCostUsd, costShare: sl.costShare, credits: sl.credits, events: sl.events,
+        });
+      }
       $('usageServiceRows').innerHTML = svc.map(function (v) {
-        return '<tr><td>' + (SVC[v.kind] || v.kind) + '</td><td class="num">' + usdp(v.providerCostUsd) +
+        return '<tr><td>' + (v.label || SVC[v.kind] || v.kind) + '</td><td class="num">' + usdp(v.providerCostUsd) +
           '</td><td class="num">' + pct(v.costShare) + '</td><td class="num">' + dec1(v.credits) +
           '</td><td class="num">' + int(v.events) + '</td></tr>';
       }).join('') || '<tr><td colspan="5" class="muted">No usage in this window.</td></tr>';
 
       $('usageModelRows').innerHTML = u.byModel.map(function (m) {
-        return '<tr><td>' + (SVC[m.kind] || m.kind) + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) + '</code></td><td class="num">' +
+        return '<tr><td>' + (SVC[m.kind] || m.kind) + (m.setup ? ' setup' : '') + '</td><td><code>' + esc(m.provider) + '</code></td><td><code>' + esc(m.model) + '</code></td><td class="num">' +
           usdp(m.providerCostUsd) + '</td><td class="num">' + dec1(m.credits) + '</td><td class="num">' + int(m.events) + '</td></tr>';
       }).join('') || '<tr><td colspan="6" class="muted">No usage in this window.</td></tr>';
 
