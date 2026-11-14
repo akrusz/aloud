@@ -87,7 +87,7 @@ import {
     type SetupOutcome,
 } from '../../../src/facilitation/index.js';
 import { applySetupActions, type SetupForm } from '../setup-actions.js';
-import { createSetupSpeaker } from '../setup-speech.js';
+import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice } from '../setup-speech.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -121,6 +121,7 @@ import {
     closeIfActive as closeGuideIfActive,
     resetAndStart as resetGuide,
     type QuickStart,
+    type TourVoice,
 } from '../tour/index-guide.js';
 import { firstSitSetup } from '../first-sit.js';
 import { onBackdropClick } from '../modal-backdrop.js';
@@ -1204,6 +1205,8 @@ export async function mountSetupView(
         ) {
             return false;
         }
+        // The tour's own words ("next", a voice's name) while it is up.
+        if (tourHeard?.(text)) return true;
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
         if (!actions || !isLiveMount() || beginning) return false;
         const outcomes = applyActions(actions);
@@ -1313,6 +1316,65 @@ export async function mountSetupView(
         // The same path as the click, queued continue and all.
         beginBtn.click();
     }
+
+    // ---- the tour's voice (tour/index-guide.ts TourVoice) ----------------
+    let tourHeard: ((text: string) => boolean) | null = null;
+
+    /** Speak with the recognizer stopped, where one is running. */
+    function sayHeld(say: () => Promise<void>): Promise<void> {
+        const tail = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS));
+        const run = voiceStart ? voiceStart.handle.hold(say) : say().then(tail);
+        speaking = run.catch(() => undefined);
+        return speaking;
+    }
+
+    const tourVoice: TourVoice = {
+        say: (id, as) => sayHeld(() => speaker.sayLine(id, as ? { voice: as } : {})),
+        stop: () => speaker.stop(),
+        voicesOnOffer: () => {
+            const offered = houseVoices(appSettings.language);
+            // Someone who chose a local voice keeps it: the pick is between
+            // hosted ones, and would move them off it.
+            if (offered.length !== 2 || (stripVoicePrefix(setup.voice) && isLocalVoice(setup.voice))) return [];
+            const usable = offered.every(
+                ({ name }) =>
+                    prefixedVoiceId(findVoice(name)?.engine, name).startsWith('aloud:') &&
+                    findVoice(name) !== null &&
+                    clipFor(name, 'voice-intro-first', appSettings.language) !== null &&
+                    clipFor(name, 'voice-intro-second', appSettings.language) !== null
+            );
+            return usable ? offered : [];
+        },
+        pickVoice: (name) => {
+            setup.voice = prefixedVoiceId(findVoice(name)?.engine, name);
+            appSettings.houseVoice = name;
+            const voice = setup.voice;
+            void loadAppSettings().then((stored) =>
+                saveAppSettings({ ...stored, defaultVoice: voice, defaultTtsRate: setup.ttsRate, houseVoice: name })
+            );
+            updateVoiceButtonLabel();
+        },
+        mic: () => {
+            const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
+            if (!appSettings.setupVoice || mic === 'denied' || !beginBtn || beginBtn.disabled) return 'off';
+            return voiceStart ? 'listening' : 'ask';
+        },
+        enableMic: () => {
+            voiceStartClosed = false;
+            // Before any await, like Begin's own: the gesture is still behind it.
+            const asked = mic === 'granted' ? Promise.resolve('ok' as const) : acquireMicOnce();
+            return asked.then(async (status) => {
+                if (status === 'ok') mic = 'granted';
+                else if (status === 'denied') mic = 'denied';
+                await syncVoiceStart();
+                return voiceStart !== null;
+            });
+        },
+        listen: (handler) => {
+            tourHeard = handler;
+        },
+        keepOpen: () => voiceStart?.handle.keepOpen(),
+    };
 
     /** The judge's reading of what the on-device parser could not place
      *  (setup-judge.ts), where this setup may ask it. */
@@ -1897,7 +1959,7 @@ export async function mountSetupView(
     // autoStart short-circuits when the user has already dismissed, completed,
     // or used the app; it follows the load so it knows whether to hold the card.
     void initPendingContinue().finally(
-        () => void autoStartGuide(quickStart, continuationMode() !== null)
+        () => void autoStartGuide(quickStart, continuationMode() !== null, tourVoice)
     );
     void loadVoiceCatalog();
     watchWhisper(sttSetupChoice());
@@ -1910,7 +1972,7 @@ export async function mountSetupView(
                     sttSetupChoice()
             );
             await loadVoiceCatalog();
-            void autoStartGuide(quickStart, continuationMode() !== null);
+            void autoStartGuide(quickStart, continuationMode() !== null, tourVoice);
         },
         hide() {
             closeGuideIfActive();

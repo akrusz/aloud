@@ -5474,6 +5474,77 @@ input[type="range"].preview-range {
     outline: none;
 }
 
+/* The welcome card's close. Escape and a tap outside do the same. */
+.tour-close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    padding: 0.2rem 0.45rem;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.tour-close:hover {
+    color: var(--text-primary);
+}
+
+/* Skip's slot in a tour footer, shared with the speaker that switches the
+   tour's reading on and off (index-guide.ts addSoundToggle). */
+.tour-lead {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tour-sound {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.tour-sound:hover {
+    color: var(--text-primary);
+}
+
+.tour-sound .tour-sound-off,
+.tour-sound.quiet .tour-sound-waves {
+    display: none;
+}
+
+.tour-sound.quiet {
+    color: var(--text-muted);
+}
+
+.tour-sound.quiet .tour-sound-off {
+    display: inline;
+}
+
+/* The voice step: the two house voices side by side, each lit while it
+   introduces itself and once it is the one chosen. */
+.tour-voices {
+    flex-direction: row;
+}
+
+.tour-voices .tour-choice {
+    text-align: center;
+}
+
+.tour-voices .tour-choice.speaking,
+.tour-voices .tour-choice.chosen {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
 .tour-welcome h3 {
     font-size: 1.1rem;
     font-weight: 600;
