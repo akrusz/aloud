@@ -1,8 +1,9 @@
 /**
- * Starting a session by saying "begin" on the setup screen (opt-in:
- * AppSettings.voiceStart). With "end the session" recognized without a judge
- * (core end-command.ts), this makes a whole sitting hands-free: begin, speak,
- * end, begin again.
+ * The microphone on the setup screen (AppSettings.setupVoice): say "begin" to
+ * start a session, or change the setup first ("noting", "twenty minutes",
+ * "add playful"; core setup-command.ts). With "end the session" recognized
+ * without a judge (core end-command.ts), a whole sitting is hands-free: set
+ * up, begin, speak, end, begin again.
  *
  * Listening before a session exists is a different thing from listening inside
  * one, and this is deliberately narrow about it:
@@ -10,20 +11,25 @@
  * - It never raises a permission prompt by itself. Where the microphone is
  *   known to be granted it just listens; where that can't be known, the status
  *   line offers to (one tap, which is also where a prompt belongs).
- * - It is short. The mic closes after VOICE_START_WINDOW_MS, since an app left
- *   open on this screen should not be an open microphone. The status line
- *   says when it is listening and offers to listen again.
+ * - It is short. The mic closes VOICE_START_WINDOW_MS after the last request
+ *   it understood (and VOICE_START_MAX_OPEN_MS after it opened, whatever was
+ *   said), since an app left open on this screen should not be an open
+ *   microphone. The mic beside Begin shows which, and a tap opens it again.
  * - It is cheap. Whatever recognizer the session would use is the one that
  *   listens, hosted speech recognition included, but under LOBBY_STT: short
- *   utterances, one transcription each. The word itself is matched locally
- *   (core begin-command.ts), not by the judge.
+ *   utterances, one transcription each. "Begin" is matched locally and
+ *   strictly (core begin-command.ts), never by the judge.
+ * - It does not hear the app. A recognized request is answered out loud
+ *   (setup-speech.ts) with the recognizer stopped, and it starts again a
+ *   moment after the line ends.
  * - It waits for a touch only where the page can't make sound without one
  *   (a browser tab nobody has interacted with): a session started there would
  *   be a silent one.
  *
- * The request can name a mode and a length ("begin a twenty minute felt sense
- * session"); the setup screen applies those before it begins. Everything said
- * that isn't the request is dropped where it lands.
+ * A request to begin can name a mode and a length ("begin a twenty minute felt
+ * sense session"); the setup screen applies those before it begins. Everything
+ * said that is neither a request to begin nor one to change the setup is
+ * dropped where it lands.
  */
 
 import type { SttEngine } from '../../src/platform/index.js';
@@ -33,12 +39,20 @@ import { isTauri } from './is-desktop.js';
 import { micOpenedThisPage } from './mic-check.js';
 import { withTimeout } from './net-timeout.js';
 
-/** How long the mic stays open on the setup screen before it closes itself. */
+/** How long the mic stays open on the setup screen with nothing asked of it. */
 export const VOICE_START_WINDOW_MS = 120_000;
 
+/** Each request understood buys another window, up to this long since the mic
+ *  opened. Nothing a television says keeps a microphone open past it. */
+export const VOICE_START_MAX_OPEN_MS = 600_000;
+
+/** After the app has finished speaking, before the recognizer listens again:
+ *  room for the last syllable to leave the speaker and the room. */
+export const SPEECH_TAIL_MS = 350;
+
 /**
- * How the recognizer is tuned while it waits for "begin", in place of a
- * session's pacing. A request is a few words said in one breath, so the turn
+ * How the recognizer is tuned on the setup screen, in place of a session's
+ * pacing. A request is a few words said in one breath, so the turn
  * ends on a short pause (a session waits 3s and more, for someone thinking
  * aloud) and nothing runs longer than a request could.
  *
@@ -57,6 +71,10 @@ export const LOBBY_STT = {
     minSpeechDurationMs: 200,
     speculation: false,
     maxUtteranceMs: 10_000,
+    // Tells each recognizer what the setup screen expects to hear (stt-picker.ts),
+    // and marks hosted audio as setup listening, which the server leaves
+    // unbilled inside a daily allowance (server routes/stt.ts).
+    setupListening: true,
 } as const;
 
 /**
@@ -146,30 +164,56 @@ export type VoiceStartEnd =
 export interface VoiceStartHandle {
     /** Stop listening and close the mic. Safe to call twice. */
     stop(): Promise<void>;
+    /**
+     * Stop the recognizer while `during` runs (the app is speaking a line
+     * nobody asked for, like a step of the tour), and listen again a moment
+     * after it settles. The mic can't hear what plays inside.
+     */
+    hold<T>(during: () => Promise<T>): Promise<T>;
+    /** Start the window over, as a request understood does. */
+    keepOpen(): void;
 }
 
-export interface ListenForBeginOptions {
+export interface ListenOnSetupOptions {
     engine: SttEngine;
     /** False once the setup screen is gone; checked on every tick. */
     alive: () => boolean;
     /** Runs after the mic has been released, so the session can open its own.
      *  Carries what the request named beyond beginning: a mode, a length. */
     onBegin: (request: BeginRequest) => void;
-    /** Why listening ended, for the status line. */
+    /**
+     * Anything heard that is not a request to begin. Runs with the recognizer
+     * stopped, so whatever it says in answer is not heard; listening resumes
+     * SPEECH_TAIL_MS after it settles. Resolves true when it was a request
+     * (which keeps the window open) and false when it was only the room.
+     */
+    onHeard?: (text: string) => boolean | Promise<boolean>;
+    /** Why listening ended, for the mic beside Begin. */
     onEnd: (why: VoiceStartEnd) => void;
     windowMs?: number;
+    maxOpenMs?: number;
     now?: () => number;
 }
 
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Listen for "begin" until it is heard, the window lapses, or the screen goes
- * away. One utterance at a time, the way a session listens; anything that
- * isn't the request is ignored and listening carries on.
+ * Listen on the setup screen until "begin" is heard, the window lapses, or the
+ * screen goes away. One utterance at a time, the way a session listens.
  */
-export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
+export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     const now = opts.now ?? Date.now;
-    const deadline = now() + (opts.windowMs ?? VOICE_START_WINDOW_MS);
+    const windowMs = opts.windowMs ?? VOICE_START_WINDOW_MS;
+    const ceiling = now() + (opts.maxOpenMs ?? VOICE_START_MAX_OPEN_MS);
+    let deadline = Math.min(now() + windowMs, ceiling);
     let ended = false;
+    // Settles when nothing is holding the recognizer stopped.
+    let held: Promise<void> | null = null;
+    let holds = 0;
+
+    const keepOpen = (): void => {
+        deadline = Math.min(now() + windowMs, ceiling);
+    };
 
     const end = async (why: VoiceStartEnd, request?: BeginRequest): Promise<void> => {
         if (ended) return;
@@ -184,11 +228,32 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
 
     const watchdog = setInterval(() => {
         if (!opts.alive()) void end('stopped');
-        else if (now() >= deadline) void end('window');
+        // Not while the app is mid-sentence: the line finishes, then it closes.
+        else if (now() >= deadline && holds === 0) void end('window');
     }, 500);
+
+    const hold = async <T>(during: () => Promise<T>): Promise<T> => {
+        let release!: () => void;
+        const mine = new Promise<void>((resolve) => (release = resolve));
+        const before = held;
+        held = (before ?? Promise.resolve()).then(() => mine);
+        const chained = held;
+        holds++;
+        await opts.engine.stop().catch(() => undefined);
+        try {
+            return await during();
+        } finally {
+            await pause(SPEECH_TAIL_MS);
+            holds--;
+            release();
+            if (held === chained) held = null;
+        }
+    };
 
     void (async () => {
         while (!ended) {
+            while (held && !ended) await held;
+            if (ended) return;
             let heard = '';
             let failed = false;
             try {
@@ -211,14 +276,33 @@ export function listenForBegin(opts: ListenForBeginOptions): VoiceStartHandle {
                 failed = true;
             }
             if (ended) return;
+            // Stopped from under it by a hold: that is not the recognizer failing.
+            if (holds > 0) continue;
             if (failed) return void end('error');
             const request = heard ? parseBeginRequest(heard) : null;
             if (request) return void end('begin', request);
+            if (heard && opts.onHeard) {
+                let understood = false;
+                holds++;
+                try {
+                    understood = await opts.onHeard(heard);
+                } catch {
+                    /* a handler that fails has understood nothing */
+                } finally {
+                    holds--;
+                }
+                if (ended) return;
+                if (understood) {
+                    keepOpen();
+                    await pause(SPEECH_TAIL_MS);
+                    continue;
+                }
+            }
             // A recognizer that returns at once with nothing (no speech, or a
             // refusal it reports as an ordinary end) must not spin.
-            if (!heard) await new Promise((r) => setTimeout(r, 300));
+            if (!heard) await pause(300);
         }
     })();
 
-    return { stop: () => end('stopped') };
+    return { stop: () => end('stopped'), hold, keepOpen };
 }

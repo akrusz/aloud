@@ -147,10 +147,16 @@ export interface AppSettings {
      *  never touch, so it is a consent and defaults off. aloud cloud sessions
      *  ignore it (always on). See voice-commands.ts. */
     voiceCommandsViaCloud: boolean;
-    /** Listen for "begin" on the setup screen (voice-start.ts). Off by default:
-     *  it opens the mic before a session exists, so it is the user's to choose,
-     *  and it wants checking on real devices before it is anything but opt-in. */
-    voiceStart: boolean;
+    /** Listen on the setup screen for "begin" and for changes to the setup
+     *  (voice-start.ts). On by default; the mic never opens where that would
+     *  raise a permission prompt (voiceStartBlocker). A new key, not the
+     *  `voiceStart` that shipped off in 2.20.1: everyone who saved settings
+     *  under that release holds a stored `false` they never chose. */
+    setupVoice: boolean;
+    /** The house voice that speaks the setup screen's lines when the session
+     *  voice has no clips of its own (setup-speech.ts); null until the tour's
+     *  voice step has been answered. */
+    houseVoice: string | null;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -195,7 +201,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     checkinContent: 'smart',
     silenceModeEnabled: true,
     voiceCommandsViaCloud: false,
-    voiceStart: false,
+    setupVoice: true,
+    houseVoice: null,
 };
 
 /**

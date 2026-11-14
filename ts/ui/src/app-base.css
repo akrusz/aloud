@@ -5147,6 +5147,31 @@ input[type="range"].preview-range {
     display: none;
 }
 
+/* What the app just said in answer to a request made by voice: floated above
+   the Begin bar, out of flow, so nothing under it moves. */
+.voice-start-note {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.6rem);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: min(calc(100vw - 2rem), 34rem);
+    margin: 0;
+    padding: 0.45rem 0.95rem;
+    border: 1px solid var(--hairline, var(--border));
+    border-radius: 1rem;
+    background: var(--bg-input);
+    color: var(--text-primary, var(--text));
+    font-size: 0.9rem;
+    line-height: 1.35;
+    text-align: center;
+    pointer-events: none;
+}
+
+.voice-start-note.hidden {
+    display: none;
+}
+
 /* The session's cloud rate, "≈8☁/hr (?)", and the way into the "what are ☁?"
    explainer: right side of the Begin bar, absolutely positioned so the
    centered Begin column never shifts. Only visible when the session would

@@ -14,7 +14,7 @@ const micCheck = vi.hoisted(() => ({ opened: false }));
 vi.mock('../ui/src/mic-check.js', () => ({ micOpenedThisPage: () => micCheck.opened }));
 
 import {
-    listenForBegin,
+    listenOnSetup,
     LOBBY_STT,
     micPermission,
     voiceStartBlocker,
@@ -156,7 +156,7 @@ function scriptedEngine(utterances: Array<string | Error>): SttEngine & { starts
     return engine;
 }
 
-describe('listenForBegin', () => {
+describe('listenOnSetup', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
@@ -164,7 +164,7 @@ describe('listenForBegin', () => {
         const ends: VoiceStartEnd[] = [];
         const order: string[] = [];
         const requests: BeginRequest[] = [];
-        const handle = listenForBegin({
+        const handle = listenOnSetup({
             engine,
             alive,
             onBegin: (request) => {

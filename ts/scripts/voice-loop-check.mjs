@@ -167,7 +167,7 @@ async function open(settings, setupPatch = {}) {
 try {
     // ---- ending by voice, no judge ----------------------------------------------
     {
-        const s = await open({ voiceStart: false });
+        const s = await open({ setupVoice: false });
         await s.setup();
         check('with voice start off, setup opens no recognizer', (await s.page.evaluate(() => window.__stt.started)) === 0);
         await s.page.locator('#begin-btn').click();
@@ -215,7 +215,7 @@ try {
 
     // ---- a whole sitting after one touch ----------------------------------------
     {
-        const s = await open({ voiceStart: true });
+        const s = await open({ setupVoice: true });
         await s.setup();
         await s.page.mouse.click(5, 300); // one touch, on nothing
         check(
@@ -246,7 +246,7 @@ try {
 
     // ---- "begin" that names the sit ---------------------------------------------
     {
-        const s = await open({ voiceStart: true, showSessionClock: true });
+        const s = await open({ setupVoice: true, showSessionClock: true });
         await s.setup();
         await s.page.mouse.click(5, 300);
         await s.until(async () => /Listening for "begin"/.test(await s.status()));
@@ -272,7 +272,7 @@ try {
 
     // ---- a noting circle: its own listen loop -----------------------------------
     {
-        const s = await open({ voiceStart: false }, { meditationType: 'noting' });
+        const s = await open({ setupVoice: false }, { meditationType: 'noting' });
         await s.setup();
         await s.page.locator('#begin-btn').click();
         check('noting session starts', await s.until(s.inSession));

@@ -67,15 +67,27 @@ import {
     createSttForChoice,
 } from '../adapters/stt-picker.js';
 import {
-    listenForBegin,
+    listenOnSetup,
     LOBBY_STT,
+    SPEECH_TAIL_MS,
     micPermission,
     pageTouched,
     voiceStartBlocker,
     type MicPermission,
     type VoiceStartHandle,
 } from '../voice-start.js';
-import type { BeginRequest } from '../../../src/facilitation/index.js';
+import {
+    parseSetupCommand,
+    previewLooksLikeTtsEcho,
+    setupOutcomeLines,
+    type BeginRequest,
+    type SetupAction,
+    type SetupFocus,
+    type SetupLineId,
+    type SetupOutcome,
+} from '../../../src/facilitation/index.js';
+import { applySetupActions, type SetupForm } from '../setup-actions.js';
+import { createSetupSpeaker } from '../setup-speech.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -404,9 +416,9 @@ export async function mountSetupView(
 
     // Select a meditation mode (a tab tap, or a continuation entering its
     // session's mode), keeping the banner and dependent copy/estimates in sync.
-    function selectMode(tab: MeditationType): void {
+    function selectMode(tab: MeditationType): boolean {
         const locked = continuationMode();
-        if (locked !== null && tab !== locked) return;
+        if (locked !== null && tab !== locked) return false;
         if (setup.meditationType !== tab) {
             setup.meditationType = tab;
             // Noting has no intention field, so its slot is always empty.
@@ -421,10 +433,165 @@ export async function mountSetupView(
             updateSessionEstimate();
         }
         paintContinuation();
+        return true;
     }
 
     function persist(): void {
         void saveSetup(setup);
+    }
+
+    // ---- the form's changes, by click or by voice (setup-actions.ts) ------
+    // Each setter changes the setup, saves it and repaints its own control,
+    // whether or not that control is on screen (another mode's tab, the
+    // collapsed Customize section). The click handlers in render() call the
+    // same ones.
+
+    // The collapsed Customize toggle still shows what's active, so persisted
+    // picks from a previous session aren't invisible.
+    function updateCustomizeSummary(): void {
+        const el = root.querySelector<HTMLElement>('#customize-summary');
+        if (!el) return;
+        const names = [
+            ...setup.focuses.map((f) => FOCUS_LABELS[f]),
+            ...setup.qualities.map((q) => QUALITY_LABELS[q]),
+        ].filter(Boolean).map((n) => t(n));
+        el.textContent = names.join(', ');
+    }
+
+    function paintModifiers(name: 'focus' | 'quality', list: readonly string[]): void {
+        root.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`).forEach((cb) => {
+            cb.checked = list.includes(cb.value);
+        });
+        updateCustomizeSummary();
+    }
+
+    function setFocuses(list: Focus[]): void {
+        setup.focuses = list;
+        persist();
+        paintModifiers('focus', list);
+    }
+
+    function setQualities(list: Quality[]): void {
+        setup.qualities = list;
+        persist();
+        paintModifiers('quality', list);
+    }
+
+    function paintGuidance(): void {
+        const slider = root.querySelector<HTMLInputElement>('#directiveness');
+        if (!slider) return;
+        slider.value = String(setup.dirStep);
+        sayStop(slider, t('Following'), t('Directing'));
+    }
+
+    function setGuidance(step: number): void {
+        setup.dirStep = step;
+        persist();
+        paintGuidance();
+    }
+
+    function paintVerbosity(): void {
+        const select = root.querySelector<HTMLSelectElement>('#verbosity');
+        if (select) select.value = setup.verbosity;
+    }
+
+    function setVerbosity(value: Verbosity): void {
+        setup.verbosity = value;
+        persist();
+        paintVerbosity();
+    }
+
+    const INTENTION_FIELDS: ReadonlyArray<readonly [string, MeditationType]> = [
+        ['#intention', 'exploration'],
+        ['#felt-sense-intention', 'felt_sense'],
+    ];
+
+    /** `mode`'s own field: exploration's intention and felt sense's
+     *  "something to sit with" are different inputs. setup.intention mirrors
+     *  the ACTIVE mode's, so sessions and prompts downstream stay single-field. */
+    function setIntention(mode: MeditationType, text: string, from?: HTMLTextAreaElement): void {
+        setup.intentionByMode[mode] = text;
+        if (setup.meditationType === mode) setup.intention = text;
+        persist();
+        const selector = INTENTION_FIELDS.find(([, m]) => m === mode)?.[0];
+        const el = selector ? root.querySelector<HTMLTextAreaElement>(selector) : null;
+        if (!el) return;
+        // Typing in the field must not have its text put back under the caret.
+        if (el !== from) el.value = text;
+        autosizeIntention(el);
+    }
+
+    function paintCheckins(): void {
+        const on = setup.feltSenseCheckins;
+        const toggle = root.querySelector<HTMLInputElement>('#checkin-enabled');
+        const slider = root.querySelector<HTMLInputElement>('#checkin-pace');
+        if (toggle) toggle.checked = on;
+        // Off greys the pace slider out.
+        root.querySelector<HTMLElement>('#checkin-pace-control')?.classList.toggle('is-disabled', !on);
+        if (slider) slider.disabled = !on;
+    }
+
+    function setCheckins(on: boolean): void {
+        setup.feltSenseCheckins = on;
+        persist();
+        paintCheckins();
+    }
+
+    // The app-level clock settings still being written. A begin said in the
+    // same breath as a length ("begin a twenty minute session") waits for
+    // this, since the session reads its timer from storage.
+    let clockSaved: Promise<void> = Promise.resolve();
+
+    function paintClockBtns(): void {
+        const face = clockModeLabel(
+            appSettings.sessionClockMode,
+            appSettings.sessionTimerMin,
+            appSettings.showSessionClock
+        );
+        root.querySelectorAll<HTMLButtonElement>('[data-clock-btn]').forEach((b) => (b.textContent = face));
+    }
+
+    /** One clock for every mode: a timer picked under Exploration is still
+     *  there under Felt Sense. */
+    function setClock(choice: Partial<Pick<typeof appSettings, 'sessionClockMode' | 'sessionTimerMin' | 'showSessionClock' | 'endSessionOnTimer'>>): void {
+        Object.assign(appSettings, choice);
+        paintClockBtns();
+        // Re-read before writing, like the voice control: another control on
+        // this page may have saved since this view loaded its copy.
+        clockSaved = clockSaved
+            .then(() => loadAppSettings())
+            .then((stored) => saveAppSettings({ ...stored, ...choice }))
+            .catch(() => undefined);
+    }
+
+    const setupForm: SetupForm = {
+        mode: () => setup.meditationType,
+        selectMode,
+        // The same thing a timer set by voice inside a session does
+        // (SessionClock.setTimer): it becomes the timer, for this session and
+        // as the default after it.
+        setTimer: (minutes) => {
+            const timerMin = clampTimerMinutes(minutes);
+            setClock({ sessionClockMode: 'timer', sessionTimerMin: timerMin });
+            return timerMin;
+        },
+        clearTimer: () => setClock({ sessionClockMode: 'elapsed' }),
+        focuses: () => setup.focuses.filter((f): f is SetupFocus => f !== 'open_awareness'),
+        // Open awareness has no card on this screen; a stored one is kept.
+        setFocuses: (list) => setFocuses([...setup.focuses.filter((f) => f === 'open_awareness'), ...list]),
+        qualities: () => setup.qualities,
+        setQualities,
+        guidance: () => setup.dirStep,
+        setGuidance,
+        verbosity: () => setup.verbosity,
+        setVerbosity,
+        setIntention: (text) => setIntention(setup.meditationType, text),
+        setCheckins,
+    };
+
+    /** A request to change the form, from anywhere but a pointer. */
+    function applyActions(actions: readonly SetupAction[]): SetupOutcome[] {
+        return applySetupActions(setupForm, actions);
     }
 
     /**
@@ -676,21 +843,11 @@ export async function mountSetupView(
         // are different inputs, so each textarea binds to its own
         // intentionByMode slot. setup.intention mirrors the ACTIVE mode's value
         // so sessions/prompts downstream stay single-field.
-        const intentionEl = root.querySelector<HTMLTextAreaElement>('#intention')!;
-        const feltIntentionEl = root.querySelector<HTMLTextAreaElement>('#felt-sense-intention')!;
-        const intentionFields: Array<[HTMLTextAreaElement, MeditationType]> = [
-            [intentionEl, 'exploration'],
-            [feltIntentionEl, 'felt_sense'],
-        ];
-        for (const [el, mode] of intentionFields) {
+        for (const [selector, mode] of INTENTION_FIELDS) {
+            const el = root.querySelector<HTMLTextAreaElement>(selector)!;
             el.value = setup.intentionByMode[mode] ?? '';
             autosizeIntention(el);
-            el.addEventListener('input', () => {
-                setup.intentionByMode[mode] = el.value;
-                if (setup.meditationType === mode) setup.intention = el.value;
-                persist();
-                autosizeIntention(el);
-            });
+            el.addEventListener('input', () => setIntention(mode, el.value, el));
         }
 
         // "Customize facilitator" disclosure. On phones the focus + vibe grids
@@ -703,48 +860,25 @@ export async function mountSetupView(
             customizeToggle.setAttribute('aria-expanded', String(open));
             if (open && customizeSection) revealOpened(customizeSection);
         });
-        // The collapsed toggle still shows what's active, so persisted picks
-        // from a previous session aren't invisible.
-        function updateCustomizeSummary(): void {
-            const el = root.querySelector<HTMLElement>('#customize-summary');
-            if (!el) return;
-            const names = [
-                ...setup.focuses.map((f) => FOCUS_LABELS[f]),
-                ...setup.qualities.map((q) => QUALITY_LABELS[q]),
-            ].filter(Boolean).map((n) => t(n));
-            el.textContent = names.join(', ');
-        }
-        updateCustomizeSummary();
-
         // Focus + quality checkboxes, each group a list-valued setup field.
-        function wireModifierGroup<T extends string>(
-            name: string,
-            get: () => T[],
-            set: (list: T[]) => void
-        ): void {
-            root.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`).forEach((cb) => {
-                const value = cb.value as T;
-                cb.checked = get().includes(value);
-                cb.addEventListener('change', () => {
-                    set(cb.checked ? [...get(), value] : get().filter((v) => v !== value));
-                    persist();
-                    updateCustomizeSummary();
-                    cb.closest('.modifier-toggle')!.classList.toggle('selected', cb.checked);
-                });
+        paintModifiers('focus', setup.focuses);
+        paintModifiers('quality', setup.qualities);
+        root.querySelectorAll<HTMLInputElement>('input[name="focus"]').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const value = cb.value as Focus;
+                setFocuses(cb.checked ? [...setup.focuses, value] : setup.focuses.filter((v) => v !== value));
             });
-        }
-        wireModifierGroup<Focus>('focus', () => setup.focuses, (l) => (setup.focuses = l));
-        wireModifierGroup<Quality>('quality', () => setup.qualities, (l) => (setup.qualities = l));
+        });
+        root.querySelectorAll<HTMLInputElement>('input[name="quality"]').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const value = cb.value as Quality;
+                setQualities(cb.checked ? [...setup.qualities, value] : setup.qualities.filter((v) => v !== value));
+            });
+        });
 
         const dirSlider = root.querySelector<HTMLInputElement>('#directiveness')!;
-        dirSlider.value = String(setup.dirStep);
-        const sayDir = (): void => sayStop(dirSlider, t('Following'), t('Directing'));
-        sayDir();
-        dirSlider.addEventListener('input', () => {
-            setup.dirStep = Number(dirSlider.value);
-            sayDir();
-            persist();
-        });
+        paintGuidance();
+        dirSlider.addEventListener('input', () => setGuidance(Number(dirSlider.value)));
 
         // Felt-sense check-in pace: same stops as the guidance slider, its own
         // stored value, timing only (SessionSetup.feltSensePaceStep).
@@ -759,27 +893,14 @@ export async function mountSetupView(
         });
         // Felt sense owns whether silence check-ins happen at all, rather than
         // deferring to the Settings-page Check-In Timing radio (unreachable from
-        // here). Off greys the pace slider out.
+        // here).
         const checkinToggle = root.querySelector<HTMLInputElement>('#checkin-enabled')!;
-        const paceControl = root.querySelector<HTMLElement>('#checkin-pace-control')!;
-        function syncCheckinToggle(): void {
-            checkinToggle.checked = setup.feltSenseCheckins;
-            paceControl.classList.toggle('is-disabled', !setup.feltSenseCheckins);
-            paceSlider.disabled = !setup.feltSenseCheckins;
-        }
-        syncCheckinToggle();
-        checkinToggle.addEventListener('change', () => {
-            setup.feltSenseCheckins = checkinToggle.checked;
-            syncCheckinToggle();
-            persist();
-        });
+        paintCheckins();
+        checkinToggle.addEventListener('change', () => setCheckins(checkinToggle.checked));
 
         const verbositySel = root.querySelector<HTMLSelectElement>('#verbosity')!;
-        verbositySel.value = setup.verbosity;
-        verbositySel.addEventListener('change', () => {
-            setup.verbosity = verbositySel.value as Verbosity;
-            persist();
-        });
+        paintVerbosity();
+        verbositySel.addEventListener('change', () => setVerbosity(verbositySel.value as Verbosity));
 
         const customEl = root.querySelector<HTMLTextAreaElement>('#custom-instructions')!;
         customEl.value = setup.customInstructions;
@@ -789,19 +910,9 @@ export async function mountSetupView(
         });
 
         // Session clock. One control per mode panel, all showing the same
-        // app-level choice: picking a 20 minute timer under Exploration and
-        // then switching to Felt Sense keeps the timer.
-        const clockBtns = [...root.querySelectorAll<HTMLButtonElement>('[data-clock-btn]')];
-        function paintClockBtns(): void {
-            const face = clockModeLabel(
-                appSettings.sessionClockMode,
-                appSettings.sessionTimerMin,
-                appSettings.showSessionClock
-            );
-            for (const b of clockBtns) b.textContent = face;
-        }
+        // app-level choice.
         paintClockBtns();
-        for (const btn of clockBtns) {
+        root.querySelectorAll<HTMLButtonElement>('[data-clock-btn]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 void showSessionClockModal({
                     mode: appSettings.sessionClockMode,
@@ -810,25 +921,15 @@ export async function mountSetupView(
                     endOnComplete: appSettings.endSessionOnTimer,
                 }).then((choice) => {
                     if (!choice) return;
-                    appSettings.sessionClockMode = choice.mode;
-                    appSettings.sessionTimerMin = choice.timerMin;
-                    appSettings.showSessionClock = choice.showClock;
-                    appSettings.endSessionOnTimer = choice.endOnComplete;
-                    paintClockBtns();
-                    // Re-read before writing, like the voice control: another
-                    // control on this page may have saved since we loaded.
-                    void loadAppSettings().then((s) =>
-                        saveAppSettings({
-                            ...s,
-                            sessionClockMode: choice.mode,
-                            sessionTimerMin: choice.timerMin,
-                            showSessionClock: choice.showClock,
-                            endSessionOnTimer: choice.endOnComplete,
-                        })
-                    );
+                    setClock({
+                        sessionClockMode: choice.mode,
+                        sessionTimerMin: choice.timerMin,
+                        showSessionClock: choice.showClock,
+                        endSessionOnTimer: choice.endOnComplete,
+                    });
                 });
             });
-        }
+        });
 
         const providerSel = root.querySelector<HTMLSelectElement>('#provider')!;
         providerSel.value = setup.provider;
@@ -888,10 +989,8 @@ export async function mountSetupView(
             // A toggle, like the session's mic: lit is listening, and a tap
             // on a lit one closes it until it is tapped again.
             if (voiceStart) {
-                const { handle } = voiceStart;
-                voiceStart = null;
-                voiceStartClosed = true;
-                return void handle.stop().then(() => syncVoiceStart());
+                speaker.stop();
+                return closeVoiceStart();
             }
             voiceStartClosed = false;
             if (mic !== 'ask') return void syncVoiceStart();
@@ -912,6 +1011,7 @@ export async function mountSetupView(
             const listening = voiceStart;
             voiceStart = null;
             void listening?.handle.stop();
+            speaker.stop();
             // And none may open while the session comes up: not one still
             // being built, not one a late probe asks for.
             voiceStartGen++;
@@ -1006,11 +1106,12 @@ export async function mountSetupView(
      * user with (say) Ollama stopped sees a disabled button instead of a
      * session that dies on the first turn.
      */
-    // ---- say "begin" (voice-start.ts) ------------------------------------
-    // Opt-in. Runs only while this screen is up and Begin itself is possible;
-    // opens by itself where the mic is known to be granted and on a tap where
-    // it isn't; closes itself after VOICE_START_WINDOW_MS and when the screen
-    // goes away.
+    // ---- the mic on this screen (voice-start.ts) -------------------------
+    // "Begin", and changes to the setup said out loud. Runs only while this
+    // screen is up and Begin itself is possible; opens by itself where the
+    // mic is known to be granted and on a tap where it isn't; closes itself
+    // after VOICE_START_WINDOW_MS with nothing asked and when the screen goes
+    // away.
     let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice } | null = null;
     let voiceStartGen = 0;
     // Null until the first reading lands: nothing is offered on a guess.
@@ -1024,7 +1125,7 @@ export async function mountSetupView(
     // screen is still here for a moment, and its probes are still landing;
     // none of them may open the mic again underneath the session.
     let beginning = false;
-    if (appSettings.voiceStart) {
+    if (appSettings.setupVoice) {
         void micPermission().then((permission) => {
             mic = permission;
             void syncVoiceStart();
@@ -1037,7 +1138,20 @@ export async function mountSetupView(
         }
     }
 
-    /** The mic beside Begin. `listening`: lit, saying "begin" starts.
+    // What answers a request made by voice: a clip in a house voice, or the
+    // session's own voice where that one is local (setup-speech.ts).
+    const speaker = createSetupSpeaker({
+        voiceId: () => setup.voice,
+        houseVoice: () => appSettings.houseVoice,
+        language: () => appSettings.language,
+        rate: () => setup.ttsRate,
+    });
+    // Settles when the app has finished speaking and its tail has cleared. A
+    // listener rebuilt mid-line (a mode with its own recognizer) waits on it,
+    // or it would open on the app's own voice.
+    let speaking: Promise<void> = Promise.resolve();
+
+    /** The mic beside Begin. `listening`: lit, and it hears requests.
      *  `off`: slashed, a tap opens it. `blocked`: slashed and inert.
      *  `hidden`: nothing to offer (setting off, or Begin itself can't run). */
     function paintVoiceMic(state: 'hidden' | 'listening' | 'off' | 'blocked', why?: string): void {
@@ -1046,16 +1160,65 @@ export async function mountSetupView(
         const label =
             why ??
             (state === 'listening'
-                ? t('Listening for "begin". Tap to stop.')
+                ? t('Listening. Say "begin", or what to change. Tap to stop.')
                 : state === 'blocked'
-                  ? t('The microphone is blocked for aloud, so "begin" can\'t be heard.')
-                  : t('Tap to listen for "begin"'));
+                  ? t("The microphone is blocked for aloud, so it can't listen here.")
+                  : t('Tap to listen'));
         el.classList.toggle('hidden', state === 'hidden');
         el.classList.toggle('active', state === 'listening');
         el.disabled = state === 'blocked';
         el.title = label;
         el.setAttribute('aria-label', label);
         el.setAttribute('aria-pressed', String(state === 'listening'));
+    }
+
+    // The words of the line just spoken, above Begin: the answer for anyone
+    // with the sound off, and where a mishearing shows.
+    let voiceNoteTimer: ReturnType<typeof setTimeout> | undefined;
+    function showVoiceNote(text: string): void {
+        const el = root.querySelector<HTMLElement>('#voice-start-note');
+        if (!el || !text) return;
+        el.textContent = text;
+        el.classList.remove('hidden');
+        clearTimeout(voiceNoteTimer);
+        voiceNoteTimer = setTimeout(() => el.classList.add('hidden'), VOICE_NOTE_MS);
+    }
+
+    /** Say what a request came to, on screen and out loud. */
+    function answer(outcomes: readonly SetupOutcome[]): Promise<void> {
+        const lines = setupOutcomeLines(outcomes, appSettings.language);
+        showVoiceNote(lines.map((line) => line.text).join(' '));
+        speaking = speaker.say(lines).then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
+        return speaking;
+    }
+
+    /** Something said on this screen that was not "begin". True when it was a
+     *  request, which keeps the mic open for the next. */
+    async function heardOnSetup(text: string): Promise<boolean> {
+        // The app's own line, come back through the room.
+        const spoken = speaker.lastSpoken();
+        if (
+            spoken &&
+            Date.now() - spoken.endedAt < SETUP_ECHO_WINDOW_MS &&
+            previewLooksLikeTtsEcho(text, spoken.text)
+        ) {
+            return false;
+        }
+        const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
+        if (!actions || !isLiveMount() || beginning) return false;
+        const outcomes = applyActions(actions);
+        await answer(outcomes);
+        if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
+        return true;
+    }
+
+    /** Close the mic until it is tapped again. */
+    function closeVoiceStart(): void {
+        const listening = voiceStart;
+        voiceStart = null;
+        voiceStartClosed = true;
+        if (listening) void listening.handle.stop().then(() => syncVoiceStart());
+        else void syncVoiceStart();
     }
 
     async function syncVoiceStart(): Promise<void> {
@@ -1066,7 +1229,7 @@ export async function mountSetupView(
         if (!beginBtn) return;
         const choice = sttSetupChoice();
         const blocker = voiceStartBlocker({
-            enabled: appSettings.voiceStart,
+            enabled: appSettings.setupVoice,
             mic: mic ?? 'ask',
             canBegin: !beginBtn.disabled && mic !== null,
             touched: canSound || pageTouched(),
@@ -1099,6 +1262,7 @@ export async function mountSetupView(
         if (voiceStart) return;
         if (voiceStartClosed) return paintVoiceMic('off');
         const gen = ++voiceStartGen;
+        await speaking;
         // The session's own recognizer, mic and language (and, for local
         // Whisper, the model setup has already warmed: naming another here
         // would make the shell swap models under the first turn), tuned for a
@@ -1114,11 +1278,12 @@ export async function mountSetupView(
         if (gen !== voiceStartGen || voiceStart || beginning || !engine || !beginBtn.isConnected || !isLiveMount()) {
             return;
         }
-        const handle = listenForBegin({
+        const handle = listenOnSetup({
             engine,
             alive: () =>
                 isLiveMount() && beginBtn.isConnected && document.body.dataset['sessionActive'] === undefined,
             onBegin: (request) => void beginByVoice(request, beginBtn),
+            onHeard: heardOnSetup,
             onEnd: (why) => {
                 if (voiceStart?.handle === handle) voiceStart = null;
                 // The window ran out or the recognizer failed: closed until
@@ -1134,25 +1299,24 @@ export async function mountSetupView(
     /** "Begin a twenty minute felt sense session": make the two choices the
      *  request can name, the way doing them by hand would, then begin. */
     async function beginByVoice(request: BeginRequest, beginBtn: HTMLButtonElement): Promise<void> {
-        // A mode tab tap. No-op when a continuation has the mode locked.
-        if (request.mode) selectMode(request.mode);
-        if (request.minutes !== undefined) {
-            // The same thing a timer set by voice inside a session does
-            // (SessionClock.setTimer): it becomes the timer, for this sit and
-            // as the default after it.
-            const timerMin = clampTimerMinutes(request.minutes);
-            appSettings.sessionClockMode = 'timer';
-            appSettings.sessionTimerMin = timerMin;
-            // Re-read before writing, like the clock control: another control
-            // on this page may have saved since this view loaded its copy.
-            const stored = await loadAppSettings();
-            await saveAppSettings({ ...stored, sessionClockMode: 'timer', sessionTimerMin: timerMin });
-        }
+        speaker.stop();
+        applyActions([
+            // A mode tab tap. No-op when a continuation has the mode locked.
+            ...(request.mode ? [{ kind: 'mode', mode: request.mode } as const] : []),
+            ...(request.minutes !== undefined ? [{ kind: 'length', minutes: request.minutes } as const] : []),
+        ]);
+        await clockSaved;
         // The mode switch may have closed the gate (a mode that needs a
         // provider this setup doesn't have): then there is nothing to begin.
         if (!beginBtn.isConnected || beginBtn.disabled) return;
         // The same path as the click, queued continue and all.
         beginBtn.click();
+    }
+
+    /** The judge's reading of what the on-device parser could not place
+     *  (setup-judge.ts), where this setup may ask it. */
+    async function judgedSetupCommand(_text: string): Promise<SetupAction[] | null> {
+        return null;
     }
 
     function updateBeginButton(): void {
@@ -1755,11 +1919,18 @@ export async function mountSetupView(
                 cloudUnwatch();
                 cloudUnwatch = null;
             }
+            speaker.stop();
             root.innerHTML = '';
         },
         getSetup() { return setup; },
     };
 }
+
+/** How long the line just spoken stays on screen above Begin. */
+const VOICE_NOTE_MS = 6000;
+
+/** After the app speaks, how long something heard may still be its own words. */
+const SETUP_ECHO_WINDOW_MS = 4000;
 
 const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['exploration', 'exploration-panel'],
@@ -2091,12 +2262,15 @@ function renderSetupHTML(
          screens. -->
     <div class="setup-footer">
         <div class="setup-footer-inner">
-            <!-- Wraps Begin so the mic that listens for "begin"
+            <!-- The line just spoken in answer to a request made by voice,
+                 floated above the bar (out of flow, like the mic). Wraps
+                 Begin so the mic that listens on this screen
                  (voice-start.ts) can hang off its left edge without taking
                  a place in the row: Begin stays centered and the bar keeps
                  its height. Lit while it listens, slashed when it doesn't,
                  a tap switches; hidden unless that setting is on. The
                  session's mic icon (views/session.ts). -->
+            <p id="voice-start-note" class="voice-start-note hidden" role="status" aria-live="polite"></p>
             <div class="begin-wrap">
                 <button id="voice-start-mic" type="button" class="btn btn-voice voice-start-mic hidden">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

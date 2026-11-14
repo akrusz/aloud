@@ -1324,7 +1324,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             });
         }
         bindCheckbox('s-stt-speculation', 'sttSpeculation');
-        bindCheckbox('s-voice-start', 'voiceStart');
+        bindCheckbox('s-setup-voice', 'setupVoice');
         const voiceCommands = root.querySelector<HTMLInputElement>('#s-voice-commands');
         if (voiceCommands) {
             voiceCommands.addEventListener('change', () => {
@@ -1840,6 +1840,15 @@ function renderLanguageSection(s: AppSettings): string {
                 </div>
             </div>
         </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="s-setup-voice"${s.setupVoice ? ' checked' : ''}>
+                    <span>${t('Voice control on the setup screen')}</span>
+                </label>
+                <span class="form-hint">${t('Say "begin", or change the mode, length, vibes and more first. The mic listens for two minutes at a time.')}</span>
+            </div>
+        </div>
     </section>`;
 }
 
@@ -2249,15 +2258,6 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <span>${t('Keep my model when it leaves the shortlist')}</span>
                     </label>
                     <span class="form-hint">${t('Otherwise you move to its newer version, or the default model.')}</span>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group form-group-half">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="s-voice-start"${s.voiceStart ? ' checked' : ''}>
-                        <span>${t('Start by voice (experimental)')}</span>
-                    </label>
-                    <span class="form-hint">${t('On the setup screen, say "begin" to start a session. The mic listens for two minutes at a time. On aloud cloud speech recognition, that listening uses credits.')}</span>
                 </div>
             </div>
             <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">
