@@ -206,6 +206,19 @@ function decodeMp3(ffmpeg: string, mp3: Uint8Array): Float32Array {
     return new Float32Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 4));
 }
 
+/** What a shipped clip is encoded at. The providers send 96 kbps; these are
+ *  a few seconds of one voice each and there are a couple of hundred of them
+ *  in every build, so they ship at half that. */
+const CLIP_BITRATE = '48k';
+
+function shrinkMp3(ffmpeg: string, mp3: Uint8Array): Uint8Array {
+    return execFileSync(
+        ffmpeg,
+        ['-v', 'error', '-f', 'mp3', '-i', 'pipe:0', '-codec:a', 'libmp3lame', '-b:a', CLIP_BITRATE, '-ac', '1', '-f', 'mp3', 'pipe:1'],
+        { input: mp3, maxBuffer: 64 * 1024 * 1024 }
+    );
+}
+
 /** A burst limit or a network blip, worth another go; an account refusal
  *  (bad key, spent quota) or a bad request is not. */
 function isTransient(err: unknown): boolean {
@@ -443,7 +456,7 @@ async function main(): Promise<void> {
         if (!best) return;
         const { target } = job;
         mkdirSync(dirname(clipPath(target.file)), { recursive: true });
-        writeFileSync(clipPath(target.file), best.bytes);
+        writeFileSync(clipPath(target.file), ffmpeg ? shrinkMp3(ffmpeg, best.bytes) : best.bytes);
         const faults = faultsOf(best, target.text, norm);
         manifest.voices[target.voice.name]!.clips[target.lineId] = {
             file: target.file,
