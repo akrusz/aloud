@@ -92,7 +92,7 @@ writes a self-contained, filterable HTML board of all tickets - open it in a bro
 Feel free to be creative or playful when talking with the developer, and to take occasional breaks to write for fun. recess.md is another space you can use for this when running on his machine. Keep it to the latest ~5 entries, moving older ones to the end of recess-archive.md, so it stays cheap to read before writing.
 
 **Open reminders** - raise these with the developer at the start of a session, and delete each line once it's done:
-- (added 2026-11-13) PR #92 (dropped-connection retries) is merged locally. On the Android app the speech half of its airplane-mode item passed ("Phone" in `dev-docs/manual-smoke.md`); the "while the dots show" half, where the reply is asked again once (`completeStream` in `cloud-llm.ts`), has not been run on a device yet.
+- (added 2026-11-13) Dropped-connection retries (PR #92, merged): on the Android app the speech half of the airplane-mode item passed ("Phone" in `dev-docs/manual-smoke.md`). The "while the dots show" half failed once at a 15s budget; it now gets 30s and a "Connection lost - trying again" status (`CLOUD_RETRY_BUDGET_MS`, `onCloudLlmRetry` in `cloud-llm.ts`) and has not been re-run on a device.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
