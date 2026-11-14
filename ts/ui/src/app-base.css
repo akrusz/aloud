@@ -6585,3 +6585,48 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Touch targets: 44px on a touchscreen (Apple's minimum; WCAG 2.5.8's floor
+   is 24). Measured on a phone, the controls below drew smaller: the "?"
+   buttons at 26, a dialog's x at 17 by 20, Preview in the voice list at 24
+   tall, Begin at 40, the cloud rate pill at 33, small buttons at 37.
+
+   Two ways up. Where a control's size is its look (the "?" ring, the slim
+   Begin and Save bars, a row's Preview) it keeps that and an invisible box
+   around it takes the tap: ::after, grown to 44px in whichever direction
+   falls short and never smaller than the control. Controls that can't carry
+   one (a select has no ::after; .stepper and the clock and voice buttons clip
+   theirs) grow for real, by a px or two; the steppers by ten.
+
+   :where() so `position` yields to any control that is already placed
+   (.voice-start-mic, the tab bar's "?"): those are containing blocks as they
+   are. */
+@media (pointer: coarse) {
+    :where(.btn, .btn-link, .info-btn, .voice-modal-close, .participant-remove,
+        .clouds-help, .voice-row-preview, .tour-show-btn, .continue-banner-close) {
+        position: relative;
+    }
+    :is(.btn, .btn-link, .info-btn, .voice-modal-close, .participant-remove,
+        .clouds-help, .voice-row-preview, .tour-show-btn, .continue-banner-close)::after {
+        content: '';
+        position: absolute;
+        inset: min(0px, calc((100% - 44px) / 2));
+    }
+
+    /* Not the noting circle's rows: three or four controls share a line
+       there, and at 44px the steppers push one onto a second line and the
+       play buttons stand twice as tall as wide. Its buttons take the ring;
+       its selects and stepper stay at 30px, over WCAG's floor. */
+    select:not(.participant-row select),
+    .setup-clock-btn,
+    .setup-voice-btn,
+    .clock-preset {
+        min-height: 44px;
+    }
+    .stepper:not(.participant-row .stepper) {
+        min-height: 46px; /* its buttons sit inside a 1px border */
+    }
+    .stepper:not(.participant-row .stepper) .stepper-btn {
+        min-width: 44px;
+    }
+}
