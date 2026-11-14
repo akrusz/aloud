@@ -5168,6 +5168,12 @@ input[type="range"].preview-range {
     pointer-events: none;
 }
 
+/* Not an answer: what was heard and not understood, or the first-visits
+   hint. */
+.voice-start-note.aside {
+    color: var(--text-secondary);
+}
+
 .voice-start-note.hidden {
     display: none;
 }

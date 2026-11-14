@@ -800,4 +800,6 @@ export const ZH: Record<string, string> = {
     "With the mic beside Begin lit, you can set all of this by voice: \"twenty minutes\", \"add playful\", \"felt sense\". Then say \"begin\".": "“开始”按钮旁的麦克风亮着时，这些都可以用语音来设置：“二十分钟”、“加上轻松有玩心”、“体会”。然后说“开始”。",
     "Read the tour aloud": "朗读导览",
     "Stop reading aloud": "停止朗读",
+    "Heard \"{text}\"": "听到的是“{text}”",
+    "Listening. Try \"twenty minutes\", or say \"begin\".": "正在聆听。可以试着说“二十分钟”，或者说“开始”。",
 };

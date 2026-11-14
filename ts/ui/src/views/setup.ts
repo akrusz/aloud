@@ -97,7 +97,7 @@ import {
 } from '../mic-check.js';
 import { watchWhisperReady, describeWhisperWait, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
-import { sessionStore } from '../state.js';
+import { sessionStore, sharedKv } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
@@ -1176,10 +1176,13 @@ export async function mountSetupView(
     // The words of the line just spoken, above Begin: the answer for anyone
     // with the sound off, and where a mishearing shows.
     let voiceNoteTimer: ReturnType<typeof setTimeout> | undefined;
-    function showVoiceNote(text: string): void {
+    function showVoiceNote(text: string, aside = false): void {
         const el = root.querySelector<HTMLElement>('#voice-start-note');
         if (!el || !text) return;
         el.textContent = text;
+        // An aside is not an answer: what was heard and not understood, or
+        // the first-visits hint.
+        el.classList.toggle('aside', aside);
         el.classList.remove('hidden');
         clearTimeout(voiceNoteTimer);
         voiceNoteTimer = setTimeout(() => el.classList.add('hidden'), VOICE_NOTE_MS);
@@ -1206,7 +1209,17 @@ export async function mountSetupView(
         // The tour's own words ("next", a voice's name) while it is up.
         if (tourHeard?.(text)) return true;
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
-        if (!actions || !isLiveMount() || beginning) return false;
+        if (!isLiveMount() || beginning) return false;
+        if (!actions) {
+            // A few words that came to nothing are shown as heard, so a
+            // mishearing reads as one and not as a mic that isn't working.
+            // Anything longer is the room, and stays off the screen.
+            const said = text.trim().replace(/[.。!?！？]+$/u, '');
+            if (said && said.split(/\s+/).length <= UNMATCHED_NOTE_MAX_WORDS && said.length <= 40) {
+                showVoiceNote(t('Heard "{text}"', { text: said }), true);
+            }
+            return false;
+        }
         const outcomes = applyActions(actions);
         // Closed before it is said to be: the mic shows off while the line plays.
         if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
@@ -1296,6 +1309,16 @@ export async function mountSetupView(
         });
         voiceStart = { handle, choice };
         paintVoiceMic('listening');
+        void hintAtVoice();
+    }
+
+    /** The first few times the mic opens here, say on screen what it is for.
+     *  Not under the tour, which says so itself. */
+    async function hintAtVoice(): Promise<void> {
+        const shown = Number(await sharedKv.get(VOICE_HINT_KEY)) || 0;
+        if (shown >= VOICE_HINT_TIMES || !voiceStart || document.body.classList.contains('guide-running')) return;
+        await sharedKv.set(VOICE_HINT_KEY, String(shown + 1));
+        showVoiceNote(t('Listening. Try "twenty minutes", or say "begin".'), true);
     }
 
     /** "Begin a twenty minute felt sense session": make the two choices the
@@ -1989,6 +2012,13 @@ export async function mountSetupView(
 
 /** How long the line just spoken stays on screen above Begin. */
 const VOICE_NOTE_MS = 6000;
+
+/** Something heard and not understood is shown back only this short. */
+const UNMATCHED_NOTE_MAX_WORDS = 6;
+
+/** How many times the mic opening on this screen says what it is for. */
+const VOICE_HINT_KEY = 'aloud-setup-voice-hints';
+const VOICE_HINT_TIMES = 3;
 
 /** After the app speaks, how long something heard may still be the end of its
  *  own line. A recognizer takes a second or so to hand over what it caught as
