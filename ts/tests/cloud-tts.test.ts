@@ -199,3 +199,41 @@ describe('CloudTtsEngine hosted 401 self-heal', () => {
         await expect(engine.speak('Hi.')).rejects.toThrow('401');
     });
 });
+
+describe('CloudTtsEngine on a dropped connection', () => {
+    const audio = (): Response =>
+        new Response(new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/mpeg' }), { status: 200 });
+
+    it('a hosted session voice re-sends the sentence (net-retry.ts)', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const fetchImpl = vi.fn().mockRejectedValueOnce(new TypeError('Load failed')).mockResolvedValueOnce(audio());
+            const engine = new CloudTtsEngine({
+                voice: 'Leda',
+                endpointUrl: '/v1/tts',
+                usePost: true,
+                authProvider: async () => 'tok',
+                networkRetryMs: 10_000,
+                fetchImpl: fetchImpl as unknown as typeof fetch,
+            });
+            const spoken = engine.speak('Let the breath come back on its own.');
+            await vi.advanceTimersByTimeAsync(600);
+            await spoken;
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('without a retry budget (loopback, previews) it fails on the first drop', async () => {
+        const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+        const engine = new CloudTtsEngine({
+            voice: 'Leda',
+            endpointUrl: '/v1/tts/unique-for-this-test',
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        await expect(engine.speak('Just this breath.')).rejects.toThrow('Failed to fetch');
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+});
+

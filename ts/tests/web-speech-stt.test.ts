@@ -134,3 +134,36 @@ describe('WebSpeechSttEngine userSpeechActive', () => {
         }
     });
 });
+
+describe('WebSpeechSttEngine network errors', () => {
+    /** Run one turn that errors `network`, after `heard` results beforehand. */
+    async function networkErrorAfter(heard: boolean): Promise<unknown> {
+        const { WebSpeechSttEngine } = await import('../ui/src/adapters/web-speech-stt.js');
+        const engine = new WebSpeechSttEngine();
+        if (heard) {
+            const first = engine.start()[Symbol.asyncIterator]();
+            const ev = first.next();
+            await Promise.resolve();
+            FakeRecognition.last?.emit([{ text: 'warm hands', final: true }]);
+            await ev;
+            await first.return?.(undefined);
+        }
+        const iterator = engine.start()[Symbol.asyncIterator]();
+        const next = iterator.next();
+        await Promise.resolve();
+        FakeRecognition.last?.onerror?.({ error: 'network' });
+        const event = (await next).value as { type: string; error?: unknown };
+        await iterator.return?.(undefined);
+        expect(event.type).toBe('error');
+        return event.error;
+    }
+
+    it('reports a recognizer that never worked as plain network (blocked endpoint)', async () => {
+        expect(await networkErrorAfter(false)).toBe('network');
+    });
+
+    it('reports one that had been hearing fine as a lost connection', async () => {
+        expect(await networkErrorAfter(true)).toBe('network-lost');
+    });
+});
+

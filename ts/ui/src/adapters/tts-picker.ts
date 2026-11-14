@@ -11,7 +11,7 @@ import type { TtsEngine } from '../../../src/platform/tts.js';
 import { allVoices, findVoice, type VoiceEntry } from '../voices.js';
 
 import { BrowserTtsEngine } from './browser-tts.js';
-import { CloudTtsEngine, type CloudTtsEngineOptions } from './cloud-tts.js';
+import { CLOUD_TTS_RETRY_BUDGET_MS, CloudTtsEngine, type CloudTtsEngineOptions } from './cloud-tts.js';
 import { cloudUrl } from '../cloud-base.js';
 import { simulateTtsFault } from '../dev-sim.js';
 import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
@@ -40,6 +40,7 @@ export function createCloudAloudTts(voice = '', options: CreateTtsOptions = {}):
         usePost: true,
         authProvider: ensureCloudToken,
         onAuthError: clearCloudToken,
+        networkRetryMs: CLOUD_TTS_RETRY_BUDGET_MS,
     };
     if (options.onServerSynthesize) opts.onSynthesize = options.onServerSynthesize;
     return new CloudTtsEngine(opts);
