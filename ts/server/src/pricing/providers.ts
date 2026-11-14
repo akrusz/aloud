@@ -161,12 +161,13 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 10 / M, // 5m write, 1.25x input
         cacheCreation1h: 16 / M, // 1h write, 2x input
     },
-    // Fable 5.1, expanded-tier: the premium pick before 5.2, at the older
-    // $10/$50.
+    // Fable 5.1, off the picker (2026-11): the premium pick before 5.2, at the
+    // older $10/$50. Picks on it move to 5.2; the entry stays priced for sits
+    // and builds that still name it.
     'anthropic:claude-fable-5-1': {
         provider: 'anthropic',
         model: 'claude-fable-5-1',
-        expanded: true,
+        unlisted: true,
         input: 10 / M,
         output: 50 / M,
         cacheRead: 0.25 / M,
@@ -374,11 +375,12 @@ const MODELS: Record<string, ModelPricing> = {
     // and reports them (prompt_tokens_details.cache_write_tokens), so
     // cacheCreation is a real accruing rate here. No 1h tier on automatic
     // caching, so cacheCreation1h mirrors the 5m rate and never accrues.
-    // Expanded: GPT-6 Sol holds the curated slot.
+    // Off the picker (2026-11): GPT-6 Sol is cheaper and better, and picks on
+    // 5.6 Sol move to it.
     'openai:gpt-5.6-sol': {
         provider: 'openai',
         model: 'gpt-5.6-sol',
-        expanded: true,
+        unlisted: true,
         input: 5 / M,
         output: 30 / M,
         cacheRead: 0.5 / M,
@@ -399,12 +401,12 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 2.5 / M, // real 1.25x write fee, like Sol
         cacheCreation1h: 2.5 / M, // no 1h tier on automatic caching; never accrues
     },
-    // Expanded-tier: same sticker as its 5.6 Sol successor, kept only for its
-    // different voice.
+    // Off the picker (2026-11): same sticker as 5.6 Sol, kept only for its
+    // different voice. Its line has no successor, so picks go to the default.
     'openai:gpt-5.5': {
         provider: 'openai',
         model: 'gpt-5.5',
-        expanded: true,
+        unlisted: true,
         input: 5 / M,
         output: 30 / M,
         cacheRead: 0.5 / M,

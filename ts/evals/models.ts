@@ -36,8 +36,8 @@ export const ROSTER: EvalModel[] = [
         id: 'fable-5.1',
         model: 'claude-fable-5-1',
         provider: 'anthropic',
-        shipped: true,
-        note: 'The curated Fable from Sept to Nov 2026, now expanded-tier, kept for A/B against 5.2. Hypothesis: best at holding the felt-sense arc without rushing [NEXT]. Risk: thinking is always on, turns run long - watch latency.',
+        shipped: false,
+        note: 'The curated Fable from Sept to Nov 2026, off the picker since, kept for A/B against 5.2. Hypothesis: best at holding the felt-sense arc without rushing [NEXT]. Risk: thinking is always on, turns run long - watch latency.',
     },
     {
         id: 'fable-5',
@@ -94,8 +94,8 @@ export const ROSTER: EvalModel[] = [
         id: 'gpt-5.6-sol',
         model: 'gpt-5.6-sol',
         provider: 'openai',
-        shipped: true,
-        note: 'Strongest non-Anthropic entry already wired. GPT-5.6 shipped 2026-07-09.',
+        shipped: false,
+        note: 'GPT-5.6 shipped 2026-07-09. Off the picker (Nov 2026): GPT-6 Sol is cheaper and better.',
     },
     {
         id: 'gpt-5.6-terra',
@@ -108,8 +108,8 @@ export const ROSTER: EvalModel[] = [
         id: 'gpt-5.5',
         model: 'gpt-5.5',
         provider: 'openai',
-        shipped: true,
-        note: 'Expanded-tier, kept for its different voice from 5.6 Sol.',
+        shipped: false,
+        note: 'Off the picker (Nov 2026); had been kept for its different voice from 5.6 Sol.',
     },
     {
         id: 'gpt-6-sol',
