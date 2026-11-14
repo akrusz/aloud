@@ -67,92 +67,115 @@ type Meaning =
     | { t: 'length-word'; to: 'up' | 'down' | Verbosity }
     | { t: 'checkin' }
     | { t: 'open-ended' }
-    | { t: 'target'; of: 'vibe' | 'focus' | 'guidance' | 'responses' | 'timer' };
+    | { t: 'target'; of: Target };
 
+type Target = 'vibe' | 'focus' | 'guidance' | 'responses' | 'timer' | 'mode';
+
+interface Entry {
+    meaning: Meaning;
+    /**
+     * Whether the phrase is a request all by itself. The names the setup
+     * screen shows are ("Playful.", "Noting."). An everyday word that also
+     * means one ("light", "kind", "space") is only a request beside a word
+     * that asks for something (`ASKING`): alone it is what a room says.
+     */
+    bare: boolean;
+}
+
+const named = (meaning: Meaning): Entry => ({ meaning, bare: true });
+const also = (meaning: Meaning): Entry => ({ meaning, bare: false });
 const mode = (m: BeginMode): Meaning => ({ t: 'mode', mode: m });
 const focus = (f: SetupFocus): Meaning => ({ t: 'focus', focus: f });
 const quality = (q: Quality): Meaning => ({ t: 'quality', quality: q });
-const target = (of: 'vibe' | 'focus' | 'guidance' | 'responses' | 'timer'): Meaning => ({ t: 'target', of });
+const target = (of: Target): Entry => named({ t: 'target', of });
 
 /**
- * Everything that carries a value, by the words it is said with. Multi-word
+ * Everything that carries a value, by the words it is said with. Longer
  * entries win over their parts ("feeling good" is a vibe, "feeling tone" a
- * focus, and a bare "feeling" is neither).
+ * focus, and a bare "feeling" is neither), which is also how a label with an
+ * "and" in it stays one thing ("playful and light").
  */
-const PHRASES: Record<string, Meaning> = {
-    exploration: mode('exploration'),
-    explore: mode('exploration'),
-    exploring: mode('exploration'),
-    exploratory: mode('exploration'),
-    noting: mode('noting'),
-    'felt sense': mode('felt_sense'),
-    feltsense: mode('felt_sense'),
-    focusing: mode('felt_sense'),
+const PHRASES: Record<string, Entry> = {
+    exploration: named(mode('exploration')),
+    explore: named(mode('exploration')),
+    exploring: also(mode('exploration')),
+    exploratory: also(mode('exploration')),
+    noting: named(mode('noting')),
+    'felt sense': named(mode('felt_sense')),
+    feltsense: named(mode('felt_sense')),
 
-    body: focus('body_sensations'),
-    bodily: focus('body_sensations'),
-    physical: focus('body_sensations'),
-    sensations: focus('body_sensations'),
-    sensation: focus('body_sensations'),
-    'body sensations': focus('body_sensations'),
-    emotions: focus('emotions'),
-    emotion: focus('emotions'),
-    emotional: focus('emotions'),
-    feelings: focus('emotions'),
-    'feeling tone': focus('emotions'),
-    parts: focus('inner_parts'),
-    'inner parts': focus('inner_parts'),
-    'inner world': focus('inner_parts'),
-    'parts work': focus('inner_parts'),
+    body: named(focus('body_sensations')),
+    sensations: named(focus('body_sensations')),
+    'body sensations': named(focus('body_sensations')),
+    'body and sensations': named(focus('body_sensations')),
+    'bodily sensations': named(focus('body_sensations')),
+    'physical sensations': named(focus('body_sensations')),
+    bodily: also(focus('body_sensations')),
+    physical: also(focus('body_sensations')),
+    sensation: also(focus('body_sensations')),
+    emotions: named(focus('emotions')),
+    'feeling tone': named(focus('emotions')),
+    'emotions and feeling tone': named(focus('emotions')),
+    emotion: also(focus('emotions')),
+    emotional: also(focus('emotions')),
+    feelings: also(focus('emotions')),
+    parts: named(focus('inner_parts')),
+    'inner parts': named(focus('inner_parts')),
+    'inner world': named(focus('inner_parts')),
+    'parts and inner world': named(focus('inner_parts')),
+    'parts work': named(focus('inner_parts')),
 
-    playful: quality('playful'),
-    playfulness: quality('playful'),
-    lighthearted: quality('playful'),
-    light: quality('playful'),
-    compassionate: quality('compassionate'),
-    compassion: quality('compassionate'),
-    loving: quality('loving'),
-    love: quality('loving'),
-    kind: quality('loving'),
-    kindness: quality('loving'),
-    'loving kindness': quality('loving'),
-    spacious: quality('spacious'),
-    spaciousness: quality('spacious'),
-    space: quality('spacious'),
-    effortless: quality('effortless'),
-    effortlessness: quality('effortless'),
-    'feeling good': quality('feeling_good'),
-    'feel good': quality('feeling_good'),
-    'feels good': quality('feeling_good'),
-    pleasant: quality('feeling_good'),
+    playful: named(quality('playful')),
+    'playful and light': named(quality('playful')),
+    lighthearted: named(quality('playful')),
+    playfulness: also(quality('playful')),
+    light: also(quality('playful')),
+    compassionate: named(quality('compassionate')),
+    compassion: named(quality('compassionate')),
+    loving: named(quality('loving')),
+    'loving and kind': named(quality('loving')),
+    'loving kindness': named(quality('loving')),
+    love: also(quality('loving')),
+    kind: also(quality('loving')),
+    kindness: also(quality('loving')),
+    spacious: named(quality('spacious')),
+    spaciousness: named(quality('spacious')),
+    space: also(quality('spacious')),
+    effortless: named(quality('effortless')),
+    effortlessness: named(quality('effortless')),
+    'feeling good': named(quality('feeling_good')),
+    'feel good': also(quality('feeling_good')),
+    'feels good': also(quality('feeling_good')),
+    pleasant: also(quality('feeling_good')),
 
-    following: { t: 'lead', toward: 'down', stop: 0 },
-    'somewhat following': { t: 'lead', toward: 'down', stop: 1 },
-    balanced: { t: 'lead', toward: 'up', stop: 2 },
-    'somewhat directing': { t: 'lead', toward: 'up', stop: 3 },
-    directing: { t: 'lead', toward: 'up', stop: 4 },
-    directive: { t: 'lead', toward: 'up', stop: 4 },
-    follow: { t: 'lead', toward: 'down' },
-    lead: { t: 'lead', toward: 'up' },
-    leading: { t: 'lead', toward: 'up' },
-    direction: { t: 'lead', toward: 'up' },
+    following: named({ t: 'lead', toward: 'down', stop: 0 }),
+    'somewhat following': named({ t: 'lead', toward: 'down', stop: 1 }),
+    balanced: named({ t: 'lead', toward: 'up', stop: 2 }),
+    balance: also({ t: 'lead', toward: 'up', stop: 2 }),
+    'somewhat directing': named({ t: 'lead', toward: 'up', stop: 3 }),
+    directing: named({ t: 'lead', toward: 'up', stop: 4 }),
+    directive: also({ t: 'lead', toward: 'up', stop: 4 }),
+    follow: named({ t: 'lead', toward: 'down' }),
+    lead: named({ t: 'lead', toward: 'up' }),
+    leading: named({ t: 'lead', toward: 'up' }),
+    direction: named({ t: 'lead', toward: 'up' }),
 
-    shorter: { t: 'length-word', to: 'down' },
-    fewer: { t: 'length-word', to: 'down' },
-    longer: { t: 'length-word', to: 'up' },
-    brief: { t: 'length-word', to: 'low' },
-    short: { t: 'length-word', to: 'low' },
-    medium: { t: 'length-word', to: 'medium' },
-    long: { t: 'length-word', to: 'high' },
+    shorter: named({ t: 'length-word', to: 'down' }),
+    fewer: named({ t: 'length-word', to: 'down' }),
+    longer: named({ t: 'length-word', to: 'up' }),
+    brief: named({ t: 'length-word', to: 'low' }),
+    short: named({ t: 'length-word', to: 'low' }),
+    medium: named({ t: 'length-word', to: 'medium' }),
+    long: named({ t: 'length-word', to: 'high' }),
 
-    'check in': { t: 'checkin' },
-    'check ins': { t: 'checkin' },
-    'checking in': { t: 'checkin' },
-    checkin: { t: 'checkin' },
-    checkins: { t: 'checkin' },
+    'check in': named({ t: 'checkin' }),
+    'check ins': named({ t: 'checkin' }),
+    'checking in': named({ t: 'checkin' }),
+    checkin: named({ t: 'checkin' }),
+    checkins: named({ t: 'checkin' }),
 
-    'open ended': { t: 'open-ended' },
-    untimed: { t: 'open-ended' },
+    'open ended': named({ t: 'open-ended' }),
+    untimed: named({ t: 'open-ended' }),
 
     vibe: target('vibe'),
     vibes: target('vibe'),
@@ -175,12 +198,15 @@ const PHRASES: Record<string, Meaning> = {
     words: target('responses'),
     timer: target('timer'),
     clock: target('timer'),
+    mode: target('mode'),
 };
 
 /**
  * What a recognizer has been seen to write for one of the phrases above, where
- * no rule of sound would get there. From the misheard corpus
- * (scripts/jev-commands.ts, `SETUP_MISHEARD`); add to it from real transcripts.
+ * no rule of sound would get there or the word heard is too ordinary to match
+ * loosely. From synthetic speech through local Whisper
+ * (scripts/setup-voice); add to it from real transcripts. These count as the
+ * phrase itself, so the phrase's own `bare` rule applies.
  */
 const HEARD_AS: Record<string, string> = {
     'felt cents': 'felt sense',
@@ -192,9 +218,10 @@ const HEARD_AS: Record<string, string> = {
     'felt sence': 'felt sense',
     'check ends': 'check ins',
     'check inns': 'check ins',
+    spaces: 'spacious',
 };
 
-const LONGEST_PHRASE = 2;
+const LONGEST_PHRASE = Math.max(...[...Object.keys(PHRASES), ...Object.keys(HEARD_AS)].map((p) => p.split(' ').length));
 
 /** Said in front of (or after) a value to take it away. */
 const NEGATIONS = new Set([
@@ -213,11 +240,21 @@ const STEPS: Record<string, 'up' | 'down'> = {
 
 /** The words people wrap around a request. Exact only. */
 const FILLER = new Set([
-    'a', 'aloud', 'also', 'an', 'are', 'be', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
-    'have', 'hey', 'i', "i'd", "i'm", 'id', 'im', 'in', 'is', 'it', 'just', 'kinda', 'length', 'let', "let's",
-    'lets', 'level', 'like', 'little', 'me', 'meditation', 'mode', 'my', 'now', 'of', 'ok', 'okay', 'one',
+    'a', 'all', 'aloud', 'also', 'an', 'are', 'be', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
+    'have', 'hey', 'i', "i'd", "i'm", 'id', 'im', 'in', 'is', 'it', 'just', 'keep', 'kinda', 'length', 'let',
+    "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'my', 'now', 'of', 'ok', 'okay', 'one',
     'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'that', 'the',
-    'this', 'to', 'too', 'try', 'turn', 'use', 'want', 'we', 'with', 'would', 'you',
+    'this', 'to', 'too', 'try', 'turn', 'use', 'want', 'we', 'with', 'would', 'you', 'your',
+]);
+
+/**
+ * Words that make an utterance a request rather than a remark. A value that
+ * can't stand alone (an `also` entry, or one matched loosely) needs one of
+ * these, a target ("vibe", "mode") or a step ("more") somewhere beside it.
+ */
+const ASKING = new Set([
+    ...NEGATIONS, ...ADDITIONS, ...SETTERS, ...ONLY, ...Object.keys(STEPS),
+    'choose', 'do', 'give', 'go', 'have', "let's", 'lets', 'pick', 'put', 'select', 'try', 'turn', 'use', 'want',
 ]);
 
 /** A length, taken out before the rest is read (parseTimerRequest reads it). */
@@ -236,7 +273,7 @@ const JOINERS = new Set(['and', 'then', 'plus']);
 const STOP_LISTENING = new Set([
     'stop listening', 'mute', 'mic off', 'microphone off', 'turn off the mic', 'turn off the microphone',
     'turn the mic off', 'turn the microphone off', 'close the mic', 'close the microphone', 'you can stop listening',
-    'stop listening to me',
+    'stop listening to me', 'mute the mic', 'mute the microphone',
 ]);
 const HELP = new Set([
     'help', 'what can i say', 'what can i say here', 'what can you do', 'what are my options',
@@ -249,7 +286,7 @@ const POLITE = new Set(['please', 'ok', 'okay', 'hey', 'aloud', 'now', 'thanks']
 /**
  * A word reduced to roughly how it sounds: consonants only, the ones a
  * recognizer confuses folded together (b/p, d/t, v/f, s/z, m/n), a leading
- * vowel kept as a mark. "spacious" and "spaces" are both `spss`; "noting" and
+ * vowel kept as a mark. "spacious" and "specious" are both `sps`; "noting" and
  * "nothing" both `ntnk`.
  */
 export function soundKey(word: string): string {
@@ -267,7 +304,6 @@ export function soundKey(word: string): string {
         .replace(/ck/g, 'k')
         .replace(/c(?=[eiy])/g, 's')
         .replace(/[cqg]/g, 'k')
-        .replace(/x(?=.)|x$/g, (m, at: number, all: string) => (all[at - 1] === undefined ? m : m))
         .replace(/z/g, 's')
         .replace(/v/g, 'f')
         .replace(/b/g, 'p')
@@ -306,7 +342,7 @@ const LOOSE_WORDS: ReadonlyArray<{ word: string; key: string }> = [
     ...new Set(
         Object.keys(PHRASES)
             .flatMap((phrase) => phrase.split(' '))
-            .filter((word) => word.length >= 4)
+            .filter((word) => word.length >= 4 && word !== 'and')
     ),
 ].map((word) => ({ word, key: soundKey(word) }));
 
@@ -321,30 +357,28 @@ const EXACT_WORDS = new Set<string>([
 ]);
 
 /**
- * The value word a misheard one most likely was, or null. Close in spelling
- * (one edit, two in a long word), or the same in sound and not far in
- * spelling. Two candidates equally near is no answer.
+ * The value word a misheard one most likely was, or null: the same in sound
+ * and close in spelling (one edit in a four-letter word, more in a longer
+ * one). Two candidates equally near is no answer.
+ *
+ * Sound alone is not enough to act on: "living" sounds like "loving" and
+ * "nothing" like "noting", and both are things a room says. A word matched
+ * here only counts beside a word that asks for something (`ASKING`).
  */
 export function nearestWord(heard: string): string | null {
     if (heard.length < 4 || !/^[a-z']+$/.test(heard)) return null;
     const key = soundKey(heard);
-    let best: { word: string; distance: number; sameSound: boolean } | null = null;
+    let best: { word: string; distance: number } | null = null;
     let tied = false;
     for (const candidate of LOOSE_WORDS) {
+        if (candidate.key !== key) continue;
         const length = candidate.word.length;
         const distance = editDistance(heard, candidate.word);
-        const sameSound = candidate.key === key;
-        const near =
-            (sameSound && distance <= (length <= 4 ? 1 : Math.max(2, Math.floor(length / 3)))) ||
-            (length >= 5 && distance <= 1) ||
-            (length >= 8 && distance <= 2);
-        if (!near) continue;
-        if (!best || distance < best.distance || (distance === best.distance && sameSound && !best.sameSound)) {
-            best = { word: candidate.word, distance, sameSound };
+        if (distance > (length <= 4 ? 1 : Math.max(2, Math.floor(length / 3)))) continue;
+        if (!best || distance < best.distance) {
+            best = { word: candidate.word, distance };
             tied = false;
-        } else if (distance === best.distance && sameSound === best.sameSound) {
-            tied = true;
-        }
+        } else if (distance === best.distance) tied = true;
     }
     return best && !tied ? best.word : null;
 }
@@ -374,14 +408,40 @@ function takeLength(words: string[]): { minutes: number | null; rest: string[] }
     ) {
         from--;
     }
+    // "playful and ten minutes": the joiner belongs to the request, not the number.
+    while (from < unitAt && words[from] === 'and') from++;
     let to = unitAt + 1;
     if (words.slice(to, to + 3).join(' ') === 'and a half') to += 3;
     const request = parseTimerRequest(words.slice(from, to).join(' '));
     if (!request || request.relative) return null;
-    const rest = [...words.slice(0, from), ...words.slice(to)];
+    // A joiner stands where the length was, so what was on either side of it
+    // stays apart: "exploration, ten minutes, playful".
+    const rest = [...words.slice(0, from), 'and', ...words.slice(to)];
     // One length to a request.
     if (rest.some((w) => LENGTH_UNITS.has(w))) return null;
     return { minutes: request.minutes, rest };
+}
+
+/** A request cut into what it means: a phrase from the vocabulary, or a word. */
+type Item = { entry: Entry; loose: boolean } | { word: string };
+
+function itemize(words: string[], loose: ReadonlySet<number>): Item[] {
+    const items: Item[] = [];
+    for (let i = 0; i < words.length; ) {
+        let matched = false;
+        for (let span = Math.min(LONGEST_PHRASE, words.length - i); span >= 1 && !matched; span--) {
+            const said = words.slice(i, i + span).join(' ');
+            const entry = PHRASES[HEARD_AS[said] ?? said];
+            if (!entry) continue;
+            let wasLoose = false;
+            for (let at = i; at < i + span; at++) wasLoose ||= loose.has(at);
+            items.push({ entry, loose: wasLoose });
+            i += span;
+            matched = true;
+        }
+        if (!matched) items.push({ word: words[i++]! });
+    }
+    return items;
 }
 
 type Polarity = 'on' | 'off';
@@ -391,11 +451,14 @@ interface Clause {
     /** A negation said ahead of its values carries into the next part:
      *  "remove playful and loving" removes both. */
     carry: Polarity | null;
+    /** Some value here can't stand alone (see `Entry.bare`). */
+    needsAsking: boolean;
 }
 
 /** One part of a request (between "and"s). Null when it isn't one. */
-function readClause(words: string[], carried: Polarity | null): Clause | null {
+function readClause(items: Item[], carried: Polarity | null): Clause | null {
     const meanings: Meaning[] = [];
+    let needsAsking = false;
     let negated = false;
     let added = false;
     let negatedFirst = false;
@@ -403,20 +466,15 @@ function readClause(words: string[], carried: Polarity | null): Clause | null {
     let only = false;
     let step: 'up' | 'down' | null = null;
 
-    for (let i = 0; i < words.length; ) {
-        let matched = false;
-        for (let span = Math.min(LONGEST_PHRASE, words.length - i); span >= 1 && !matched; span--) {
-            const said = words.slice(i, i + span).join(' ');
-            const phrase = PHRASES[HEARD_AS[said] ?? said];
-            if (phrase) {
-                meanings.push(phrase);
-                i += span;
-                matched = true;
-            }
+    for (const [i, item] of items.entries()) {
+        if ('entry' in item) {
+            const { meaning } = item.entry;
+            meanings.push(meaning);
+            const isValue = meaning.t === 'mode' || meaning.t === 'focus' || meaning.t === 'quality' || meaning.t === 'lead';
+            if (isValue && (item.loose || !item.entry.bare)) needsAsking = true;
+            continue;
         }
-        if (matched) continue;
-        const word = words[i]!;
-        i++;
+        const { word } = item;
         if (NEGATIONS.has(word)) {
             if (!negated && !added && meanings.every((m) => m.t === 'target')) negatedFirst = true;
             negated = true;
@@ -428,16 +486,21 @@ function readClause(words: string[], carried: Polarity | null): Clause | null {
             // two directions in one part mean nothing.
             if (step && step !== STEPS[word]) return null;
             step = STEPS[word]!;
+        } else if (word === 'just') {
+            // "Just spacious" is only spacious; "just a little more" is filler.
+            const next = items[i + 1];
+            if (next && 'entry' in next && (next.entry.meaning.t === 'focus' || next.entry.meaning.t === 'quality')) {
+                only = true;
+            }
         } else if (!FILLER.has(word)) return null;
     }
 
-    const has = (of: string): boolean => meanings.some((m) => m.t === 'target' && m.of === of);
+    const has = (of: Target): boolean => meanings.some((m) => m.t === 'target' && m.of === of);
     const own: Polarity | null = negated && !added ? 'off' : added || negated ? 'on' : null;
     const polarity: Polarity = own ?? carried ?? 'on';
     const carry = own === null ? carried : negatedFirst && own === 'off' ? 'off' : null;
     const actions: SetupAction[] = [];
     let stepUsed = false;
-    let targetUsed = { vibe: false, focus: false, guidance: false, responses: false, timer: false };
 
     const leads = meanings.filter((m): m is Extract<Meaning, { t: 'lead' }> => m.t === 'lead');
     const lengthWords = meanings.filter((m): m is Extract<Meaning, { t: 'length-word' }> => m.t === 'length-word');
@@ -449,18 +512,15 @@ function readClause(words: string[], carried: Polarity | null): Clause | null {
     if (leads.length === 1) {
         const lead = leads[0]!;
         if (step) {
-            actions.push({ kind: 'guidance', to: step === lead.toward ? 'up' : 'down' });
             // "More following" is less guidance.
-            if (lead.toward === 'down') actions[actions.length - 1] = { kind: 'guidance', to: step === 'up' ? 'down' : 'up' };
+            actions.push({ kind: 'guidance', to: step === 'up' ? lead.toward : lead.toward === 'up' ? 'down' : 'up' });
             stepUsed = true;
         } else if (lead.stop !== undefined && !negated) actions.push({ kind: 'guidance', to: lead.stop });
         else return null;
-        targetUsed.guidance = true;
     } else if (has('guidance')) {
         if (!step) return null;
         actions.push({ kind: 'guidance', to: step });
         stepUsed = true;
-        targetUsed.guidance = true;
     }
 
     // How much it says. Always beside a word for the talking, since "longer"
@@ -469,37 +529,30 @@ function readClause(words: string[], carried: Polarity | null): Clause | null {
     if (lengthWords.length === 1) {
         if (!has('responses')) return null;
         actions.push({ kind: 'verbosity', to: lengthWords[0]!.to });
-        targetUsed.responses = true;
     } else if (has('responses')) {
         if (!step || stepUsed) return null;
         actions.push({ kind: 'verbosity', to: step });
         stepUsed = true;
-        targetUsed.responses = true;
     }
 
     if (meanings.some((m) => m.t === 'open-ended')) actions.push({ kind: 'no-timer' });
-    if (has('timer')) {
-        // A timer by itself says nothing; with a length it is filler.
-        if (negated && !added) actions.push({ kind: 'no-timer' });
-        targetUsed.timer = true;
-    }
+    // A timer by itself says nothing; with a length it is filler.
+    if (has('timer') && negated && !added) actions.push({ kind: 'no-timer' });
 
     if (meanings.some((m) => m.t === 'checkin')) actions.push({ kind: 'checkins', on: polarity === 'on' });
 
     // "More playful" is playful; "less playful" is not.
     const valuePolarity: Polarity = step && !stepUsed ? (step === 'down' ? 'off' : 'on') : polarity;
     if (values.length > 0 && step && !stepUsed) stepUsed = true;
-    const replace = only || setter;
     for (const group of ['focus', 'quality'] as const) {
         const said = values.filter((m) => m.t === group);
         const named = has(group === 'quality' ? 'vibe' : 'focus');
         if (said.length === 0) {
             // "Clear the vibes", "no focus".
             if (named && negated && !added) actions.push({ kind: 'clear', group });
-            else if (named && values.length === 0 && actions.length === 0) return null;
             continue;
         }
-        if (replace && valuePolarity === 'on' && (only || named)) actions.push({ kind: 'clear', group });
+        if (valuePolarity === 'on' && (only || (setter && named))) actions.push({ kind: 'clear', group });
     }
     for (const value of values) {
         if (value.t === 'mode') {
@@ -509,8 +562,7 @@ function readClause(words: string[], carried: Polarity | null): Clause | null {
         else if (value.t === 'quality') actions.push({ kind: 'quality', quality: value.quality, on: valuePolarity === 'on' });
     }
     if (step && !stepUsed) return null;
-    void targetUsed;
-    return { actions, carry };
+    return { actions, carry, needsAsking };
 }
 
 /** The same change said twice in one request is one change; the later wins. */
@@ -527,19 +579,26 @@ function dedupe(actions: SetupAction[]): SetupAction[] {
     return actions.filter((a, i) => (a.kind === 'clear' ? firstClear.get(keyOf(a)) === i : last.get(keyOf(a)) === i));
 }
 
-const INTENTION_RE =
-    /^(?:(?:ok|okay|please|hey|aloud|and)\s+)*(?:(?:set|change|make|let)\s+)?(?:(?:my|the|an|our)\s+)?intention(?:\s+for\s+(?:this|today|the)(?:\s+session)?)?\s+(?:is\s+|to\s+be\s+|as\s+|be\s+)?(.+)$/i;
+const INTENTION_LEAD = "(?:(?:ok|okay|please|hey|aloud|and)[,\\s]+)*";
+const INTENTION_NOUN = "(?:(?:my|the|an|our)\\s+)?intention(?:\\s+for\\s+(?:this|today|the)(?:\\s+(?:session|meditation))?)?";
+/** "My intention is to rest": the "to" is the meditator's. */
+const INTENTION_IS_RE = new RegExp(`^${INTENTION_LEAD}${INTENTION_NOUN}[\\s:,]+(?:(?:is|as)\\b[\\s:,]*)?(.+)$`, 'i');
+/** "Set my intention to rest": the "to" is the request's. */
+const INTENTION_SET_RE = new RegExp(
+    `^${INTENTION_LEAD}(?:set|change|make|let)\\s+${INTENTION_NOUN}[\\s:,]+(?:(?:to\\s+be|to|as|be|is)\\b[\\s:,]*)?(.+)$`,
+    'i'
+);
 const SIT_WITH_RE =
-    /^(?:(?:ok|okay|please|hey|aloud)\s+)*(?:(?:i\s+want|i'd\s+like|i\s+would\s+like|let's|lets|let\s+me)\s+(?:to\s+)?)?(?:something\s+to\s+)?sit\s+with\s+(?:is\s+)?(.+)$/i;
+    /^(?:(?:ok|okay|please|hey|aloud)[,\s]+)*(?:(?:i\s+want|i'd\s+like|i\s+would\s+like|let's|lets|let\s+me)\s+(?:to\s+)?)?(?:something\s+to\s+)?sit\s+with\s+(?:is\s+)?(.+)$/i;
 const CLEAR_INTENTION_RE =
-    /^(?:(?:ok|okay|please)\s+)*(?:clear|remove|drop|delete|erase|no|cancel|forget)\s+(?:(?:my|the)\s+)?intention(?:\s+please)?$/i;
+    /^(?:(?:ok|okay|please)[,\s]+)*(?:clear|remove|drop|delete|erase|no|cancel|forget)\s+(?:(?:my|the)\s+)?intention(?:\s+please)?$/i;
 
 function parseIntention(utterance: string): SetupAction | null {
     const said = utterance.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?。]+$/u, '');
     if (CLEAR_INTENTION_RE.test(said)) return { kind: 'intention', text: '' };
-    const match = INTENTION_RE.exec(said) ?? SIT_WITH_RE.exec(said);
+    const match = INTENTION_SET_RE.exec(said) ?? INTENTION_IS_RE.exec(said) ?? SIT_WITH_RE.exec(said);
     if (!match) return null;
-    const text = match[1]!.trim().replace(/^[:,\s]+/, '');
+    const text = match[1]!.trim();
     if (!text || text.split(' ').length > INTENTION_MAX_WORDS) return null;
     if (/^(?:off|clear|cleared|none|nothing|blank|empty)$/i.test(text)) return { kind: 'intention', text: '' };
     return { kind: 'intention', text };
@@ -648,36 +707,51 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     const bare = exact.filter((w) => !POLITE.has(w)).join(' ');
     if (STOP_LISTENING.has(bare)) return [{ kind: 'stop-listening' }];
     if (HELP.has(bare)) return [{ kind: 'help' }];
+    // A request to begin is begin-command's, with its strict match.
+    if (exact.includes('begin') || exact.includes('start')) return null;
 
     const intention = parseIntention(utterance);
     if (intention) return [intention];
     if (exact.length > SETUP_MAX_WORDS) return null;
-    // A request to begin is begin-command's, with its strict match.
-    if (exact.includes('begin') || exact.includes('start')) return null;
 
-    const words = exact.map((word) => (EXACT_WORDS.has(word) || /^\d+$/.test(word) ? word : (nearestWord(word) ?? word)));
-    const length = takeLength(words);
+    // Numbers are read exactly, so the length comes out first.
+    const length = takeLength(exact);
     if (!length) return null;
+    const loose = new Set<number>();
+    const words = length.rest.map((word, at) => {
+        if (EXACT_WORDS.has(word) || /^\d+$/.test(word)) return word;
+        const near = nearestWord(word);
+        if (near) loose.add(at);
+        return near ?? word;
+    });
 
     const actions: SetupAction[] = [];
     if (length.minutes !== null) actions.push({ kind: 'length', minutes: length.minutes });
+    let asked = false;
+    let needsAsking = false;
     let carried: Polarity | null = null;
-    let part: string[] = [];
-    const parts: string[][] = [];
-    for (const word of length.rest) {
-        if (JOINERS.has(word)) {
+    let part: Item[] = [];
+    const parts: Item[][] = [];
+    for (const item of itemize(words, loose)) {
+        if ('word' in item && JOINERS.has(item.word)) {
             parts.push(part);
             part = [];
-        } else part.push(word);
+            continue;
+        }
+        if ('word' in item ? ASKING.has(item.word) : item.entry.meaning.t === 'target') asked = true;
+        part.push(item);
     }
     parts.push(part);
-    for (const clauseWords of parts) {
-        if (clauseWords.length === 0) continue;
-        const clause = readClause(clauseWords, carried);
+    for (const items of parts) {
+        if (items.length === 0) continue;
+        const clause = readClause(items, carried);
         if (!clause) return null;
         actions.push(...clause.actions);
         carried = clause.carry;
+        needsAsking ||= clause.needsAsking;
     }
+    if (needsAsking && !asked) return null;
+    if (actions.filter((a) => a.kind === 'mode').length > 1) return null;
     return actions.length > 0 ? dedupe(actions) : null;
 }
 
