@@ -606,6 +606,8 @@ function appendRow(
     previewBtn.type = 'button';
     previewBtn.className = 'voice-row-preview';
     previewBtn.textContent = t('Preview');
+    // A screen reader lists a page's buttons out of their rows.
+    previewBtn.setAttribute('aria-label', t('Preview {name}', { name: entry.name }));
     previewBtn.dataset['voiceName'] = entry.name;
     if (entry.needsDownload && !entry.downloaded) {
         previewBtn.classList.add('preview-unavailable');
@@ -804,7 +806,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
                     <span class="voice-modal-title">${title}</span>
                     <span class="voice-modal-legend hidden" title="${t(RATE_LEGEND_TITLE)}">${t(RATE_LEGEND)}</span>
                 </span>
-                <button type="button" class="voice-modal-close" id="${cfg.closeId}">&times;</button>
+                <button type="button" class="voice-modal-close" id="${cfg.closeId}" aria-label="${t('Close')}">&times;</button>
             </div>
             <div class="voice-modal-list" id="${cfg.listId}"></div>${footer}
         </div>

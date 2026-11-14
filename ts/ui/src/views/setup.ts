@@ -112,6 +112,8 @@ import {
 } from '../tour/index-guide.js';
 import { firstSitSetup } from '../first-sit.js';
 import { onBackdropClick } from '../modal-backdrop.js';
+import { getNavHeight } from '../tour/tour-common.js';
+import { bottomBarsTop } from '../toast.js';
 
 const FOCUSES: ReadonlyArray<{ value: Focus; name: string; description: string }> = [
     {
@@ -699,6 +701,7 @@ export async function mountSetupView(
         customizeToggle?.addEventListener('click', () => {
             const open = customizeSection?.classList.toggle('open') ?? false;
             customizeToggle.setAttribute('aria-expanded', String(open));
+            if (open && customizeSection) revealOpened(customizeSection);
         });
         // The collapsed toggle still shows what's active, so persisted picks
         // from a previous session aren't invisible.
@@ -735,8 +738,11 @@ export async function mountSetupView(
 
         const dirSlider = root.querySelector<HTMLInputElement>('#directiveness')!;
         dirSlider.value = String(setup.dirStep);
+        const sayDir = (): void => sayStop(dirSlider, t('Following'), t('Directing'));
+        sayDir();
         dirSlider.addEventListener('input', () => {
             setup.dirStep = Number(dirSlider.value);
+            sayDir();
             persist();
         });
 
@@ -744,8 +750,11 @@ export async function mountSetupView(
         // stored value, timing only (SessionSetup.feltSensePaceStep).
         const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
         paceSlider.value = String(setup.feltSensePaceStep);
+        const sayPace = (): void => sayStop(paceSlider, t('Patient'), t('Attentive'));
+        sayPace();
         paceSlider.addEventListener('input', () => {
             setup.feltSensePaceStep = Number(paceSlider.value);
+            sayPace();
             persist();
         });
         // Felt sense owns whether silence check-ins happen at all, rather than
@@ -1420,7 +1429,7 @@ export async function mountSetupView(
                 return `<div class="participant-row" data-index="${i}">
                     <div class="participant-row-header">
                         <span class="participant-label">${escapeHtml(participantLabel(p, i))}</span>
-                        <button type="button" class="participant-remove" title="${escapeHtml(t('Remove'))}">&times;</button>
+                        <button type="button" class="participant-remove" title="${escapeHtml(t('Remove'))}" aria-label="${escapeHtml(t('Remove'))}">&times;</button>
                     </div>
                     <div class="participant-fields">
                         <div class="participant-field">
@@ -1468,7 +1477,7 @@ export async function mountSetupView(
                             <label>${t('Sound')}</label>
                             <div class="phrase-input-wrap">
                                 <button type="button" class="btn btn-secondary btn-small participant-sound-btn sound-pick-btn">${escapeHtml(soundLabel)}</button>
-                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}">&#9654;</button>
+                                <button type="button" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}" aria-label="${escapeHtml(t('Play sound'))}">&#9654;</button>
                             </div>
                         </div>
                     </div>
@@ -1594,7 +1603,7 @@ export async function mountSetupView(
                 (name) => `<div class="voice-row${name === current ? ' selected' : ''}" data-sound-name="${name}">
                     <span class="voice-row-name">${t(notingSoundLabel(name))}</span>
                     ${name === current ? '<span class="voice-row-check">✓</span>' : ''}
-                    <button type="button" class="voice-row-preview" data-sound="${name}">${t('Preview')}</button>
+                    <button type="button" class="voice-row-preview" data-sound="${name}" aria-label="${escapeHtml(t('Preview {name}', { name: t(notingSoundLabel(name)) }))}">${t('Preview')}</button>
                 </div>`
             )
             .join('');
@@ -1758,6 +1767,37 @@ const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['felt_sense', 'felt-sense-panel'],
 ];
 
+/**
+ * Say a stepped slider's position in the words drawn at its ends, which a
+ * screen reader otherwise never hears: it reads a bare "2".
+ */
+function sayStop(slider: HTMLInputElement, low: string, high: string): void {
+    slider.setAttribute('aria-valuetext', stopText(Number(slider.value), Number(slider.max), low, high));
+}
+
+/** `value` runs 0..max, so a slider has max + 1 stops; they are counted from 1. */
+function stopText(value: number, max: number, low: string, high: string): string {
+    if (value <= 0) return low;
+    if (value >= max) return high;
+    return t('{step} of {count}, between {low} and {high}', { step: value + 1, count: max + 1, low, high });
+}
+
+/**
+ * Bring a just-opened disclosure into view, scrolling no further than it
+ * takes: nothing when it already shows whole, to its foot when it fits the
+ * screen, and to its top (its toggle) when it is taller. On a phone, and on
+ * any screen zoomed to the phone layout, Customize opens under the fixed Begin
+ * bar and bottom nav, where it looks like nothing happened.
+ */
+function revealOpened(section: HTMLElement): void {
+    const rect = section.getBoundingClientRect();
+    const over = rect.bottom - ((bottomBarsTop() ?? window.innerHeight) - 12);
+    const top = Math.min(over, rect.top - getNavHeight());
+    if (top <= 0) return;
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollBy({ top, behavior: calm ? 'auto' : 'smooth' });
+}
+
 /** The focus / vibe grids: one checkbox card per option, grouped by `name`. */
 function modifierTogglesHTML(
     name: string,
@@ -1901,7 +1941,8 @@ function renderSetupHTML(
                         <p>${t('How actively the facilitator leads. Low end biases towards reflection or open questions; higher end toward direction and suggestions.')}</p>
                         <p>${t('If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~12 minutes on low, <1 min on high.')}</p>
                     </div>
-                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2">
+                    <!-- Named here: the label's own name takes in its "?" button. -->
+                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2" aria-label="${escapeHtml(t('Guidance Level'))}">
                     <div class="range-labels">
                         <span>${t('Following')}</span>
                         <span>${t('Directing')}</span>
@@ -1940,7 +1981,7 @@ function renderSetupHTML(
                         <span>${t('Play a sound on your turn')}</span>
                     </label>
                     <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">${t('Chime')}</button>
-                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}">&#9654;</button>
+                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}" aria-label="${escapeHtml(t('Play sound'))}">&#9654;</button>
                 </div>
                 ${renderClockButton('noting')}
             </div>
@@ -1958,7 +1999,7 @@ function renderSetupHTML(
                     <label class="checkin-pace-label" for="checkin-enabled">
                         <input type="checkbox" id="checkin-enabled" checked>${t("Check in if I'm quiet")}</label>
                     <div class="slider-control" id="checkin-pace-control">
-                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1">
+                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1" aria-label="${escapeHtml(t('Check-in pace'))}">
                         <div class="range-labels">
                             <span>${t('Patient')}</span>
                             <span>${t('Attentive')}</span>
@@ -2039,7 +2080,7 @@ function renderSetupHTML(
         <div class="voice-modal">
             <div class="voice-modal-header">
                 <span class="voice-modal-title">${t('Choose a sound')}</span>
-                <button class="voice-modal-close" id="sound-modal-close">&times;</button>
+                <button type="button" class="voice-modal-close" id="sound-modal-close" aria-label="${escapeHtml(t('Close'))}">&times;</button>
             </div>
             <div class="voice-modal-list" id="sound-modal-list"></div>
         </div>

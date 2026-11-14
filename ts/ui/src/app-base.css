@@ -5442,6 +5442,13 @@ input[type="range"].preview-range {
     to { opacity: 1; transform: translate(-50%, -50%); }
 }
 
+/* A centered card takes focus as a dialog (index-guide.ts holdPage) so it is
+   announced; it isn't a control, and a ring round the whole card on a first
+   visit reads as a glitch. Its buttons keep theirs. */
+.tour-welcome:focus {
+    outline: none;
+}
+
 .tour-welcome h3 {
     font-size: 1.1rem;
     font-weight: 600;

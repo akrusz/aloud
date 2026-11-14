@@ -154,8 +154,55 @@ function stopQuickStartPoll(): void {
     quickStartPoll = null;
 }
 
+// A centered card (welcome, "You're ready") is a modal dialog: while one is up
+// the rest of <body> is inert, so a screen reader and Tab start on the card,
+// not on the page it covers. That, not the overlay, is also what keeps Begin
+// from taking a click: its fixed bar sits above the overlay (z-index,
+// app-base.css). The overlay stays live: tapping it closes the card.
+let heldPage: HTMLElement[] = [];
+
+function holdPage(card: HTMLDivElement): void {
+    const heading = card.querySelector('h3');
+    const intro = card.querySelector('p');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    if (heading) {
+        heading.id = 'tour-card-title';
+        card.setAttribute('aria-labelledby', heading.id);
+    } else {
+        card.setAttribute('aria-label', t('Welcome to aloud'));
+    }
+    if (intro) {
+        intro.id = 'tour-card-intro';
+        card.setAttribute('aria-describedby', intro.id);
+    }
+    for (const el of document.body.children) {
+        if (!(el instanceof HTMLElement) || el === card || el === overlayEl || el.inert) continue;
+        el.inert = true;
+        heldPage.push(el);
+    }
+    // The card itself, not its first choice: the dialog gets announced with
+    // its text, and a stray Enter on a page that has only just loaded can't
+    // start a first session (that choice asks for the mic).
+    card.tabIndex = -1;
+    card.focus({ preventScroll: true });
+}
+
+function releasePage(): void {
+    for (const el of heldPage) el.inert = false;
+    heldPage = [];
+}
+
+/** Closing the guide removes the card that held focus, which would drop a
+ *  keyboard or screen-reader user at the top of the document with nothing
+ *  said. Put them on the setup page's first control instead. */
+function landFocus(): void {
+    document.querySelector<HTMLElement>('.tab-bar .tab-btn.active')?.focus({ preventScroll: true });
+}
+
 function cleanup(): void {
     stopQuickStartPoll();
+    releasePage();
     overlayEl?.remove();
     spotlightEl?.remove();
     cardEl?.remove();
@@ -170,6 +217,7 @@ function cleanup(): void {
 
 function showCard(html: string, className?: string): void {
     stopQuickStartPoll();
+    releasePage();
     if (cardEl) cardEl.remove();
     cardEl = document.createElement('div');
     cardEl.className = className || 'tour-tooltip';
@@ -181,6 +229,7 @@ function showCard(html: string, className?: string): void {
     // (app-base.css), leaving its slot to the docked card.
     document.body.classList.toggle('guide-spotlit', !centered);
     wireActions();
+    if (centered) holdPage(cardEl);
 }
 
 function wireActions(): void {
@@ -284,7 +333,7 @@ function beginQuickStart(): void {
     if (!offer || offer.blocker() !== null) return;
     // Same standing as "I'll explore on my own": a start abandoned at the mic
     // or sign-in prompt leaves the card away for the rest of this visit.
-    dismissRemindLater();
+    closeForNow();
     // No await before this: the mic prompt and the audio unlock both need the
     // click's user gesture (app.ts ensureMicAvailable).
     offer.start();
@@ -393,14 +442,20 @@ function goBack(): void {
 function completeGuide(): void {
     void sharedKv.set(GUIDE_DONE_KEY, '1');
     cleanup();
+    landFocus();
 }
 
-function dismissRemindLater(): void {
+function closeForNow(): void {
     // sessionStorage, so a skip doesn't persist across browser sessions.
     if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(GUIDE_REMIND_KEY, '1');
     }
     cleanup();
+}
+
+function dismissRemindLater(): void {
+    closeForNow();
+    landFocus();
 }
 
 function onScroll(): void {
