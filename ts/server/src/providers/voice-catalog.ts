@@ -73,6 +73,11 @@ export interface CuratedVoice {
      *  style is present - a paceBias on a styled voice would be dead config
      *  that reads as if it worked. */
     paceBias?: number;
+    /** A house voice for this language: it speaks the setup screen's fixed
+     *  lines (core setup-lines.ts), pre-rendered to static clips by
+     *  scripts/render-voice-clips.ts, which renders every voice carrying the
+     *  flag. Two per language, a female and a male, for the voiced tour. */
+    house?: 'en' | 'zh';
     /** The default when the client doesn't specify a voice. */
     default?: boolean;
 }
@@ -98,7 +103,7 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Microsoft's docs cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice' },
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', house: 'en' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
@@ -119,16 +124,17 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
         gender: 'female',
         tier: 'premium',
         style: 'softvoice',
+        house: 'en',
         default: true,
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
     // heard it as a bit fast in both languages (2026-11-14).
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium' },
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh' },
     // Serena's model with a Mandarin persona; the dev heard it in both
     // languages (2026-11-14). No zhNative until a native speaker has listened.
-    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium' },
+    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh' },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,

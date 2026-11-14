@@ -46,6 +46,13 @@ describe('voice catalog', () => {
         // synthFor null-check turns it into provider_error).
         expect(defaultVoice(new Set()).name).toBe(flagged.name);
     });
+
+    it('has a female and a male house voice per language, for the voiced tour', () => {
+        for (const lang of ['en', 'zh'] as const) {
+            const house = CURATED_VOICES.filter((v) => v.house === lang);
+            expect(house.map((v) => v.gender).sort()).toEqual(['female', 'male']);
+        }
+    });
 });
 
 describe('GET /cloud/v1/voices', () => {

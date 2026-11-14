@@ -1,3 +1,15 @@
 {
-    "voices": {}
+    "voices": {
+        "Harper": {
+            "clips": {
+                "mode-noting": {
+                    "file": "harper/en/mode-noting.607852e3.mp3",
+                    "text": "Okay, noting mode."
+                }
+            },
+            "fixedPace": true,
+            "gender": "female",
+            "language": "en"
+        }
+    }
 }
