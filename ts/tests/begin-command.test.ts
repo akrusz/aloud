@@ -27,6 +27,8 @@ describe('isBeginCommand', () => {
             'When does the movie start?',
             'I should begin cooking dinner',
             "Don't start",
+            'start ten',
+            'start a new one',
             'not ready to begin',
             'start the car',
             'begin again from the top of the list please',

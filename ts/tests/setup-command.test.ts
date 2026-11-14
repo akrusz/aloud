@@ -97,8 +97,7 @@ describe('parseSetupCommand: focuses and vibes', () => {
             ['parts and inner world', [{ kind: 'focus', focus: 'inner_parts', on: true }]],
             ['playful and light', [{ kind: 'quality', quality: 'playful', on: true }]],
             ['loving and kind', [{ kind: 'quality', quality: 'loving', on: true }]],
-            ['add a light vibe', [{ kind: 'quality', quality: 'playful', on: true }]],
-            ['some space please, add space', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['add playfulness', [{ kind: 'quality', quality: 'playful', on: true }]],
         ]);
     });
 
@@ -384,6 +383,30 @@ describe('parseSetupCommand: what a room says', () => {
             'Nothing more.',
             'no more noting',
             'playful off on',
+            'in an hour',
+            'do nothing',
+            'I want nothing',
+            'try nothing',
+            'turn on the light',
+            'turn off the light',
+            'make it light',
+            'give me some space',
+            'I want space',
+            "I'm feeling good",
+            'are you feeling good',
+            'make love',
+            'I have feelings',
+            'my body',
+            'the response is long',
+            'just checking in',
+            'I have to check in',
+            'check-ins',
+            'the intention was good',
+            'My intention was to call you back',
+            'sit with me',
+            "let's sit with Grandma",
+            'playfulness',
+            'emotional',
         ]) {
             expect(parseSetupCommand(text), text).toBeNull();
         }
@@ -394,6 +417,23 @@ describe('parseSetupCommand: what a room says', () => {
             ['I want twenty minutes', [{ kind: 'length', minutes: 20 }]],
             ["let's do ten minutes", [{ kind: 'length', minutes: 10 }]],
             ['two minutes', [{ kind: 'length', minutes: 2 }]],
+        ]);
+    });
+
+    it('reads what the review found it refusing', () => {
+        expectAll([
+            ['my intention is to start fresh', [{ kind: 'intention', text: 'to start fresh' }]],
+            ['My intention: begin again', [{ kind: 'intention', text: 'begin again' }]],
+            [
+                'check ins off for felt sense',
+                [
+                    { kind: 'checkins', on: false },
+                    { kind: 'mode', mode: 'felt_sense' },
+                ],
+            ],
+            ['about twenty minutes', [{ kind: 'length', minutes: 20 }]],
+            ['no time limit', [{ kind: 'no-timer' }]],
+            ['playful exploration', [{ kind: 'quality', quality: 'playful', on: true }, { kind: 'mode', mode: 'exploration' }]],
         ]);
     });
 

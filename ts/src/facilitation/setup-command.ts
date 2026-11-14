@@ -78,9 +78,12 @@ interface Entry {
     meaning: Meaning;
     /**
      * Whether the phrase is a request all by itself. The names the setup
-     * screen shows are ("Playful.", "Noting."). An everyday word that also
-     * means one ("light", "kind", "space") is only a request beside a word
-     * that asks for something (`ASKING`): alone it is what a room says.
+     * screen shows are ("Playful.", "Noting."). Another form of one
+     * ("emotional", "playfulness") is only a request beside a word that asks
+     * for something (`ASKING`): alone it is what a room says. The everyday
+     * words that also mean one ("light", "kind", "space", "love") are not
+     * here at all: "turn on the light" is said in rooms. The judge tier
+     * reads those, where there is one.
      */
     bare: boolean;
 }
@@ -132,18 +135,14 @@ const PHRASES: Record<string, Entry> = {
     'playful and light': named(quality('playful')),
     lighthearted: named(quality('playful')),
     playfulness: also(quality('playful')),
-    light: also(quality('playful')),
     compassionate: named(quality('compassionate')),
     compassion: named(quality('compassionate')),
     loving: named(quality('loving')),
     'loving and kind': named(quality('loving')),
     'loving kindness': named(quality('loving')),
-    love: also(quality('loving')),
-    kind: also(quality('loving')),
     kindness: also(quality('loving')),
     spacious: named(quality('spacious')),
     spaciousness: named(quality('spacious')),
-    space: also(quality('spacious')),
     effortless: named(quality('effortless')),
     effortlessness: named(quality('effortless')),
     'feeling good': named(quality('feeling_good')),
@@ -201,6 +200,7 @@ const PHRASES: Record<string, Entry> = {
     words: target('responses'),
     timer: target('timer'),
     clock: target('timer'),
+    'time limit': target('timer'),
     mode: target('mode'),
 };
 
@@ -237,7 +237,7 @@ const LEVEL_STEPS = new Set(['up', 'down', 'higher', 'lower', 'raise']);
  *  five minutes" and "in twenty minutes" are what people say to each other. */
 const LENGTH_COMPANY = new Set([
     'a', 'an', 'the', 'for', 'to', 'it', 'set', 'make', 'change', 'timer', 'clock', 'session', 'meditation',
-    'please', 'ok', 'okay', "let's", 'lets', 'do', 'i', "i'd", 'id', 'want', 'like', 'would',
+    'please', 'ok', 'okay', "let's", 'lets', 'do', 'i', "i'd", 'id', 'want', 'like', 'would', 'about',
 ]);
 
 /** Said in front of (or after) a value to take it away. */
@@ -260,21 +260,23 @@ const STEPS: Record<string, 'up' | 'down'> = {
 
 /** The words people wrap around a request. Exact only. */
 const FILLER = new Set([
-    'a', 'all', 'aloud', 'also', 'an', 'are', 'be', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
-    'have', 'hey', 'i', "i'd", "i'm", 'id', 'im', 'in', 'is', 'it', 'just', 'keep', 'kinda', 'length', 'let',
-    "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'my', 'now', 'of', 'ok', 'okay', 'one',
+    'a', 'about', 'all', 'aloud', 'also', 'an', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
+    'have', 'hey', 'i', "i'd", 'id', 'in', 'it', 'just', 'keep', 'kinda', 'length', 'let',
+    "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'now', 'of', 'ok', 'okay', 'one',
     'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'the',
-    'this', 'to', 'too', 'try', 'turn', 'use', 'want', 'we', 'with', 'would', 'you', 'your',
+    'this', 'to', 'too', 'try', 'turn', 'use', 'want', 'with', 'would', 'you', 'your',
 ]);
 
 /**
  * Words that make an utterance a request rather than a remark. A value that
  * can't stand alone (an `also` entry, or one matched loosely) needs one of
  * these, a target ("vibe", "mode") or a step ("more") somewhere beside it.
+ * Only verbs of choosing: "I want nothing" and "I have feelings" ask for
+ * nothing.
  */
 const ASKING = new Set([
     ...NEGATIONS, ...ADDITIONS, ...SETTERS, ...ONLY, ...Object.keys(STEPS),
-    'choose', 'do', 'give', 'go', 'have', "let's", 'lets', 'pick', 'put', 'select', 'try', 'turn', 'use', 'want',
+    'choose', 'pick', 'select', 'use',
 ]);
 
 /** A length, taken out before the rest is read (parseTimerRequest reads it). */
@@ -572,7 +574,11 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     // A timer by itself says nothing; with a length it is filler.
     if (has('timer') && negated) actions.push({ kind: 'no-timer' });
 
-    if (meanings.some((m) => m.t === 'checkin')) actions.push({ kind: 'checkins', on: polarity === 'on' });
+    // Only with a direction said: "just checking in" is not a request.
+    if (meanings.some((m) => m.t === 'checkin')) {
+        if (own === null && carried === null) return null;
+        actions.push({ kind: 'checkins', on: polarity === 'on' });
+    }
 
     // "More playful" is playful; "less playful" is not. There is no more or
     // less of a mode: "nothing more" is not "noting".
@@ -591,7 +597,9 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     }
     for (const value of values) {
         if (value.t === 'mode') {
-            if (negated) return null;
+            // "Not noting" is nothing; "check-ins off for felt sense" is
+            // about the check-ins.
+            if (negated && !graded && !meanings.some((m) => m.t === 'checkin' || m.t === 'target')) return null;
             actions.push({ kind: 'mode', mode: value.mode });
         } else if (value.t === 'focus') actions.push({ kind: 'focus', focus: value.focus, on: valuePolarity === 'on' });
         else if (value.t === 'quality') actions.push({ kind: 'quality', quality: value.quality, on: valuePolarity === 'on' });
@@ -617,14 +625,15 @@ function dedupe(actions: SetupAction[]): SetupAction[] {
 const INTENTION_LEAD = "(?:(?:ok|okay|please|hey|aloud|and)[,\\s]+)*";
 const INTENTION_NOUN = "(?:(?:my|the|an|our)\\s+)?intention(?:\\s+for\\s+(?:this|today|the)(?:\\s+(?:session|meditation))?)?";
 /** "My intention is to rest": the "to" is the meditator's. */
-const INTENTION_IS_RE = new RegExp(`^${INTENTION_LEAD}${INTENTION_NOUN}[\\s:,]+(?:(?:is|as)\\b[\\s:,]*)?(.+)$`, 'i');
+const INTENTION_IS_RE = new RegExp(`^${INTENTION_LEAD}${INTENTION_NOUN}(?:\\s*:\\s*|[\\s,]+is\\b[\\s:,]*)(.+)$`, 'i');
 /** "Set my intention to rest": the "to" is the request's. */
 const INTENTION_SET_RE = new RegExp(
     `^${INTENTION_LEAD}(?:set|change|make|let)\\s+${INTENTION_NOUN}[\\s:,]+(?:(?:to\\s+be|to|as|be|is)\\b[\\s:,]*)?(.+)$`,
     'i'
 );
+/** Felt sense's field, by its label. "Sit with me" is not this. */
 const SIT_WITH_RE =
-    /^(?:(?:ok|okay|please|hey|aloud)[,\s]+)*(?:(?:i\s+want|i'd\s+like|i\s+would\s+like|let's|lets|let\s+me)\s+(?:to\s+)?)?(?:something\s+to\s+)?sit\s+with\s+(?:is\s+)?(.+)$/i;
+    /^(?:(?:ok|okay|please|hey|aloud)[,\s]+)*(?:(?:i\s+want|i'd\s+like|i\s+would\s+like)\s+to\s+sit\s+with\s+|something\s+to\s+sit\s+with\s+is\s+)(.+)$/i;
 const CLEAR_INTENTION_RE =
     /^(?:(?:ok|okay|please)[,\s]+)*(?:clear|remove|drop|delete|erase|no|cancel|forget)\s+(?:(?:my|the)\s+)?intention(?:\s+please)?$/i;
 
@@ -742,11 +751,13 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     const bare = exact.filter((w) => !POLITE.has(w)).join(' ');
     if (STOP_LISTENING.has(bare)) return [{ kind: 'stop-listening' }];
     if (HELP.has(bare)) return [{ kind: 'help' }];
-    // A request to begin is begin-command's, with its strict match.
-    if (exact.includes('begin') || exact.includes('start')) return null;
-
+    // Before the guard below: an intention is the meditator's own words, and
+    // "my intention is to start fresh" is one. (The listener has already
+    // tried the utterance as a request to begin, which it is not.)
     const intention = parseIntention(utterance);
     if (intention) return [intention];
+    // A request to begin is begin-command's, with its strict match.
+    if (exact.includes('begin') || exact.includes('start')) return null;
     if (exact.length > SETUP_MAX_WORDS) return null;
 
     // Numbers are read exactly, so the length comes out first.
@@ -820,7 +831,7 @@ export function setupVocabulary(language: string): { prompt: string; phrases: st
         'exploration', 'noting', 'felt sense', 'vibes', 'focus', 'body and sensations', 'emotions', 'parts',
         'playful', 'compassionate', 'loving', 'spacious', 'effortless', 'feeling good', 'more guidance',
         'less guidance', 'following', 'balanced', 'directing', 'shorter responses', 'longer responses',
-        'my intention is', 'check-ins', 'twenty minutes', 'no timer',
+        'my intention is', 'check-ins off', 'twenty minutes', 'no timer',
     ];
     return {
         prompt:

@@ -112,7 +112,12 @@ export function applySetupAction(form: SetupForm, action: SetupAction): SetupOut
     }
 }
 
-/** A whole request, in the order it was said. */
+/**
+ * A whole request. The mode goes first, wherever it was said: "playful
+ * exploration" said under Noting means the vibe for the mode being switched
+ * to, not for the one being left. The rest keeps the order it was said in.
+ */
 export function applySetupActions(form: SetupForm, actions: readonly SetupAction[]): SetupOutcome[] {
-    return actions.map((action) => applySetupAction(form, action));
+    const modesFirst = [...actions.filter((a) => a.kind === 'mode'), ...actions.filter((a) => a.kind !== 'mode')];
+    return modesFirst.map((action) => applySetupAction(form, action));
 }

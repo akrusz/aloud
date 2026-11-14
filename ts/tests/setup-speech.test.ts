@@ -37,7 +37,15 @@ vi.mock('../ui/src/voice-clips.json', () => ({
 }));
 vi.mock('../ui/src/adapters/tts-picker.js', () => ({ createTtsForVoice: vi.fn() }));
 
-import { clipFor, clipPlaybackRate, houseVoiceFor, houseVoices, isLocalVoice } from '../ui/src/setup-speech.js';
+import { createTtsForVoice } from '../ui/src/adapters/tts-picker.js';
+import {
+    clipFor,
+    clipPlaybackRate,
+    createSetupSpeaker,
+    houseVoiceFor,
+    houseVoices,
+    isLocalVoice,
+} from '../ui/src/setup-speech.js';
 
 describe('houseVoices', () => {
     it('lists the voices of a language, the female one first', () => {
@@ -103,3 +111,57 @@ describe('clipPlaybackRate', () => {
         expect(clipPlaybackRate(100, true)).toBe(1);
     });
 });
+
+describe('a local voice', () => {
+    /** An engine whose speak() runs until cancelled. */
+    function engine() {
+        let finish: (() => void) | null = null;
+        const e = {
+            cancelled: 0,
+            speak: () => new Promise<void>((resolve) => (finish = resolve)),
+            cancel: async () => {
+                e.cancelled++;
+                finish?.();
+            },
+            listVoices: async () => [],
+        };
+        return e;
+    }
+    const speaker = () =>
+        createSetupSpeaker({ voiceId: () => 'server:piper', houseVoice: () => null, language: () => 'en', rate: () => 140 });
+    const line = (text: string) => [{ id: 'mode-noting' as const, text }];
+
+    it('can stop a line that replaced another', async () => {
+        const first = engine();
+        const second = engine();
+        vi.mocked(createTtsForVoice)
+            .mockResolvedValueOnce({ engine: first, voice: null })
+            .mockResolvedValueOnce({ engine: second, voice: null });
+        const s = speaker();
+        void s.say(line('one'));
+        await new Promise((r) => setTimeout(r, 0));
+        const saying = s.say(line('two'));
+        await new Promise((r) => setTimeout(r, 0));
+        expect(first.cancelled).toBe(1);
+        s.stop();
+        await saying;
+        expect(second.cancelled).toBe(1);
+    });
+
+    it('does not speak a line stopped while its voice was still being found', async () => {
+        const late = engine();
+        const spoke = vi.spyOn(late, 'speak');
+        let found!: () => void;
+        vi.mocked(createTtsForVoice).mockReturnValueOnce(
+            new Promise((resolve) => (found = () => resolve({ engine: late, voice: null })))
+        );
+        const s = speaker();
+        const saying = s.say(line('one'));
+        await new Promise((r) => setTimeout(r, 0));
+        s.stop();
+        found();
+        await saying;
+        expect(spoke).not.toHaveBeenCalled();
+    });
+});
+

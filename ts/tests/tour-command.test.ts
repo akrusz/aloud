@@ -26,6 +26,7 @@ describe('parseTourCommand', () => {
             ["that's enough", 'close'],
             ['mute', 'quiet'],
             ['stop talking', 'quiet'],
+            ['skip this step', 'close'],
             ['unmute', 'speak'],
             ['下一步', 'next'],
             ['好的，继续吧', 'next'],
@@ -48,6 +49,9 @@ describe('parseTourCommand', () => {
             'yes',
             'begin',
             'stop',
+            'quiet',
+            'hush',
+            'silence',
             '下一步怎么办',
         ]) {
             expect(parseTourCommand(text), text).toBeNull();
@@ -65,9 +69,8 @@ describe('parseTourCommand', () => {
             ['number one', 0],
             ['two', 1],
             ['the woman', 0],
-            ['her', 0],
             ['the man', 1],
-            ["let's go with him", 1],
+            ["let's go with the second", 1],
         ];
         for (const [text, index] of cases) expect(parseTourCommand(text, en), text).toEqual({ kind: 'voice', index });
         expect(parseTourCommand('第一个', zh)).toEqual({ kind: 'voice', index: 0 });
@@ -77,7 +80,19 @@ describe('parseTourCommand', () => {
     });
 
     it('takes no voice from an answer that names both or neither', () => {
-        for (const text of ['Harper or Ethan', 'either one', 'the first or the second', 'I like them', 'Hermione']) {
+        for (const text of [
+            'Harper or Ethan',
+            'either one',
+            'the first or the second',
+            'I like them',
+            'Hermione',
+            'her',
+            'one',
+            'the one',
+            'he would like to go with me',
+            'would you like to go with him',
+            'give her the one',
+        ]) {
             expect(parseTourCommand(text, en), text).toBeNull();
         }
     });

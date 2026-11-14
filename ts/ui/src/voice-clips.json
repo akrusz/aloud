@@ -71,8 +71,10 @@
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "ethan/en/help.14fba2f1.mp3",
-                    "text": "You can name a mode, a length, a vibe or a focus. Or say begin."
+                    "file": "ethan/en/help.8383c271.mp3",
+                    "suspect": true,
+                    "suspectReason": "voiced 6.72s against 3.78s expected at this voice's pace: probable repeat",
+                    "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
                 },
                 "intention-cleared": {
                     "file": "ethan/en/intention-cleared.8e0ccb95.mp3",
@@ -326,8 +328,8 @@
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "harper/en/help.e3b5963e.mp3",
-                    "text": "You can name a mode, a length, a vibe or a focus. Or say begin."
+                    "file": "harper/en/help.8a0353ea.mp3",
+                    "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
                 },
                 "intention-cleared": {
                     "file": "harper/en/intention-cleared.24fdff3e.mp3",
@@ -581,8 +583,8 @@
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "serena/zh/help.5cd199f5.mp3",
-                    "text": "你可以说模式、时长、氛围或焦点，也可以说“开始”。"
+                    "file": "serena/zh/help.14e7d30d.mp3",
+                    "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
                 },
                 "intention-cleared": {
                     "file": "serena/zh/intention-cleared.1095d617.mp3",
@@ -661,8 +663,8 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.d33df116.mp3",
-                    "text": "就这些。准备好了，就说“开始”。"
+                    "file": "serena/zh/tour-done.43245005.mp3",
+                    "text": "就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
                     "file": "serena/zh/tour-exploration.035ef1f0.mp3",
@@ -836,8 +838,8 @@
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "yunfan/zh/help.9c0d4dfb.mp3",
-                    "text": "你可以说模式、时长、氛围或焦点，也可以说“开始”。"
+                    "file": "yunfan/zh/help.ca1a8b32.mp3",
+                    "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
                 },
                 "intention-cleared": {
                     "file": "yunfan/zh/intention-cleared.db9d4857.mp3",
@@ -916,8 +918,8 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.d0ed1091.mp3",
-                    "text": "就这些。准备好了，就说“开始”。"
+                    "file": "yunfan/zh/tour-done.3b659e20.mp3",
+                    "text": "就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
                     "file": "yunfan/zh/tour-exploration.3cdbbbbd.mp3",

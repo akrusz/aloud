@@ -189,6 +189,12 @@ export interface ListenOnSetupOptions {
      * (which keeps the window open) and false when it was only the room.
      */
     onHeard?: (text: string) => boolean | Promise<boolean>;
+    /**
+     * True when what was heard is the app's own last line coming back.
+     * Asked before anything else, "begin" included: a line that ends on the
+     * word must not be able to start a session.
+     */
+    isEcho?: (text: string) => boolean;
     /** Why listening ended, for the mic beside Begin. */
     onEnd: (why: VoiceStartEnd) => void;
     windowMs?: number;
@@ -280,6 +286,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             // Stopped from under it by a hold: that is not the recognizer failing.
             if (holds > 0) continue;
             if (failed) return void end('error');
+            if (heard && opts.isEcho?.(heard)) heard = '';
             const request = heard ? parseBeginRequest(heard) : null;
             if (request) return void end('begin', request);
             if (heard && opts.onHeard) {

@@ -80,9 +80,11 @@ export const SETUP_LINES = {
     'checkins-off': { en: 'Check-ins are off.', zh: '安静时我不会打扰。' },
 
     'mic-off': { en: 'Okay, the mic is off.', zh: '好的，麦克风已关闭。' },
+    // No line ends on "begin": the tail of a line is what the microphone
+    // could catch as it reopens, and that word starts a session.
     help: {
-        en: 'You can name a mode, a length, a vibe or a focus. Or say begin.',
-        zh: '你可以说模式、时长、氛围或焦点，也可以说“开始”。',
+        en: 'Say begin to start, or name a mode, a length, a vibe or a focus.',
+        zh: '说“开始”就可以开始，也可以说模式、时长、氛围或焦点。',
     },
     'belongs-exploration': { en: "That's part of exploration.", zh: '这是探索模式的设置。' },
     'belongs-felt-sense': { en: "That's part of felt sense.", zh: '这是体会模式的设置。' },
@@ -132,7 +134,7 @@ export const SETUP_LINES = {
     },
     'tour-done': {
         en: "That's everything. Say begin when you're ready.",
-        zh: '就这些。准备好了，就说“开始”。',
+        zh: '就这些。想开始的时候，说“开始”就可以了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;
 

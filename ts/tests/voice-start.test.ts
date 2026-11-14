@@ -364,4 +364,22 @@ describe('listenOnSetup', () => {
         expect(ends).toEqual([]);
         expect(starts).toBe(2);
     });
+
+    it('asks whether it heard its own line before anything, "begin" included', async () => {
+        // A line that ends on the word, caught as the mic reopens.
+        const engine = scriptedEngine(['begin.', 'begin']);
+        let asked = 0;
+        const ends: VoiceStartEnd[] = [];
+        listenOnSetup({
+            engine,
+            alive: () => true,
+            onBegin: () => undefined,
+            isEcho: () => asked++ === 0,
+            onEnd: (why) => ends.push(why),
+        });
+        await vi.advanceTimersByTimeAsync(200);
+        expect(ends).toEqual([]);
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(ends).toEqual(['begin']);
+    });
 });

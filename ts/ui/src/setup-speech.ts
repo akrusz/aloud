@@ -156,24 +156,42 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
     }
 
     async function speakLocally(text: string, voiceId: string | null): Promise<void> {
+        let cancel: (() => void) | null = null;
+        let cancelled = false;
+        // The stand-in until there is an engine to cancel: stop() during the
+        // lookup still stops this line.
+        let release!: () => void;
+        const stopped = new Promise<void>((resolve) => (release = resolve));
+        const mine = (): void => {
+            cancelled = true;
+            cancel?.();
+            release();
+        };
+        cancelLocal = mine;
+        let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const { engine } = await createTtsForVoice(voiceId, {});
-            const cancel = (): void => void engine.cancel().catch(() => undefined);
-            cancelLocal = cancel;
-            let timer: ReturnType<typeof setTimeout> | undefined;
             await Promise.race([
-                engine.speak(text, { rate: opts.rate() }),
+                (async () => {
+                    const { engine } = await createTtsForVoice(voiceId, {});
+                    if (cancelled) return;
+                    cancel = () => void engine.cancel().catch(() => undefined);
+                    await engine.speak(text, { rate: opts.rate() });
+                })(),
+                stopped,
+                // The lookup of the voice counts too: it can be a fetch.
                 new Promise<void>((resolve) => {
                     timer = setTimeout(() => {
-                        cancel();
+                        mine();
                         resolve();
                     }, localTimeoutMs(text));
                 }),
-            ]).finally(() => clearTimeout(timer));
+            ]);
         } catch {
             /* no voice to say it with: the caption stands alone */
         } finally {
-            cancelLocal = null;
+            clearTimeout(timer);
+            // Only its own: the next line may already have put its cancel here.
+            if (cancelLocal === mine) cancelLocal = null;
         }
     }
 

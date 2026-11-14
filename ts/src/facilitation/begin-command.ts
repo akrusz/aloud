@@ -152,6 +152,8 @@ export function parseBeginRequest(utterance: string): BeginRequest | null {
     // in this vocabulary to begin with.
     const length = hasUnit ? parseTimerRequest(words.join(' ')) : null;
     if (hasUnit && (!length || length.relative)) return null;
+    // A number with nothing to count ("start ten") is not a length.
+    if (!hasUnit && words.some((w) => (LENGTH_WORDS.has(w) && w !== 'and') || /^\d{1,3}$/.test(w))) return null;
 
     const [mode] = modes;
     return { ...(mode ? { mode } : {}), ...(length ? { minutes: length.minutes } : {}) };

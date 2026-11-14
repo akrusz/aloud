@@ -53,6 +53,7 @@ import {
     NOTING_NARRATOR_TTS_FRACTION,
 } from '../credit-rate.js';
 import { narratorCanBill } from '../cloud-gate.js';
+import { canReachJudge } from '../voice-commands.js';
 import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
@@ -62,6 +63,7 @@ import {
     sttEngineOptions,
     sttChoiceForMode,
     sttSettingKey,
+    isHostedSttChoice,
     sttBackendForChoice,
     cloudSttCreditsPerHour,
     createSttForChoice,
@@ -88,7 +90,7 @@ import {
 } from '../../../src/facilitation/index.js';
 import { applySetupActions, type SetupForm } from '../setup-actions.js';
 import { createSetupJudge } from '../setup-judge.js';
-import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice } from '../setup-speech.js';
+import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -114,7 +116,7 @@ import {
 import { alertDialog } from '../dialog.js';
 import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
-import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
+import { loadAppSettings, saveAppSettings, type AppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clampTimerMinutes, clockModeLabel, showSessionClockModal } from '../session-clock.js';
 import { audioContextCtor, canPlayUntouched } from '../audio-unlock.js';
 import {
@@ -217,6 +219,10 @@ function resumeBannerDetail(state: SessionState): string {
  *  finds the NEXT mount's elements. Anything that must not act for a screen
  *  that is gone checks this first. */
 let setupMounts = 0;
+
+/** The mount on screen's speaker. A line still playing for a screen that has
+ *  been replaced is cut when the next one mounts: its mic would hear it. */
+let liveSpeaker: SetupSpeaker | null = null;
 
 export async function mountSetupView(
     root: HTMLElement,
@@ -405,7 +411,7 @@ export async function mountSetupView(
                     const resumed = state;
                     pendingContinue = null;
                     clearContinueStorage();
-                    onBegin(setup, resumed);
+                    beginFromSetup(setup, resumed);
                 },
                 onStartFresh: () => dropPendingContinue(),
             });
@@ -539,10 +545,19 @@ export async function mountSetupView(
         paintCheckins();
     }
 
-    // The app-level clock settings still being written. A begin said in the
-    // same breath as a length ("begin a twenty minute session") waits for
-    // this, since the session reads its timer from storage.
-    let clockSaved: Promise<void> = Promise.resolve();
+    // App-level settings written from this page go one after another, each
+    // re-reading before it writes, so two controls saving in the same moment
+    // can't put back what the other just changed. A begin said in the same
+    // breath as a length ("begin a twenty minute session") waits for it,
+    // since the session reads its timer from storage.
+    let settingsSaved: Promise<void> = Promise.resolve();
+    function saveAppPatch(patch: Partial<AppSettings>): Promise<void> {
+        settingsSaved = settingsSaved
+            .then(() => loadAppSettings())
+            .then((stored) => saveAppSettings({ ...stored, ...patch }))
+            .catch(() => undefined);
+        return settingsSaved;
+    }
 
     function paintClockBtns(): void {
         const face = clockModeLabel(
@@ -558,12 +573,7 @@ export async function mountSetupView(
     function setClock(choice: Partial<Pick<typeof appSettings, 'sessionClockMode' | 'sessionTimerMin' | 'showSessionClock' | 'endSessionOnTimer'>>): void {
         Object.assign(appSettings, choice);
         paintClockBtns();
-        // Re-read before writing, like the voice control: another control on
-        // this page may have saved since this view loaded its copy.
-        clockSaved = clockSaved
-            .then(() => loadAppSettings())
-            .then((stored) => saveAppSettings({ ...stored, ...choice }))
-            .catch(() => undefined);
+        void saveAppPatch(choice);
     }
 
     const setupForm: SetupForm = {
@@ -602,9 +612,8 @@ export async function mountSetupView(
      * page does, so changes propagate to every session. Callers keep the
      * in-memory `setup` in sync for the live form, then write through here.
      */
-    async function persistDefaultVoice(voice: string | null, rate: number): Promise<void> {
-        const s = await loadAppSettings();
-        await saveAppSettings({ ...s, defaultVoice: voice, defaultTtsRate: rate });
+    function persistDefaultVoice(voice: string | null, rate: number): Promise<void> {
+        return saveAppPatch({ defaultVoice: voice, defaultTtsRate: rate });
     }
 
     /**
@@ -969,8 +978,7 @@ export async function mountSetupView(
             const key = sttSettingKey(setup.meditationType);
             const choice = sttSel.value as SttEngineChoice;
             appSettings[key] = choice;
-            const s = await loadAppSettings();
-            await saveAppSettings({ ...s, [key]: choice });
+            await saveAppPatch({ [key]: choice });
             syncSttPicker();
             updateSessionEstimate();
         });
@@ -1007,30 +1015,7 @@ export async function mountSetupView(
             });
         });
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
-        beginBtn.addEventListener('click', () => {
-            // Begun by hand while the mic was open for "begin": close it, so
-            // the session opens its own. (When "begin" was heard, it already is.)
-            const listening = voiceStart;
-            voiceStart = null;
-            void listening?.handle.stop();
-            speaker.stop();
-            // And none may open while the session comes up: not one still
-            // being built, not one a late probe asks for.
-            voiceStartGen++;
-            beginning = true;
-            const queued = pendingContinue?.state ?? null;
-            if (pendingContinue) {
-                pendingContinue = null;
-                clearContinueStorage();
-            }
-            // Over when the session is up or the attempt was turned back (no
-            // mic, sign-in dismissed). Only the second leaves this screen, and
-            // then it may listen again.
-            void Promise.resolve(onBegin(setup, queued)).finally(() => {
-                beginning = false;
-                void syncVoiceStart();
-            });
-        });
+        beginBtn.addEventListener('click', beginNow);
         // Initial gate state (recomputed once /providers status arrives).
         updateBeginButton();
         updateAiNotes();
@@ -1127,6 +1112,9 @@ export async function mountSetupView(
     // screen is still here for a moment, and its probes are still landing;
     // none of them may open the mic again underneath the session.
     let beginning = false;
+    // The recognizer this mode would use is the hosted one and nobody is
+    // signed in (runVoiceSync).
+    let sttNeedsAccount = false;
     if (appSettings.setupVoice) {
         void micPermission().then((permission) => {
             mic = permission;
@@ -1142,12 +1130,13 @@ export async function mountSetupView(
 
     // What answers a request made by voice: a clip in a house voice, or the
     // session's own voice where that one is local (setup-speech.ts).
-    const speaker = createSetupSpeaker({
+    liveSpeaker?.stop();
+    const speaker = (liveSpeaker = createSetupSpeaker({
         voiceId: () => setup.voice,
         houseVoice: () => appSettings.houseVoice,
         language: () => appSettings.language,
         rate: () => setup.ttsRate,
-    });
+    }));
     // Settles when the app has finished speaking and its tail has cleared. A
     // listener rebuilt mid-line (a mode with its own recognizer) waits on it,
     // or it would open on the app's own voice.
@@ -1197,16 +1186,21 @@ export async function mountSetupView(
         return speaking;
     }
 
+    /** The tail of the app's own line, late out of a slow speaker or still in
+     *  the room when the recognizer opened again. Without this "Guidance set
+     *  to following." could hear itself ask for "following". */
+    function heardOwnLine(text: string): boolean {
+        const spoken = speaker.lastSpoken();
+        return (
+            spoken !== null &&
+            Date.now() - spoken.endedAt < SETUP_ECHO_WINDOW_MS &&
+            looksLikeSpokenTail(text, spoken.text)
+        );
+    }
+
     /** Something said on this screen that was not "begin". True when it was a
      *  request, which keeps the mic open for the next. */
     async function heardOnSetup(text: string): Promise<boolean> {
-        // The tail of the app's own line, late out of a slow speaker or
-        // still in the room when the recognizer opened again. Without this
-        // "Guidance set to following." could hear itself ask for "following".
-        const spoken = speaker.lastSpoken();
-        if (spoken && Date.now() - spoken.endedAt < SETUP_ECHO_WINDOW_MS && looksLikeSpokenTail(text, spoken.text)) {
-            return false;
-        }
         // The tour's own words ("next", a voice's name) while it is up.
         if (tourHeard?.(text)) return true;
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
@@ -1237,19 +1231,50 @@ export async function mountSetupView(
         else void syncVoiceStart();
     }
 
-    async function syncVoiceStart(): Promise<void> {
+    // The sync most recently started. Each one makes any still in flight
+    // stale, so what the screen needs is only known once this stops changing.
+    let lastSync: Promise<void> = Promise.resolve();
+    function syncVoiceStart(): Promise<void> {
+        lastSync = runVoiceSync();
+        return lastSync;
+    }
+    async function voiceSyncSettled(): Promise<void> {
+        for (let sync = lastSync; ; sync = lastSync) {
+            await sync;
+            if (sync === lastSync) return;
+        }
+    }
+    /** Until the app has stopped speaking, counting a line that started while
+     *  the last one was being waited out. */
+    async function speechSettled(): Promise<void> {
+        for (let line = speaking; ; line = speaking) {
+            await line;
+            if (line === speaking) return;
+        }
+    }
+
+    async function runVoiceSync(): Promise<void> {
         // A mount that has been replaced must not open a mic on its
         // successor's screen: that was a second listener nobody owned.
         if (!isLiveMount() || beginning) return;
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
         if (!beginBtn) return;
+        // This sync is now the one that decides; a listener still being built
+        // by an earlier one is abandoned at its next check.
+        const gen = ++voiceStartGen;
         const choice = sttSetupChoice();
-        const blocker = voiceStartBlocker({
-            enabled: appSettings.setupVoice,
-            mic: mic ?? 'ask',
-            canBegin: !beginBtn.disabled && mic !== null,
-            touched: canSound || pageTouched(),
-        });
+        // Hosted recognition with nobody signed in would refuse the first
+        // thing heard. Nothing here may raise a sign-in, so there is no mic.
+        sttNeedsAccount = appSettings.setupVoice && isHostedSttChoice(choice) && !(await canReachJudge());
+        if (gen !== voiceStartGen || !isLiveMount() || beginning) return;
+        const blocker = sttNeedsAccount
+            ? 'not-ready'
+            : voiceStartBlocker({
+                  enabled: appSettings.setupVoice,
+                  mic: mic ?? 'ask',
+                  canBegin: !beginBtn.disabled && mic !== null,
+                  touched: canSound || pageTouched(),
+              });
         if (voiceStart && (blocker || voiceStart.choice !== choice)) {
             const { handle } = voiceStart;
             voiceStart = null;
@@ -1277,8 +1302,8 @@ export async function mountSetupView(
         if (blocker) return paintVoiceMic('hidden');
         if (voiceStart) return;
         if (voiceStartClosed) return paintVoiceMic('off');
-        const gen = ++voiceStartGen;
-        await speaking;
+        await speechSettled();
+        if (gen !== voiceStartGen) return;
         // The session's own recognizer, mic and language (and, for local
         // Whisper, the model setup has already warmed: naming another here
         // would make the shell swap models under the first turn), tuned for a
@@ -1289,6 +1314,9 @@ export async function mountSetupView(
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,
         });
+        // A line that began while the engine was being built (a step of the
+        // tour) is not to be heard by it.
+        await speechSettled();
         // Something changed while the engine was being built, or it isn't
         // usable here: leave it to the sync that change triggered.
         if (gen !== voiceStartGen || voiceStart || beginning || !engine || !beginBtn.isConnected || !isLiveMount()) {
@@ -1300,8 +1328,12 @@ export async function mountSetupView(
                 isLiveMount() && beginBtn.isConnected && document.body.dataset['sessionActive'] === undefined,
             onBegin: (request) => void beginByVoice(request, beginBtn),
             onHeard: heardOnSetup,
+            isEcho: heardOwnLine,
             onEnd: (why) => {
                 if (voiceStart?.handle === handle) voiceStart = null;
+                // The screen went away under a line: nobody is there to hear
+                // the rest of it, and the next screen's mic would.
+                if (why === 'stopped' && (!isLiveMount() || !beginBtn.isConnected)) speaker.stop();
                 // The window ran out or the recognizer failed: closed until
                 // tapped. (A tap on the lit mic has already said so itself.)
                 if (why === 'window' || why === 'error') voiceStartClosed = true;
@@ -1315,11 +1347,55 @@ export async function mountSetupView(
 
     /** The first few times the mic opens here, say on screen what it is for.
      *  Not under the tour, which says so itself. */
+    let hinted = false;
     async function hintAtVoice(): Promise<void> {
+        // Once a visit, however many times the listener is rebuilt.
+        if (hinted) return;
+        hinted = true;
         const shown = Number(await sharedKv.get(VOICE_HINT_KEY)) || 0;
-        if (shown >= VOICE_HINT_TIMES || !voiceStart || document.body.classList.contains('guide-running')) return;
+        const note = root.querySelector<HTMLElement>('#voice-start-note');
+        const busy = note !== null && !note.classList.contains('hidden');
+        if (shown >= VOICE_HINT_TIMES || busy || !voiceStart || document.body.classList.contains('guide-running')) return;
         await sharedKv.set(VOICE_HINT_KEY, String(shown + 1));
         showVoiceNote(t('Listening. Try "twenty minutes", or say "begin".'), true);
+    }
+
+    /**
+     * Every way a session starts from this screen: Begin, "begin", the welcome
+     * card's first session, a resume. Called from the gesture where there is
+     * one, with no await before `onBegin` (the mic prompt and the audio
+     * unlock need it).
+     */
+    function beginFromSetup(runSetup: SessionSetup, continueFrom: SessionState | null): void {
+        // The mic open on this screen closes, so the session opens its own.
+        // (When "begin" was heard, it already is.)
+        const listening = voiceStart;
+        voiceStart = null;
+        void listening?.handle.stop();
+        speaker.stop();
+        // And none may open while the session comes up: not one still being
+        // built, not one a late probe asks for.
+        voiceStartGen++;
+        beginning = true;
+        // Over when the session is up or the attempt was turned back (no mic,
+        // sign-in dismissed). Only the second leaves this screen, and then it
+        // may listen again.
+        void Promise.resolve(onBegin(runSetup, continueFrom)).finally(() => {
+            beginning = false;
+            void syncVoiceStart();
+        });
+    }
+
+    /** The Begin button: one path for fresh and continued sessions. A
+     *  cold-boot resume runs through its modal, so a pending continuation
+     *  here is only ever a History "Continue". */
+    function beginNow(): void {
+        const queued = pendingContinue?.state ?? null;
+        if (pendingContinue) {
+            pendingContinue = null;
+            clearContinueStorage();
+        }
+        beginFromSetup(setup, queued);
     }
 
     /** "Begin a twenty minute felt sense session": make the two choices the
@@ -1331,12 +1407,13 @@ export async function mountSetupView(
             ...(request.mode ? [{ kind: 'mode', mode: request.mode } as const] : []),
             ...(request.minutes !== undefined ? [{ kind: 'length', minutes: request.minutes } as const] : []),
         ]);
-        await clockSaved;
+        await settingsSaved;
         // The mode switch may have closed the gate (a mode that needs a
         // provider this setup doesn't have): then there is nothing to begin.
-        if (!beginBtn.isConnected || beginBtn.disabled) return;
-        // The same path as the click, queued continue and all.
-        beginBtn.click();
+        if (!isLiveMount() || !beginBtn.isConnected || beginBtn.disabled) return;
+        // The same path as the click, queued continue and all. Not a click():
+        // the tour's centered cards hold the page inert.
+        beginNow();
     }
 
     // ---- the tour's voice (tour/index-guide.ts TourVoice) ----------------
@@ -1370,15 +1447,14 @@ export async function mountSetupView(
         pickVoice: (name) => {
             setup.voice = prefixedVoiceId(findVoice(name)?.engine, name);
             appSettings.houseVoice = name;
-            const voice = setup.voice;
-            void loadAppSettings().then((stored) =>
-                saveAppSettings({ ...stored, defaultVoice: voice, defaultTtsRate: setup.ttsRate, houseVoice: name })
-            );
+            void saveAppPatch({ defaultVoice: setup.voice, defaultTtsRate: setup.ttsRate, houseVoice: name });
             updateVoiceButtonLabel();
         },
         mic: () => {
             const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
-            if (!appSettings.setupVoice || mic === 'denied' || !beginBtn || beginBtn.disabled) return 'off';
+            if (!appSettings.setupVoice || mic === 'denied' || sttNeedsAccount || !beginBtn || beginBtn.disabled) {
+                return 'off';
+            }
             return voiceStart ? 'listening' : 'ask';
         },
         enableMic: () => {
@@ -1388,7 +1464,10 @@ export async function mountSetupView(
             return asked.then(async (status) => {
                 if (status === 'ok') mic = 'granted';
                 else if (status === 'denied') mic = 'denied';
-                await syncVoiceStart();
+                void syncVoiceStart();
+                // Not this sync alone: a probe landing meanwhile starts a
+                // newer one, and that is the one that lights the mic.
+                await voiceSyncSettled();
                 return voiceStart !== null;
             });
         },
@@ -1447,7 +1526,7 @@ export async function mountSetupView(
     // setup, so neither the form nor the saved setup changes.
     const quickStart: QuickStart = {
         blocker: firstSitBlocker,
-        start: () => onBegin(firstSitSetup(setup), null),
+        start: () => beginFromSetup(firstSitSetup(setup), null),
     };
 
     /** Paint the no-mic notice + Begin state from the silent probe. */
@@ -2024,9 +2103,11 @@ const VOICE_HINT_KEY = 'aloud-setup-voice-hints';
 const VOICE_HINT_TIMES = 3;
 
 /** After the app speaks, how long something heard may still be the end of its
- *  own line. A recognizer takes a second or so to hand over what it caught as
- *  it opened; someone answering takes longer than that to be heard out. */
-const SETUP_ECHO_WINDOW_MS = 2500;
+ *  own line. A wireless speaker can run a second or two behind the page, and
+ *  the recognizer takes another to hand over what it caught. The check is
+ *  only ever the line's last few words, so the wait costs a real request
+ *  almost nothing. */
+const SETUP_ECHO_WINDOW_MS = 4000;
 
 const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['exploration', 'exploration-panel'],

@@ -131,6 +131,12 @@ describe('a request, start to finish', () => {
         expect(state.qualities).toEqual(['playful']);
     });
 
+    it('switches the mode first, wherever it was said, so the rest lands in it', () => {
+        const { f, state } = form({ mode: 'noting' });
+        expect(said('playful exploration', f)).toEqual(['Okay, exploration mode.', 'Playful is on.']);
+        expect(state.qualities).toEqual(['playful']);
+    });
+
     it('says an odd length exactly, for a voice that can', () => {
         const { f } = form();
         expect(said('twenty five minutes', f)).toEqual(['Timer set for 25 minutes.']);

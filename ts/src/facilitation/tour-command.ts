@@ -25,8 +25,10 @@ const SAID: ReadonlyArray<readonly [TourCommand['kind'], readonly string[]]> = [
     ['next', ['next', 'next one', 'next step', 'continue', 'go on', 'keep going', 'carry on', 'got it', 'go ahead', 'move on']],
     ['back', ['back', 'go back', 'previous', 'previous one', 'previous step', 'last one']],
     ['repeat', ['repeat', 'repeat that', 'again', 'say that again', 'say it again', 'one more time', 'what was that']],
-    ['close', ['skip', 'skip it', 'skip this', 'skip the tour', 'close', 'close this', 'close the tour', 'end the tour', 'stop the tour', 'exit', "that's enough", 'thats enough', "i'm done", 'im done']],
-    ['quiet', ['mute', 'quiet', 'be quiet', 'stop talking', 'no talking', 'silence', 'hush', 'sound off', 'voice off']],
+    ['close', ['skip', 'skip it', 'skip this', 'skip this step', 'skip the tour', 'close', 'close this', 'close the tour', 'end the tour', 'stop the tour', 'exit', "that's enough", 'thats enough', "i'm done", 'im done']],
+    // Not a bare "quiet" or "hush": said to a child, it would switch the
+    // reading off for good.
+    ['quiet', ['mute', 'be quiet', 'stop talking', 'no talking', 'sound off', 'voice off']],
     ['speak', ['unmute', 'talk to me', 'speak', 'sound on', 'voice on', 'read it to me']],
 ];
 
@@ -48,13 +50,15 @@ export interface OfferedVoice {
 }
 
 const PLACE: Record<string, number> = { first: 0, former: 0, second: 1, latter: 1, two: 1 };
+/** Not the pronouns: "would you like to go with him" is a question to
+ *  someone else. */
 const GENDER: Record<string, string> = {
-    her: 'female', she: 'female', woman: 'female', female: 'female', lady: 'female', girl: 'female',
-    him: 'male', he: 'male', man: 'male', male: 'male', guy: 'male',
+    woman: 'female', female: 'female', lady: 'female', "woman's": 'female',
+    man: 'male', male: 'male', guy: 'male', "man's": 'male',
 };
 const PICK_FILLER = new Set([
     'the', 'a', 'i', "i'd", "i'll", 'id', 'ill', 'like', 'want', 'pick', 'choose', 'take', 'go', 'with', 'one', 'voice',
-    'prefer', 'would', 'have', "let's", 'lets', 'use', 'to', 'hear', 'me', 'give', 'you', 'number',
+    'prefer', "let's", 'lets', 'use', 'number',
 ]);
 
 function words(utterance: string): string[] {
@@ -92,8 +96,10 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
     }
     const said = words(utterance).filter((w) => !POLITE.has(w));
     if (said.length === 0 || said.length > 8) return null;
-    // "One", "number one": the only way "one" is a pick and not "the first one".
-    if (said.join(' ') === 'one' || said.join(' ') === 'number one') return 0;
+    // "Number one": the only way "one" is a pick and not "the first one".
+    if (said.join(' ') === 'number one') return 0;
+    // A word that picks has to be there; "the one" names neither.
+    if (!said.some((w) => w in PLACE || w in GENDER || voices.some((v) => v.name.toLowerCase() === w))) return null;
     for (const word of said) {
         const named = voices.findIndex((voice) => voice.name.toLowerCase() === word);
         if (named >= 0) picked.add(named);

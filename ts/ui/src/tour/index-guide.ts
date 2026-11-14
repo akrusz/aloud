@@ -447,7 +447,8 @@ function onTourHeard(text: string): boolean {
     const command = parseTourCommand(text, step.kind === 'voice' ? tourVoice?.voicesOnOffer() : undefined);
     if (!command) return false;
     if (command.kind === 'next') advanceStep();
-    else if (command.kind === 'back') goBack();
+    // Not back onto the welcome card, which answers to no words.
+    else if (command.kind === 'back') currentStep > firstTourStep() && goBack();
     else if (command.kind === 'repeat') speakStep(true);
     else if (command.kind === 'close') dismissRemindLater();
     else if (command.kind === 'quiet') setQuiet(true);

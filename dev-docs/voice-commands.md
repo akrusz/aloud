@@ -89,13 +89,22 @@ matched in three grades:
 
 1. A name the setup screen shows ("Playful.", "Noting.") is a request by
    itself.
-2. An everyday word that also means one ("light", "kind", "space") counts only
-   beside a word that asks (`ASKING`: add, set, more, no, a target like "vibe"
-   or "mode"). Alone it is what a room says.
+2. Another form of one ("playfulness", "emotional") counts only beside a word
+   that asks (`ASKING`: add, set, more, no, pick, a target like "vibe" or
+   "mode"). Alone it is what a room says. The everyday words that also mean
+   one ("light", "kind", "space", "love") are not in the vocabulary at all:
+   "turn on the light" is said in rooms. The judge tier reads those.
 3. A word that only *sounds* like one (`nearestWord`: the same `soundKey` and
    a small edit distance, so "living" for "loving", "nothing" for "noting")
    also needs a word that asks. Mishearings a recognizer has actually been
    seen to write go in `HEARD_AS`, which counts as the phrase itself.
+
+Around that, the things people say to each other in this vocabulary are
+turned away on purpose (`tests/setup-command.test.ts` lists them): a length
+needs the company of a request ("in twenty minutes" and "give me five
+minutes" are not), nothing under two minutes is a session, check-ins need a
+direction ("just checking in" is not), a denial outranks an "on" in the same
+breath ("don't check in on me"), and an intention needs its "is".
 
 zh is exact-match only (no homophone table).
 
@@ -103,8 +112,10 @@ zh is exact-match only (no homophone table).
 
 `views/setup.ts` hands the actions to `applySetupActions`
 (`ui/src/setup-actions.ts`), the same layer the form's own click handlers go
-through (`SetupForm`). Each action returns a `SetupOutcome`: what the form now
-says, after clamping and stepping. A setting said under a mode that has no
+through (`SetupForm`). A mode goes first wherever it was said, so "playful
+exploration" under Noting lands the vibe in the mode being switched to. Each
+action returns a `SetupOutcome`: what the form now says, after clamping and
+stepping. A setting said under a mode that has no
 such thing (a vibe on the felt sense tab) is not applied, and the outcome says
 whose it is.
 
@@ -218,8 +229,14 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
   step of the tour, stops it first (`hold`). Listening resumes
   `SPEECH_TAIL_MS` after the line. As a backstop, something heard within a few
-  seconds of a line that is nothing but that line's words is dropped
-  (`previewLooksLikeTtsEcho`).
+  seconds of a line that is nothing but that line's last few words is dropped
+  (`looksLikeSpokenTail`, asked through `isEcho` before anything else, "begin"
+  included). No spoken line ends on a request, "begin" least of all
+  (`setup-lines.ts`): a tail is what a slow speaker leaves in the room.
+- **Not where the recognizer would need a sign-in.** A hosted speech
+  recognition pick with nobody signed in would refuse the first thing heard,
+  and nothing on this screen may raise a sign-in, so there is no mic then
+  (`sttNeedsAccount` in `views/setup.ts`).
 - **The session's own recognizer, tuned for a few words** (`LOBBY_STT`): the
   turn ends on a 0.7-1.5s pause instead of a session's 3s+, no utterance runs
   past 10s, and there are no speculative passes.
