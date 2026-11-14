@@ -6591,6 +6591,18 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     white-space: nowrap;
 }
 
+/* While the on-screen keyboard is up (keyboard-inset.ts): Begin and Save ride
+   on the keys instead of under them, and the bottom nav, which the keys cover
+   anyway, steps aside. Outside the layout blocks on purpose: a tablet's
+   keyboard covers the desktop layout's bar just the same. */
+body.keyboard-up .bottom-nav {
+    display: none;
+}
+body.keyboard-up .setup-footer,
+body.keyboard-up .settings-footer {
+    bottom: var(--keyboard-inset, 0px);
+}
+
 /* Touch targets: 44px on a touchscreen (Apple's minimum; WCAG 2.5.8's floor
    is 24). Measured on a phone, the controls below drew smaller: the "?"
    buttons at 26, a dialog's x at 17 by 20, Preview in the voice list at 24

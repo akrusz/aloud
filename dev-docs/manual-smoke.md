@@ -140,6 +140,17 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
 - [ ] **Sign-in survives a restart.** Sign in, force-stop, reopen - still signed
       in. Then sign out, force-stop, reopen - still signed **out**
       (`meditation-pal-7n22`).
+- [ ] **Begin stays above the keyboard.** On setup, tap the intention box and
+      type a line. Begin must sit on top of the keys with the bottom nav gone,
+      the box must sit between it and the wordmark and orb (Additional
+      instructions too, which starts lower down), and scrolling the page with
+      the keys up must not snap back. Put the keyboard away: the nav returns
+      and Begin drops back onto it. Then pinch-zoom the page with a field
+      focused: nothing moves. Check the iOS app, the Android app and a phone
+      browser, which each put the keyboard up differently (`keyboardInset` in
+      `keyboard-inset.ts`). Measured on the Android app only (OnePlus 13,
+      2026-11-13); on the other two only its arithmetic has run, against a
+      stand-in viewport.
 - [ ] **A mail link leaves the app cleanly.** About → "Kind words" opens the
       mail composer, and back in the app taps still work. Through the in-app
       browser tab it left an invisible activity over the app until Back; the
