@@ -114,6 +114,48 @@ back, and the same words show above Begin for six seconds
 mishearing shows. A clear that only made room is not announced; more than
 three lines become one "Okay, all set."
 
+### The judge tier
+
+What the parser can't place goes to Jev, where this setup may ask it at all
+(`createSetupJudge`, `ui/src/setup-judge.ts`): the same consent as a session's
+voice commands (aloud cloud as the provider, an own TypeSafe key on desktop
+through the shell relay, or the opt-in with an account), and only with a token
+already stored, so the setup screen never raises a sign-in. Signed out, or
+local with no opt-in, nothing is sent anywhere and the parser is the whole
+feature. A server from before the ids answers 4xx and is not asked again
+until the page reloads.
+
+Two ids in `setup-command-specs.ts` (`judgeSetupCommand`):
+
+- `setup-gate`: one ask, "is this phrased as a request to the app?" (~760
+  tokens, about $0.00003). A cost filter, not the safeguard.
+- `setup-command`: 24 asks (~4,700 tokens, about $0.0002): one per mode, vibe
+  and focus, `remove` and `replace` as modifiers, guidance up and down,
+  shorter and longer responses, a length (the minutes come from
+  `parseTimerRequest`), no timer, check-ins, stop listening, help, and
+  `begin` as a veto that empties everything. `resolveSetupAnswers` turns the
+  answers into the same `SetupAction`s.
+
+`mightBeSetupRequest` keeps the hopeless off the wire: a lone word (sound is
+all the judge would have), more than 16 words, and anything containing begin
+or start, which never comes through this tier.
+
+What it is good for, measured with `npm run jev:setup` (2026-11-14, synthetic
+voices and written lines, no real rooms): natural phrasing the parser misses
+("could you make it a bit more spacious", "I'd rather you led less"), 44 of 48
+and 22 of 24 held out, with 0 false positives on 271 room and television
+lines. It is **not** a mishearing fixer: it recovered about one real Whisper
+mishearing in six, and the scores of recovered mishearings sit where
+television lines with a value word in them sit ("Effortless style." 0.86), so
+the bars keep the room out and most mishearings with it. A mishearing a
+recognizer really makes belongs in `HEARD_AS`. Every threshold is marked
+provisional: they wait on transcripts of real voices in real rooms
+([manual-smoke.md](manual-smoke.md)).
+
+Not billed. Usage rows carry `purpose: 'setup'` and stay out of the session
+numbers; the calls spend the same `judgeDailyCap` / `judgeGlobalCap`
+allowance as a session's (a noisy window is about 60 calls against 5,000).
+
 ### Who speaks
 
 `ui/src/setup-speech.ts`. Nothing on this screen is synthesized per user on a
