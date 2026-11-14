@@ -71,6 +71,17 @@ export { isMuteCommand } from './mute-command.js';
 export { isEndCommand, endConfirmReply } from './end-command.js';
 export { isBeginCommand, parseBeginRequest } from './begin-command.js';
 export type { BeginRequest, BeginMode } from './begin-command.js';
+export { parseSetupCommand, isSetupCommand, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
+export type { SetupAction, SetupFocus } from './setup-command.js';
+export {
+    SETUP_LINES,
+    SETUP_LINE_IDS,
+    setupLanguage,
+    setupLineText,
+    setupActionModes,
+    setupOutcomeLines,
+} from './setup-lines.js';
+export type { SetupLanguage, SetupLineId, SetupOutcome, SpokenSetupLine } from './setup-lines.js';
 export {
     CommandPrefetch,
     detectVoiceCommand,
