@@ -113,7 +113,8 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
 - [ ] **A dropped connection doesn't eat a turn.** On aloud cloud, switch on
       airplane mode just as an utterance submits and off again within ~20s:
       the turn still lands and gets a reply (`[stt] final pass retry` in the
-      bug report's log). Again while the dots show (`[cloud-llm] retry`). Held
+      bug report's log). Again while the dots show (`[cloud-llm] stream lost
+      before any text`). Held
       off past the budget (`net-retry.ts`; ~30s for speech, ~15s for the reply),
       expect "Your words didn't get through…", not "Mic error: Load failed".
 - [ ] **A session survives being killed.** Developer options → "Don't keep

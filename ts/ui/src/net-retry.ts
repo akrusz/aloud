@@ -21,8 +21,11 @@
  * Billing: a 502 is charged nothing (the metered routes bill only once the
  * provider answers). A rejected fetch usually means the request never arrived,
  * but one whose response was lost after the server finished bills the re-send
- * too: one clip of STT, one sentence of TTS, one utility completion. A stream
- * is retried only before its response arrives, so a reply is never replayed.
+ * too: one clip of STT, one sentence of TTS, one utility completion. Here a
+ * stream is re-sent only before its response arrives; one that dies after
+ * that, before its first text, is asked again once by cloud-llm completeStream
+ * (the server bills a reply it finished and refunds one it didn't), and never
+ * once a word of it has been heard.
  */
 
 /** Statuses that mean "not done, not charged, worth another go". */

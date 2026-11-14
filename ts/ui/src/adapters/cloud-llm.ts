@@ -24,7 +24,7 @@ import { cloudUrl } from '../cloud-base.js';
 import { setKnownBalance } from '../cloud-balance.js';
 import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
-import { sendWithNetworkRetry } from '../net-retry.js';
+import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 
 /** Providers the server is willing to forward to (mirrors contract.ts ProviderId). */
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
@@ -104,8 +104,8 @@ export class CloudLlmProvider implements LLMProvider {
 
     /** POST with bearer auth; on a 401 the cached token is stale - clear it,
      *  re-sign-in, and retry once before giving up. A dropped connection is
-     *  re-sent for a while (net-retry.ts); only until the response arrives, so
-     *  a stream that dies midway is never replayed. */
+     *  re-sent for a while (net-retry.ts), until the response arrives; a
+     *  stream that dies after that is completeStream's to ask again. */
     private async post(
         messages: Message[],
         options: CompletionOptions,
@@ -196,68 +196,86 @@ export class CloudLlmProvider implements LLMProvider {
         else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
 
         try {
-            armStall();
-            // withTimeout also covers the token step (not signal-wired); ac.signal
-            // lets a connect stall release the socket too.
-            const res = await withTimeout(
-                this.post(messages, options, true, ac.signal),
-                CLOUD_STALL_MS,
-                'aloud cloud did not respond in time.'
-            );
-            if (!res.ok) return void (await this.throwFromError(res));
-            if (!res.body) {
-                // No streaming body (some environments) - degrade to one chunk.
-                const data = (await res.json()) as CompleteResponseBody;
-                if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
-                yield { text: data.text ?? '', done: false };
-                yield { text: '', done: true, finishReason: data.finishReason ?? null };
-                return;
-            }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let finishReason: string | null = null;
-
-            while (true) {
-                armStall();
-                const { done, value } = await reader.read();
-                clearTimeout(stallTimer);
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-
-                // SSE frames are separated by a blank line.
-                let sep: number;
-                while ((sep = buffer.indexOf('\n\n')) !== -1) {
-                    const frame = buffer.slice(0, sep);
-                    buffer = buffer.slice(sep + 2);
-
-                    let event = 'message';
-                    let data = '';
-                    for (const line of frame.split('\n')) {
-                        if (line.startsWith('event:')) event = line.slice(6).trim();
-                        else if (line.startsWith('data:')) data += line.slice(5).trim();
-                    }
-                    if (!data) continue;
-
-                    if (event === 'error') {
-                        const err = JSON.parse(data) as ApiErrorBody;
-                        throw new Error(err.error?.message ?? 'upstream provider error');
+            // The server answers a stream at once and the model's first words
+            // follow seconds later, so a connection that drops while the dots
+            // show kills the stream after post() has stopped re-sending. With
+            // nothing heard yet the turn is asked again, once; post() waits out
+            // the dead patch. Past the first words it never is: that would say
+            // the start of a reply twice.
+            for (let replayed = false; ; replayed = true) {
+                let arrived = false;
+                let spoke = false;
+                try {
+                    armStall();
+                    // withTimeout also covers the token step (not signal-wired); ac.signal
+                    // lets a connect stall release the socket too.
+                    const res = await withTimeout(
+                        this.post(messages, options, true, ac.signal),
+                        CLOUD_STALL_MS,
+                        'aloud cloud did not respond in time.'
+                    );
+                    arrived = true;
+                    if (!res.ok) return void (await this.throwFromError(res));
+                    if (!res.body) {
+                        // No streaming body (some environments) - degrade to one chunk.
+                        const data = (await res.json()) as CompleteResponseBody;
+                        if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
+                        yield { text: data.text ?? '', done: false };
+                        yield { text: '', done: true, finishReason: data.finishReason ?? null };
+                        return;
                     }
 
-                    const chunk = JSON.parse(data) as CompleteChunkBody;
-                    if (chunk.done) {
-                        finishReason = chunk.result?.finishReason ?? null;
-                        if (typeof chunk.result?.creditsRemaining === 'number') {
-                            setKnownBalance(chunk.result.creditsRemaining);
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let finishReason: string | null = null;
+
+                    while (true) {
+                        armStall();
+                        const { done, value } = await reader.read();
+                        clearTimeout(stallTimer);
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+
+                        // SSE frames are separated by a blank line.
+                        let sep: number;
+                        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+                            const frame = buffer.slice(0, sep);
+                            buffer = buffer.slice(sep + 2);
+
+                            let event = 'message';
+                            let data = '';
+                            for (const line of frame.split('\n')) {
+                                if (line.startsWith('event:')) event = line.slice(6).trim();
+                                else if (line.startsWith('data:')) data += line.slice(5).trim();
+                            }
+                            if (!data) continue;
+
+                            if (event === 'error') {
+                                const err = JSON.parse(data) as ApiErrorBody;
+                                throw new Error(err.error?.message ?? 'upstream provider error');
+                            }
+
+                            const chunk = JSON.parse(data) as CompleteChunkBody;
+                            if (chunk.done) {
+                                finishReason = chunk.result?.finishReason ?? null;
+                                if (typeof chunk.result?.creditsRemaining === 'number') {
+                                    setKnownBalance(chunk.result.creditsRemaining);
+                                }
+                            } else if (chunk.text) {
+                                spoke = true;
+                                yield { text: chunk.text, done: false };
+                            }
                         }
-                    } else if (chunk.text) {
-                        yield { text: chunk.text, done: false };
                     }
+
+                    yield { text: '', done: true, finishReason };
+                    return;
+                } catch (err) {
+                    if (replayed || !arrived || spoke || !isNetworkFailure(err) || ac.signal.aborted) throw err;
+                    console.warn(`[cloud-llm] stream lost before any text (${(err as Error).message}), asking again`);
                 }
             }
-
-            yield { text: '', done: true, finishReason };
         } finally {
             clearTimeout(stallTimer);
             callerSignal?.removeEventListener('abort', onCallerAbort);

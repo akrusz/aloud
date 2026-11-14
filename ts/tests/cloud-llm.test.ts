@@ -192,7 +192,8 @@ describe('CloudLlmProvider.completeStream', () => {
 });
 
 /** A dropped connection (net-retry.ts): re-sent until the response arrives,
- *  never after, so a half-spoken reply is never replayed. */
+ *  asked again once if it dies before its first text, and never after that,
+ *  so a half-spoken reply is never replayed. */
 describe('CloudLlmProvider on a dropped connection', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -223,10 +224,16 @@ describe('CloudLlmProvider on a dropped connection', () => {
 
     it('does not re-send once the stream has started', async () => {
         await kv.set('server:token', 'tok-1');
+        // Erroring in start() would drop the queued chunk: the words have to
+        // be read before the stream dies.
+        let pulls = 0;
         const body = new ReadableStream<Uint8Array>({
-            start(controller) {
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: 'Hel', done: false })}\n\n`));
-                controller.error(new TypeError('network error'));
+            pull(controller) {
+                if (pulls++ === 0) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: 'Hel', done: false })}\n\n`));
+                } else {
+                    controller.error(new TypeError('network error'));
+                }
             },
         });
         const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
@@ -236,6 +243,38 @@ describe('CloudLlmProvider on a dropped connection', () => {
             for await (const _ of provider.completeStream([{ role: 'user', content: 'hi' }])) void _;
         }).rejects.toThrow('network error');
         expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks again, once, for a stream that died before any text', async () => {
+        await kv.set('server:token', 'tok-1');
+        const dead = (): Response =>
+            new Response(
+                new ReadableStream<Uint8Array>({
+                    start(controller) {
+                        controller.error(new TypeError('network error'));
+                    },
+                }),
+                { status: 200 }
+            );
+        const fetchImpl = vi
+            .fn()
+            .mockResolvedValueOnce(dead())
+            .mockResolvedValueOnce(sseResponse([`data: ${JSON.stringify({ text: 'Welcome back.', done: false })}\n\n`, done]));
+        const provider = new CloudLlmProvider({ provider: 'anthropic', model: 'm', fetchImpl });
+
+        const chunks: StreamChunk[] = [];
+        for await (const c of provider.completeStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(chunks.filter((c) => !c.done).map((c) => c.text)).toEqual(['Welcome back.']);
+        expect(chunks.filter((c) => c.done)).toHaveLength(1);
+
+        // Twice dead: the second loss is the turn's.
+        const twice = vi.fn().mockResolvedValueOnce(dead()).mockResolvedValueOnce(dead());
+        const again = new CloudLlmProvider({ provider: 'anthropic', model: 'm', fetchImpl: twice });
+        await expect(async () => {
+            for await (const _ of again.completeStream([{ role: 'user', content: 'hi' }])) void _;
+        }).rejects.toThrow('network error');
+        expect(twice).toHaveBeenCalledTimes(2);
     });
 
     it("a newer turn's abort ends the re-sending", async () => {
