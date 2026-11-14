@@ -9,8 +9,9 @@
 //!
 //! Whisper STT (`POST /app/v1/stt/whisper`) runs on whisper.cpp via whisper-rs:
 //! raw little-endian mono PCM in the body (i16 with `?format=i16`, f32
-//! otherwise) plus a `?sample_rate=` query,
-//! returning `{text,language,duration}`, or 503 while the model is loading.
+//! otherwise) plus a `?sample_rate=` query and an optional `?prompt=` (the
+//! initial prompt, stt_prompt), returning `{text,language,duration}`, or 503
+//! while the model is loading.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -801,6 +802,29 @@ struct SttQuery {
     /// PCM wire format: "i16" (the session engine; half the bytes) or
     /// absent/"f32" (the bug-report roundtrip).
     format: Option<String>,
+    /// Initial prompt for this request alone: the setup screen's vocabulary
+    /// (ui stt-picker.ts). Cleaned and bounded by stt_prompt.
+    prompt: Option<String>,
+}
+
+/// Longest `prompt` the stt route passes on, in characters. whisper.cpp
+/// conditions on at most 223 prompt tokens and drops the front of a longer
+/// prompt, so stt_prompt keeps the tail too.
+const MAX_STT_PROMPT_CHARS: usize = 500;
+
+/// The client's `prompt` as whisper.cpp gets it: control characters become
+/// spaces (a NUL would panic set_initial_prompt), and past MAX_STT_PROMPT_CHARS
+/// only the tail is kept. None when nothing is left.
+fn stt_prompt(raw: Option<&str>) -> Option<String> {
+    let cleaned: String = raw?
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    let cleaned = cleaned.trim();
+    let skip = cleaned.chars().count().saturating_sub(MAX_STT_PROMPT_CHARS);
+    let kept: String = cleaned.chars().skip(skip).collect();
+    let kept = kept.trim_start();
+    (!kept.is_empty()).then(|| kept.to_string())
 }
 
 /// Transcribe raw mono PCM (i16 or f32 per `format`). Body and response match
@@ -867,11 +891,13 @@ async fn stt_whisper(
     // Whisper inference is CPU-heavy and blocking; keep it off the async
     // reactor so the server stays responsive.
     let lang = q.lang.clone();
-    let (text, duration) =
-        tokio::task::spawn_blocking(move || transcribe(&ctx, &samples, sample_rate, &lang))
-            .await
-            .map_err(|e| internal(format!("Transcription task failed: {e}")))?
-            .map_err(|e| internal(format!("Transcription failed: {e}")))?;
+    let prompt = stt_prompt(q.prompt.as_deref());
+    let (text, duration) = tokio::task::spawn_blocking(move || {
+        transcribe(&ctx, &samples, sample_rate, &lang, prompt.as_deref())
+    })
+    .await
+    .map_err(|e| internal(format!("Transcription task failed: {e}")))?
+    .map_err(|e| internal(format!("Transcription failed: {e}")))?;
     Ok(Json(json!({ "text": text.trim(), "language": q.lang, "duration": duration })))
 }
 
@@ -1419,6 +1445,7 @@ fn transcribe(
     samples: &[f32],
     sample_rate: u32,
     lang: &str,
+    prompt: Option<&str>,
 ) -> Result<(String, f64), String> {
     // The TS client downsamples to the 16 kHz mono whisper.cpp wants before
     // POSTing, so guard the assumption rather than resample here.
@@ -1429,6 +1456,9 @@ fn transcribe(
     }
 
     let _busy = crate::crash::busy(crate::crash::Phase::Whisper);
+    // A fresh state per request: whisper.cpp keeps the initial prompt and the
+    // decoded text on it (prompt_past), so a reused state could carry one
+    // request's prompt into the next.
     let mut wstate = ctx.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some(lang));
@@ -1436,6 +1466,9 @@ fn transcribe(
     params.set_print_progress(false);
     params.set_print_realtime(false);
     params.set_print_timestamps(false);
+    if let Some(p) = prompt {
+        params.set_initial_prompt(p);
+    }
 
     wstate.full(params, samples).map_err(|e| e.to_string())?;
 
@@ -1449,4 +1482,78 @@ fn transcribe(
     }
     let duration = samples.len() as f64 / sample_rate as f64;
     Ok((text, duration))
+}
+
+#[cfg(test)]
+mod stt_prompt_tests {
+    use super::*;
+
+    fn query(uri: &str) -> SttQuery {
+        Query::<SttQuery>::try_from_uri(&uri.parse().unwrap()).unwrap().0
+    }
+
+    #[test]
+    fn reads_the_prompt_param() {
+        let q = query("/stt/whisper?sample_rate=16000&format=i16&prompt=Felt%20sense%2C%20noting.");
+        assert_eq!(q.prompt.as_deref(), Some("Felt sense, noting."));
+        assert_eq!(query("/stt/whisper?sample_rate=16000&format=i16").prompt, None);
+    }
+
+    #[test]
+    fn passes_an_ordinary_prompt_through() {
+        let p = "Exploration, noting, felt sense. Twenty minutes, no timer.";
+        assert_eq!(stt_prompt(Some(p)).as_deref(), Some(p));
+        assert_eq!(stt_prompt(Some("探索，标记。")).as_deref(), Some("探索，标记。"));
+    }
+
+    #[test]
+    fn drops_an_empty_prompt() {
+        assert_eq!(stt_prompt(None), None);
+        assert_eq!(stt_prompt(Some("")), None);
+        assert_eq!(stt_prompt(Some(" \n\t\0 ")), None);
+    }
+
+    #[test]
+    fn blanks_control_characters() {
+        assert_eq!(stt_prompt(Some("felt\0sense\nnoting")).as_deref(), Some("felt sense noting"));
+    }
+
+    #[test]
+    fn keeps_the_tail_of_a_long_prompt() {
+        let long = format!("{}twenty minutes", "x".repeat(2000));
+        let kept = stt_prompt(Some(&long)).unwrap();
+        assert_eq!(kept.chars().count(), MAX_STT_PROMPT_CHARS);
+        assert!(kept.ends_with("twenty minutes"));
+        // Counted in characters, not bytes: a CJK prompt isn't cut to a third.
+        let zh = "探".repeat(MAX_STT_PROMPT_CHARS + 10);
+        assert_eq!(stt_prompt(Some(&zh)).unwrap().chars().count(), MAX_STT_PROMPT_CHARS);
+    }
+
+    /// Runs the real decoder: a prompted request, then an unprompted one on the
+    /// same context, must transcribe like an unprompted request that never saw
+    /// the prompt. Needs a model file, so ignored by default:
+    /// `ALOUD_WHISPER_MODEL=<ggml-*.bin> cargo test prompt_stays_in_its_request -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn prompt_stays_in_its_request() {
+        let model = std::env::var("ALOUD_WHISPER_MODEL").expect("set ALOUD_WHISPER_MODEL");
+        whisper_rs::install_logging_hooks();
+        let ctx = WhisperContext::new_with_params(&model, WhisperContextParameters::default())
+            .expect("load model");
+        // Three seconds of quiet room noise (a fixed LCG, so every run matches).
+        let mut seed: u32 = 1;
+        let noise: Vec<f32> = (0..3 * TARGET_SAMPLE_RATE)
+            .map(|_| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5) * 0.01
+            })
+            .collect();
+        let prompt = "Exploration, noting, felt sense. Twenty minutes, no timer.";
+        let run = |p: Option<&str>| transcribe(&ctx, &noise, TARGET_SAMPLE_RATE, "en", p).unwrap().0;
+        let before = run(None);
+        let prompted = run(Some(prompt));
+        let after = run(None);
+        println!("unprompted: {before:?}\nprompted:   {prompted:?}\nafter:      {after:?}");
+        assert_eq!(after, before);
+    }
 }

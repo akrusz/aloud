@@ -194,6 +194,14 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  Cloud endpoint only - leave unset for the desktop endpoint and for the
      *  server-default model. */
     cloudModel?: string | null;
+    /** Whisper initial prompt, sent as `prompt` on every pass: words the
+     *  listener expects, which Whisper favors where the audio is ambiguous.
+     *  Local endpoint only (stt-picker.ts localWhisperStt). */
+    initialPrompt?: string | null;
+    /** The setup screen's listener (voice-start.ts), sent as `setup=1` on
+     *  every pass. The cloud /stt route builds its own prompt from it, so the
+     *  hosted engine sends this instead of `initialPrompt`. */
+    setupListening?: boolean;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -346,6 +354,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             whisperModelSize: options.whisperModelSize ?? null,
             language: options.language ?? null,
             cloudModel: options.cloudModel ?? null,
+            initialPrompt: options.initialPrompt ?? null,
+            setupListening: options.setupListening ?? false,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
             silenceMaxMs: options.silenceMaxMs ?? defaultPacingConfig.silenceMaxMs,
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
@@ -1011,6 +1021,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 model_size: this.opts.whisperModelSize,
                 lang: this.opts.language,
                 model: this.opts.cloudModel,
+                prompt: this.opts.initialPrompt,
+                setup: this.opts.setupListening ? '1' : null,
             })
                 .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
                 .join('');

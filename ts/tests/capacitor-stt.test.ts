@@ -87,6 +87,7 @@ describe('CapacitorSttEngine restart-stitching', () => {
         expect(H.start).toHaveBeenCalledTimes(1);
         // The endpointer hint (meditation-pal-lbl5) rides every launch.
         expect(H.start.mock.calls[0]![0]).toMatchObject({ silenceLengthMs: 12000, popup: false });
+        expect(H.start.mock.calls[0]![0]).not.toHaveProperty('biasPhrases');
 
         partial('I notice'); // live speech
         stopped(); // Android end-of-speech
@@ -97,6 +98,30 @@ describe('CapacitorSttEngine restart-stitching', () => {
         // turn; the recognizer is relaunched instead.
         expect(H.start).toHaveBeenCalledTimes(2);
         expect(finals(events)).toEqual([]);
+    });
+
+    it('sends bias phrases on every launch, relaunches included', async () => {
+        const biasPhrases = ['felt sense', 'twenty minutes'];
+        const engine = new CapacitorSttEngine({ ...OPTS, biasPhrases });
+        collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+
+        partial('felt sense');
+        stopped();
+        partial('felt sense');
+        await vi.advanceTimersByTimeAsync(800); // relaunch #2
+
+        expect(H.start).toHaveBeenCalledTimes(2);
+        for (const [options] of H.start.mock.calls) {
+            expect(options).toMatchObject({ biasPhrases });
+        }
+    });
+
+    it('an empty bias list sends nothing', async () => {
+        const engine = new CapacitorSttEngine({ ...OPTS, biasPhrases: [] });
+        collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        expect(H.start.mock.calls[0]![0]).not.toHaveProperty('biasPhrases');
     });
 
     it('stitches segments across a pause into one final after the silence window', async () => {

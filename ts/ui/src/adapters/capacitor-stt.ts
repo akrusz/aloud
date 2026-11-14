@@ -70,6 +70,10 @@ export interface CapacitorSttEngineOptions {
     /** Adaptive ramp: each ms of speech buys this many ms of extra pause
      *  tolerance, capped at submitMaxDelayMs. 0 = flat delay. */
     submitRampRate?: number;
+    /** Phrases the recognizer should favour (the setup screen's commands):
+     *  iOS contextualStrings, Android 13+ EXTRA_BIASING_STRINGS (patches/).
+     *  Empty or absent sends nothing. */
+    biasPhrases?: string[];
 }
 
 /**
@@ -155,6 +159,7 @@ export class CapacitorSttEngine implements SttEngine {
             submitDelayMs,
             submitMaxDelayMs: options.submitMaxDelayMs ?? submitDelayMs,
             submitRampRate: options.submitRampRate ?? 0,
+            biasPhrases: options.biasPhrases ?? [],
         };
     }
 
@@ -628,6 +633,7 @@ export class CapacitorSttEngine implements SttEngine {
                 partialResults: this.options.partialResults,
                 popup: false,
                 silenceLengthMs: NATIVE_ENDPOINT_SILENCE_MS,
+                ...(this.options.biasPhrases.length > 0 ? { biasPhrases: this.options.biasPhrases } : {}),
             });
             startPromise
                 .then((result) => {

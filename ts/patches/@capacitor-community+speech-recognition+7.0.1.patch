@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
-index a99ea69..88496c2 100644
+index a99ea69..db0b412 100644
 --- a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
 +++ b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
 @@ -39,6 +39,34 @@ public class SpeechRecognition extends Plugin implements Constants {
@@ -66,7 +66,7 @@ index a99ea69..88496c2 100644
          PluginCall call
      ) {
          Logger.info(getLogTag(), "Beginning to listen for audible speech");
-@@ -169,6 +197,17 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -169,6 +197,31 @@ public class SpeechRecognition extends Plugin implements Constants {
          intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partialResults);
          intent.putExtra("android.speech.extra.DICTATION_MODE", partialResults);
  
@@ -81,10 +81,24 @@ index a99ea69..88496c2 100644
 +            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, silenceLengthMs);
 +        }
 +
++        // aloud: phrases to favour (the setup screen's commands). The extra is
++        // API 33+, so older recognizers never see it.
++        JSArray biasPhrases = call.getArray("biasPhrases", null);
++        if (Build.VERSION.SDK_INT >= 33 && biasPhrases != null && biasPhrases.length() > 0) {
++            ArrayList<String> phrases = new ArrayList<>();
++            for (int i = 0; i < biasPhrases.length(); i++) {
++                String phrase = biasPhrases.optString(i, "");
++                if (!phrase.isEmpty()) {
++                    phrases.add(phrase);
++                }
++            }
++            intent.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, phrases);
++        }
++
          if (prompt != null) {
              intent.putExtra(RecognizerIntent.EXTRA_PROMPT, prompt);
          }
-@@ -182,19 +221,20 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -182,19 +235,20 @@ public class SpeechRecognition extends Plugin implements Constants {
                      try {
                          SpeechRecognition.this.lock.lock();
  
@@ -117,7 +131,7 @@ index a99ea69..88496c2 100644
                          if (partialResults) {
                              call.resolve();
                          }
-@@ -213,10 +253,17 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -213,10 +267,17 @@ public class SpeechRecognition extends Plugin implements Constants {
              .post(() -> {
                  try {
                      SpeechRecognition.this.lock.lock();
@@ -137,7 +151,7 @@ index a99ea69..88496c2 100644
                  } catch (Exception ex) {
                      throw ex;
                  } finally {
-@@ -225,6 +272,108 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -225,6 +286,108 @@ public class SpeechRecognition extends Plugin implements Constants {
              });
      }
  
@@ -246,7 +260,7 @@ index a99ea69..88496c2 100644
      private class SpeechRecognitionListener implements RecognitionListener {
  
          private PluginCall call;
-@@ -239,7 +388,15 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -239,7 +402,15 @@ public class SpeechRecognition extends Plugin implements Constants {
          }
  
          @Override
@@ -263,7 +277,7 @@ index a99ea69..88496c2 100644
  
          @Override
          public void onBeginningOfSpeech() {
-@@ -262,6 +419,7 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -262,6 +433,7 @@ public class SpeechRecognition extends Plugin implements Constants {
  
          @Override
          public void onEndOfSpeech() {
@@ -271,7 +285,7 @@ index a99ea69..88496c2 100644
              bridge
                  .getWebView()
                  .post(() -> {
-@@ -280,37 +438,88 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -280,37 +452,88 @@ public class SpeechRecognition extends Plugin implements Constants {
  
          @Override
          public void onError(int error) {
@@ -363,7 +377,7 @@ index a99ea69..88496c2 100644
              ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
              JSArray matchesJSON = new JSArray(matches);
  
-@@ -358,6 +567,20 @@ public class SpeechRecognition extends Plugin implements Constants {
+@@ -358,6 +581,20 @@ public class SpeechRecognition extends Plugin implements Constants {
              case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                  message = "No speech input";
                  break;
@@ -385,7 +399,7 @@ index a99ea69..88496c2 100644
                  message = "Didn't understand, please try again.";
                  break;
 diff --git a/node_modules/@capacitor-community/speech-recognition/dist/esm/definitions.d.ts b/node_modules/@capacitor-community/speech-recognition/dist/esm/definitions.d.ts
-index a80565c..f47358e 100644
+index a80565c..8f4ae3d 100644
 --- a/node_modules/@capacitor-community/speech-recognition/dist/esm/definitions.d.ts
 +++ b/node_modules/@capacitor-community/speech-recognition/dist/esm/definitions.d.ts
 @@ -82,6 +82,8 @@ export interface SpeechRecognitionPlugin {
@@ -397,7 +411,7 @@ index a80565c..f47358e 100644
      }) => void): Promise<PluginListenerHandle>;
      /**
       * Called when listening state changed.
-@@ -119,4 +121,10 @@ export interface UtteranceOptions {
+@@ -119,4 +121,16 @@ export interface UtteranceOptions {
       * return partial results if found
       */
      partialResults?: boolean;
@@ -407,4 +421,25 @@ index a80565c..f47358e 100644
 +     * A hint; not every recognizer honours it.
 +     */
 +    silenceLengthMs?: number;
++    /**
++     * aloud patch: phrases the recognizer should favour. iOS sets
++     * contextualStrings; Android 13+ sends EXTRA_BIASING_STRINGS, and older
++     * Android ignores it.
++     */
++    biasPhrases?: string[];
  }
+diff --git a/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift b/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
+index 5d1b35b..d104f84 100644
+--- a/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
++++ b/node_modules/@capacitor-community/speech-recognition/ios/Plugin/Plugin.swift
+@@ -79,6 +79,10 @@ public class SpeechRecognition: CAPPlugin {
+ 
+             self.recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+             self.recognitionRequest?.shouldReportPartialResults = partialResults
++            // aloud patch: phrases to favour (the setup screen's commands).
++            if let biasPhrases = call.getArray("biasPhrases", String.self), !biasPhrases.isEmpty {
++                self.recognitionRequest?.contextualStrings = biasPhrases
++            }
+ 
+             let inputNode: AVAudioInputNode = self.audioEngine!.inputNode
+             let format: AVAudioFormat = inputNode.outputFormat(forBus: 0)

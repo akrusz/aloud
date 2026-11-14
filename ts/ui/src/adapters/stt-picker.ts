@@ -38,6 +38,7 @@ import { whisperWarmUrl } from '../whisper-ready.js';
 import type { AppSettings, SttEngineChoice } from '../app-settings.js';
 import type { MeditationType } from '../settings.js';
 import { getMode } from '../../../src/facilitation/modes.js';
+import { setupVocabulary } from '../../../src/facilitation/setup-command.js';
 
 /** VAD-tuning subset of PacingConfig the picker forwards to adapters, plus the
  *  capture-device pick and the local-Whisper model params. Only the PCM
@@ -58,6 +59,10 @@ type VadOpts = Partial<
     /** PCM engines only: the longest one utterance may run before it is
      *  submitted anyway (voice-start.ts LOBBY_STT). */
     maxUtteranceMs?: number;
+    /** The setup screen's listener (voice-start.ts LOBBY_STT). Local Whisper
+     *  gets the setup vocabulary as its initial prompt; aloud cloud gets the
+     *  flag and builds that prompt server-side. Absent for a session. */
+    setupListening?: boolean;
 };
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
@@ -96,7 +101,8 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
     // Strip the local-Whisper model-size param: the cloud endpoint picks its
     // own model server-side (unless `model` pins an allowlisted alternate).
     // `language` stays: the cloud /stt route forwards it to the provider as a
-    // transcription hint (meditation-pal-c3a0.2).
+    // transcription hint (meditation-pal-c3a0.2). So does `setupListening`:
+    // the route builds the setup prompt itself, so no client prompt goes up.
     const { whisperModelSize: _size, ...rest } = vadOpts;
     return new WhisperPcmSttEngine({
         ...rest,
@@ -149,11 +155,17 @@ function webSpeechOpts(vadOpts: VadOpts): WebSpeechSttEngineOptions {
 function capacitorOpts(vadOpts: VadOpts): CapacitorSttEngineOptions {
     const opts: CapacitorSttEngineOptions = submitWindowOpts(vadOpts);
     if (vadOpts.language) opts.language = sttLangTag(vadOpts.language);
+    if (vadOpts.setupListening) opts.biasPhrases = setupVocabulary(vadOpts.language ?? 'en').phrases;
     return opts;
 }
 
 function localWhisperStt(vadOpts: VadOpts): SttEngine {
-    return new WhisperPcmSttEngine({ ...vadOpts, endpointUrl: appUrl(SERVER_WHISPER_PATH) });
+    const { setupListening, ...rest } = vadOpts;
+    return new WhisperPcmSttEngine({
+        ...rest,
+        ...(setupListening ? { initialPrompt: setupVocabulary(rest.language ?? 'en').prompt } : {}),
+        endpointUrl: appUrl(SERVER_WHISPER_PATH),
+    });
 }
 
 /**
