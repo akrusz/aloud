@@ -149,6 +149,17 @@ describe('acquireMicOnce - definitive, and releases what it opens', () => {
         expect(await acquireMicOnce()).toBe('error');
     });
 
+    it('remembers a mic that opened, and nothing less, for the rest of the page', async () => {
+        vi.resetModules();
+        const fresh = await import('../ui/src/mic-check.js');
+        stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotAllowedError') } });
+        await fresh.acquireMicOnce();
+        expect(fresh.micOpenedThisPage()).toBe(false);
+        stubNavigator(healthyNav());
+        await fresh.acquireMicOnce();
+        expect(fresh.micOpenedThisPage()).toBe(true);
+    });
+
     it('takes the RECORD_AUDIO grant as the answer in the Android app, opening no stream', async () => {
         const getUserMedia = vi.fn(async () => ({ getTracks: () => [] }));
         stubNavigator({ mediaDevices: { getUserMedia } });

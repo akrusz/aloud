@@ -2257,7 +2257,7 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                         <input type="checkbox" id="s-voice-start"${s.voiceStart ? ' checked' : ''}>
                         <span>${t('Start by voice (experimental)')}</span>
                     </label>
-                    <span class="form-hint">${t('On the setup screen, say "begin" to start a session. The mic listens for two minutes at a time, and only with speech recognition that costs nothing here (not aloud cloud).')}</span>
+                    <span class="form-hint">${t('On the setup screen, say "begin" to start a session. The mic listens for two minutes at a time. On aloud cloud speech recognition, that listening uses credits.')}</span>
                 </div>
             </div>
             <div class="form-row${pcmSttChosen(s) ? '' : ' hidden'}" id="s-stt-speculation-group">

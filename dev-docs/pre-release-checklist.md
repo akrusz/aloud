@@ -173,8 +173,8 @@ check each of these still reflects reality:
   rerun of `node ts/scripts/voice-loop-check.mjs`.
 - **Changed when the mic listens** (e.g. Start by voice opening it on setup,
   before a session) → the iOS mic purpose string in `ios/App/App/Info.plist`
-  (`NSMicrophoneUsageDescription`, today "during a session"; quoted in
-  `mobile.md`) and the privacy policy's "Your voice" section.
+  (`NSMicrophoneUsageDescription`, today "to hear what you say", with no
+  "when"; quoted in `mobile.md`; the desktop twin is `src-tauri/Info.plist`) and the privacy policy's "Your voice" section.
 - **Added or demoted a hosted model** (`pricing/providers.ts` `MODELS`) → the
   housekeeping list in that file's header. A curated model of the same line
   as a demoted or delisted one takes over its saved picks (`lineSuccessor` in

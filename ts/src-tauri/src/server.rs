@@ -209,7 +209,8 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
         .route("/open-config-folder", post(open_config_folder))
         .route("/open-sessions-folder", post(open_sessions_folder))
         .route("/open-session-file/{id}", post(open_session_file))
-        .route("/open-voice-settings", post(open_voice_settings));
+        .route("/open-voice-settings", post(open_voice_settings))
+        .route("/mic-permission", get(mic_permission));
     // The webview origin (tauri://localhost in prod, http://localhost:4649 in
     // dev) differs from this server's 127.0.0.1:<port>, so every request is
     // cross-origin. Allow exactly the origins the webview can have; anything
@@ -1218,6 +1219,61 @@ async fn open_voice_settings() -> ApiResult {
             .arg("x-apple.systempreferences:com.apple.preference.universalaccess?TextToSpeech"),
         "open settings",
     )
+}
+
+/// `GET /app/v1/mic-permission` - whether opening the microphone would raise
+/// the OS prompt: `granted`, `prompt`, `denied`, or `unknown` where the shell
+/// can't tell and the webview's own answer stands.
+///
+/// The UI asks before it listens for "begin" on the setup screen, which must
+/// not be the thing that raises a prompt (ui/src/voice-start.ts). On macOS the
+/// webview can't answer: WKWebView reports `prompt` until the page has
+/// captured once in this launch, whatever the system grant says, because wry
+/// answers the webview-level request itself and the real decision is TCC's.
+async fn mic_permission() -> Json<Value> {
+    Json(json!({ "status": mic_authorization() }))
+}
+
+#[cfg(target_os = "macos")]
+fn mic_authorization() -> &'static str {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+
+    #[link(name = "AVFoundation", kind = "framework")]
+    extern "C" {
+        static AVMediaTypeAudio: *const AnyObject;
+    }
+
+    // +[AVCaptureDevice authorizationStatusForMediaType:] reads the grant and
+    // never prompts (requestAccessForMediaType: is the call that does).
+    let status: isize = unsafe {
+        msg_send![class!(AVCaptureDevice), authorizationStatusForMediaType: AVMediaTypeAudio]
+    };
+    // AVAuthorizationStatus: notDetermined, restricted, denied, authorized.
+    match status {
+        0 => "prompt",
+        1 | 2 => "denied",
+        3 => "granted",
+        _ => "unknown",
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mic_authorization() -> &'static str {
+    "unknown"
+}
+
+#[cfg(test)]
+mod mic_permission_tests {
+    use super::*;
+
+    /// The macOS arm sends an Objective-C message through a hand-written
+    /// declaration; a wrong selector or type is a crash at run time, not a
+    /// compile error, so run it.
+    #[test]
+    fn reads_the_grant_without_crashing() {
+        assert!(["granted", "prompt", "denied", "unknown"].contains(&mic_authorization()));
+    }
 }
 
 /// Session ids are `YYYY-MM-DD-HHMMSS`, but the client is untrusted, so allow

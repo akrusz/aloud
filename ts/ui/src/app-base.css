@@ -5116,28 +5116,34 @@ input[type="range"].preview-range {
     margin: 0 auto;
 }
 
-/* "Listening for "begin"…" above the Begin button (voice-start.ts). A button
-   with no chrome: plain text while listening, underlined when a tap on it
-   reopens the mic. */
-.voice-start-status {
-    display: block;
-    width: 100%;
-    margin: 0 0 0.35rem;
-    padding: 0;
-    border: 0;
-    background: none;
+/* The mic that listens for "begin" (voice-start.ts): the session's mic button
+   (.btn-voice: lit when .active, slashed when not), hung off the left edge of
+   Begin. Out of flow, so the centered Begin never shifts and the bar never
+   grows. */
+.begin-wrap {
+    position: relative;
+    display: flex;
+    max-width: 100%;
+}
+
+.voice-start-mic {
+    position: absolute;
+    right: calc(100% + 0.75rem);
+    top: 50%;
+    transform: translateY(-50%);
+    /* As .clouds-help: in dark, --border disappears against the bar. */
+    border-color: var(--hairline, var(--border));
+    background: var(--bg-input);
     color: var(--text-secondary);
-    font: inherit;
-    font-size: 0.8rem;
-    text-align: center;
-}
-
-.voice-start-status:not(:disabled) {
     cursor: pointer;
-    text-decoration: underline;
 }
 
-.voice-start-status.hidden {
+.voice-start-mic:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.voice-start-mic.hidden {
     display: none;
 }
 
@@ -6034,6 +6040,11 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .setup-footer-inner {
         grid-column: 2;
+    }
+    .voice-start-mic {
+        width: 2.4rem;
+        height: 2.4rem;
+        right: calc(100% + 0.6rem);
     }
     .clouds-help {
         position: static;

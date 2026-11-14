@@ -156,8 +156,8 @@ async function open(settings, setupPatch = {}) {
         modelCalledSince: (since) => until(() => model.calls > since),
         status: () =>
             page.evaluate(() => {
-                const el = document.querySelector('#voice-start-status');
-                return el && !el.classList.contains('hidden') ? el.textContent : '';
+                const el = document.querySelector('#voice-start-mic');
+                return el && !el.classList.contains('hidden') ? el.title : '';
             }),
         /** The soak tap's events as JSON, or null when the tap isn't armed. */
         taps: () => page.evaluate(() => (window.__aloudSoak ? JSON.stringify(window.__aloudSoak.events) : null)),

@@ -61,6 +61,11 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # the tree via tauri; listed for direct use.
 libc = "0.2"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# The OS microphone grant, read without asking for it (server.rs
+# mic_authorization). Already in the tree via tauri, so no new crate.
+objc2 = "0.6"
+
 [target.'cfg(windows)'.dependencies]
 # Crash breadcrumbs (src/crash.rs): unhandled-exception filter, module lookup,
 # raw file write. Same major as tauri's tree, so no new crate.

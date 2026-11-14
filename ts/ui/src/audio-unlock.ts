@@ -32,6 +32,27 @@ export function audioContextCtor(): typeof AudioContext | undefined {
     );
 }
 
+/**
+ * Can this page make sound with no gesture behind the call? A browser tab
+ * nobody has touched can't; the desktop and mobile webviews can (measured in
+ * a macOS WKWebView: play() resolves and an AudioContext runs on a page whose
+ * userActivation has never been active). Asked by playing the silent clip on
+ * a throwaway element, so the answer is the platform's own.
+ */
+export async function canPlayUntouched(): Promise<boolean> {
+    try {
+        const probe = new Audio(SILENT_WAV);
+        // A page that isn't visible may never settle play() at all.
+        await Promise.race([
+            probe.play(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500)),
+        ]);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 /** The shared playback element, created on first use. */
 export function playbackAudio(): HTMLAudioElement {
     if (!element) {

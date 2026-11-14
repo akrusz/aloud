@@ -1,40 +1,127 @@
 /**
  * Listening for "begin" on the setup screen. The rules that make it safe to
  * have a microphone open before a session exists are the thing under test:
- * only free recognizers, only with permission already granted, only for a
- * bounded window, and the mic released before the session starts.
+ * never the thing that raises a permission prompt, only for a bounded window,
+ * cheap on a recognizer that bills, and the mic released before the session
+ * starts.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SttEngine, SttEvent } from '../src/platform/index.js';
 import type { BeginRequest } from '../src/facilitation/index.js';
+import { defaultPacingConfig } from '../src/facilitation/pacing.js';
+const micCheck = vi.hoisted(() => ({ opened: false }));
+vi.mock('../ui/src/mic-check.js', () => ({ micOpenedThisPage: () => micCheck.opened }));
+
 import {
     listenForBegin,
+    LOBBY_STT,
+    micPermission,
     voiceStartBlocker,
     VOICE_START_WINDOW_MS,
     type VoiceStartEnd,
 } from '../ui/src/voice-start.js';
 
-const ready = { enabled: true, sttChoice: 'web-speech', micGranted: true, canBegin: true, touched: true } as const;
+const ready = { enabled: true, mic: 'granted', canBegin: true, touched: true } as const;
 
 describe('voiceStartBlocker', () => {
-    it('allows it when everything lines up, on each free recognizer', () => {
+    it('allows it when everything lines up', () => {
         expect(voiceStartBlocker(ready)).toBeNull();
-        expect(voiceStartBlocker({ ...ready, sttChoice: 'capacitor' })).toBeNull();
-        expect(voiceStartBlocker({ ...ready, sttChoice: 'whisper' })).toBeNull();
     });
     it('is off unless switched on', () => {
         expect(voiceStartBlocker({ ...ready, enabled: false })).toBe('off');
     });
-    it('never listens on metered speech recognition', () => {
-        expect(voiceStartBlocker({ ...ready, sttChoice: 'aloud-gpt-transcribe' })).toBe('metered-stt');
+    it('waits for a tap where opening the mic might prompt', () => {
+        expect(voiceStartBlocker({ ...ready, mic: 'ask' })).toBe('mic-ask');
     });
-    it('never runs where it would have to ask for the microphone', () => {
-        expect(voiceStartBlocker({ ...ready, micGranted: false })).toBe('no-permission');
+    it('says so where the mic is blocked', () => {
+        expect(voiceStartBlocker({ ...ready, mic: 'denied' })).toBe('mic-denied');
     });
-    it('waits for Begin itself to be possible, and for one touch', () => {
+    it('waits for Begin itself to be possible, and offers nothing until it is', () => {
         expect(voiceStartBlocker({ ...ready, canBegin: false })).toBe('not-ready');
+        expect(voiceStartBlocker({ ...ready, canBegin: false, mic: 'ask' })).toBe('not-ready');
+        expect(voiceStartBlocker({ ...ready, canBegin: false, mic: 'denied' })).toBe('not-ready');
+    });
+    it('waits for a touch where the page is silent without one', () => {
         expect(voiceStartBlocker({ ...ready, touched: false })).toBe('no-touch-yet');
+    });
+    it('asks for one tap, not two: the tap that allows the mic is the touch', () => {
+        expect(voiceStartBlocker({ ...ready, mic: 'ask', touched: false })).toBe('mic-ask');
+    });
+});
+
+describe('micPermission', () => {
+    /** What the page can learn, by source. `shell` is the desktop app's
+     *  /app/v1/mic-permission (absent: not the desktop app). */
+    function world(sources: { shell?: string | Error; browser?: string | Error }): { fetched: () => number } {
+        let fetched = 0;
+        if (sources.shell !== undefined) vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+        vi.stubGlobal('fetch', async () => {
+            fetched++;
+            if (sources.shell instanceof Error) throw sources.shell;
+            return { ok: true, json: async () => ({ status: sources.shell }) };
+        });
+        vi.stubGlobal('navigator', {
+            permissions: {
+                query: async () => {
+                    if (sources.browser instanceof Error) throw sources.browser;
+                    return { state: sources.browser };
+                },
+            },
+        });
+        return { fetched: () => fetched };
+    }
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        micCheck.opened = false;
+    });
+
+    it('needs no one\'s word once the mic has opened on this page', async () => {
+        const page = world({ shell: 'prompt', browser: 'prompt' });
+        micCheck.opened = true;
+        expect(await micPermission()).toBe('granted');
+        expect(page.fetched()).toBe(0);
+    });
+
+    it('takes the desktop shell at its word over the webview, which says "prompt" there', async () => {
+        world({ shell: 'granted', browser: 'prompt' });
+        expect(await micPermission()).toBe('granted');
+        world({ shell: 'denied', browser: 'prompt' });
+        expect(await micPermission()).toBe('denied');
+    });
+    it('waits for a tap on a desktop that has never been asked', async () => {
+        world({ shell: 'prompt', browser: 'granted' });
+        expect(await micPermission()).toBe('ask');
+    });
+    it('falls back to the webview where the shell cannot tell, or cannot be reached', async () => {
+        world({ shell: 'unknown', browser: 'granted' });
+        expect(await micPermission()).toBe('granted');
+        world({ shell: new Error('down'), browser: 'denied' });
+        expect(await micPermission()).toBe('denied');
+    });
+    it('asks the browser alone on the web', async () => {
+        const web = world({ browser: 'granted' });
+        expect(await micPermission()).toBe('granted');
+        expect(web.fetched()).toBe(0);
+    });
+    it('counts anything short of a clear answer as ask, so nothing prompts unasked', async () => {
+        world({ browser: 'prompt' });
+        expect(await micPermission()).toBe('ask');
+        world({ browser: new TypeError('unsupported descriptor') });
+        expect(await micPermission()).toBe('ask');
+        vi.stubGlobal('navigator', {});
+        expect(await micPermission()).toBe('ask');
+    });
+});
+
+describe('LOBBY_STT', () => {
+    it('ends a turn sooner than a session does and never speculates', () => {
+        expect(LOBBY_STT.silenceBaseMs).toBeLessThan(defaultPacingConfig.silenceBaseMs);
+        expect(LOBBY_STT.silenceMaxMs).toBeLessThan(defaultPacingConfig.silenceMaxMs);
+        expect(LOBBY_STT.speculation).toBe(false);
+    });
+    it('keeps what one window can send to a billing recognizer within the window', () => {
+        expect(LOBBY_STT.maxUtteranceMs).toBeLessThanOrEqual(VOICE_START_WINDOW_MS / 10);
     });
 });
 

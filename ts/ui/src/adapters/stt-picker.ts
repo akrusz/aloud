@@ -51,6 +51,9 @@ type VadOpts = Partial<
     whisperModelSize?: string | null;
     language?: string | null;
     speculation?: boolean;
+    /** PCM engines only: the longest one utterance may run before it is
+     *  submitted anyway (voice-start.ts LOBBY_STT). */
+    maxUtteranceMs?: number;
 };
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';

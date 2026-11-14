@@ -202,7 +202,7 @@ the moment the plugin asks for the mic, rather than showing a prompt:
 
 ```xml
 <key>NSMicrophoneUsageDescription</key>
-<string>aloud uses the microphone to hear what you say during a session.</string>
+<string>aloud uses the microphone to hear what you say.</string>
 <key>NSSpeechRecognitionUsageDescription</key>
 <string>aloud turns your speech into text so the facilitator can reply.</string>
 ```

@@ -80,14 +80,17 @@ Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
       itself rather than failing silently.
 - [ ] **A sitting with no hands after the first touch.** Settings → Advanced →
       Start by voice, a BYOK or local provider with voice commands off. On
-      setup the footer reads `Listening for "begin"…`; say "begin", say a
-      sentence, say "end the session", answer "yes", and it is listening again
-      on setup. Talk about something else on setup and nothing starts. Leave it
-      two minutes and the mic closes. Scripted in a headless browser so far
-      (`ts/scripts/voice-loop-check.mjs`), never with a real mic: on **desktop** watch CPU while it listens (local
-      Whisper) and whether the first session speaks with no click since
-      launch; on **Android** listen for the recognizer's chime on every
-      listening turn.
+      setup the mic beside Begin is lit; say "begin", say a
+      sentence, say "end the session", answer "yes", and it is lit again
+      on setup. Talk about something else on setup and nothing starts. Tap the
+      mic and it goes slashed and stops hearing; tap again and it is back.
+      Leave it two minutes and the mic closes. Scripted in a headless browser
+      so far (`ts/scripts/voice-loop-check.mjs`), never with a real mic: on
+      **desktop** it should be lit from launch with no click (the shell reads
+      the macOS grant), so check that the first session speaks, watch CPU
+      while it listens (local Whisper), and try it once on aloud cloud speech
+      recognition; on **Android** and **iOS** the mic starts slashed, so tap
+      it and listen for the recognizer's chime on every listening turn.
 
 ## 3. Phone
 

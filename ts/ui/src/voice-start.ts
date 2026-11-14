@@ -1,24 +1,25 @@
 /**
  * Starting a session by saying "begin" on the setup screen (opt-in:
  * AppSettings.voiceStart). With "end the session" recognized without a judge
- * (core end-command.ts), this makes a whole sitting hands-free after the first
- * touch: begin, speak, end, begin again.
+ * (core end-command.ts), this makes a whole sitting hands-free: begin, speak,
+ * end, begin again.
  *
  * Listening before a session exists is a different thing from listening inside
  * one, and this is deliberately narrow about it:
  *
- * - It costs nothing and sends nothing new. Only speech recognition that is
- *   free on this device runs here (the browser's, the phone's, local Whisper);
- *   a session set to metered cloud STT gets no listening before Begin, because
- *   a room with a television in it would be billed for the television. The
- *   word itself is matched locally (core begin-command.ts), not by the judge.
- * - It never asks for the microphone. It only runs when permission is already
- *   granted, so opening the app can't raise a prompt.
+ * - It never raises a permission prompt by itself. Where the microphone is
+ *   known to be granted it just listens; where that can't be known, the status
+ *   line offers to (one tap, which is also where a prompt belongs).
  * - It is short. The mic closes after VOICE_START_WINDOW_MS, since an app left
  *   open on this screen should not be an open microphone. The status line
  *   says when it is listening and offers to listen again.
- * - It waits for one touch. A browser won't play sound for a page nobody has
- *   interacted with, and a session started that way would be a silent one.
+ * - It is cheap. Whatever recognizer the session would use is the one that
+ *   listens, hosted speech recognition included, but under LOBBY_STT: short
+ *   utterances, one transcription each. The word itself is matched locally
+ *   (core begin-command.ts), not by the judge.
+ * - It waits for a touch only where the page can't make sound without one
+ *   (a browser tab nobody has interacted with): a session started there would
+ *   be a silent one.
  *
  * The request can name a mode and a length ("begin a twenty minute felt sense
  * session"); the setup screen applies those before it begins. Everything said
@@ -27,44 +28,103 @@
 
 import type { SttEngine } from '../../src/platform/index.js';
 import { parseBeginRequest, type BeginRequest } from '../../src/facilitation/begin-command.js';
-import type { SttEngineChoice } from './app-settings.js';
+import { appUrl } from './app-base.js';
+import { isTauri } from './is-desktop.js';
+import { micOpenedThisPage } from './mic-check.js';
+import { withTimeout } from './net-timeout.js';
 
 /** How long the mic stays open on the setup screen before it closes itself. */
 export const VOICE_START_WINDOW_MS = 120_000;
 
-/** Why listening isn't available right now, or null when it is. */
-export type VoiceStartBlocker = 'off' | 'metered-stt' | 'no-permission' | 'not-ready' | 'no-touch-yet';
+/**
+ * How the recognizer is tuned while it waits for "begin", in place of a
+ * session's pacing. A request is a few words said in one breath, so the turn
+ * ends on a short pause (a session waits 3s and more, for someone thinking
+ * aloud) and nothing runs longer than a request could.
+ *
+ * This is also what bounds the cost on hosted speech recognition, which bills
+ * by the second of audio sent: no speculative passes, so an utterance is one
+ * transcription, and a room with a television in it is cut into ten-second
+ * pieces that add up to at most the window. Two minutes of hosted audio is
+ * about a third of a cent.
+ */
+export const LOBBY_STT = {
+    silenceBaseMs: 700,
+    silenceMaxMs: 1500,
+    // A bare "begin" is under half a second of speech, and with speculation
+    // off there is no preview to vouch for it (whisper-pcm-stt.ts drops a
+    // shorter utterance as a cough).
+    minSpeechDurationMs: 200,
+    speculation: false,
+    maxUtteranceMs: 10_000,
+} as const;
 
-/** The recognizers that run free on the device. Hosted STT is metered. */
-const FREE_STT: readonly SttEngineChoice[] = ['web-speech', 'capacitor', 'whisper'];
+/**
+ * Whether opening the microphone would raise a permission prompt.
+ * - `granted`: it won't, so listening may start by itself.
+ * - `ask`: it might, or nothing can say. Listening waits for a tap.
+ * - `denied`: it can't be opened at all.
+ */
+export type MicPermission = 'granted' | 'ask' | 'denied';
+
+/** Why listening isn't running right now, or null when it should be. */
+export type VoiceStartBlocker = 'off' | 'not-ready' | 'mic-denied' | 'mic-ask' | 'no-touch-yet';
 
 export function voiceStartBlocker(args: {
     enabled: boolean;
-    sttChoice: SttEngineChoice;
-    micGranted: boolean;
+    mic: MicPermission;
     /** The Begin button's own gate: mic present, provider reachable, model loaded. */
     canBegin: boolean;
-    /** False only when the browser says nobody has interacted with the page. */
+    /** False only when this page can't make sound until someone touches it. */
     touched: boolean;
 }): VoiceStartBlocker | null {
     if (!args.enabled) return 'off';
-    if (!FREE_STT.includes(args.sttChoice)) return 'metered-stt';
-    if (!args.micGranted) return 'no-permission';
     if (!args.canBegin) return 'not-ready';
+    if (args.mic === 'denied') return 'mic-denied';
+    // Before the touch: the tap that answers this one is a touch too.
+    if (args.mic === 'ask') return 'mic-ask';
     if (!args.touched) return 'no-touch-yet';
     return null;
 }
 
-/** True only when the browser reports the mic as already granted. Unknown
- *  (Safari throws on the descriptor) counts as not granted: this must never
- *  be the thing that raises a permission prompt. */
-export async function micAlreadyGranted(): Promise<boolean> {
+/**
+ * The desktop shell's reading of the OS grant (src-tauri server.rs
+ * mic_permission), or null where it has none. On macOS the webview can't be
+ * asked: WKWebView answers `prompt` until the page has captured once in this
+ * launch, whatever System Settings says.
+ */
+async function shellMicPermission(): Promise<MicPermission | null> {
+    try {
+        const response = await withTimeout(fetch(appUrl('/mic-permission')), 2000, 'mic-permission timed out');
+        if (!response.ok) return null;
+        const { status } = (await response.json()) as { status?: string };
+        if (status === 'granted' || status === 'denied') return status;
+        return status === 'prompt' ? 'ask' : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Never opens the microphone and never prompts: it only reads what is already
+ * decided. Anything short of a clear answer is `ask` (Safari throws on the
+ * descriptor; an Android WebView has no answer to give).
+ */
+export async function micPermission(): Promise<MicPermission> {
+    // A capture that succeeded since this page loaded is the best evidence
+    // there is, and the only kind some browsers offer.
+    if (micOpenedThisPage()) return 'granted';
+    if (isTauri()) {
+        const fromShell = await shellMicPermission();
+        if (fromShell) return fromShell;
+    }
     try {
         const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
-        return status?.state === 'granted';
+        if (status?.state === 'granted' || status?.state === 'denied') return status.state;
     } catch {
-        return false;
+        /* descriptor unsupported */
     }
+    return 'ask';
 }
 
 /** Has anyone interacted with this page yet? True where the browser can't say. */

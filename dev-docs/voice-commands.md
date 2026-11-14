@@ -66,22 +66,46 @@ included. Voice, model and focuses stay whatever they were. With the judge-free 
 makes a sitting hands-free after the first touch: begin, speak, end, begin
 again.
 
+The mic beside the Begin button is the indicator and the switch
+(`#voice-start-mic`, the session's mic icon): lit while it listens, slashed
+when it doesn't, a tap toggles. It hangs off Begin's left edge out of flow, so
+the bar keeps its height. Hidden when the setting is off or Begin itself
+can't run.
+
 A mic open before a session exists is held to narrower rules than one inside
 it (`ui/src/voice-start.ts`, `voiceStartBlocker`):
 
-- **Free recognizers only**: the browser's, the phone's, local Whisper. A
-  session set to hosted STT gets no listening before Begin, since a room with
-  a television in it would be billed for the television. The word is matched
-  on the device, not by the judge, so the lobby costs nothing on any account.
-- **Never prompts.** It runs only when the mic is already granted
-  (`micAlreadyGranted`; unknown counts as no, which rules out Safari).
-- **Two minutes**, then the mic closes (`VOICE_START_WINDOW_MS`) and the
-  status line offers to listen again. It also closes the moment the setup
-  screen goes away.
-- **One touch first.** A page nobody has interacted with can't play sound, so
-  a session begun there would be silent (`pageTouched`). This is the one thing
-  between here and a start with no hands at all, and it is the platform's rule
-  on the web; whether the desktop and mobile shells need it is untested.
+- **Never prompts by itself.** `micPermission` reads what is already decided:
+  `granted` listens at once, `ask` (unknown, or never asked) shows the slashed
+  mic and waits for a tap, which is the one place it may raise the prompt
+  (`acquireMicOnce`, inside the gesture), `denied` shows it inert with the
+  reason in its title. Three sources, in order:
+  - a capture that already succeeded on this page (`micOpenedThisPage`), which
+    is what makes "begin again" hands-free in browsers with no answer to give;
+  - on desktop, the shell's `GET /app/v1/mic-permission` (`mic_authorization`
+    in `src-tauri/src/server.rs`: AVFoundation's authorization status on
+    macOS, `unknown` elsewhere). The webview can't be asked there: WKWebView
+    says `prompt` until the page has captured once in this launch, whatever
+    System Settings says (measured 2026-11-13; it does flip to `granted`
+    after a capture);
+  - the browser's Permissions API. Safari throwing on the descriptor is `ask`.
+- **Two minutes**, then the mic closes (`VOICE_START_WINDOW_MS`) and stays
+  closed until tapped. It also closes the moment the setup screen goes away.
+- **The session's own recognizer, tuned for a few words** (`LOBBY_STT`): the
+  turn ends on a 0.7-1.5s pause instead of a session's 3s+, no utterance runs
+  past 10s, and there are no speculative passes. Hosted speech recognition is
+  allowed (it was not until 2026-11-13, when a hosted pick meant the feature
+  silently never ran, which is the default on Safari, Firefox and the mobile
+  facilitated modes). It bills the account by the second sent, and the
+  tuning is the bound: one window is at most two minutes of audio, about a
+  third of a cent, and the word is still matched on the device, not by the
+  judge. The Settings hint says it uses credits.
+- **A touch only where sound needs one.** A browser tab nobody has interacted
+  with can't play sound, so a session begun there would be silent; the mic
+  shows slashed until any touch (`pageTouched`). The webviews don't have the
+  rule (`canPlayUntouched` asks the platform by playing a silent clip:
+  untouched Chrome refuses it, an untouched macOS WKWebView plays it), so the
+  desktop app listens from launch with no touch at all.
 
 The listener belongs to one mount of the setup screen and one begin attempt.
 The view has no teardown, so its probe callbacks keep firing after it is
@@ -92,8 +116,9 @@ the next setup screen, and one that reopened for half a second under a
 starting session.
 
 Opt-in until it has been through real devices: the Android recognizer's
-start/stop chime, what local Whisper costs in CPU while idle, and WebKit's
-activation rules in the Tauri and Capacitor webviews
+start/stop chime (now reachable there by a tap on the mic), what local
+Whisper costs in CPU while idle, and whether a session begun with no touch
+since launch speaks in the Tauri and Capacitor webviews
 ([manual-smoke.md](manual-smoke.md)).
 
 ## Spoken commands (judge sessions)

@@ -150,6 +150,22 @@ export async function probeMic(): Promise<MicStatus> {
  * engine must never find this one still open.
  */
 export async function acquireMicOnce(): Promise<MicStatus> {
+    const status = await acquireMic();
+    if (status === 'ok') openedThisPage = true;
+    return status;
+}
+
+let openedThisPage = false;
+
+/** True once the mic has been opened (or its grant confirmed) since this page
+ *  loaded: from then on, opening it again won't prompt. What the setup
+ *  screen's "begin" listener goes by where no permission query can be trusted
+ *  (voice-start.ts micPermission). */
+export function micOpenedThisPage(): boolean {
+    return openedThisPage;
+}
+
+async function acquireMic(): Promise<MicStatus> {
     const sim = simulatedMicStatus();
     if (sim) return sim;
     if (!hasGetUserMedia()) return 'no-api';

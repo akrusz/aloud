@@ -68,13 +68,21 @@ import {
 } from '../adapters/stt-picker.js';
 import {
     listenForBegin,
-    micAlreadyGranted,
+    LOBBY_STT,
+    micPermission,
     pageTouched,
     voiceStartBlocker,
+    type MicPermission,
     type VoiceStartHandle,
 } from '../voice-start.js';
 import type { BeginRequest } from '../../../src/facilitation/index.js';
-import { probeMic, describeMicRequirement, type MicStatus } from '../mic-check.js';
+import {
+    acquireMicOnce,
+    describeMicProblem,
+    describeMicRequirement,
+    probeMic,
+    type MicStatus,
+} from '../mic-check.js';
 import { watchWhisperReady, describeWhisperWait, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
 import { sessionStore } from '../state.js';
@@ -95,7 +103,7 @@ import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clampTimerMinutes, clockModeLabel, showSessionClockModal } from '../session-clock.js';
-import { audioContextCtor } from '../audio-unlock.js';
+import { audioContextCtor, canPlayUntouched } from '../audio-unlock.js';
 import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
@@ -867,9 +875,26 @@ export async function mountSetupView(
         // One Begin path handles fresh and continued sessions. A cold-boot resume
         // runs through the modal, so pendingContinue here is only ever a History
         // "Continue" (or null).
-        root.querySelector('#voice-start-status')?.addEventListener('click', () => {
+        root.querySelector('#voice-start-mic')?.addEventListener('click', () => {
+            // A toggle, like the session's mic: lit is listening, and a tap
+            // on a lit one closes it until it is tapped again.
+            if (voiceStart) {
+                const { handle } = voiceStart;
+                voiceStart = null;
+                voiceStartClosed = true;
+                return void handle.stop().then(() => syncVoiceStart());
+            }
             voiceStartClosed = false;
-            void syncVoiceStart();
+            if (mic !== 'ask') return void syncVoiceStart();
+            // The one place this feature may raise the permission prompt: a
+            // tap that asked for it. Called before any await, like Begin's
+            // own, so the gesture is still behind it.
+            void acquireMicOnce().then((status) => {
+                if (status === 'ok') mic = 'granted';
+                else if (status === 'denied') mic = 'denied';
+                else return paintVoiceMic('off', describeMicProblem(status) ?? undefined);
+                void syncVoiceStart();
+            });
         });
         const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn')!;
         beginBtn.addEventListener('click', () => {
@@ -973,29 +998,55 @@ export async function mountSetupView(
      * session that dies on the first turn.
      */
     // ---- say "begin" (voice-start.ts) ------------------------------------
-    // Opt-in. Runs only while this screen is up, Begin itself is possible, the
-    // mic is already granted and the chosen recognizer is free; closes itself
-    // after VOICE_START_WINDOW_MS and when the screen goes away.
+    // Opt-in. Runs only while this screen is up and Begin itself is possible;
+    // opens by itself where the mic is known to be granted and on a tap where
+    // it isn't; closes itself after VOICE_START_WINDOW_MS and when the screen
+    // goes away.
     let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice } | null = null;
     let voiceStartGen = 0;
-    let micGranted = false;
+    // Null until the first reading lands: nothing is offered on a guess.
+    let mic: MicPermission | null = null;
+    // Whether a session begun now could be heard. A webview can play sound
+    // untouched and a browser tab can't; only the platform knows which this is.
+    let canSound = pageTouched();
     // The window ran out (or the recognizer failed): stay closed until asked.
     let voiceStartClosed = false;
     // Begin has been pressed (or said) and the session is on its way up. The
     // screen is still here for a moment, and its probes are still landing;
     // none of them may open the mic again underneath the session.
     let beginning = false;
-    void micAlreadyGranted().then((granted) => {
-        micGranted = granted;
-        void syncVoiceStart();
-    });
+    if (appSettings.voiceStart) {
+        void micPermission().then((permission) => {
+            mic = permission;
+            void syncVoiceStart();
+        });
+        if (!canSound) {
+            void canPlayUntouched().then((ok) => {
+                canSound = ok;
+                void syncVoiceStart();
+            });
+        }
+    }
 
-    function paintVoiceStart(text: string, actionable: boolean): void {
-        const el = root.querySelector<HTMLButtonElement>('#voice-start-status');
+    /** The mic beside Begin. `listening`: lit, saying "begin" starts.
+     *  `off`: slashed, a tap opens it. `blocked`: slashed and inert.
+     *  `hidden`: nothing to offer (setting off, or Begin itself can't run). */
+    function paintVoiceMic(state: 'hidden' | 'listening' | 'off' | 'blocked', why?: string): void {
+        const el = root.querySelector<HTMLButtonElement>('#voice-start-mic');
         if (!el) return;
-        el.textContent = text;
-        el.classList.toggle('hidden', text === '');
-        el.disabled = !actionable;
+        const label =
+            why ??
+            (state === 'listening'
+                ? t('Listening for "begin". Tap to stop.')
+                : state === 'blocked'
+                  ? t('The microphone is blocked for aloud, so "begin" can\'t be heard.')
+                  : t('Tap to listen for "begin"'));
+        el.classList.toggle('hidden', state === 'hidden');
+        el.classList.toggle('active', state === 'listening');
+        el.disabled = state === 'blocked';
+        el.title = label;
+        el.setAttribute('aria-label', label);
+        el.setAttribute('aria-pressed', String(state === 'listening'));
     }
 
     async function syncVoiceStart(): Promise<void> {
@@ -1007,10 +1058,9 @@ export async function mountSetupView(
         const choice = sttSetupChoice();
         const blocker = voiceStartBlocker({
             enabled: appSettings.voiceStart,
-            sttChoice: choice,
-            micGranted,
-            canBegin: !beginBtn.disabled,
-            touched: pageTouched(),
+            mic: mic ?? 'ask',
+            canBegin: !beginBtn.disabled && mic !== null,
+            touched: canSound || pageTouched(),
         });
         if (voiceStart && (blocker || voiceStart.choice !== choice)) {
             const { handle } = voiceStart;
@@ -1019,19 +1069,37 @@ export async function mountSetupView(
         }
         if (blocker === 'no-touch-yet') {
             // A page nobody has touched can't play sound, so a session begun
-            // now would be silent. Any touch lifts it.
-            paintVoiceStart(t('Tap anywhere, then say "begin"'), false);
-            document.addEventListener('pointerdown', () => void syncVoiceStart(), { once: true });
+            // now would be silent. Any touch lifts it. On pointerup: a finger
+            // only counts as a touch once it lifts.
+            paintVoiceMic('off');
+            document.addEventListener(
+                'pointerup',
+                (event) => {
+                    // A tap on the mic is its click handler's to answer. Opened
+                    // here first, that click would find it lit and close it.
+                    if (event.target instanceof Element && event.target.closest('#voice-start-mic')) return;
+                    void syncVoiceStart();
+                },
+                { once: true }
+            );
             return;
         }
-        if (blocker) return paintVoiceStart('', false);
+        if (blocker === 'mic-ask') return paintVoiceMic('off');
+        if (blocker === 'mic-denied') return paintVoiceMic('blocked');
+        if (blocker) return paintVoiceMic('hidden');
         if (voiceStart) return;
-        if (voiceStartClosed) {
-            return paintVoiceStart(t('Stopped listening. Tap here to listen for "begin" again.'), true);
-        }
+        if (voiceStartClosed) return paintVoiceMic('off');
         const gen = ++voiceStartGen;
-        // The recognizer listens in the app's language, as a session's does.
-        const engine = await createSttForChoice(choice, { language: appSettings.language });
+        // The session's own recognizer, mic and language (and, for local
+        // Whisper, the model setup has already warmed: naming another here
+        // would make the shell swap models under the first turn), tuned for a
+        // few words instead of a turn.
+        const engine = await createSttForChoice(choice, {
+            ...LOBBY_STT,
+            language: appSettings.language,
+            micDeviceId: appSettings.micDeviceId,
+            whisperModelSize: appSettings.sttWhisperModel,
+        });
         // Something changed while the engine was being built, or it isn't
         // usable here: leave it to the sync that change triggered.
         if (gen !== voiceStartGen || voiceStart || beginning || !engine || !beginBtn.isConnected || !isLiveMount()) {
@@ -1044,15 +1112,14 @@ export async function mountSetupView(
             onBegin: (request) => void beginByVoice(request, beginBtn),
             onEnd: (why) => {
                 if (voiceStart?.handle === handle) voiceStart = null;
-                voiceStartClosed = why === 'window' || why === 'error';
-                paintVoiceStart(
-                    why === 'window' ? t('Stopped listening. Tap here to listen for "begin" again.') : '',
-                    why === 'window'
-                );
+                // The window ran out or the recognizer failed: closed until
+                // tapped. (A tap on the lit mic has already said so itself.)
+                if (why === 'window' || why === 'error') voiceStartClosed = true;
+                paintVoiceMic(why === 'begin' ? 'hidden' : 'off');
             },
         });
         voiceStart = { handle, choice };
-        paintVoiceStart(t('Listening for "begin"…'), false);
+        paintVoiceMic('listening');
     }
 
     /** "Begin a twenty minute felt sense session": make the two choices the
@@ -1982,13 +2049,25 @@ function renderSetupHTML(
          bottom; the inner wrapper caps width so Begin doesn't span wide
          screens. -->
     <div class="setup-footer">
-        <!-- Says when the mic is open for "begin" (voice-start.ts); empty and
-             hidden unless that setting is on. A button, so the "listen again"
-             state is reachable by keyboard. Its own line above the Begin row,
-             which is a flex row the button fills. -->
-        <button id="voice-start-status" type="button" class="voice-start-status hidden" aria-live="polite"></button>
         <div class="setup-footer-inner">
-            <button id="begin-btn" type="button" class="btn btn-primary btn-begin">${t('Begin Session')}</button>
+            <!-- Wraps Begin so the mic that listens for "begin"
+                 (voice-start.ts) can hang off its left edge without taking
+                 a place in the row: Begin stays centered and the bar keeps
+                 its height. Lit while it listens, slashed when it doesn't,
+                 a tap switches; hidden unless that setting is on. The
+                 session's mic icon (views/session.ts). -->
+            <div class="begin-wrap">
+                <button id="voice-start-mic" type="button" class="btn btn-voice voice-start-mic hidden">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                        <line class="mute-line" x1="3" y1="3" x2="21" y2="21"></line>
+                    </svg>
+                </button>
+                <button id="begin-btn" type="button" class="btn btn-primary btn-begin">${t('Begin Session')}</button>
+            </div>
         </div>
         <!-- The session's cloud-rate estimate, and the way into the "what are
              ☁?" explainer. Absolutely positioned so Begin keeps its centered
