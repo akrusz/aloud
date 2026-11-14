@@ -43,7 +43,8 @@ export function emberBlocksHTML(): string {
 
 interface EmberState {
     level: number;
-    /** Whether the level-5 easter egg has been unlocked this session. */
+    /** Whether the level-5 easter egg has been unlocked this session
+     *  (mountEmberContainer starts each one without it). */
     eggUnlocked: boolean;
     /** Whether the orb is in rainbow mode (changes the palette). */
     rainbow: boolean;
@@ -99,6 +100,10 @@ export function mountEmberContainer(): void {
         }
         levelLoaded = true;
     }
+    // A new or resumed session draws four flames again, so the level comes
+    // back down with them: left at five, the particles outran the control.
+    state.eggUnlocked = false;
+    state.level = Math.min(state.level, 4);
     // Always generate, never early-return on an existing container: the views
     // always render one in their template, so bailing meant embers never started
     // on a fresh session until the user nudged the level (meditation-pal-q7bg).
