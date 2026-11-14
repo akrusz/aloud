@@ -24,8 +24,10 @@
  * too: one clip of STT, one sentence of TTS, one utility completion. Here a
  * stream is re-sent only before its response arrives; one that dies after
  * that, before its first text, is asked again once by cloud-llm completeStream
- * (the server bills a reply it finished and refunds one it didn't), and never
- * once a word of it has been heard.
+ * and never once a word of it has been heard. The server runs a reply to its
+ * end and bills it whether or not the client is still there (routes/llm.ts has
+ * no abort), so a turn asked again costs two replies: the lost one, which was
+ * billed before there was any asking again, and the one that is heard.
  */
 
 /** Statuses that mean "not done, not charged, worth another go". */
