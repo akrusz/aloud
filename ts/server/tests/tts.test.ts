@@ -425,6 +425,21 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         expect(azureBilledChars(text, 1)).toBe(text.length * 2);
     });
 
+    it('paces a biased voice in English only (Serena: 1.1)', async () => {
+        const a = azureApp();
+        const token = await devToken(a);
+        const speak = (text: string) =>
+            a.request('/cloud/v1/tts', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ text, voice: 'Serena', rate: 1 }),
+            });
+        expect((await speak('Breathe in.')).status).toBe(200);
+        expect(azureCalls[0]!.body).toContain('<prosody rate="1.10">');
+        expect((await speak('吸气。')).status).toBe(200);
+        expect(azureCalls[1]!.body).not.toContain('<prosody');
+    });
+
     it('never sends prosody for a styled voice - the rate knob no-ops (Harper: softvoice)', async () => {
         const a = azureApp();
         const token = await devToken(a);

@@ -65,7 +65,8 @@ export interface CuratedVoice {
      *  and DragonHD voices read the audition sample in 19-24s where the norm
      *  is ~13s; these biases close about half that gap (deliberately not all
      *  of it - the unhurried delivery is why they were picked). Tuned by ear,
-     *  not formula.
+     *  not formula. English text only: Chinese is spoken at the voice's own
+     *  pace (routes/tts.effectiveRate).
      *
      *  MUTUALLY EXCLUSIVE with `style`: on MAI-Voice-2 any <prosody> tag
      *  silently reverts express-as to the standard voice (measured
@@ -124,6 +125,9 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
     { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    // Serena's model with a Mandarin persona; the dev heard it in both
+    // languages (2026-11-14). No zhNative until a native speaker has listened.
+    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium' },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,
