@@ -481,8 +481,13 @@ export async function mountSessionView(
             <section class="controls">
                 <button id="back" type="button" data-nav="setup">${t('Back to setup')}</button>
             </section>`;
+        clearCloudSession();
         const noop = (): void => {};
-        return { teardown: noop, requestLeave: noop, showInfo: noop, toggleKasina: noop };
+        // This view is still the app's live session, so "Back to setup", the
+        // nav and the browser's Back all arrive as requestLeave (app.ts
+        // wireNav, wirePopstate). Nothing is running to confirm the end of:
+        // leave at once, or every way off this screen is dead.
+        return { teardown: noop, requestLeave: onEnd, showInfo: noop, toggleKasina: noop };
     }
 
     // The pause-before-submit window is provider-aware. A non-streaming

@@ -1000,7 +1000,7 @@ function stripVoiceLabel(voice: string | null): string {
 function mountError(
     root: HTMLElement,
     message: string,
-    onEnd: () => void
+    onEnd: (destination?: SessionEndDestination) => void
 ): NotingSessionViewHandle {
     root.innerHTML = `
         <section class="session-stage">
@@ -1012,7 +1012,9 @@ function mountError(
     root.querySelector('#noting-back-btn')?.addEventListener('click', () => onEnd());
     return {
         teardown() { /* nothing to tear down */ },
-        requestLeave() { /* no live circle to guard */ },
+        // No live circle to confirm the end of, but the nav and the browser's
+        // Back still arrive here (app.ts wireNav, wirePopstate): let them out.
+        requestLeave: onEnd,
         showInfo() { /* no panel on the error view */ },
         toggleKasina() { /* no orb on the error view */ },
     };
