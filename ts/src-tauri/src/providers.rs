@@ -14,9 +14,10 @@ use crate::ollama::OLLAMA_URL;
 
 /// For the local daemon probes.
 const PROBE_TIMEOUT: Duration = Duration::from_millis(1500);
-/// Minimum version that can pull the recommended models: below this the
-/// manifest format is too old and pulls fail with HTTP 412.
-const MIN_OLLAMA_VERSION: &str = "0.21.0";
+/// Minimum version that can pull and run the recommended models: the newest
+/// tier's own floor (`requires` in `ollama show`; gemma4:12b needs 0.31.0).
+/// Below it pulls fail with HTTP 412.
+const MIN_OLLAMA_VERSION: &str = "0.31.0";
 
 /// One curated Ollama tier. Project-curated, not provider-supplied.
 struct OllamaTier {
@@ -51,13 +52,13 @@ const DEFAULT_TIERS: &[OllamaTier] = &[
         note: "Mixture-of-experts model; rich knowledge but stays fast. Noted to have a warm conversational tone well-suited for meditation.",
     },
     OllamaTier {
-        model: "gemma4:e4b",
+        model: "gemma4:12b",
         label: "Decent",
         min_gb: 16,
-        download: "~9.6GB",
+        download: "~8GB",
         ram: "~10GB",
         auto_recommend: true,
-        note: "Google's edge model, surprisingly capable for its size. Solid balance of warmth and speed.",
+        note: "Google's mid-size model, close to the larger one in warmth and judgment. Slower to begin a session, quick after that.",
     },
     OllamaTier {
         model: "qwen3.5:4b",
@@ -614,7 +615,7 @@ mod tests {
         // auto_recommend=false even though it fits.
         assert_eq!(pick_tier(Some(32)).model, "gemma4:26b");
         // 16 GB → "Decent".
-        assert_eq!(pick_tier(Some(16)).model, "gemma4:e4b");
+        assert_eq!(pick_tier(Some(16)).model, "gemma4:12b");
         // 8 GB → "Acceptable" (only tier with min_gb 0).
         assert_eq!(pick_tier(Some(8)).model, "qwen3.5:4b");
         // Unknown RAM falls back to smallest.
@@ -623,9 +624,9 @@ mod tests {
 
     #[test]
     fn version_compare_against_min() {
-        assert!(version_outdated("0.20.5"));
-        assert!(!version_outdated("0.21.0"));
-        assert!(!version_outdated("0.22.0"));
+        assert!(version_outdated("0.30.5"));
+        assert!(!version_outdated("0.31.0"));
+        assert!(!version_outdated("0.32.0"));
         assert!(!version_outdated("v1.0.0"));
         // Unknown/garbage → not outdated.
         assert!(!version_outdated(""));
@@ -643,15 +644,15 @@ mod tests {
         let pulled = vec![raw("qwen3.5:4b-instruct-q5_K_M", 3_500_000_000)];
         let rec = build_recommendation(Some(16), true, &pulled);
         let tiers = rec["tiers"].as_array().unwrap();
-        // 16GB fits Decent (e4b, min 16) and below, not Good (24) or Slow (32).
+        // 16GB fits Decent (12b, min 16) and below, not Good (24) or Slow (32).
         let lookup = |model: &str| -> &Value {
             tiers.iter().find(|t| t["model"] == model).unwrap()
         };
         assert_eq!(lookup("gemma4:31b")["fits"], json!(false));
-        assert_eq!(lookup("gemma4:e4b")["fits"], json!(true));
+        assert_eq!(lookup("gemma4:12b")["fits"], json!(true));
         assert_eq!(lookup("qwen3.5:4b")["fits"], json!(true));
         assert_eq!(lookup("qwen3.5:4b")["installed"], json!(true));
-        assert_eq!(lookup("gemma4:e4b")["installed"], json!(false));
+        assert_eq!(lookup("gemma4:12b")["installed"], json!(false));
     }
 
     #[test]

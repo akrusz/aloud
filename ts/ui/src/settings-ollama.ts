@@ -272,7 +272,7 @@ function renderHTML(info: OllamaInfo): string {
             <div class="ollama-outdated-message">
                 ${t('Your Ollama (v{version}) is outdated and may not be able to download recent models. Update Ollama to v{minVersion}+.', {
                     version: escapeHtml(info.version),
-                    minVersion: escapeHtml(info.min_version ?? '0.21.0'),
+                    minVersion: escapeHtml(info.min_version ?? '0.31.0'),
                 })}
             </div>
         </div>`;

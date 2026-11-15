@@ -15,12 +15,12 @@ const TIER_QWEN = {
     installed: false,
 };
 
-const TIER_GEMMA_E4B = {
-    model: 'gemma4:e4b',
+const TIER_GEMMA_12B = {
+    model: 'gemma4:12b',
     label: 'Decent',
-    download: '~9.6GB',
+    download: '~8GB',
     ram: '~10GB',
-    note: "Google's edge model.",
+    note: "Google's mid-size model.",
     min_gb: 16,
     fits: true,
     installed: true,
@@ -45,7 +45,7 @@ describe('renderTier', () => {
     });
 
     it('shows Remove + "Installed" label when the tier is installed', () => {
-        const html = renderTier(TIER_GEMMA_E4B, 'qwen3.5:4b');
+        const html = renderTier(TIER_GEMMA_12B, 'qwen3.5:4b');
         expect(html).toContain('ollama-tier-installed');
         expect(html).toContain('>Installed<');
         expect(html).toContain('ollama-remove-btn');
@@ -82,9 +82,9 @@ describe('renderHTML', () => {
             min_version: '0.21.0',
             recommendation: {
                 ram_gb: 16,
-                recommended_model: 'gemma4:e4b',
+                recommended_model: 'gemma4:12b',
                 recommended_label: 'Decent',
-                tiers: [TIER_GEMMA_E4B, TIER_QWEN],
+                tiers: [TIER_GEMMA_12B, TIER_QWEN],
                 other_installed: [],
             },
         });
@@ -93,12 +93,12 @@ describe('renderHTML', () => {
         expect(html).toContain('v0.18.0');
         expect(html).toContain('v0.21.0');
         // Both tiers rendered.
-        expect(html).toContain('gemma4:e4b');
+        expect(html).toContain('gemma4:12b');
         expect(html).toContain('qwen3.5:4b');
     });
 
     it("hides tiers that don't fit when RAM is known", () => {
-        const tooBig = { ...TIER_GEMMA_E4B, min_gb: 32, fits: false, installed: false };
+        const tooBig = { ...TIER_GEMMA_12B, min_gb: 32, fits: false, installed: false };
         const html = renderHTML({
             recommendation: {
                 ram_gb: 8,
@@ -108,12 +108,12 @@ describe('renderHTML', () => {
             },
         });
         // The 32 GB tier should be skipped entirely.
-        expect(html).not.toContain('gemma4:e4b');
+        expect(html).not.toContain('gemma4:12b');
         expect(html).toContain('qwen3.5:4b');
     });
 
     it("shows non-fitting tiers when RAM is unknown so the user can still pick", () => {
-        const tooBig = { ...TIER_GEMMA_E4B, min_gb: 32, fits: false };
+        const tooBig = { ...TIER_GEMMA_12B, min_gb: 32, fits: false };
         const html = renderHTML({
             recommendation: {
                 recommended_model: 'qwen3.5:4b',
@@ -121,7 +121,7 @@ describe('renderHTML', () => {
                 other_installed: [],
             },
         });
-        expect(html).toContain('gemma4:e4b');
+        expect(html).toContain('gemma4:12b');
         expect(html).toContain('qwen3.5:4b');
     });
 
