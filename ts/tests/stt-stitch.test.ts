@@ -34,6 +34,20 @@ describe('joinTranscripts', () => {
         expect(joinTranscripts('很温暖。', 'and heavy.')).toBe('很温暖。 and heavy.');
     });
 
+    it('reopens a clip closed on a word no sentence ends on: drops its period and the capital after', () => {
+        expect(joinTranscripts('I want to think about.', 'My brother.')).toBe('I want to think about my brother.');
+        expect(joinTranscripts('There is a sort of.', 'Heavy feeling.')).toBe('There is a sort of heavy feeling.');
+        expect(joinTranscripts("And then I've.", 'Found it.')).toBe("And then I've found it.");
+    });
+
+    it('keeps the capital on "I", and leaves a question, an ellipsis, or a finished clause alone', () => {
+        expect(joinTranscripts('I sat with the.', "I'm not sure.")).toBe("I sat with the. I'm not sure.");
+        expect(joinTranscripts('I sat with the.', 'I mean warmth.')).toBe('I sat with the. I mean warmth.');
+        expect(joinTranscripts('Is it about?', 'My brother.')).toBe('Is it about? My brother.');
+        expect(joinTranscripts('It is sort of...', 'Heavy.')).toBe('It is sort of... Heavy.');
+        expect(joinTranscripts('I feel warm.', 'My belly too.')).toBe('I feel warm. My belly too.');
+    });
+
     it('keeps a phrase the speaker says twice', () => {
         expect(joinTranscripts("I'm just really happy.", "I'm just really happy.")).toBe(
             "I'm just really happy. I'm just really happy."

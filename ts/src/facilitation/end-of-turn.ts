@@ -112,8 +112,24 @@ export function transcriptLooksIncomplete(text: string): boolean {
     // Full-width forms too: without them every 中文 turn read as unfinished.
     const endsTerminated = /[.!?。！？]$/u.test(unwrapped);
 
+    if (endsOnDanglingWord(unwrapped)) return true;
+
+    // Whisper punctuates what it considers finished, so a comma or bare tail
+    // means mid-clause.
+    return !endsTerminated;
+}
+
+/**
+ * True when the last word of `text` is one a sentence almost never ends on,
+ * whatever punctuation follows it: the word-level test of
+ * transcriptLooksIncomplete, without its question and punctuation rules.
+ * Also where incremental transcription's pieces join (stt-stitch.ts): a piece
+ * closed on such a word was cut mid-clause.
+ */
+export function endsOnDanglingWord(text: string): boolean {
     const lastWord =
-        unwrapped
+        text
+            .trim()
             .replace(/[.!?…,;:]+$/u, '')
             .split(/\s+/)
             .pop()
@@ -124,9 +140,5 @@ export function transcriptLooksIncomplete(text: string): boolean {
     // I'm"), so one before the period is a clause still open. A transcriber
     // closes a short clip with a period whatever its last word is. Not 's: it
     // is also the possessive, which can end a sentence.
-    if (/['’](?:ve|m|ll|re|d)$/u.test(lastWord)) return true;
-
-    // Whisper punctuates what it considers finished, so a comma or bare tail
-    // means mid-clause.
-    return !endsTerminated;
+    return /['’](?:ve|m|ll|re|d)$/u.test(lastWord);
 }

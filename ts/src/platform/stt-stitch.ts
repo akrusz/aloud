@@ -6,20 +6,30 @@
  * No guard against the model echoing its prompt: on a real session it never
  * did, and the guard's only catches were phrases the speaker really said twice.
  *
- * Dependency-free, like stt.ts.
+ * Its one import, end-of-turn.ts, is dependency-free like stt.ts.
  */
+
+import { endsOnDanglingWord } from '../facilitation/end-of-turn.js';
 
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　-〿＀-￯]/u;
 
 /** The turn's text so far joined with the next piece's. */
 export function joinTranscripts(prev: string, next: string): string {
     let head = prev.trim();
-    const tail = next.trim();
+    let tail = next.trim();
     if (!head) return tail;
     if (!tail) return head;
-    // A piece that goes on in lowercase continues the sentence: the period
-    // before it marked only where the previous clip ended. An ellipsis stays.
-    if (/^\p{Ll}/u.test(tail) && /(?:^|[^.])\.$/u.test(head)) head = head.slice(0, -1);
+    // A period before a piece marks only where the previous clip ended when
+    // the piece goes on in lowercase, or when the clip closed on a word no
+    // sentence ends on ("think about. My brother"): then the piece's capital
+    // is the clip's too, except on "I". An ellipsis stays.
+    if (/(?:^|[^.])\.$/u.test(head)) {
+        if (/^\p{Ll}/u.test(tail)) head = head.slice(0, -1);
+        else if (/^\p{Lu}/u.test(tail) && !/^I(?!\p{L})/u.test(tail) && endsOnDanglingWord(head)) {
+            head = head.slice(0, -1);
+            tail = tail.replace(/^\p{Lu}/u, (c) => c.toLowerCase());
+        }
+    }
     const glue = CJK.test(head.slice(-1)) && CJK.test(tail[0]!) ? '' : ' ';
     return head + glue + tail;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { transcriptLooksIncomplete } from '../src/facilitation/end-of-turn.js';
+import { endsOnDanglingWord, transcriptLooksIncomplete } from '../src/facilitation/end-of-turn.js';
 
 describe('transcriptLooksIncomplete', () => {
     it('treats terminated sentences as complete', () => {
@@ -77,4 +77,14 @@ it('flags a contracted auxiliary before the period, but not a possessive', async
     expect(transcriptLooksIncomplete("Maybe they'll.")).toBe(true);
     expect(transcriptLooksIncomplete("That feeling is my mother's.")).toBe(false);
     expect(transcriptLooksIncomplete("Is that what you'd?")).toBe(false);
+});
+
+describe('endsOnDanglingWord', () => {
+    it('reads the last word only, whatever punctuation follows it', () => {
+        expect(endsOnDanglingWord('I want to think about.')).toBe(true);
+        expect(endsOnDanglingWord('Is it about?')).toBe(true);
+        expect(endsOnDanglingWord("And I've.")).toBe(true);
+        expect(endsOnDanglingWord('I feel warm')).toBe(false);
+        expect(endsOnDanglingWord("That feeling is my mother's.")).toBe(false);
+    });
 });
