@@ -276,6 +276,10 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Debounced speech detected AFTER the submit decision, while the final
     // transcription was in flight - start() reopens the utterance.
     private postSubmitSpeech = false;
+    // The max utterance cap ended this turn. Never reopened on
+    // postSubmitSpeech: speechStartMs is unchanged, so the next frame trips the
+    // cap again and every pass re-sends (and bills) the whole growing buffer.
+    private hitMaxUtterance = false;
     // Loudest speech frame this utterance - diagnostic (how loud this user/mic
     // runs; informs the echo-gate margins).
     private peakEnergy = 0;
@@ -623,13 +627,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             // words: run the same speech test and flag a resume so start()
             // reopens the utterance rather than losing them. Frames accumulate
             // either way so a resumed utterance's audio is contiguous, and the
-            // pre-buffer stays warm for the no-resume case.
+            // pre-buffer stays warm for the no-resume case. A cap cut never
+            // resumes, so its frames go to the pre-buffer only: kept here too,
+            // the ones before the final pass snapshots would be sent twice.
             if (this.isSpeechFrame(energy, echoGate)) {
                 this.postSubmitSpeech = true;
                 this.lastSpeechMs = now;
                 this.peakEnergy = Math.max(this.peakEnergy, energy);
             }
-            this.keepChunk(frame, energy);
+            if (!this.hitMaxUtterance) this.keepChunk(frame, energy);
             this.pushPre(frame);
             return;
         }
@@ -736,6 +742,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 `[vad] submit: max utterance cap reached (${this.opts.maxUtteranceMs}ms)`
             );
             this.utteranceDone = true;
+            this.hitMaxUtterance = true;
         }
     };
 
@@ -1113,6 +1120,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.lastSpeechMs = 0;
         this.utteranceDone = false;
         this.postSubmitSpeech = false;
+        this.hitMaxUtterance = false;
         this.peakEnergy = 0;
         this.energyHistory = [];
         this.lastHintChunk = 0;
@@ -1257,7 +1265,7 @@ export class WhisperPcmSttEngine implements SttEngine {
 
                 // The user kept talking past the submit decision: reopen (see
                 // the loop comment above).
-                if (this.postSubmitSpeech && !this.stopRequested) {
+                if (this.postSubmitSpeech && !this.hitMaxUtterance && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
                     diag('[vad] speech continued past submit - reopening the utterance');
