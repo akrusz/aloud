@@ -120,6 +120,11 @@ export function transcriptLooksIncomplete(text: string): boolean {
             ?.toLowerCase()
             .replace(/[^a-z'’-]/gu, '') ?? '';
     if (DANGLING_TAIL_WORDS.has(lastWord)) return true;
+    // English never strands a contracted auxiliary ("Yes, I am", not "Yes,
+    // I'm"), so one before the period is a clause still open. A transcriber
+    // closes a short clip with a period whatever its last word is. Not 's: it
+    // is also the possessive, which can end a sentence.
+    if (/['’](?:ve|m|ll|re|d)$/u.test(lastWord)) return true;
 
     // Whisper punctuates what it considers finished, so a comma or bare tail
     // means mid-clause.

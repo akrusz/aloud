@@ -69,3 +69,12 @@ it('flags "then" as a dangling tail (measured cut at an 8s pause)', async () => 
     const { transcriptLooksIncomplete } = await import('../src/facilitation/end-of-turn.js');
     expect(transcriptLooksIncomplete('I think part of me is afraid that if I really feel this, then.')).toBe(true);
 });
+
+it('flags a contracted auxiliary before the period, but not a possessive', async () => {
+    const { transcriptLooksIncomplete } = await import('../src/facilitation/end-of-turn.js');
+    expect(transcriptLooksIncomplete("It's happened a lot of times when I've.")).toBe(true);
+    expect(transcriptLooksIncomplete('And I think that I’m.')).toBe(true);
+    expect(transcriptLooksIncomplete("Maybe they'll.")).toBe(true);
+    expect(transcriptLooksIncomplete("That feeling is my mother's.")).toBe(false);
+    expect(transcriptLooksIncomplete("Is that what you'd?")).toBe(false);
+});
