@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import {
     advance,
     engineWithMic,
+    FRAME_MS,
     heard,
     listen,
     rig,
@@ -28,7 +29,17 @@ vi.mock('../ui/src/adapters/silero-vad.js', () => ({
     loadSileroVad: async () => ({ broken: true }),
 }));
 
+const clips = vi.hoisted(() => [] as { label: string; from: number; text: string }[]);
+vi.mock('../ui/src/stt-clip-recorder.js', () => ({
+    recordSttClip: (clip: { label: string; from: number; text: string }) => clips.push(clip),
+}));
+
 useWhisperHarness();
+beforeEach(() => {
+    clips.length = 0;
+});
+
+type Internals = { utteranceDone: boolean; speechStarted: boolean; lastSpeechMs: number };
 
 const windowed = { silenceBaseMs: 4000, silenceMaxMs: 4000, silenceRampRate: 0 };
 const incremental = { incremental: true, ...windowed };
@@ -45,17 +56,18 @@ function expectNoFrameTwice(posts: Post[]): void {
     expect(new Set(all).size).toBe(all.length);
 }
 
-/** Speech, a pause the first speculative pass answers, more speech, then
- *  quiet until the turn ends. */
-async function twoPhrases(turn: { done: () => boolean }): Promise<void> {
-    rig.talking = true;
-    await advance(1500);
-    rig.talking = false;
-    await advance(2500);
-    expect(rig.posts).toHaveLength(1);
-    rig.talking = true;
-    await advance(1500);
-    rig.talking = false;
+/** `n` phrases, each pause between them answered by one speculative pass,
+ *  then quiet until the turn ends. */
+async function phrases(turn: { done: () => boolean }, n = 2): Promise<void> {
+    const before = rig.posts.length;
+    for (let i = 1; i <= n; i++) {
+        rig.talking = true;
+        await advance(1500);
+        rig.talking = false;
+        if (i === n) break;
+        await advance(2500);
+        expect(rig.posts).toHaveLength(before + i);
+    }
     await advance(12_000, turn.done);
     expect(turn.done()).toBe(true);
 }
@@ -65,7 +77,7 @@ describe('incremental passes', () => {
         rig.reply = saysWhatItHeard;
         const engine = await engineWithMic(incremental);
         const turn = await listen(engine);
-        await twoPhrases(turn);
+        await phrases(turn);
 
         expect(rig.posts).toHaveLength(2);
         const [first, second] = rig.posts as [Post, Post];
@@ -101,7 +113,7 @@ describe('incremental passes', () => {
         };
         const engine = await engineWithMic(incremental);
         const turn = await listen(engine);
-        await twoPhrases(turn);
+        await phrases(turn);
 
         expect(rig.posts).toHaveLength(2);
         const [first, second] = rig.posts as [Post, Post];
@@ -113,13 +125,23 @@ describe('incremental passes', () => {
         expect(turn.events.at(-1)).toEqual(final('One. Two.', first.seconds + second.seconds));
     });
 
+    it('commit a piece that is only a number: a spoken "seven" comes back as "7."', async () => {
+        rig.reply = (n) => heard(n === 1 ? "Hmm, I'd say..." : '7.');
+        const engine = await engineWithMic(incremental);
+        const turn = await listen(engine);
+        await phrases(turn);
+
+        expect(rig.posts).toHaveLength(2);
+        const [first, second] = rig.posts as [Post, Post];
+        expect(turn.events).toEqual([
+            partial("Hmm, I'd say..."),
+            partial("Hmm, I'd say... 7."),
+            final("Hmm, I'd say... 7.", first.seconds + second.seconds),
+        ]);
+    });
+
     it.each([
-        [
-            'fails on a dropped connection',
-            (): Response => {
-                throw new TypeError('Failed to fetch');
-            },
-        ],
+        // A dropped connection is the next describe's: it carried a prior.
         ['fails with a 500', (): Response => new Response('upstream', { status: 500 })],
         ['comes back empty', (): Response => heard('')],
         ['hears no words', (): Response => heard('[BLANK_AUDIO]')],
@@ -127,7 +149,7 @@ describe('incremental passes', () => {
         rig.reply = (n) => (n === 2 ? second() : saysWhatItHeard(n));
         const engine = await engineWithMic(incremental);
         const turn = await listen(engine);
-        await twoPhrases(turn);
+        await phrases(turn);
 
         expect(rig.posts).toHaveLength(3);
         const [first, failed, last] = rig.posts as [Post, Post, Post];
@@ -211,6 +233,62 @@ describe('incremental passes', () => {
             const [first, piece] = rig.posts as [Post, Post];
             expect(first.tags).not.toContain(softTag);
             expect(piece.tags.slice(0, 2)).toEqual([notch, softTag]);
+            expect(turn.events.at(-1)).toEqual(final('One. Mm.', first.seconds + piece.seconds));
+        });
+
+        /** One phrase whose pause the first pass answers, then quiet to the
+         *  submit, with one soft frame just before or just after it. */
+        async function softAroundTheSubmit(where: 'before' | 'after') {
+            rig.reply = (n) => heard(n === 1 ? 'One.' : 'Mm.');
+            let softTag = -1;
+            let softNext = false;
+            rig.amplitude = (tag) => {
+                if (rig.talking) return SPEECH;
+                if (!softNext) return HUM;
+                softNext = false;
+                softTag = tag;
+                return SOFT;
+            };
+            const engine = await engineWithMic(incremental);
+            const inner = engine as unknown as Internals & { processor: { onaudioprocess: (e: unknown) => void } };
+            const handle = inner.processor.onaudioprocess;
+            inner.processor.onaudioprocess = (e) => {
+                const silence = performance.now() - inner.lastSpeechMs;
+                if (where === 'before' && inner.speechStarted && !inner.utteranceDone && softTag < 0) {
+                    softNext = silence >= windowed.silenceBaseMs - FRAME_MS;
+                }
+                const wasDone = inner.utteranceDone;
+                handle(e);
+                // A second frame straight after the one that submitted, before
+                // any timer runs: start()'s poll has not read the submit yet.
+                if (where === 'after' && !wasDone && inner.utteranceDone) {
+                    softNext = true;
+                    handle(e);
+                }
+            };
+            const turn = await hummingTurn(engine);
+            rig.talking = true;
+            await advance(1500);
+            rig.talking = false;
+            await advance(12_000, turn.done);
+            expect(turn.done()).toBe(true);
+            expect(softTag).toBeGreaterThan(0);
+            return { turn, softTag };
+        }
+
+        it('heard after the submit, before the poll reads it, sends nothing: the text so far stands', async () => {
+            const { turn } = await softAroundTheSubmit('after');
+
+            expect(rig.posts).toHaveLength(1);
+            expect(turn.events.at(-1)).toEqual(final('One.', rig.posts[0]!.seconds));
+        });
+
+        it('heard on the frame before the submit, sends a final piece with it', async () => {
+            const { turn, softTag } = await softAroundTheSubmit('before');
+
+            expect(rig.posts).toHaveLength(2);
+            const [first, piece] = rig.posts as [Post, Post];
+            expect(piece.tags).toContain(softTag);
             expect(turn.events.at(-1)).toEqual(final('One. Mm.', first.seconds + piece.seconds));
         });
     });
@@ -310,12 +388,88 @@ describe('incremental passes', () => {
     });
 });
 
+describe('a server that refuses x-stt-prior (older than the client)', () => {
+    // Its CORS allowlist fails the preflight of any request carrying the
+    // header, and the fetch rejects with no answer.
+    const oldServer = (n: number): Response => {
+        if (rig.posts[n - 1]!.prior !== null) throw new TypeError('Load failed');
+        return saysWhatItHeard(n);
+    };
+    const hosted = { ...incremental, finalRetryBudgetMs: 30_000 };
+    const latchWarnings = (warn: { mock: { calls: unknown[][] } }) =>
+        warn.mock.calls.filter(([m]) => String(m).includes('x-stt-prior'));
+
+    it('costs one request: the turn starts over in full passes, and so does every turn after it', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        rig.reply = oldServer;
+        const engine = await engineWithMic(hosted);
+        const first = await listen(engine);
+        await phrases(first);
+
+        expect(rig.posts.map((p) => p.prior)).toEqual([null, 'One.', null]);
+        const [spec, , full] = rig.posts as [Post, Post, Post];
+        expect(full.tags[0]).toBe(spec.tags[0]);
+        expect(first.events).toEqual([partial('One.'), final('One. Two.', spec.seconds + full.seconds)]);
+        expect(clips.at(-1)).toMatchObject({ label: 'final', from: 0, text: 'One. Two.' });
+
+        const second = await listen(engine);
+        await phrases(second);
+
+        expect(rig.posts).toHaveLength(5);
+        const [a, b] = rig.posts.slice(3) as [Post, Post];
+        expect([a.prior, b.prior]).toEqual([null, null]);
+        expect(b.tags[0]).toBe(a.tags[0]);
+        expect(second.events).toEqual([
+            partial('Three.'),
+            partial('Three. Four.'),
+            final('Three. Four.', a.seconds + b.seconds),
+        ]);
+        expect(latchWarnings(warn)).toHaveLength(1);
+    });
+
+    it('on the final, sends the turn again at once in full, and that pass rides out a dropped connection', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // A 500 latches nothing, so the final carries the prior; the full
+        // pass's first try then meets a dropped connection.
+        rig.reply = (n) => {
+            if (n === 2) return new Response('upstream', { status: 500 });
+            if (n === 4) throw new TypeError('Load failed');
+            return oldServer(n);
+        };
+        const engine = await engineWithMic(hosted);
+        const turn = await listen(engine);
+        await phrases(turn);
+
+        expect(rig.posts.map((p) => p.prior)).toEqual([null, 'One.', 'One.', null, null]);
+        const [spec, , , , full] = rig.posts as [Post, Post, Post, Post, Post];
+        expect(full.tags[0]).toBe(spec.tags[0]);
+        expect(turn.events.at(-1)).toEqual(final('One. Two.', spec.seconds + full.seconds));
+    });
+
+    it('latches nothing on a rejected pass that carried no prior', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        rig.reply = (n) => {
+            if (n === 1) throw new TypeError('Load failed');
+            return saysWhatItHeard(n);
+        };
+        const engine = await engineWithMic(hosted);
+        const turn = await listen(engine);
+        await phrases(turn, 3);
+
+        expect(rig.posts.map((p) => p.prior)).toEqual([null, null, 'One. Two.']);
+        const [, second, third] = rig.posts as [Post, Post, Post];
+        expect(third.tags[0]).toBe(second.tags.at(-1)! + 1);
+        expect(turn.events.at(-1)).toEqual(final('One. Two. Three.', second.seconds + third.seconds));
+        expect(latchWarnings(warn)).toHaveLength(0);
+    });
+});
+
 describe('full passes (incremental off)', () => {
     it('send every pass from the turn\'s start, with no prior', async () => {
         rig.reply = (n) => heard(n === 1 ? 'One.' : 'One. Two.');
         const engine = await engineWithMic(windowed);
         const turn = await listen(engine);
-        await twoPhrases(turn);
+        await phrases(turn);
 
         expect(rig.posts).toHaveLength(2);
         const [first, second] = rig.posts as [Post, Post];

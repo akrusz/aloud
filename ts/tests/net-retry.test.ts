@@ -116,6 +116,16 @@ describe('sendWithNetworkRetry', () => {
         expect(send).toHaveBeenCalledTimes(1);
     });
 
+    it('with retryRejections off, rethrows a dropped connection at once and still re-sends a 502', async () => {
+        const send = vi
+            .fn()
+            .mockResolvedValueOnce(new Response('upstream', { status: 502 }))
+            .mockRejectedValueOnce(dropped());
+        const { opts } = harness({ retryRejections: false });
+        await expect(sendWithNetworkRetry(send, opts)).rejects.toBeInstanceOf(TypeError);
+        expect(send).toHaveBeenCalledTimes(2);
+    });
+
     it('waits out the rest of the budget for the network while the device is offline', async () => {
         let offline = true;
         const send = vi

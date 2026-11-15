@@ -40,6 +40,10 @@ export interface NetworkRetryOptions {
     /** How long after the first failure re-sends may still start, waits
      *  included. 0 disables retry. */
     budgetMs: number;
+    /** Re-send after a rejected fetch too (default true). Off, only the
+     *  NETWORK_RETRY_STATUS answers are re-sent: for a caller with a fallback
+     *  of its own for a request that gets no answer. */
+    retryRejections?: boolean;
     /** Aborting ends the retrying at once (barge-in, a newer turn, teardown);
      *  the abort reason is thrown. */
     signal?: AbortSignal;
@@ -104,7 +108,7 @@ export async function sendWithNetworkRetry(
     send: () => Promise<Response>,
     options: NetworkRetryOptions
 ): Promise<Response> {
-    const { budgetMs, signal, onRetry } = options;
+    const { budgetMs, signal, onRetry, retryRejections = true } = options;
     const now = options.now ?? Date.now;
     const offline = options.offline ?? browserOffline;
     const wait = options.wait ?? waitOrOnline;
@@ -122,7 +126,7 @@ export async function sendWithNetworkRetry(
             await res.text().catch(() => {});
             reason = `status ${res.status}`;
         } catch (err) {
-            if (!isNetworkFailure(err) || budgetMs <= 0 || signal?.aborted) throw err;
+            if (!isNetworkFailure(err) || !retryRejections || budgetMs <= 0 || signal?.aborted) throw err;
             deadline ??= now() + budgetMs;
             if (now() >= deadline) throw err;
             reason = (err as Error).message;
