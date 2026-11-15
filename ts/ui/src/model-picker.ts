@@ -160,6 +160,8 @@ export interface ModelOption {
      *  Not a picker concern - it is carried in this payload so the choice stays in the
      *  pricing table. See cloudUtilityModel below. */
     utility?: boolean;
+    /** Carried for cloudUtilityModel only; the picker never offers it. */
+    utilityOnly?: boolean;
     /** zh shortlist overrides (pricing/providers.ts zh flags): in a Chinese
      *  app language the picker pre-selects zhDefault, shortlists zhCurated
      *  even though expanded, and hides zhExpanded behind the show-all toggle. */
@@ -315,6 +317,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                     default?: boolean;
                     expanded?: boolean;
                     utility?: boolean;
+                    utilityOnly?: boolean;
                     zhDefault?: boolean;
                     zhCurated?: boolean;
                     zhExpanded?: boolean;
@@ -338,6 +341,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
                 isDefault: m.default ?? false,
                 expanded: m.expanded ?? false,
                 utility: m.utility ?? false,
+                ...(m.utilityOnly ? { utilityOnly: true } : {}),
                 ...(m.zhDefault ? { zhDefault: true } : {}),
                 ...(m.zhCurated ? { zhCurated: true } : {}),
                 ...(m.zhExpanded ? { zhExpanded: true } : {}),
@@ -620,6 +624,9 @@ export function mountModelPicker(
                 if (models) break;
             }
         }
+        // A saved pick of one then reads as a model that left the catalog, and
+        // moves the way those do.
+        models = models?.filter((m) => !m.utilityOnly) ?? null;
         if (models && models.length > 0) {
             // The tier toggle's persisted state must be known before the first
             // hosted render, or the curated filter would flicker.

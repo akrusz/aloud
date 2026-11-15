@@ -78,6 +78,10 @@ export interface ModelPricing extends TokenRates {
      *  silently inherit the job would quietly change what the facilitator
      *  believes about a past sit. */
     utility?: boolean;
+    /** Published (so the client can find it by its `utility` flag) but never
+     *  offered as a facilitator. `unlisted` would hide it from the recap lookup
+     *  too. Builds older than the flag still show it, so keep `expanded` set. */
+    utilityOnly?: boolean;
     /** A second rate card for a request whose prompt (fresh + cached + written
      *  input) runs past `over` tokens: the WHOLE request bills at these rates
      *  (meter.ts ratesFor). A sit's prompt is a few thousand tokens, so this
@@ -118,7 +122,10 @@ const M = 1_000_000;
  *    pins their effort low or sends the family's own off switch.
  * 5. Ear-test the control tokens ([HOLD]/[WAIT:Nm]/[PASS]/[NEXT]) in a real
  *    session; small/open models mishandle them and a bare completion won't show
- *    it.
+ *    it. And run the stepping-out fixtures (ts/evals/README.md, "Adding a
+ *    model"): a model that keeps facilitating a frightened meditator needs the
+ *    trouble check (CHECKED_MODELS in ts/src/facilitation/stepping-out.ts) or
+ *    has no business in the picker.
  * 6. Housekeeping: pretty name in ui/src/model-picker.ts CLOUD_MODEL_NAMES;
  *    decide curated vs expanded-tier (`expanded: true` hides it behind the
  *    picker's "Show all available models" toggle). A curated model that
@@ -333,6 +340,11 @@ const MODELS: Record<string, ModelPricing> = {
         model: 'gpt-5-nano',
         expanded: true,
         utility: true,
+        // Off the facilitator picker (Nov 2026): on the stepping-out fixtures it
+        // kept facilitating through 14 of 15 acute turns, and answered a panic
+        // with "Would you like me to be quiet for a bit?" (dev-docs/stepping-out.md).
+        // GPT-6 Luna is the budget OpenAI pick, at 15 of 15.
+        utilityOnly: true,
         input: 0.05 / M,
         output: 0.4 / M,
         cacheRead: 0.005 / M,

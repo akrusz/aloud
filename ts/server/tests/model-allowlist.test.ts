@@ -107,6 +107,17 @@ describe('picker flags', () => {
         for (const m of listed.filter((x) => x.zhExpanded)) expect(m.expanded).toBeUndefined();
     });
 
+    // `unlisted` would hide it from /me/models, which is where the client finds
+    // the recap engine; `expanded` keeps it behind the toggle on builds that
+    // don't know the flag.
+    it('keeps a utility-only model published, behind the toggle, and flagged for utility', () => {
+        for (const m of allowedModels().filter((x) => x.utilityOnly)) {
+            expect(m.utility, m.model).toBe(true);
+            expect(m.expanded, m.model).toBe(true);
+            expect(m.unlisted, m.model).toBeUndefined();
+        }
+    });
+
     it('flags exactly one model for background utility work', () => {
         // buildRecapProvider (ui/views/session.ts) picks the flagged entry off
         // /me/models. Two would make which-one-wins depend on object order.
