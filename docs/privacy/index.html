@@ -44,6 +44,11 @@
     .legal li { margin-bottom: 0.4rem; }
     .legal strong { color: var(--text-primary); }
     .legal .lead { font-size: 1.1rem; color: var(--text-primary); }
+    .legal table { width: 100%; border-collapse: collapse; margin: 0.6rem 0 1.25rem; }
+    .legal th, .legal td { text-align: left; vertical-align: top; padding: 0.45rem 0.6rem 0.45rem 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); line-height: 1.5; }
+    .legal thead th { color: var(--text-muted); font-size: 0.9rem; font-weight: 600; }
+    .legal tbody th { color: var(--text-primary); padding-top: 1rem; }
+    .legal td:first-child { width: 45%; }
   </style>
 </head>
 <body>
@@ -57,16 +62,15 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: November 14, 2026</p>
+    <p class="updated">Last updated: November 15, 2026</p>
 
-    <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use aloud cloud, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains what happens to your data in each case.</p>
+    <p class="lead">aloud is built to be private, and to give you a choice about where your data goes. You can run it locally with your own providers, so nothing touches us at all; or you can use <strong>aloud cloud</strong>, our optional hosted service that connects you to AI and voice providers without us keeping your sessions. This policy explains what happens to your data in each case.</p>
 
     <h2>The short version</h2>
     <ul>
-      <li>There are <strong>two ways to run aloud</strong>. Run it <strong>locally / bring-your-own</strong> and your content goes only to the providers you choose; aloud receives nothing. Use <strong>aloud cloud</strong> and your content passes through our service only to reach those providers; <strong>we don't retain your session content</strong>.</li>
+      <li>aloud uses functionality like LLMs, speech-to-text, and text-to-speech. If your device supports these functions locally, you may use it to keep that data <strong>fully on-device</strong>. If you bring your own API keys or subscription, your content goes only to the providers you choose. If you use aloud cloud we show you which provider each option uses, and also use the providers listed below for background functionality. Regardless, aloud servers never retain your session content.</li>
       <li>We <strong>don't sell your data</strong>; we <strong>don't use it for advertising</strong>; we <strong>don't use your conversations to train AI</strong>; and on aloud cloud, we <strong>don't retain your conversation data at all</strong>.</li>
-      <li>aloud cloud needs an <strong>account and credits</strong>; for that we process the minimum required: sign-in details, your credit balance and usage, and payments handled by our payment processor.</li>
-      <li>Wherever your platform allows it, you can run aloud <strong>fully on your own</strong>, keeping everything on your device.</li>
+      <li>aloud cloud needs an <strong>account and credits</strong> because it costs us money to run; for that we process the minimum required: sign-in details, your credit balance and usage, and payments handled by our payment processor.</li>
     </ul>
 
     <h2>Two ways to use aloud</h2>
@@ -82,7 +86,7 @@
     <ul>
       <li><strong>On your device.</strong> Where supported (such as Whisper in the desktop app), transcription runs locally and the audio is not sent anywhere.</li>
       <li><strong>Your platform's speech recognizer.</strong> The mobile apps offer the recognizer built into your phone, and browsers may offer their own. These are operated by the platform vendor, not by us: depending on the device and its settings, they may process your audio on the device or send it to the vendor's servers (Android's speech recognition, for example, commonly uses Google's). That processing is covered by your platform vendor's privacy policy. We never receive this audio.</li>
-      <li><strong>aloud cloud.</strong> Your audio is relayed through our service to a speech-to-text provider to transcribe it, then discarded.</li>
+      <li><strong>aloud cloud.</strong> Your audio is relayed through our service to the speech recognition model you pick (see <a href="#who-runs-what">who runs each model</a>), then discarded.</li>
     </ul>
     <p>The microphone listens during a session. It can also listen on the setup screen before one, so that you can say "begin" or change a setting out loud. The microphone icon beside Begin shows when it is open; it closes by itself after two minutes with nothing asked of it, and it never opens where that would raise a permission prompt. What it hears there is transcribed by the same path as your session, above, and you can switch it off in Settings (<strong>Voice control on the setup screen</strong>).</p>
     <p>We don't record your audio, and we don't store it.</p>
@@ -94,11 +98,11 @@
       <li><strong>Providers you connect yourself</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq - with your own API key, or your Claude subscription via the <code>claude</code> CLI): your text goes directly to that provider's API under their privacy policy and terms. aloud neither receives nor stores it.</li>
       <li><strong>Via aloud cloud:</strong> your text is relayed through our service to the language-model provider and is not stored by us.</li>
     </ul>
-    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes") or tell whether you're calling the facilitator back from a silence. That check includes what you just said, and in some cases also a few recent lines said by you or the facilitator. It's relayed the same way and is not stored by us. The same goes for the setup screen: when you are signed in and its microphone is open, a short thing it hears that the app can't match on your device is checked the same way, to see whether it was a request to change a setting.</p>
+    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes"), tell whether you're calling the facilitator back from a silence, or notice if you might be frightened or unwell, so the facilitator can set the exercise aside. (Sometimes that last check runs on a language model instead; see <a href="#who-runs-what">who runs each model</a>.) That check includes what you just said, and in some cases also a few recent lines said by you or the facilitator. It's relayed the same way and is not stored by us. The same goes for the setup screen: when you are signed in and its microphone is open, a short thing it hears that the app can't match on your device is checked the same way, to see whether it was a request to change a setting.</p>
     <p>In local or bring-your-own use this check is <strong>off by default</strong>. You can turn on <strong>Voice commands</strong> in Settings, which needs a free aloud account. While it's on, what you say in a session, and short things heard on the setup screen while its microphone is open, are sent through aloud cloud to the same classification model, including with an on-device model like Ollama; your conversation and the facilitator's replies still go only where they went before. We don't store or log it, it costs no credits, and turning the setting off stops it. In the desktop app you can instead add your own TypeSafe API key: then what you say goes straight from your device to TypeSafe under your own account, with no aloud account and nothing passing through aloud cloud.</p>
 
     <h3>Spoken responses</h3>
-    <p>Facilitator responses are turned into speech. Depending on your setup this happens <strong>on your device</strong> (Piper, or your system's built-in voices), via a cloud voice service <strong>you connect</strong>, or <strong>via aloud cloud</strong>, which relays the response text to a text-to-speech provider. We don't store the audio or text.</p>
+    <p>Facilitator responses are turned into speech. Depending on your setup this happens <strong>on your device</strong> (Piper, or your system's built-in voices), via a cloud voice service <strong>you connect</strong>, or <strong>via aloud cloud</strong>, which relays the response text to the provider of the voice you pick (see <a href="#who-runs-what">who runs each model</a>). We don't store the audio or text.</p>
 
     <h3>Saved sessions</h3>
     <p>aloud can save your session transcripts and a short summary <strong>locally on your device</strong> so you can revisit them. They stay on your device unless you choose to export or share them. There is no cloud sync, and <strong>aloud cloud does not store your transcripts or summaries</strong>.</p>
@@ -120,7 +124,7 @@
     <p><strong>We don't retain the content of your sessions on aloud cloud.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
 
     <h2>Your own API keys</h2>
-    <p>On some platforms you can supply your own provider API keys instead of using credits. Those keys are stored only on your device, and never on our servers. On the <strong>web app</strong> this is <strong>off by default</strong>; it applies only if you manually turn on bring-your-own-key. Your sessions then call each provider <strong>directly</strong> from the app, so your key and your words don't pass through aloud cloud at all. There are two exceptions. If you turn on Voice commands (see "Your words and the AI facilitator" above), what you say is checked through aloud cloud; your key is never part of that. The other is looking up a provider's list of available models, which is relayed through our server with your key; it's used transiently, in memory, and we neither store nor log it.</p>
+    <p>On some platforms you can supply your own provider API keys instead of using credits. Those keys are stored only on your device, and never on our servers. On the <strong>web app</strong> this is <strong>off by default</strong>; it applies only if you manually turn on bring-your-own-key. Your sessions then call each provider <strong>directly</strong> from the app, so your key and your words don't pass through aloud cloud at all. There are two exceptions. If you turn on Voice commands (see "Your words and the AI facilitator" above), what you say is checked through aloud cloud; your key is never part of that. The other is looking up a provider's list of available models: in the web and mobile apps that request is relayed through our server with your key, used only in memory, and neither stored nor logged. The desktop app makes it from your device.</p>
 
     <h2>What we don't do</h2>
     <ul>
@@ -128,13 +132,40 @@
       <li>No selling or sharing of your personal data.</li>
       <li>No using your conversations to train AI models, and no retaining them on aloud cloud, at all.</li>
       <li>No third-party analytics or behavioral tracking. (aloud cloud meters credit usage only as needed to run the service.)</li>
-      <li>No accounts at all in local mode; accounts exist only for aloud cloud.</li>
+      <li>No account needed to run aloud locally. You need one only for aloud cloud, which includes voice commands unless you add your own TypeSafe key in the desktop app.</li>
     </ul>
 
     <h2>Third-party services</h2>
     <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
-    <p>When you use aloud cloud, we say which providers we rely on. We currently use <strong>Anthropic, Google, OpenAI, and Novita (via OpenRouter)</strong> for language models. The Kimi model is an open model from Moonshot AI, but it runs on Novita's US infrastructure (with Groq, also US, as a fallback host); your sessions are not sent to Moonshot. We also use <strong>OpenAI</strong> for speech-to-text and <strong>Microsoft Azure AI Speech, Google Cloud Text-to-Speech, and Inworld</strong> for voice. We use <strong>TypeSafe</strong> (US-hosted) for the classification model that recognizes spoken commands and reads silence cues. Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this list current as our providers change.</p>
-    <p>Each aloud cloud voice is spoken by one of those voice providers. The <strong>Luna, Wren, Silas, and Clive</strong> voices are spoken by <strong>Inworld</strong>. Inworld's zero-data-retention setting is not yet turned on for our account (we have asked for it), so until it is, Inworld may keep the response text it receives for those four voices, as its own policy allows. If you'd rather avoid that, pick any other voice.</p>
+    <h3 id="who-runs-what">Who runs each aloud cloud model</h3>
+    <p>On aloud cloud you pick the model behind each part of a session in the app, and that model's provider receives what that part needs: your words for the facilitator, your audio for speech recognition, the facilitator's replies for its voice. Depending on language settings, you can choose from:</p>
+    <table>
+      <thead>
+        <tr><th scope="col">Model</th><th scope="col">Run by</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="rowgroup" colspan="2">Facilitator</th></tr>
+        <tr><td>Claude (Fable, Opus, Sonnet, Haiku)</td><td>Anthropic</td></tr>
+        <tr><td>GPT</td><td>OpenAI</td></tr>
+        <tr><td>Gemini</td><td>Google</td></tr>
+        <tr><td>Kimi K2, an open model from Moonshot AI</td><td>Novita in the US, with Groq (also US) as a fallback, via OpenRouter. Your sessions are not sent to Moonshot.</td></tr>
+      </tbody>
+      <tbody>
+        <tr><th scope="rowgroup" colspan="2">Speech recognition</th></tr>
+        <tr><td>GPT</td><td>OpenAI</td></tr>
+        <tr><td>Parakeet, Moondream's model (not offered in Chinese)</td><td>Prime Intellect, via OpenRouter, under zero data retention</td></tr>
+        <tr><td>Grok (Chinese only)</td><td>xAI, via OpenRouter</td></tr>
+      </tbody>
+      <tbody>
+        <tr><th scope="rowgroup" colspan="2">Voice</th></tr>
+        <tr><td>Harper, Ethan, Davis, Ada, Isla, Serena, Yunfan</td><td>Microsoft Azure AI Speech</td></tr>
+        <tr><td>Leda, Phoenix, Orion, Vega, Rigel</td><td>Google Cloud Text-to-Speech</td></tr>
+        <tr><td>Luna, Wren, Silas, Clive</td><td>Inworld</td></tr>
+      </tbody>
+    </table>
+    <p>Whichever facilitator you pick, aloud cloud also sends parts of the session to <strong>Claude Haiku</strong> (Anthropic) and <strong>GPT-5 nano</strong> (OpenAI) for background work: the end-of-session summary, the running notes it keeps during a session, and some of the checks described above. It sends short things you say to <strong>TypeSafe</strong> (US-hosted) for in-session decisions and voice controls.</p>
+    <p>Each provider handles what it receives under its own policy, and some keep it for a limited time. Through OpenRouter we allow only hosts that don't train on what they receive, and Parakeet only a host under zero data retention. Inworld's zero-data-retention setting is not yet turned on for our account (we have asked for it), so until it is, Inworld may keep the response text it receives for its four voices; if you'd rather avoid that, pick another voice.</p>
+    <p>Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this page current as our providers change.</p>
     <p>Behind the service itself: aloud cloud runs on <strong>Fly.io</strong> in the United States, and our account database (sign-in details, credits, and usage metering, never your session content) is backed up to <strong>Cloudflare R2</strong>. Both handle data for us as infrastructure providers under data processing agreements.</p>
     <p>On this website, the video on the home page is hosted by <strong>YouTube</strong>. The page asks YouTube for nothing until you press play; from then on, YouTube (Google) serves the video under its own privacy policy.</p>
 
@@ -142,7 +173,7 @@
     <ul>
       <li>Run aloud <strong>locally</strong> (where your platform allows) to keep everything on your device.</li>
       <li>Choose on-device providers for maximum privacy if your hardware is capable.</li>
-      <li>Your credentials and settings live on your device in local mode. Clear them anytime.</li>
+      <li>Your settings, and any API keys you enter, are stored only on your device, however you use aloud. Clear them anytime.</li>
       <li>Delete saved sessions from your device whenever you like.</li>
       <li>For aloud cloud, delete your account anytime from the app's account screen, or email us at the address below. Details: <a href="../delete-account/">aloud.rest/delete-account</a>.</li>
     </ul>
