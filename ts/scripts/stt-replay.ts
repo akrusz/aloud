@@ -12,6 +12,7 @@
  *   npm run stt:replay -- <capture-dir> --set battery        (the full no-speech gate: noise + the capture's wordless clips)
  *   npm run stt:replay -- <capture-dir> --set passes         (every pass: the end-of-turn table)
  *   npm run stt:replay -- <capture-dir> --set incremental    (each pass sends only its new audio: gpt-transcribe only)
+ *   npm run stt:replay -- <capture-dir> --set incremental --models local   (the same on the desktop's whisper.cpp: nothing sent)
  *   npm run stt:replay -- <capture-dir> --report --show      (no calls; print where models differ)
  *
  * `--set incremental` (meditation-pal-12q9) asks whether a pass can send only
@@ -33,6 +34,14 @@
  * `or:<id>` is any model on OpenRouter's transcription API, which lists most
  * of the field behind one key.
  *
+ * `local` is the desktop shell's own Whisper, run on this machine through
+ * src-tauri/examples/whisper_batch.rs (built here first, -j 2) on the model the
+ * app would load for English (localWhisperFile); `local:<size>` picks the
+ * Settings size instead. It sends nothing anywhere, runs at background
+ * priority and rests after each call as long as the call took, so its timings
+ * are slower than the app's. With `--set incremental` it replays the seam arm
+ * against its own whole passes, which it transcribes first.
+ *
  * THE CLIPS ARE SOMEONE'S MEDITATION and a capture never leaves the device on
  * its own: every model named here receives that voice. `--set noise` is the
  * exception (generated noise, read from no file), so gate a new model on it
@@ -52,8 +61,12 @@
  * Latency is from this machine, and OpenRouter adds a hop.
  */
 
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import { transcriptLooksIncomplete } from '../src/facilitation/end-of-turn.js';
 import { isNonSpeechOnly } from '../src/platform/stt.js';
 import { joinTranscripts, priorPrompt } from '../src/platform/stt-stitch.js';
@@ -99,13 +112,16 @@ interface Heard {
     text: string;
     costUsd?: number;
     billedSeconds?: number;
+    /** The engine's own time for the call, where it measures one (local:
+     *  without the rest after it). */
+    ms?: number;
 }
 
 interface Model {
     id: string;
-    /** Env var that must be set for the model to run. */
-    needs: string;
-    /** `prompt` reaches only the Whisper-compatible models. */
+    /** Env var that must be set for the model to run (none: local). */
+    needs?: string;
+    /** `prompt` reaches only the Whisper-compatible models and local. */
     transcribe(clip: Clip, prompt?: string): Promise<Heard>;
     /** Dollars for one request of `seconds`, used when the call reports none. */
     price(seconds: number): number;
@@ -113,7 +129,7 @@ interface Model {
     priceNote?: string;
 }
 
-const env = (name: string): string => process.env[name] ?? '';
+const env = (name: string | undefined): string => (name ? process.env[name] ?? '' : '');
 
 async function postJson(url: string, init: RequestInit, who: string): Promise<unknown> {
     const res = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
@@ -207,7 +223,105 @@ function openRouter(modelId: string): Model {
     };
 }
 
+// --- local whisper ----------------------------------------------------------
+
+const TS_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const WHISPER_BIN = join(TS_ROOT, 'src-tauri/target/debug/examples/whisper_batch');
+/** The desktop shell's data dir: models/, and `whisper-model`, the file name
+ *  of the model it last loaded (server.rs LAST_WHISPER_MODEL_FILE). */
+const APP_DATA_DIR = join(homedir(), 'Library/Application Support/app.aloud.meditation');
+/** After each local call, rest this many times as long as it ran. */
+const LOCAL_REST_RATIO = 1;
+const LOCAL_SIZES = ['tiny', 'base', 'small', 'medium', 'large'];
+const throttle = ['-b', 'nice', '-n', '10'];
+
+/** server.rs whisper_model_file, for English. */
+const whisperModelFile = (size: string): string => (size === 'large' ? 'ggml-large-v3.bin' : `ggml-${size}.en.bin`);
+
+/** The model the app transcribes English on: the Settings size of the model
+ *  the shell last loaded (whichever language that was for), else the default
+ *  size (app-settings.ts sttWhisperModel). */
+function localWhisperFile(): string {
+    let saved = '';
+    try {
+        saved = readFileSync(join(APP_DATA_DIR, 'whisper-model'), 'utf8').trim();
+    } catch {
+        // The shell has never switched models: it loads the default.
+    }
+    const size = /^ggml-(tiny|base|small|medium)(?:\.en)?\.bin$/.exec(saved)?.[1] ?? (saved === 'ggml-large-v3.bin' ? 'large' : 'base');
+    return whisperModelFile(size);
+}
+
+const localClosers: Array<() => void> = [];
+let localScratch: string | undefined;
+
+/** Where a clip waits for whisper_batch to read it, deleted after the call
+ *  and the directory at exit: it is someone's meditation. */
+function localScratchDir(): string {
+    if (!localScratch) {
+        const made = mkdtempSync(join(tmpdir(), 'stt-replay-'));
+        localScratch = made;
+        process.on('exit', () => rmSync(made, { recursive: true, force: true }));
+        process.once('SIGINT', () => process.exit(130));
+    }
+    return localScratch;
+}
+
+/** whisper_batch, one process per model for the run (the model loads once),
+ *  each clip with its own prompt. */
+function localWhisper(size?: string): Model {
+    const file = size ? whisperModelFile(size) : localWhisperFile();
+    const path = join(APP_DATA_DIR, 'models', file);
+    let proc: ChildProcessWithoutNullStreams | undefined;
+    let replies: AsyncIterator<string> | undefined;
+    let stderr = '';
+    let rest = 0;
+    let n = 0;
+    const start = async (): Promise<void> => {
+        if (!existsSync(path)) throw new Error(`${path} is missing: picking that size in the app's Settings downloads it.`);
+        // Every run, so the binary is the example as it stands (a no-op when it is).
+        await new Promise<void>((ok, fail) => {
+            const args = ['cargo', 'build', '-j', '2', '--example', 'whisper_batch', '--manifest-path', join(TS_ROOT, 'src-tauri/Cargo.toml')];
+            const cargo = spawn('taskpolicy', [...throttle, ...args], { stdio: ['ignore', 'ignore', 'inherit'] });
+            cargo.on('error', fail);
+            cargo.on('close', (code) => (code === 0 ? ok() : fail(new Error(`cargo build exited ${code}`))));
+        });
+        const p = spawn('taskpolicy', [...throttle, WHISPER_BIN, '--model', path, '--lang', LANGUAGE]);
+        p.stderr.on('data', (d: Buffer) => (stderr = (stderr + d.toString()).slice(-2000)));
+        replies = createInterface({ input: p.stdout })[Symbol.asyncIterator]();
+        localClosers.push(() => p.stdin.end());
+        proc = p;
+    };
+    return {
+        id: `local:${file.replace(/^ggml-|\.bin$/g, '')}`,
+        price: () => 0,
+        priceNote: `${file}, on this machine`,
+        async transcribe(clip, prompt) {
+            if (!proc) await start();
+            await new Promise((r) => setTimeout(r, rest));
+            const wav = join(localScratchDir(), `${n++}.wav`);
+            writeFileSync(wav, clip.wav);
+            try {
+                proc!.stdin.write(`${JSON.stringify({ file: wav, prompt: prompt ?? null })}\n`);
+                const reply = await replies!.next();
+                if (reply.done) throw new Error(`whisper_batch exited: ${stderr.trim().slice(-300)}`);
+                const row = JSON.parse(reply.value) as { text?: string; ms?: number; error?: string };
+                if (row.error !== undefined) throw new Error(row.error);
+                rest = (row.ms ?? 0) * LOCAL_REST_RATIO;
+                return { text: row.text ?? '', ...(row.ms !== undefined ? { ms: row.ms } : {}) };
+            } finally {
+                rmSync(wav, { force: true });
+            }
+        },
+    };
+}
+
 function modelFor(id: string): Model {
+    if (id === 'local' || id.startsWith('local:')) {
+        const size = id.slice(6).replace(/\.en$/, '');
+        if (size && !LOCAL_SIZES.includes(size)) throw new Error(`Unknown Whisper size "${size}". Use ${LOCAL_SIZES.join(', ')}.`);
+        return localWhisper(size || undefined);
+    }
     if (id === 'openai') {
         return whisperCompatible('openai', 'OPENAI_API_KEY', (s) => sttBilledSeconds(s, 'gpt-transcribe') * sttUsdPerSecond('gpt-transcribe'));
     }
@@ -218,7 +332,7 @@ function modelFor(id: string): Model {
     if (id === 'azure') return azure();
     if (id === 'azure:clean') return azure('clean');
     if (id.startsWith('or:') && id.length > 3) return openRouter(id.slice(3));
-    throw new Error(`Unknown model "${id}". Use openai, groq, azure, azure:clean, or or:<openrouter-model-id>.`);
+    throw new Error(`Unknown model "${id}". Use openai, groq, azure, azure:clean, or:<openrouter-model-id>, or local[:<size>].`);
 }
 
 // --- corpus ---------------------------------------------------------------
@@ -406,7 +520,7 @@ async function transcribeTimed(model: Model, clip: Clip, prompt?: string): Promi
             t0 = performance.now();
             try {
                 const heard = await model.transcribe(clip, prompt);
-                return { ...heard, ms: Math.round(performance.now() - t0) };
+                return { ...heard, ms: heard.ms ?? Math.round(performance.now() - t0) };
             } catch (err) {
                 if (attempt >= 3 || !/ 429[: ]/.test(String(err))) throw err;
                 await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
@@ -421,7 +535,7 @@ async function run(dir: string, model: Model, jobs: Job[]): Promise<void> {
     const cache = readCache(dir, model.id);
     const todo = jobs.filter((j) => !usable(cache[j.key]));
     if (todo.length === 0) return;
-    if (!env(model.needs)) {
+    if (model.needs && !env(model.needs)) {
         console.log(`${model.id}: skipped, ${model.needs} is not set`);
         return;
     }
@@ -873,7 +987,9 @@ interface Column {
     pass?: (c: Clip) => ArmPass | undefined;
 }
 
-function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cache, show: boolean): void {
+/** `local`: the reference is that model's own whole passes, run beside the
+ *  pieces, and nothing is billed. */
+function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cache, show: boolean, local?: string): void {
     const turns = byTurn(spoken);
     const multi = turns.filter((t) => t.length > 1);
     const lasts = multi.map(lastOf);
@@ -890,7 +1006,7 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
 
     console.log(
         `\nIncremental passes: ${turns.length} spoken turns, ${multi.length} multi-pass, ${spoken.length} passes ` +
-            `(${pauses.length} pauses, ${endings.length} endings). Reference: the openai cache, every pass sent whole.`
+            `(${pauses.length} pauses, ${endings.length} endings). Reference: ${local ? `${local}'s own whole passes` : 'the openai cache, every pass sent whole'}.`
     );
     for (const arm of arms) {
         const broken = arm.turns.filter((t) => t.some((p) => p.text === undefined)).length;
@@ -948,8 +1064,33 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
         return have.length ? `${have.filter((c) => endsTerminated(col.text(c)!)).length}/${have.length}` : '-';
     };
     const fullCol: Column = { id: 'full', text: fullText };
+    // Joins where joinTranscripts dropped a clip's period before a capital
+    // (the clip closed on a word no sentence ends on), read in the turn's
+    // full-pass final at the same two words: there the second in lowercase
+    // with no sentence end between (same), or not (a real sentence end, or a
+    // capital such as a name), or the two words not side by side (unaligned).
+    const finalOf = new Map(lasts.map((c) => [c.turn, c]));
+    const bare = (w: string): string => w.toLowerCase().replace(/[^\p{L}\p{N}'’]/gu, '');
+    const reopened = (arm: Arm): string[] => {
+        const n = { same: 0, closed: 0, unaligned: 0 };
+        for (const s of arm.sent) {
+            const last = finalOf.get(s.pass.turn);
+            // The joined text no longer ends with the reply: its capital went.
+            if (!s.before || !s.added || !s.joined || s.joined.endsWith(s.added) || !last) continue;
+            const [a, b] = [bare(s.before.split(/\s+/).pop()!), bare(s.added.split(/\s+/)[0]!)];
+            const ref = fullText(last).split(/\s+/).filter(Boolean);
+            const spots = ref.slice(1).flatMap((w, i) => (bare(ref[i]!) === a && bare(w) === b ? [[ref[i]!, w]] : []));
+            if (!spots.length) n.unaligned++;
+            else if (spots.some(([x, y]) => !endsTerminated(x!) && !/^\p{Lu}/u.test(y!))) n.same++;
+            else n.closed++;
+        }
+        return [String(n.same + n.closed + n.unaligned), String(n.same), String(n.closed), String(n.unaligned)];
+    };
     console.log('\nPunctuation shape');
-    const shape = [['text', 'byte-identical finals', 'sentence ends in finals', 'pauses ending .!?', 'later pauses ending .!?']];
+    const shape = [[
+        'text', 'byte-identical finals', 'sentence ends in finals', 'pauses ending .!?', 'later pauses ending .!?',
+        'joins reopened', 'full: same', 'full: closed', 'unaligned',
+    ]];
     for (const col of [fullCol, ...cols]) {
         const have = lasts.filter((c) => col.text(c) !== undefined);
         shape.push([
@@ -958,6 +1099,7 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
             `${total(have, (c) => sentenceEnds(col.text(c)!))} in ${have.length}`,
             col === rerunCol ? '-' : terminated(pauses, col),
             terminated(later, col),
+            ...(col.arm ? reopened(col.arm) : ['-', '-', '-', '-']),
         ]);
     }
     table(shape);
@@ -1002,8 +1144,8 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
     table(art);
 
     const fullBilled = total(spoken, (c) => billedSeconds(c.seconds));
-    console.log(`\nBilled seconds (ceil per request): full passes ${fullBilled} s over ${spoken.length} passes`);
-    for (const arm of arms) {
+    if (!local) console.log(`\nBilled seconds (ceil per request): full passes ${fullBilled} s over ${spoken.length} passes`);
+    for (const arm of local ? [] : arms) {
         const reported = arm.sent.filter((s) => s.outcome?.billedSeconds !== undefined);
         console.log(
             `  ${arm.id}: ${arm.billed} s, saving ${fullBilled - arm.billed} s (${pct((fullBilled - arm.billed) / fullBilled)}). ` +
@@ -1021,7 +1163,9 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
         };
         latency.push([label, String(cs.length), ...q((c) => full[c.name]!.ms), ...cols.flatMap((col) => q((c) => lastMs(col, c)))]);
     }
-    console.log('\nRequest ms on last passes (this machine; the full passes ran on an earlier day, the rest on one day)');
+    console.log(
+        `\nRequest ms on last passes (this machine; ${local ? 'whole passes and pieces in one run' : 'the full passes ran on an earlier day, the rest on one day'})`
+    );
     table(latency);
 
     if (!show) {
@@ -1067,7 +1211,8 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
 }
 
 async function incremental(dir: string, modelIds: string[], reportOnly: boolean, show: boolean, maxUsd: number): Promise<void> {
-    if (modelIds.join(',') !== 'openai') throw new Error('--set incremental sends to gpt-transcribe only: drop --models.');
+    if (modelIds.length === 1 && /^local(?::|$)/.test(modelIds[0]!)) return incrementalLocal(dir, modelFor(modelIds[0]!), reportOnly, show);
+    if (modelIds.join(',') !== 'openai') throw new Error('--set incremental sends to gpt-transcribe only (or runs on local): drop --models.');
     const capture = loadCapture(dir);
     const spoken = capture.filter((c) => !isNonSpeechOnly(c.captured));
     const full = readCache(dir, 'openai');
@@ -1133,6 +1278,30 @@ async function incremental(dir: string, modelIds: string[], reportOnly: boolean,
     reportIncremental(spoken, arms, full, readCache(dir, RERUN_ID), show);
 }
 
+/** `--set incremental --models local`: the seam arm on the desktop's own
+ *  whisper.cpp, scored against its own whole passes (transcribed first, cached
+ *  under the model's id). No rerun: greedy whisper.cpp on the CPU gives the
+ *  same audio and prompt the same bytes every time, so the floor is 0. */
+async function incrementalLocal(dir: string, model: Model, reportOnly: boolean, show: boolean): Promise<void> {
+    const capture = loadCapture(dir);
+    const spoken = capture.filter((c) => !isNonSpeechOnly(c.captured));
+    if (!reportOnly) await run(dir, model, spoken.map((clip) => ({ key: clip.name, clip })));
+    const full = readCache(dir, model.id);
+    const missing = spoken.filter((c) => !usable(full[c.name]));
+    if (missing.length) throw new Error(`${missing.length} spoken passes have no whole-pass result in the ${model.id} cache.`);
+    const seamId = `${model.id}-seam`;
+    const cache = readCache(dir, seamId);
+    const send: Send = async (s, pcm) => {
+        const out = await transcribeTimed(model, { ...s.pass, pcm, wav: wavOf(pcm), seconds: s.seconds }, s.prompt);
+        cache[s.key] = { ...out, ...(s.prompt !== undefined ? { prompt: s.prompt } : {}), seconds: s.seconds };
+        writeFileSync(cachePath(dir, seamId), JSON.stringify(cache, null, 1));
+        if (out.error) console.log(`${seamId}: ${out.error}`);
+    };
+    const arm = await seamArm(capture, full, cache, reportOnly ? undefined : send);
+    console.log(`\n${model.id} (${model.priceNote}). No rerun: the floor is 0.`);
+    reportIncremental(spoken, [arm], full, {}, show, model.id);
+}
+
 // --- cli ------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -1181,7 +1350,9 @@ async function main(): Promise<void> {
     report(dir, models, capture, battery, refId, show);
 }
 
-main().catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
-    process.exit(1);
-});
+main()
+    .finally(() => localClosers.forEach((close) => close()))
+    .catch((err) => {
+        console.error(err instanceof Error ? err.message : err);
+        process.exit(1);
+    });

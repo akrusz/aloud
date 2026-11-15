@@ -103,7 +103,7 @@ describe('each hosted choice asks for its own model', () => {
     });
 });
 
-describe('incremental passes: wherever the model takes a prompt', () => {
+describe('incremental passes: the hosted models that take a prompt', () => {
     async function incrementalFor(choice: SttEngineChoice, opts: Parameters<typeof createSttForChoice>[1]) {
         const engine = await createSttForChoice(choice, opts);
         expect(engine).toBeInstanceOf(WhisperPcmSttEngine);
@@ -111,7 +111,7 @@ describe('incremental passes: wherever the model takes a prompt', () => {
     }
 
     it.each([
-        ['whisper', true],
+        ['whisper', false],
         ['aloud-gpt-transcribe', true],
         ['aloud-parakeet', false],
         ['aloud-grok', false],

@@ -139,12 +139,21 @@ const HOSTED_STT: Record<
 /**
  * Whether a PCM engine transcribes incrementally (WhisperPcmSttEngineOptions
  * .incremental: each pass sends only the audio since the last, with the text
- * so far as the model's prompt). On where the model takes a prompt: local
- * whisper.cpp, and the hosted models marked `takesPrompt` (the server's
- * default model among them). Off for the OpenRouter ones, which take none and
- * cost little a second. Off for setup listening too: its clips are short,
- * free, and already prompted with the setup vocabulary. The soak harness can
- * force full passes (isSttFullPassesDebug).
+ * so far as the model's prompt). On for the hosted models marked
+ * `takesPrompt` (the server's default model among them). Off for the
+ * OpenRouter ones, which take none and cost little a second. Off for setup
+ * listening too: its clips are short, free, and already prompted with the
+ * setup vocabulary. The soak harness can force full passes
+ * (isSttFullPassesDebug).
+ *
+ * Local Whisper takes a prompt and stays on full passes all the same
+ * (localWhisperStt). Replayed on a real session, base.en lost 4.5% of a
+ * turn's words to the pieces (nothing run to run), closed every piece with a
+ * period so six mid-thought pauses stopped holding the turn, and wrote
+ * "Thank you." or "Bye." on three of four near-silent tail pieces
+ * (meditation-pal-12q9; `npm run stt:replay -- <capture> --set incremental
+ * --models local`). Nothing is billed there and a piece under 30 s decodes no
+ * faster than a whole pass, so there was little to win.
  */
 function incrementalFor(vadOpts: VadOpts, takesPrompt: boolean): boolean {
     return takesPrompt && !vadOpts.setupListening && !isSttFullPassesDebug();
@@ -232,7 +241,6 @@ function localWhisperStt(vadOpts: VadOpts): SttEngine {
     return new WhisperPcmSttEngine({
         ...rest,
         ...(setupListening ? { initialPrompt: setupVocabulary(rest.language ?? 'en').prompt } : {}),
-        incremental: incrementalFor(vadOpts, true),
         endpointUrl: appUrl(SERVER_WHISPER_PATH),
     });
 }

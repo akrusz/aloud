@@ -2,21 +2,43 @@
 //!
 //! Mirrors `transcribe` in src/server.rs (the `/app/v1/stt/whisper` route), so
 //! a script can measure what the app would hear without running the app. Keep
-//! the two in step: a FullParams change there belongs here too.
+//! the two in step: a FullParams change there belongs here too, and so do the
+//! prompt cleanup (stt_prompt) and the short-clip guard (MIN_WHISPER_SAMPLES).
 //!
 //!   cargo run --example whisper_batch -- --model <ggml-*.bin> [--lang en] [--prompt "<text>"] < wav-paths
 //!
 //! Reads 16 kHz mono 16-bit WAV paths from stdin, one per line, and prints one
-//! JSON line per file: {"file", "text", "ms"} or {"file", "error"}. The model
-//! loads once per process.
+//! JSON line per file: {"file", "text", "ms"} or {"file", "error"}. A line that
+//! is a JSON object, {"file": "<wav>", "prompt": "<text>"}, gives that file its
+//! own prompt in place of --prompt (null or "" for none), as an incremental
+//! piece goes with the turn's text so far. The model loads once per process,
+//! and each line is answered before the next is read, so a caller can chain.
 
 use std::io::{BufRead, Write};
 use std::time::Instant;
 
-use serde_json::json;
+use serde_json::{json, Value};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 const TARGET_SAMPLE_RATE: u32 = 16_000;
+/// MIN_WHISPER_SAMPLES in src/server.rs: under 100 ms the route answers "".
+const MIN_WHISPER_SAMPLES: usize = TARGET_SAMPLE_RATE as usize / 10;
+/// MAX_STT_PROMPT_CHARS in src/server.rs.
+const MAX_STT_PROMPT_CHARS: usize = 500;
+
+/// stt_prompt in src/server.rs: control characters become spaces, and past
+/// MAX_STT_PROMPT_CHARS only the tail is kept. None when nothing is left.
+fn stt_prompt(raw: Option<&str>) -> Option<String> {
+    let cleaned: String = raw?
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    let cleaned = cleaned.trim();
+    let skip = cleaned.chars().count().saturating_sub(MAX_STT_PROMPT_CHARS);
+    let kept: String = cleaned.chars().skip(skip).collect();
+    let kept = kept.trim_start();
+    (!kept.is_empty()).then(|| kept.to_string())
+}
 
 fn read_wav(path: &str) -> Result<Vec<f32>, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
@@ -58,6 +80,9 @@ fn read_wav(path: &str) -> Result<Vec<f32>, String> {
 }
 
 fn transcribe(ctx: &WhisperContext, samples: &[f32], lang: &str, prompt: Option<&str>) -> Result<String, String> {
+    if samples.len() < MIN_WHISPER_SAMPLES {
+        return Ok(String::new());
+    }
     let mut wstate = ctx.create_state().map_err(|e| e.to_string())?;
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some(lang));
@@ -75,7 +100,8 @@ fn transcribe(ctx: &WhisperContext, samples: &[f32], lang: &str, prompt: Option<
             text.push_str(segment.to_str_lossy().map_err(|e| e.to_string())?.as_ref());
         }
     }
-    Ok(text.trim().trim_end_matches('\u{FFFD}').to_string())
+    text.truncate(text.trim_end_matches('\u{FFFD}').len());
+    Ok(text.trim().to_string())
 }
 
 fn main() {
@@ -87,7 +113,7 @@ fn main() {
         match arg.as_str() {
             "--model" => model = args.next(),
             "--lang" => lang = args.next().expect("--lang needs a value"),
-            "--prompt" => prompt = args.next().filter(|p| !p.is_empty()),
+            "--prompt" => prompt = stt_prompt(args.next().as_deref()),
             other => {
                 eprintln!("unknown argument {other}");
                 std::process::exit(2);
@@ -109,16 +135,30 @@ fn main() {
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
     for line in stdin.lock().lines() {
-        let file = match line {
+        let line = match line {
             Ok(l) if !l.trim().is_empty() => l.trim().to_string(),
             Ok(_) => continue,
             Err(_) => break,
         };
-        let started = Instant::now();
-        let result = read_wav(&file).and_then(|samples| transcribe(&ctx, &samples, &lang, prompt.as_deref()));
-        let row = match result {
-            Ok(text) => json!({ "file": file, "text": text, "ms": started.elapsed().as_millis() as u64 }),
-            Err(error) => json!({ "file": file, "error": error }),
+        // (file, Some(its own prompt)) for a JSON line, (path, None) for a plain one.
+        let job: Result<(String, Option<Option<String>>), String> = if line.starts_with('{') {
+            serde_json::from_str::<Value>(&line).map_err(|e| e.to_string()).and_then(|v| {
+                let file = v.get("file").and_then(Value::as_str).ok_or("no \"file\" in the line")?;
+                Ok((file.to_string(), v.get("prompt").map(|p| stt_prompt(p.as_str()))))
+            })
+        } else {
+            Ok((line.clone(), None))
+        };
+        let row = match job {
+            Err(error) => json!({ "file": line, "error": error }),
+            Ok((file, own_prompt)) => {
+                let prompt = own_prompt.unwrap_or_else(|| prompt.clone());
+                let started = Instant::now();
+                match read_wav(&file).and_then(|samples| transcribe(&ctx, &samples, &lang, prompt.as_deref())) {
+                    Ok(text) => json!({ "file": file, "text": text, "ms": started.elapsed().as_millis() as u64 }),
+                    Err(error) => json!({ "file": file, "error": error }),
+                }
+            }
         };
         let _ = writeln!(out, "{row}");
         let _ = out.flush();
