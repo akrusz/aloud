@@ -44,11 +44,11 @@ describe('buildScoredVoiceList with hosted voices', () => {
         vi.stubGlobal('navigator', { language: 'en-US' });
         // No speechSynthesis in this env → browser voices empty; no server voices.
         const scored = buildScoredVoiceList(null, false, [
-            { name: 'Pulcherrima', gender: 'androgynous' },
+            { name: 'Phoenix', gender: 'androgynous' },
             { name: 'Leda', gender: 'female' },
         ]);
         expect(scored).toHaveLength(2);
-        const pul = scored.find((v) => v.name === 'Pulcherrima')!;
+        const pul = scored.find((v) => v.name === 'Phoenix')!;
         expect(pul.engine).toBe('aloud');
         expect(pul.recommended).toBe(true);
         expect(pul.score).toBe(3);

@@ -25,7 +25,7 @@ export type TtsProvider = 'google' | 'azure' | 'inworld';
 export type VoiceTier = 'premium' | 'value';
 
 export interface CuratedVoice {
-    /** Short display name shown + stored by the client (e.g. "Pulcherrima"). */
+    /** Short display name shown + stored by the client (e.g. "Phoenix"). */
     name: string;
     provider: TtsProvider;
     /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), Azure ShortName
@@ -84,9 +84,12 @@ export interface CuratedVoice {
 
 export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Premium tier: Google Chirp3-HD (~$30/1M), most natural/expressive.
-    // Pulcherrima reads androgynous despite Google's "female" label.
-    { name: 'Pulcherrima', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium' },
-    { name: 'Sadachbia', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium' },
+    // Named for stars like the rest, but ones a recognizer can spell: the
+    // voice picks by spoken name, and "Pulcherrima" and "Sadachbia" (Google's
+    // names) seldom came back right (2026-11-15). Phoenix reads androgynous
+    // despite Google's "female" label.
+    { name: 'Phoenix', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium' },
+    { name: 'Orion', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium' },
     { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium' },
     // Value tier: Google Neural2 (~$16/1M, about half), still natural and calm.
     // Unauditioned picks, refine after listening (meditation-pal-b7i).
