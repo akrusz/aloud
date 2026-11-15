@@ -11,7 +11,20 @@
  *   npm run stt:replay -- <any-dir> --set noise --models ... (synthetic noise only: no capture needed, nobody's voice sent)
  *   npm run stt:replay -- <capture-dir> --set battery        (the full no-speech gate: noise + the capture's wordless clips)
  *   npm run stt:replay -- <capture-dir> --set passes         (every pass: the end-of-turn table)
+ *   npm run stt:replay -- <capture-dir> --set incremental    (each pass sends only its new audio: gpt-transcribe only)
  *   npm run stt:replay -- <capture-dir> --report --show      (no calls; print where models differ)
+ *
+ * `--set incremental` (meditation-pal-12q9) asks whether a pass can send only
+ * the audio since the pass before, prompted with the turn's text so far, and
+ * be stitched (joinTranscripts) without changing what the turn says or how
+ * the end-of-turn check reads it. It cuts the pieces from the capture's own
+ * passes, which share an exact sample prefix, two ways: "stitched" (pass 1
+ * whole, then from just before where each pass parts from the last) and
+ * "seam" (the engine's cut: each piece ends in the quietest 85 ms near the
+ * pass's end and the next starts there). Both score against the `openai`
+ * cache of whole passes: run `--set passes` first. Every non-first pass also
+ * goes again whole, once, as the noise floor (gpt-transcribe against itself).
+ * Refuses to send over $0.20 in a run, or --max-usd.
  *
  * Models: `openai` and `groq` go through the server's own forwarder
  * (transcribeWhisper), so the request is the production one. `azure` is
@@ -39,6 +52,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { transcriptLooksIncomplete } from '../src/facilitation/end-of-turn.js';
 import { isNonSpeechOnly } from '../src/platform/stt.js';
+import { joinTranscripts, priorPrompt } from '../src/platform/stt-stitch.js';
 import { resolveSttConfig } from '../server/src/config.js';
 import { sttBilledSeconds, sttUsdPerSecond } from '../server/src/pricing/providers.js';
 import { int16ToFloat32, transcribeWhisper } from '../server/src/providers/stt.js';
@@ -72,6 +86,9 @@ interface Outcome {
     /** Audio seconds the provider says it billed, where it says. */
     billedSeconds?: number;
     error?: string;
+    /** Incremental set: the prompt the piece went with, and its audio length. */
+    prompt?: string;
+    seconds?: number;
 }
 
 interface Heard {
@@ -84,7 +101,8 @@ interface Model {
     id: string;
     /** Env var that must be set for the model to run. */
     needs: string;
-    transcribe(clip: Clip): Promise<Heard>;
+    /** `prompt` reaches only the Whisper-compatible models. */
+    transcribe(clip: Clip, prompt?: string): Promise<Heard>;
     /** Dollars for one request of `seconds`, used when the call reports none. */
     price(seconds: number): number;
     /** Where `price` is a list rate we could not confirm against a bill. */
@@ -113,10 +131,10 @@ function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['p
         needs,
         price,
         ...(priceNote ? { priceNote } : {}),
-        async transcribe(clip) {
+        async transcribe(clip, prompt) {
             const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
             const withTimeout: typeof fetch = (input, init) => fetch(input, { ...init, signal });
-            const r = await transcribeWhisper(int16ToFloat32(clip.pcm), SAMPLE_RATE, backend(), { language: LANGUAGE }, withTimeout);
+            const r = await transcribeWhisper(int16ToFloat32(clip.pcm), SAMPLE_RATE, backend(), { language: LANGUAGE, prompt }, withTimeout);
             return { text: r.text, ...(r.reportedSeconds !== undefined ? { billedSeconds: r.reportedSeconds } : {}) };
         },
     };
@@ -341,9 +359,30 @@ interface Job {
     clip: Clip;
 }
 
+const usable = (o: Outcome | undefined): Outcome | undefined => (o && !o.error ? o : undefined);
+
+async function transcribeTimed(model: Model, clip: Clip, prompt?: string): Promise<Outcome> {
+    let t0 = performance.now();
+    try {
+        // A free tier's requests-per-minute cap (Groq: 20) is not a failure.
+        for (let attempt = 0; ; attempt++) {
+            t0 = performance.now();
+            try {
+                const heard = await model.transcribe(clip, prompt);
+                return { ...heard, ms: Math.round(performance.now() - t0) };
+            } catch (err) {
+                if (attempt >= 3 || !/ 429[: ]/.test(String(err))) throw err;
+                await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+            }
+        }
+    } catch (err) {
+        return { text: '', ms: Math.round(performance.now() - t0), error: String(err).slice(0, 300) };
+    }
+}
+
 async function run(dir: string, model: Model, jobs: Job[]): Promise<void> {
     const cache = readCache(dir, model.id);
-    const todo = jobs.filter((j) => !cache[j.key] || cache[j.key]!.error);
+    const todo = jobs.filter((j) => !usable(cache[j.key]));
     if (todo.length === 0) return;
     if (!env(model.needs)) {
         console.log(`${model.id}: skipped, ${model.needs} is not set`);
@@ -352,23 +391,9 @@ async function run(dir: string, model: Model, jobs: Job[]): Promise<void> {
     mkdirSync(join(dir, 'replay'), { recursive: true });
     let failed = 0;
     for (const [i, job] of todo.entries()) {
-        let t0 = performance.now();
-        try {
-            let heard: Heard | undefined;
-            // A free tier's requests-per-minute cap (Groq: 20) is not a failure.
-            for (let attempt = 0; heard === undefined; attempt++) {
-                t0 = performance.now();
-                try {
-                    heard = await model.transcribe(job.clip);
-                } catch (err) {
-                    if (attempt >= 3 || !/ 429[: ]/.test(String(err))) throw err;
-                    await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
-                }
-            }
-            cache[job.key] = { ...heard, ms: Math.round(performance.now() - t0) };
-        } catch (err) {
+        cache[job.key] = await transcribeTimed(model, job.clip);
+        if (cache[job.key]!.error) {
             failed++;
-            cache[job.key] = { text: '', ms: Math.round(performance.now() - t0), error: String(err).slice(0, 300) };
             if (failed === 1) console.log(`${model.id}: ${cache[job.key]!.error}`);
             // A model that fails its first three calls is misconfigured, not flaky.
             if (failed === 3 && i === 2) {
@@ -507,6 +532,565 @@ function report(
     }
 }
 
+// --- incremental (meditation-pal-12q9) -------------------------------------
+
+const INCREMENTAL_ID = 'openai-incremental';
+const SEAM_ID = 'openai-seam';
+const RERUN_ID = 'openai-rerun';
+/** The long slice: turns whose submitted audio runs past this. */
+const LONG_TURN_SECONDS = 28;
+/** The stitched arm's increment starts this far before the point where two
+ *  passes' audio parts, back inside the quiet they share. */
+const INCREMENT_BACKUP_SAMPLES = 0.2 * SAMPLE_RATE;
+/** The seam arm cuts at the quietest 85 ms window of the shared prefix's last
+ *  half second, and never leaves a piece under half a second. */
+const SEAM_WINDOW = 1365;
+const SEAM_SPAN = 0.5 * SAMPLE_RATE;
+/** Text this dense for its audio is an echo or an invention, not speech. */
+const DENSE_CHARS_PER_SECOND = 25;
+/** Upper edges (s) of the piece-length buckets the word errors are split by. */
+const PIECE_BUCKETS = [5, 10];
+
+/** A request an arm sends at a pass. */
+interface Sent {
+    key: string;
+    pass: Clip;
+    seconds: number;
+    prompt?: string;
+    outcome?: Outcome | undefined;
+    /** Speech replies only: the turn's text before, and what the reply added. */
+    before?: string;
+    added?: string;
+}
+
+interface Piece {
+    text: string;
+    seconds: number;
+}
+
+/** A spoken pass as an arm leaves it. */
+interface ArmPass {
+    clip: Clip;
+    /** What the end-of-turn check reads after this pass; undefined once a
+     *  missing reply breaks the turn's chain. */
+    text: string | undefined;
+    pieces: Piece[];
+}
+
+interface Arm {
+    id: string;
+    turns: ArmPass[][];
+    sent: Sent[];
+    /** Over every spoken pass, ceil per request. */
+    billed: number;
+    notes: string[];
+}
+
+type Send = (sent: Sent, pcm: Int16Array) => Promise<void>;
+
+const secondsOf = (pcm: Int16Array): number => pcm.length / SAMPLE_RATE;
+const total = <T>(xs: T[], f: (x: T) => number): number => xs.reduce((n, x) => n + f(x), 0);
+const sameWords = (a: string, b: string): boolean => normalizeForWer(a).join(' ') === normalizeForWer(b).join(' ');
+const billedSeconds = (seconds: number): number => sttBilledSeconds(seconds, 'gpt-transcribe');
+const samePrompt = (o: Outcome, prompt: string | undefined): boolean => (o.prompt ?? '') === (prompt ?? '');
+const sentenceEnds = (t: string): number => (t.match(/[.!?](?=\s|$)/gu) ?? []).length;
+const endsTerminated = (t: string): boolean => /[.!?]["')\]]*$/u.test(t.trim());
+const lastOf = <T>(xs: T[]): T => xs[xs.length - 1]!;
+
+function byTurn(clips: Clip[]): Clip[][] {
+    const turns = new Map<number, Clip[]>();
+    for (const c of clips) turns.set(c.turn, [...(turns.get(c.turn) ?? []), c]);
+    return [...turns.values()];
+}
+
+function sharedPrefix(a: Int16Array, b: Int16Array): number {
+    const n = Math.min(a.length, b.length);
+    let i = 0;
+    while (i < n && a[i] === b[i]) i++;
+    return i;
+}
+
+/** Leading words of `reply` that repeat the end of `before`, 3 or more, else
+ *  0. A prompt echo, or the speaker saying it twice: --show tells them apart. */
+function echoWords(before: string, reply: string): number {
+    const key = (t: string): string[] => normalizeForWer(t);
+    const a = key(before);
+    const b = key(reply);
+    for (let k = Math.min(a.length, b.length); k >= 3; k--) {
+        if (b.slice(0, k).every((w, i) => w === a[a.length - k + i])) return k;
+    }
+    return 0;
+}
+
+/** Looks the reply up, sending it when the cache lacks it or holds one made
+ *  with another prompt (the chain upstream changed). */
+async function settle(s: Sent, pcm: Int16Array, cache: Cache, send?: Send): Promise<void> {
+    const have = usable(cache[s.key]);
+    if (send && (!have || !samePrompt(have, s.prompt))) await send(s, pcm);
+    s.outcome = usable(cache[s.key]);
+}
+
+/** The turn's text with the reply joined on (unchanged for a wordless reply). */
+function fold(s: Sent, text: string, pieces: Piece[]): string {
+    if (isNonSpeechOnly(s.outcome!.text)) return text;
+    const joined = joinTranscripts(text, s.outcome!.text);
+    s.before = text;
+    s.added = joined.slice(text.length).trim();
+    pieces.push({ text: s.added, seconds: s.seconds });
+    return joined;
+}
+
+interface Step {
+    clip: Clip;
+    first: boolean;
+    /** Not a clean extension of the pass before: its full-pass text stands. */
+    fallback: boolean;
+    increment?: Int16Array;
+}
+
+/** The stitched arm: pass 1 whole (the cached full pass), then each pass's
+ *  audio from just before where it parts from the pass before. */
+function planIncremental(spoken: Clip[]): Step[][] {
+    return byTurn(spoken).map((clips) =>
+        clips.map((clip, k): Step => {
+            if (k === 0) return { clip, first: true, fallback: false };
+            const prev = clips[k - 1]!.pcm;
+            const shared = sharedPrefix(prev, clip.pcm);
+            const fallback = shared < SAMPLE_RATE || shared < prev.length / 2;
+            return {
+                clip,
+                first: false,
+                fallback,
+                ...(fallback ? {} : { increment: clip.pcm.subarray(Math.max(0, shared - INCREMENT_BACKUP_SAMPLES)) }),
+            };
+        })
+    );
+}
+
+async function stitchedArm(plan: Step[][], full: Cache, cache: Cache, send?: Send): Promise<Arm> {
+    const sent: Sent[] = [];
+    const turns: ArmPass[][] = [];
+    for (const steps of plan) {
+        let text: string | undefined;
+        let pieces: Piece[] = [];
+        const passes: ArmPass[] = [];
+        for (const step of steps) {
+            if (step.first || step.fallback) {
+                text = full[step.clip.name]!.text.trim();
+                pieces = [{ text, seconds: step.clip.seconds }];
+            } else if (text !== undefined) {
+                const s: Sent = { key: step.clip.name, pass: step.clip, seconds: secondsOf(step.increment!), prompt: priorPrompt(text) };
+                sent.push(s);
+                await settle(s, step.increment!, cache, send);
+                text = s.outcome ? fold(s, text, pieces) : undefined;
+            }
+            passes.push({ clip: step.clip, text, pieces: [...pieces] });
+        }
+        turns.push(passes);
+    }
+    const steps = plan.flat();
+    const fallbacks = steps.filter((s) => s.fallback);
+    return {
+        id: 'stitched',
+        turns,
+        sent,
+        billed: total(steps, (s) => billedSeconds(s.increment ? secondsOf(s.increment) : s.clip.seconds)),
+        notes: [
+            `pass 1 whole, then ${sent.length} increments; ${fallbacks.length} non-prefix fallbacks` +
+                (fallbacks.length ? ` (${fallbacks.map((s) => s.clip.name).join(', ')})` : ''),
+        ],
+    };
+}
+
+/** Where a pass's piece ends: the start of the quietest SEAM_WINDOW in the
+ *  last SEAM_SPAN of the audio it shares with the next pass, at window steps
+ *  back from where they part, and more than SEAM_SPAN past `cursor`. */
+function seamAt(pass: Int16Array, next: Int16Array, cursor: number): number | undefined {
+    const shared = sharedPrefix(pass, next);
+    let best: number | undefined;
+    let bestEnergy = Infinity;
+    for (let start = shared - SEAM_WINDOW; start >= shared - SEAM_SPAN && start > cursor + SEAM_SPAN; start -= SEAM_WINDOW) {
+        let energy = 0;
+        for (let i = start; i < start + SEAM_WINDOW; i++) energy += next[i]! * next[i]!;
+        if (energy < bestEnergy) {
+            bestEnergy = energy;
+            best = start;
+        }
+    }
+    return best;
+}
+
+/** The seam arm, the engine's own cut: each piece runs from the last seam to
+ *  this pass's, so no audio goes twice, except after a wordless reply, which
+ *  commits nothing (the next piece starts from the same seam). A turn's
+ *  wordless passes are in the chain, as the engine would send them. */
+async function seamArm(capture: Clip[], full: Cache, cache: Cache, send?: Send): Promise<Arm> {
+    const sent: Sent[] = [];
+    const turns: ArmPass[][] = [];
+    let billed = 0;
+    let unseamed = 0;
+    let resent = 0;
+    let wordless = 0;
+    for (const clips of byTurn(capture)) {
+        const spoken = clips.filter((c) => !isNonSpeechOnly(c.captured));
+        if (spoken.length === 0) continue;
+        if (clips.length === 1) {
+            const clip = clips[0]!;
+            const text = full[clip.name]!.text.trim();
+            turns.push([{ clip, text, pieces: [{ text, seconds: clip.seconds }] }]);
+            billed += billedSeconds(clip.seconds);
+            continue;
+        }
+        let cursor = 0;
+        let text: string | undefined = '';
+        const pieces: Piece[] = [];
+        const passes: ArmPass[] = [];
+        for (const [k, clip] of clips.entries()) {
+            const next = clips[k + 1];
+            const source = next ? next.pcm : clip.pcm;
+            const end = next ? seamAt(clip.pcm, next.pcm, cursor) : source.length;
+            if (end === undefined) unseamed++;
+            else if (text !== undefined) {
+                const pcm = source.subarray(cursor, end);
+                const s: Sent = { key: `${clip.name}@${cursor}-${end}`, pass: clip, seconds: secondsOf(pcm), ...(text ? { prompt: priorPrompt(text) } : {}) };
+                sent.push(s);
+                billed += billedSeconds(s.seconds);
+                await settle(s, pcm, cache, send);
+                if (!s.outcome) text = undefined;
+                else {
+                    text = fold(s, text, pieces);
+                    if (!isNonSpeechOnly(s.outcome.text)) cursor = end;
+                    else if (next) {
+                        resent += s.seconds;
+                        wordless++;
+                    }
+                }
+            }
+            if (!isNonSpeechOnly(clip.captured)) passes.push({ clip, text, pieces: [...pieces] });
+        }
+        turns.push(passes);
+    }
+    return {
+        id: 'seam',
+        turns,
+        sent,
+        billed,
+        notes: [
+            `${sent.length} pieces, ${unseamed} passes with no seam, ` +
+                `${resent.toFixed(1)} s re-sent after ${wordless} wordless pieces`,
+        ],
+    };
+}
+
+/** Word-level edits from `ref` to `hyp`, each with its index in `hyp`. */
+function wordEdits(ref: string, hyp: string): Array<{ op: string; at: number }> {
+    const a = normalizeForWer(ref);
+    const b = normalizeForWer(hyp);
+    const d = a.map(() => new Array<number>(b.length + 1).fill(0));
+    d.push(new Array<number>(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) d[i]![0] = i;
+    for (let j = 0; j <= b.length; j++) d[0]![j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+        }
+    }
+    const edits: Array<{ op: string; at: number }> = [];
+    let i = a.length;
+    let j = b.length;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && d[i]![j] === d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)) {
+            if (a[i - 1] !== b[j - 1]) edits.push({ op: `${a[i - 1]}>${b[j - 1]}`, at: j - 1 });
+            i--;
+            j--;
+        } else if (i > 0 && d[i]![j] === d[i - 1]![j]! + 1) {
+            // A deletion sits between hyp words; it counts against the one before.
+            edits.push({ op: `-${a[i - 1]}`, at: Math.max(0, j - 1) });
+            i--;
+        } else {
+            edits.push({ op: `+${b[j - 1]}`, at: j - 1 });
+            j--;
+        }
+    }
+    return edits.reverse();
+}
+
+/** Index of the hyp word each piece starts at. */
+const pieceStarts = (pieces: Piece[]): number[] => {
+    const starts: number[] = [];
+    let n = 0;
+    for (const p of pieces) {
+        starts.push(n);
+        n += normalizeForWer(p.text).length;
+    }
+    return starts;
+};
+
+interface Column {
+    id: string;
+    text: (c: Clip) => string | undefined;
+    arm?: Arm;
+    pass?: (c: Clip) => ArmPass | undefined;
+}
+
+function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cache, show: boolean): void {
+    const turns = byTurn(spoken);
+    const multi = turns.filter((t) => t.length > 1);
+    const lasts = multi.map(lastOf);
+    const endings = turns.map(lastOf);
+    const pauses = turns.flatMap((t) => t.slice(0, -1));
+    const later = turns.flatMap((t) => t.slice(1, -1));
+    const fullText = (c: Clip): string => full[c.name]!.text;
+    const armCols: Column[] = arms.map((arm) => {
+        const by = new Map(arm.turns.flat().map((p) => [p.clip.name, p]));
+        return { id: arm.id, arm, pass: (c: Clip) => by.get(c.name), text: (c: Clip) => by.get(c.name)?.text };
+    });
+    const rerunCol: Column = { id: 'rerun', text: (c) => usable(rerun[c.name])?.text };
+    const cols = [...armCols, rerunCol];
+
+    console.log(
+        `\nIncremental passes: ${turns.length} spoken turns, ${multi.length} multi-pass, ${spoken.length} passes ` +
+            `(${pauses.length} pauses, ${endings.length} endings). Reference: the openai cache, every pass sent whole.`
+    );
+    for (const arm of arms) {
+        const broken = arm.turns.filter((t) => t.some((p) => p.text === undefined)).length;
+        const stale = arm.sent.filter((s) => s.outcome && !samePrompt(s.outcome, s.prompt)).length;
+        console.log(
+            `  ${arm.id}: ${arm.notes.join('; ')}` +
+                (broken ? `; ${broken} turns lack a reply and are left out` : '') +
+                (stale ? `; ${stale} cached replies went with another prompt than this chain builds` : '')
+        );
+    }
+    console.log(`  rerun: ${[...later, ...lasts].filter((c) => rerunCol.text(c) !== undefined).length} non-first passes sent whole again`);
+
+    const isLong = (c: Clip): boolean => c.seconds > LONG_TURN_SECONDS;
+    const long = lasts.filter(isLong);
+    const short = lasts.filter((c) => !isLong(c));
+    // Pooled, as in the main report.
+    const scored = (cs: Clip[], col: Column): [string, string] => {
+        const have = cs.filter((c) => col.text(c) !== undefined);
+        const words = total(have, (c) => normalizeForWer(fullText(c)).length);
+        const errs = total(have, (c) => wordErrorRate(fullText(c), col.text(c)!) * normalizeForWer(fullText(c)).length);
+        return [words ? pct(errs / words) : '-', `${have.filter((c) => sameWords(fullText(c), col.text(c)!)).length}/${have.length}`];
+    };
+    console.log(`\nFinals of the ${lasts.length} multi-pass turns against the full-pass text (pooled WER, same words)`);
+    const finals = [['arm', 'WER', 'same', `WER >${LONG_TURN_SECONDS}s (n=${long.length})`, 'same', `WER <=${LONG_TURN_SECONDS}s (n=${short.length})`, 'same']];
+    for (const col of cols) finals.push([col.id === 'rerun' ? 'rerun whole (noise floor)' : col.id, ...scored(lasts, col), ...scored(long, col), ...scored(short, col)]);
+    table(finals);
+
+    const held = (t: string): boolean => transcriptLooksIncomplete(t);
+    const eotRow = (label: string, cs: Clip[], col: Column): string[] => {
+        const have = cs.filter((c) => col.text(c) !== undefined);
+        const n = (f: (c: Clip) => boolean): string => String(have.filter(f).length);
+        return [
+            label,
+            col.id,
+            String(have.length),
+            n((c) => held(fullText(c))),
+            n((c) => held(col.text(c)!)),
+            n((c) => held(fullText(c)) && !held(col.text(c)!)),
+            n((c) => !held(fullText(c)) && held(col.text(c)!)),
+        ];
+    };
+    const eot = [['passes', 'arm', 'n', 'held: full', 'held: arm', 'full only', 'arm only']];
+    const sets: Array<[string, Clip[], Column[]]> = [
+        ['pauses (should hold)', pauses, armCols],
+        ['  not a first pass', later, cols],
+        ['endings (should not)', endings, armCols],
+        ['  of multi-pass turns', lasts, cols],
+    ];
+    for (const [label, cs, which] of sets) which.forEach((col, i) => eot.push(eotRow(i === 0 ? label : '', cs, col)));
+    console.log('\nEnd-of-turn check on the text each arm has at the pass (seam: through the seam, before the pass\'s end)');
+    table(eot);
+
+    const terminated = (cs: Clip[], col: Column): string => {
+        const have = cs.filter((c) => col.text(c) !== undefined);
+        return have.length ? `${have.filter((c) => endsTerminated(col.text(c)!)).length}/${have.length}` : '-';
+    };
+    const fullCol: Column = { id: 'full', text: fullText };
+    console.log('\nPunctuation shape');
+    const shape = [['text', 'byte-identical finals', 'sentence ends in finals', 'pauses ending .!?', 'later pauses ending .!?']];
+    for (const col of [fullCol, ...cols]) {
+        const have = lasts.filter((c) => col.text(c) !== undefined);
+        shape.push([
+            col.id,
+            col === fullCol ? 'ref' : `${have.filter((c) => col.text(c)!.trim() === fullText(c).trim()).length}/${have.length}`,
+            `${total(have, (c) => sentenceEnds(col.text(c)!))} in ${have.length}`,
+            col === rerunCol ? '-' : terminated(pauses, col),
+            terminated(later, col),
+        ]);
+    }
+    table(shape);
+
+    const buckets = [...PIECE_BUCKETS.map((s, i) => (i === 0 ? `<${s}s` : `${PIECE_BUCKETS[i - 1]}-${s}s`)), `>${lastOf(PIECE_BUCKETS)}s`];
+    const bucketOf = (seconds: number): number => {
+        const i = PIECE_BUCKETS.findIndex((s) => seconds < s);
+        return i < 0 ? PIECE_BUCKETS.length : i;
+    };
+    console.log('\nWhere the final\'s word edits fall, by the length of the piece they land in (edits / words in those pieces)');
+    const split = [['arm', ...buckets]];
+    for (const col of armCols) {
+        const words = buckets.map(() => 0);
+        const errs = buckets.map(() => 0);
+        for (const c of lasts) {
+            const p = col.pass!(c);
+            if (p?.text === undefined || p.pieces.length === 0) continue;
+            const starts = pieceStarts(p.pieces);
+            p.pieces.forEach((piece) => (words[bucketOf(piece.seconds)]! += normalizeForWer(piece.text).length));
+            for (const e of wordEdits(fullText(c), p.text)) {
+                let i = starts.length - 1;
+                while (i > 0 && starts[i]! > e.at) i--;
+                errs[bucketOf(p.pieces[i]!.seconds)]!++;
+            }
+        }
+        split.push([col.id, ...buckets.map((_, i) => `${errs[i]}/${words[i]}${words[i] ? ` (${pct(errs[i]! / words[i]!)})` : ''}`)]);
+    }
+    table(split);
+
+    console.log('\nArtifacts in the replies');
+    const art = [['', ...arms.map((a) => a.id)]];
+    const per = (f: (a: Arm, answered: Sent[]) => string): string[] => arms.map((a) => f(a, a.sent.filter((s) => s.outcome)));
+    const density = (s: Sent): number => s.outcome!.text.length / s.seconds;
+    const periodJoin = (s: Sent): boolean => !!s.before && /(?:^|[^.])\.$/u.test(s.before) && /^\p{Ll}/u.test(s.added ?? '');
+    art.push(['replies', ...per((_, ok) => String(ok.length))]);
+    art.push(['empty or non-speech', ...per((_, ok) => String(ok.filter((s) => isNonSpeechOnly(s.outcome!.text)).length))]);
+    art.push(['opens repeating 3+ words of the text before', ...per((_, ok) => String(ok.filter((s) => s.before && echoWords(s.before, s.added!)).length))]);
+    art.push([`over ${DENSE_CHARS_PER_SECOND} chars/s of audio`, ...per((_, ok) => String(ok.filter((s) => density(s) > DENSE_CHARS_PER_SECOND).length))]);
+    art.push(['". " then lowercase at a join', ...per((_, ok) => String(ok.filter(periodJoin).length))]);
+    table(art);
+
+    const fullBilled = total(spoken, (c) => billedSeconds(c.seconds));
+    console.log(`\nBilled seconds (ceil per request): full passes ${fullBilled} s over ${spoken.length} passes`);
+    for (const arm of arms) {
+        const reported = arm.sent.filter((s) => s.outcome?.billedSeconds !== undefined);
+        console.log(
+            `  ${arm.id}: ${arm.billed} s, saving ${fullBilled - arm.billed} s (${pct((fullBilled - arm.billed) / fullBilled)}). ` +
+                `OpenAI reported ${total(reported, (s) => s.outcome!.billedSeconds!)} s for ${reported.length} replies we ceil to ${total(reported, (s) => billedSeconds(s.seconds))} s.`
+        );
+    }
+
+    const latency = [['last passes', 'n', 'full p50', 'full p90', ...cols.flatMap((c) => [`${c.id} p50`, `${c.id} p90`])]];
+    const lastMs = (col: Column, c: Clip): number | undefined =>
+        col.arm ? usable(col.arm.sent.filter((s) => s.pass === c).pop()?.outcome)?.ms : usable(rerun[c.name])?.ms;
+    for (const [label, cs] of [['all', lasts], [`>${LONG_TURN_SECONDS}s`, long]] as const) {
+        const q = (f: (c: Clip) => number | undefined): string[] => {
+            const ms = cs.map(f).filter((x): x is number => x !== undefined);
+            return [0.5, 0.9].map((p) => (ms.length ? String(Math.round(quantile(ms, p))) : '-'));
+        };
+        latency.push([label, String(cs.length), ...q((c) => full[c.name]!.ms), ...cols.flatMap((col) => q((c) => lastMs(col, c)))]);
+    }
+    console.log('\nRequest ms on last passes (this machine; the full passes ran on an earlier day, the rest on one day)');
+    table(latency);
+
+    if (!show) {
+        console.log('\n(--show prints the finals that differ and the artifacts. It prints the meditator\'s words.)');
+        return;
+    }
+    const words = (t: string): string[] => t.split(/\s+/).filter(Boolean);
+    const tail = (t: string): string => words(t).slice(-6).join(' ');
+    for (const col of armCols) {
+        console.log(`\n[${col.id}] finals that depart from the full pass (" | " marks a join; * an edit within two words of one):`);
+        for (const c of lasts) {
+            const p = col.pass!(c);
+            if (p?.text === undefined || wordErrorRate(fullText(c), p.text) === 0) continue;
+            const joins = pieceStarts(p.pieces).slice(1);
+            const edits = wordEdits(fullText(c), p.text).map((e) => `${joins.some((j) => Math.abs(e.at - j) <= 2) ? '*' : ''}${e.op}`);
+            console.log(`\n  ${c.name} (${c.seconds.toFixed(1)} s, pieces ${p.pieces.map((x) => x.seconds.toFixed(1)).join('/')} s)`);
+            console.log(`    ${pad('full', 10)} ${fullText(c)}`);
+            console.log(`    ${pad(col.id, 10)} ${p.pieces.map((x) => x.text).join(' | ')}  [${pct(wordErrorRate(fullText(c), p.text))}]`);
+            const r = rerunCol.text(c);
+            if (r !== undefined) console.log(`    ${pad('rerun', 10)} ${r}  [${pct(wordErrorRate(fullText(c), r))}]`);
+            console.log(`    ${pad('edits', 10)} ${edits.join('  ')}`);
+        }
+        console.log(`\n[${col.id}] end-of-turn disagreements with the full pass:`);
+        for (const c of [...pauses, ...endings]) {
+            const t = col.text(c);
+            if (t === undefined || held(t) === held(fullText(c))) continue;
+            console.log(`  ${c.name} ${endings.includes(c) ? 'ending' : 'pause'}: ${held(fullText(c)) ? 'full' : col.id} holds. full "...${tail(fullText(c))}"  ${col.id} "...${tail(t)}"`);
+        }
+        for (const s of col.arm!.sent.filter((x) => x.outcome)) {
+            const what = s.outcome!.text;
+            if (isNonSpeechOnly(what)) console.log(`  empty: ${s.key} (${s.seconds.toFixed(1)} s) "${what}"`);
+            else if (s.before && echoWords(s.before, s.added!)) console.log(`  repeat: ${s.key} ${echoWords(s.before, s.added!)} words: "...${tail(s.before)}" | "${words(s.added!).slice(0, 8).join(' ')}"`);
+            if (density(s) > DENSE_CHARS_PER_SECOND) console.log(`  dense: ${s.key} ${density(s).toFixed(0)} chars/s on ${s.seconds.toFixed(1)} s: "${what.slice(0, 80)}"`);
+            if (periodJoin(s)) console.log(`  period join: ${s.key} ...${words(s.before!).slice(-5).join(' ')} | ${words(s.added!).slice(0, 6).join(' ')}...`);
+        }
+    }
+    console.log('\n[rerun] end-of-turn disagreements with the full pass:');
+    for (const c of [...later, ...lasts]) {
+        const t = rerunCol.text(c);
+        if (t === undefined || held(t) === held(fullText(c))) continue;
+        console.log(`  ${c.name}: ${held(fullText(c)) ? 'full' : 'rerun'} holds. full "...${tail(fullText(c))}"  rerun "...${tail(t)}"`);
+    }
+}
+
+async function incremental(dir: string, modelIds: string[], reportOnly: boolean, show: boolean, maxUsd: number): Promise<void> {
+    if (modelIds.join(',') !== 'openai') throw new Error('--set incremental sends to gpt-transcribe only: drop --models.');
+    const capture = loadCapture(dir);
+    const spoken = capture.filter((c) => !isNonSpeechOnly(c.captured));
+    const full = readCache(dir, 'openai');
+    const missing = spoken.filter((c) => !usable(full[c.name]));
+    if (missing.length) throw new Error(`${missing.length} spoken passes have no whole-pass result in the openai cache: run --set passes first.`);
+    const plan = planIncremental(spoken);
+    const caches = { stitched: readCache(dir, INCREMENTAL_ID), seam: readCache(dir, SEAM_ID) };
+    const rerunJobs: Job[] = byTurn(spoken).flatMap((t) => t.slice(1).map((clip) => ({ key: clip.name, clip })));
+    const model = modelFor('openai');
+
+    let sends: { stitched?: Send; seam?: Send } = {};
+    if (!reportOnly) {
+        const later = plan.flat().filter((s) => !s.first);
+        const clean = later.filter((s) => !s.fallback).length;
+        console.log(`Shared prefix: ${clean}/${later.length} passes extend the one before.`);
+        if (clean < later.length / 2) throw new Error('Most passes do not share a long exact prefix with the pass before: not sending.');
+
+        // Every reply this run lacks, as if each comes back with words: a
+        // wordless one makes the seam arm re-send its audio, which the
+        // running cap below catches.
+        const rerunCache = readCache(dir, RERUN_ID);
+        const rerunTodo = rerunJobs.filter((j) => !usable(rerunCache[j.key]));
+        const pending: number[] = rerunTodo.map((j) => j.clip.seconds);
+        const dry = (cache: Cache): Send => async (s) => {
+            pending.push(s.seconds);
+            cache[s.key] = { text: 'words', ms: 0, ...(s.prompt !== undefined ? { prompt: s.prompt } : {}) };
+        };
+        const stitchedScratch = { ...caches.stitched };
+        await stitchedArm(plan, full, stitchedScratch, dry(stitchedScratch));
+        const seamScratch = { ...caches.seam };
+        await seamArm(capture, full, seamScratch, dry(seamScratch));
+        const usd = total(pending, (s) => model.price(s));
+        console.log(
+            `To send: ${pending.length} requests, ${total(pending, (s) => s).toFixed(1)} s of audio, ` +
+                `billed ${total(pending, billedSeconds)} s = $${usd.toFixed(4)} at $0.27/audio-hr (cap $${maxUsd}).`
+        );
+        if (usd > maxUsd) throw new Error('Over the cap: not sending.');
+        if (pending.length && !env(model.needs)) throw new Error(`${model.needs} is not set.`);
+        mkdirSync(join(dir, 'replay'), { recursive: true });
+
+        await run(dir, { ...model, id: RERUN_ID }, rerunJobs);
+        let spent = total(rerunTodo, (j) => model.price(j.clip.seconds));
+        let capped = false;
+        const live = (id: string, cache: Cache): Send => async (s, pcm) => {
+            const usd = model.price(s.seconds);
+            if (spent + usd > maxUsd) {
+                if (!capped) console.log(`Stopping at the $${maxUsd} cap: the rest of the chain is left unsent.`);
+                capped = true;
+                return;
+            }
+            spent += usd;
+            const out = await transcribeTimed(model, { ...s.pass, pcm, wav: wavOf(pcm), seconds: s.seconds }, s.prompt);
+            cache[s.key] = { ...out, ...(s.prompt !== undefined ? { prompt: s.prompt } : {}), seconds: s.seconds };
+            writeFileSync(cachePath(dir, id), JSON.stringify(cache, null, 1));
+            if (out.error) console.log(`${id}: ${out.error}`);
+        };
+        sends = { stitched: live(INCREMENTAL_ID, caches.stitched), seam: live(SEAM_ID, caches.seam) };
+    }
+    const arms = [
+        await stitchedArm(plan, full, caches.stitched, sends.stitched),
+        await seamArm(capture, full, caches.seam, sends.seam),
+    ];
+    reportIncremental(spoken, arms, full, readCache(dir, RERUN_ID), show);
+}
+
 // --- cli ------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -527,10 +1111,15 @@ async function main(): Promise<void> {
     const refId = take('--ref') ?? 'openai';
     const reportOnly = has('--report');
     const show = has('--show');
+    const maxUsd = Number(take('--max-usd') ?? 0.2);
     const dir = args[0];
     if (!dir) {
-        console.error('Usage: npm run stt:replay -- <capture-dir> [--models a,b] [--set noise|battery,finals,passes] [--runs 3] [--ref openai|capture] [--report] [--show]');
+        console.error('Usage: npm run stt:replay -- <capture-dir> [--models a,b] [--set noise|battery,finals,passes|incremental] [--runs 3] [--ref openai|capture] [--report] [--show] [--max-usd 0.2]');
         process.exit(2);
+    }
+    if (sets.has('incremental')) {
+        if (sets.size > 1) throw new Error('--set incremental runs on its own.');
+        return incremental(dir, modelIds, reportOnly, show, maxUsd);
     }
 
     const models = modelIds.map(modelFor);

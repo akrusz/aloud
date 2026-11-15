@@ -4,6 +4,8 @@ export {
     isNonSpeechOnly,
 } from './stt.js';
 
+export { joinTranscripts, priorPrompt } from './stt-stitch.js';
+
 export {
     type TtsEngine,
     type TtsVoice,
