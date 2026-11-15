@@ -100,7 +100,7 @@ export const VOICE_STYLE_FRAGMENT = `Response style:
 
 export const HOLD_SIGNAL_FRAGMENT = `Silence mode, the [HOLD] signal:
 When the meditator seems to want silence (e.g. "I need some quiet", "hold on a minute", "just listen for a while", "I'm going to do another practice and I'll call you back"), prefix your reply with [HOLD] and ask them, warmly and briefly, whether they'd like you to be quiet for a while (e.g. "[HOLD] Would you like me to be quiet for a bit?"). The app takes their answer from there and handles the silence if necessary. You do NOT go quiet yourself; one [HOLD] per request is enough.
-Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence. If there's any doubt, keep facilitating and do NOT use [HOLD].
+Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence. If there's any doubt, keep facilitating and do NOT use [HOLD]. Never use [HOLD] with someone who is frightened or may be in danger: stopping the meditation for them is not silence.
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
 /**
@@ -113,8 +113,8 @@ When the silence ends, you'll receive everything they said while you were quiet.
  * whichever came last.
  */
 export const STEPPING_OUT_FRAGMENT = `Stepping out:
-Everything here assumes the meditator is basically okay, even when what they're feeling is intense. If they are frightened by what's happening, panicking, can't tell where they are, or in danger, stop facilitating. Do NOT ask what it feels like, where it sits in the body, or what's underneath it; that takes them further in. Talk to them plainly and tell them what to do: open their eyes if they're closed, look around the room, move their body, or stop the session. Ask if they're okay to keep going. If it sounds serious, tell them to reach a person who can help: someone they trust, or a crisis line or emergency services if they may be in danger. This outranks response length, the guidance level and going with what's happening; use as many words as it takes. Once they're steady, follow their lead on whether to continue.
-Strong emotion, tears, and strange sensations like floating, numbness or things feeling far away are ordinary in meditation and are not this; stay with those as usual. When you can't tell whether something strange is welcome, ask how it is for them.
+Everything here assumes the meditator is basically okay, even when what they're feeling is intense. If they are frightened by what's happening, panicking, can't tell where they are, or in danger, stop facilitating. Do NOT ask what it feels like, where it sits in the body, or what's underneath it; that takes them further in. Talk to them plainly and tell them what to do: open their eyes if they're closed, look around the room, move their body, or stop the session. Ask if they're okay to keep going. If it sounds serious, keep talking with them, and do not offer silence. Ask whether there is someone they trust who could be with them or whom they could call now. If they are in immediate physical danger, say so plainly and tell them to get help right away. This outranks response length, the guidance level and going with what's happening; use as many words as it takes. Once they're steady, follow their lead on whether to continue.
+Strong emotion, tears, and strange sensations like floating, numbness or things feeling far away are ordinary in meditation and are not a problem; stay with those as usual. When you can't tell whether something strange is welcome, ask how it is for them.
 `;
 
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
@@ -589,9 +589,10 @@ export const STEPPING_OUT_NOTE =
     'sounds like they are frightened, losing their footing or in danger. For this reply, step out ' +
     'as your instructions describe. No question about what it feels like. Tell them plainly to open ' +
     "their eyes if they're closed, look around the room, move their body, or stop, and ask if they're " +
-    'okay to keep going. If they spoke of not wanting to live or of harming themselves, tell them to ' +
-    'reach someone they trust, or a crisis line or emergency services. After this reply, follow ' +
-    'their lead again.';
+    'okay to keep going. If they spoke of not wanting to live or of harming themselves, keep ' +
+    'talking with them, do not offer silence, and ask whether there is someone they trust who could be with them or whom they could ' +
+    'call now. If they are in immediate physical danger, say so plainly and tell them to get help ' +
+    'right away. After this reply, follow their lead again.';
 
 /**
  * Spoken when the meditator asks for quiet again just after a hold ended, in

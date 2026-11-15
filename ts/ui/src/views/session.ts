@@ -2594,8 +2594,19 @@ export async function mountSessionView(
             // entirely when silenceModeEnabled is false. (Re-entry right after
             // a hold never reaches here: handleReHoldRequest takes that turn
             // before the model is asked for a reply.)
-            awaitingHoldConfirm =
-                !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
+            let bid = !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
+            // A bid made in answer to someone frightened or in danger is not
+            // one. Models reach for [HOLD] as "I am stopping the meditation"
+            // (Haiku 5.5 on "I don't think I want to be alive anymore", 1 try
+            // in 3), and the next thing said would be read for a yes: "yes"
+            // to "are you safe right now?" would begin a silence. Checked on
+            // every model, since a bid is rare and this is the costly miss.
+            if (bid && (troubled || (await troubleFor(userText).verdict))) {
+                bid = false;
+                tapEvent('note', 'stepping-out', { when: 'hold-bid-dropped' });
+            }
+            if (superseded()) return;
+            awaitingHoldConfirm = bid;
             tapFlags({ awaitingHoldConfirm });
             if (hold) tapEvent('signal', awaitingHoldConfirm ? 'hold-bid' : 'hold-bid-ignored');
             setStatus(idleStatus());

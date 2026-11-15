@@ -124,7 +124,14 @@ async function open(settings, setupPatch = {}) {
         }
         model.calls++;
         model.requests.push(asked);
-        const text = `Model reply ${model.calls}.`;
+        // A stand-in that bids for silence the way a model does: rightly when
+        // asked for quiet, wrongly when someone says they can't breathe.
+        const recent = JSON.stringify((body.messages ?? []).slice(-3));
+        const text = /need some quiet/i.test(recent)
+            ? '[HOLD] Would you like me to be quiet for a bit?'
+            : /can't breathe/i.test(recent)
+              ? '[HOLD] Are you safe right now?'
+              : `Model reply ${model.calls}.`;
         if (!body.stream) {
             return route.fulfill({
                 status: 200,
@@ -283,6 +290,28 @@ try {
         calls = s.model.calls;
         await s.say('Okay, I can feel the chair again.');
         check('the turn after is an ordinary one', await s.modelCalledSince(calls));
+
+        // A silence bid made to someone in trouble is dropped: "yes" to "are
+        // you safe?" must not begin a silence.
+        calls = s.model.calls;
+        await s.say("Something is wrong, I can't breathe.");
+        check('a frightened line answered with a silence bid', await s.shown(/Are you safe right now\?/));
+        await s.until(() => s.model.calls > calls);
+        calls = s.model.calls;
+        await s.say('Yes.');
+        check('is not a bid: the "yes" after it is a turn, not a silence', await s.modelCalledSince(calls));
+
+        // The same bid in answer to a request for quiet still stands.
+        calls = s.model.calls;
+        await s.say('I need some quiet for a while.');
+        check('a request for quiet is asked about', await s.shown(/Would you like me to be quiet for a bit\?/));
+        await s.until(() => s.model.calls > calls);
+        calls = s.model.calls;
+        await s.say('Yes.');
+        await s.page.waitForTimeout(3000);
+        check('and a "yes" to that begins the silence', s.model.calls === calls, `(${s.model.calls - calls} model calls)`);
+        await s.say("I'm back, I'd like to keep going.");
+        check('which a word ends', await s.modelCalledSince(calls));
         await s.until(s.recognizerOpen, 20_000);
         const before = s.model.checks;
         await s.say('End the session.');

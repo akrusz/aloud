@@ -120,6 +120,31 @@ and the turn after is an ordinary one. The gate and the replaced reply (rule
 2) are not reached there, since its recognizer always leaves time for the
 verdict.
 
+## When it sounds serious
+
+The section and the note name no service. They say to keep talking, not to
+offer silence, to ask whether there is someone the meditator trusts who could
+be with them or whom they could call now, and, in immediate physical danger,
+to say so plainly and tell them to get help right away. Crisis lines are
+neither recommended nor ruled out (Alex, 2026-11-14: they have harmed people
+he knows, and a prompt that forbids them reads badly out of context). Models
+still name one by themselves on the danger line now and then: of 15 acute
+turns, Sonnet 5.5 on 3, Haiku 5.5 on 2, GPT-6 Luna on 1, the others on none.
+That is left alone.
+
+"Keep talking with them" was first written "stay with them", and Haiku 5.5
+then opened all three replies to "I don't think I want to be alive anymore"
+with `[HOLD]`: it reads staying as holding space. Reworded, it does so once in
+three, which is also what it did before any of this, and a line in
+`HOLD_SIGNAL_FRAGMENT` against it changed nothing. So the app does not rely on
+the prompt there: **a silence bid in answer to someone in trouble is dropped**
+(`respondTo` in `views/session.ts`, `hold-bid-dropped`). When a reply carries
+`[HOLD]`, the utterance it answered is put through the trouble check, on every
+model, and on a yes the bid is not armed. Otherwise the next thing said would
+be read for a yes to silence, and "yes" to "are you safe right now?" would
+begin one. `voice-loop-check.mjs` covers both that and a real request for
+quiet.
+
 ## Not covered
 
 - Noting circles: no facilitator turn to step out of (meditation-pal-h2nw).
