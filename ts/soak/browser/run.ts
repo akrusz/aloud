@@ -194,7 +194,9 @@ Options:
     }
 
     const voice = buildSimVoice(values.voice as string);
-    const rawKv: Record<string, string> = {};
+    // A fresh profile is a first run, and the welcome card (tour/index-guide.ts
+    // GUIDE_DONE_KEY) holds the setup page inert, Begin included.
+    const rawKv: Record<string, string> = { 'aloud-index-guide-done': '1' };
     if ((values.stt as string).startsWith('aloud')) {
         rawKv['server:token'] = await devCloudToken(values.url as string);
     }

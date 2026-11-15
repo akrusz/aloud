@@ -246,7 +246,11 @@ export function configForScenario(
             // Browser speechSynthesis: free, offline, and it plays out of the
             // same default output device the loopback routing points at.
             ttsEngine: 'browser',
-            defaultVoice: null,
+            // Named, not null: the setup view replaces an empty voice with the
+            // hosted default once signed in (setup.ts loadVoiceCatalog), and a
+            // hosted voice is billed and not muted by silentFacilitator. An
+            // unknown name falls back to the browser's default voice.
+            defaultVoice: 'browser:Samantha',
             checkinTiming: scenario.checkinTiming ?? 'smart',
             checkinContent: scenario.checkinContent ?? 'smart',
             silenceCheckinSec: scenario.silenceCheckinSec ?? 90,
