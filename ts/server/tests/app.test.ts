@@ -88,6 +88,23 @@ describe('CORS allowlist', () => {
         const methods = (res.headers.get('access-control-allow-methods') ?? '').split(/,\s*/);
         expect(methods).toEqual(expect.arrayContaining(['GET', 'POST', 'PATCH', 'DELETE']));
     });
+
+    // The hosted web app reaches /app/v1 on this origin too, sending a BYOK key
+    // with the live model-list lookup.
+    it('allows x-provider-key on the /app/v1/models preflight', async () => {
+        const res = await corsApp('https://aloud.rest').request('/app/v1/models/openai', {
+            method: 'OPTIONS',
+            headers: {
+                origin: 'https://aloud.rest',
+                'access-control-request-method': 'GET',
+                'access-control-request-headers': 'x-provider-key',
+            },
+        });
+        expect(res.status).toBeLessThan(300);
+        expect(res.headers.get('access-control-allow-origin')).toBe('https://aloud.rest');
+        const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase().split(/,\s*/);
+        expect(allowed).toContain('x-provider-key');
+    });
 });
 
 describe('strict (production) config gate', () => {
