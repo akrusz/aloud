@@ -35,6 +35,7 @@ import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import { simulateSttFault } from '../dev-sim.js';
+import { isSttFullPassesDebug } from '../dev-mode.js';
 import { whisperWarmUrl } from '../whisper-ready.js';
 import type { AppSettings, HostedSttChoice, SttEngineChoice } from '../app-settings.js';
 import { uiLang, type UiLang } from '../i18n.js';
@@ -95,21 +96,35 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
  * The aloud cloud STT choices: the model each asks /cloud/v1/stt for (the
  * server allowlists it: config.ts sttModelChoices, providers/stt.ts
  * OPENROUTER_STT_MODELS), its picker label (the model, as in the LLM picker),
- * its credits/hr until /me/models answers, and the languages it's offered in.
- * Moving a choice to a newer model means moving `model` here and the server's
- * allowlist together; the choice id stays.
+ * its credits/hr until /me/models answers, the languages it's offered in, and
+ * whether the model takes a prompt (incrementalFor). Moving a choice to a
+ * newer model means moving `model` here and the server's allowlist together;
+ * the choice id stays.
  */
 const HOSTED_STT: Record<
     HostedSttChoice,
-    { model: string; label: string; seedCreditsPerHour: number; offeredIn: (lang: UiLang) => boolean }
+    {
+        model: string;
+        label: string;
+        seedCreditsPerHour: number;
+        offeredIn: (lang: UiLang) => boolean;
+        takesPrompt: boolean;
+    }
 > = {
-    'aloud-gpt-transcribe': { model: 'gpt-transcribe', label: 'GPT', seedCreditsPerHour: 2.11, offeredIn: () => true },
+    'aloud-gpt-transcribe': {
+        model: 'gpt-transcribe',
+        label: 'GPT',
+        seedCreditsPerHour: 2.11,
+        offeredIn: () => true,
+        takesPrompt: true,
+    },
     // Parakeet knows European languages, not Chinese.
     'aloud-parakeet': {
         model: 'moondream/parakeet-ultra',
         label: 'Parakeet',
         seedCreditsPerHour: 0.49,
         offeredIn: (lang) => lang !== 'zh',
+        takesPrompt: false,
     },
     // The cheap alternative for Chinese only (dev call, 2026-11-15).
     'aloud-grok': {
@@ -117,8 +132,29 @@ const HOSTED_STT: Record<
         label: 'Grok',
         seedCreditsPerHour: 0.82,
         offeredIn: (lang) => lang === 'zh',
+        takesPrompt: false,
     },
 };
+
+/**
+ * Whether a PCM engine transcribes incrementally (WhisperPcmSttEngineOptions
+ * .incremental: each pass sends only the audio since the last, with the text
+ * so far as the model's prompt). On where the model takes a prompt: local
+ * whisper.cpp, and the hosted models marked `takesPrompt` (the server's
+ * default model among them). Off for the OpenRouter ones, which take none and
+ * cost little a second. Off for setup listening too: its clips are short,
+ * free, and already prompted with the setup vocabulary. The soak harness can
+ * force full passes (isSttFullPassesDebug).
+ */
+function incrementalFor(vadOpts: VadOpts, takesPrompt: boolean): boolean {
+    return takesPrompt && !vadOpts.setupListening && !isSttFullPassesDebug();
+}
+
+/** A hosted model id (none: the server's default) takes a prompt unless
+ *  HOSTED_STT says it doesn't. */
+function hostedTakesPrompt(model: string | undefined): boolean {
+    return !Object.values(HOSTED_STT).some((h) => h.model === model && !h.takesPrompt);
+}
 
 /**
  * STT through the aloud cloud's authed /cloud/v1/stt, on the server's default
@@ -138,6 +174,7 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
     return new WhisperPcmSttEngine({
         ...rest,
         ...(model ? { cloudModel: model } : {}),
+        incremental: incrementalFor(vadOpts, hostedTakesPrompt(model)),
         specEarlyMaxBufferMs: CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
         finalRetryBudgetMs: CLOUD_FINAL_RETRY_BUDGET_MS,
         endpointUrl: cloudUrl('/stt'),
@@ -195,6 +232,7 @@ function localWhisperStt(vadOpts: VadOpts): SttEngine {
     return new WhisperPcmSttEngine({
         ...rest,
         ...(setupListening ? { initialPrompt: setupVocabulary(rest.language ?? 'en').prompt } : {}),
+        incremental: incrementalFor(vadOpts, true),
         endpointUrl: appUrl(SERVER_WHISPER_PATH),
     });
 }

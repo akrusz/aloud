@@ -16,6 +16,7 @@ const DEBUG_CHECKIN_KEY = 'aloud:debugCheckin';
 const DEBUG_AEC_OFF_KEY = 'aloud:debugAecOff';
 const JEV_CLASSIFIERS_KEY = 'aloud:jevClassifiers';
 const DEBUG_STT_CLIPS_KEY = 'aloud:debugSttClips';
+const DEBUG_STT_FULL_PASSES_KEY = 'aloud:debugSttFullPasses';
 
 /** A '1'-valued localStorage flag. Storage unavailable reads as off, and a
  *  write just doesn't persist. */
@@ -120,6 +121,14 @@ export function isSttClipsDebug(): boolean {
 
 export function setSttClipsDebug(on: boolean): void {
     writeFlag(DEBUG_STT_CLIPS_KEY, on);
+}
+
+/** Soak-harness switch with no UI (soak/browser/scenarios.ts `pauses-full`
+ *  seeds it): every STT pass sends the turn from its start, never
+ *  incrementally (stt-picker.ts incrementalFor), for an A/B on one script.
+ *  Read when the engine is built. */
+export function isSttFullPassesDebug(): boolean {
+    return readFlag(DEBUG_STT_FULL_PASSES_KEY);
 }
 
 /**

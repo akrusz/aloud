@@ -22,6 +22,18 @@ describe('joinTranscripts', () => {
         expect(joinTranscripts('It is warm.', '然后')).toBe('It is warm. 然后');
     });
 
+    it('drops a period the next piece continues past in lowercase', () => {
+        expect(joinTranscripts('There is a warmth.', 'in my belly.')).toBe('There is a warmth in my belly.');
+    });
+
+    it('keeps the period before a capital, an ellipsis, or other punctuation', () => {
+        expect(joinTranscripts('I feel warm.', 'And heavy.')).toBe('I feel warm. And heavy.');
+        expect(joinTranscripts('I feel...', 'warm.')).toBe('I feel... warm.');
+        expect(joinTranscripts('I feel warm?', 'and heavy.')).toBe('I feel warm? and heavy.');
+        expect(joinTranscripts('I feel warm,', 'and heavy.')).toBe('I feel warm, and heavy.');
+        expect(joinTranscripts('很温暖。', 'and heavy.')).toBe('很温暖。 and heavy.');
+    });
+
     it('keeps a phrase the speaker says twice', () => {
         expect(joinTranscripts("I'm just really happy.", "I'm just really happy.")).toBe(
             "I'm just really happy. I'm just really happy."
@@ -48,6 +60,15 @@ describe('priorPrompt', () => {
 
     it('cuts CJK by characters', () => {
         expect(priorPrompt('我觉得很温暖也很沉重', 4)).toBe('也很沉重');
+    });
+
+    it('counts an emoji as one character and never splits it', () => {
+        // "😊 calm" is 6 code points but 7 UTF-16 units: a 6-wide cut counted
+        // by units starts on the emoji's low surrogate.
+        const text = 'I feel 😊 calm';
+        expect(() => encodeURIComponent(text.slice(text.length - 6))).toThrow(URIError);
+        expect(priorPrompt(text, 6)).toBe('😊 calm');
+        expect(() => encodeURIComponent(priorPrompt(text, 6))).not.toThrow();
     });
 
     it('defaults to 400 characters', () => {

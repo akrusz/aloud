@@ -44,6 +44,10 @@ export interface WebScenario extends Scenario {
     /** Override AppSettings.sttSpeculation for the run (default: leave the
      *  app's default). */
     sttSpeculation?: boolean;
+    /** Every STT pass sends the turn from its start, even on a model that
+     *  takes incremental passes (dev-mode.ts isSttFullPassesDebug): the A/B
+     *  against them. Default false. */
+    sttFullPasses?: boolean;
     /**
      * Play the facilitator's browser voice at volume 0. The loopback device
      * feeds the app's own TTS back into its mic at digital full scale, which

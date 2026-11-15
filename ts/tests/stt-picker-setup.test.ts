@@ -103,6 +103,37 @@ describe('each hosted choice asks for its own model', () => {
     });
 });
 
+describe('incremental passes: wherever the model takes a prompt', () => {
+    async function incrementalFor(choice: SttEngineChoice, opts: Parameters<typeof createSttForChoice>[1]) {
+        const engine = await createSttForChoice(choice, opts);
+        expect(engine).toBeInstanceOf(WhisperPcmSttEngine);
+        return (engine as unknown as { opts: { incremental: boolean } }).opts.incremental;
+    }
+
+    it.each([
+        ['whisper', true],
+        ['aloud-gpt-transcribe', true],
+        ['aloud-parakeet', false],
+        ['aloud-grok', false],
+    ] as const)('%s in a session: %s', async (choice, on) => {
+        expect(await incrementalFor(choice, { language: 'en' })).toBe(on);
+    });
+
+    it.each(['whisper', 'aloud-gpt-transcribe'] as const)('%s on the setup screen: off', async (choice) => {
+        expect(await incrementalFor(choice, { setupListening: true, language: 'en' })).toBe(false);
+    });
+
+    it.each(['whisper', 'aloud-gpt-transcribe'] as const)(
+        '%s under the soak harness switch for full passes: off',
+        async (choice) => {
+            vi.stubGlobal('localStorage', {
+                getItem: (k: string) => (k === 'aloud:debugSttFullPasses' ? '1' : null),
+            });
+            expect(await incrementalFor(choice, { language: 'en' })).toBe(false);
+        }
+    );
+});
+
 describe('a session (no setupListening)', () => {
     it.each(['whisper', 'aloud-gpt-transcribe'] as const)('%s sends neither param', async (choice) => {
         for (const url of await fetched(choice, { language: 'en' })) {

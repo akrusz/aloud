@@ -233,7 +233,7 @@ Options:
             const tag = scenario.id;
             const log = (line: string): void => console.log(`[${tag}] ${line}`);
             log(`starting (${scenario.realMinutes} real min, ${scenario.script ? `${scenario.script.length} scripted lines` : `persona ${scenario.persona.id}`})`);
-            const { setup, appSettings } = configForScenario(scenario, {
+            const { setup, appSettings, rawKv: scenarioKv } = configForScenario(scenario, {
                 provider: facilitatorName,
                 model: facilitator.model,
                 sttEngine: values.stt as string,
@@ -249,7 +249,7 @@ Options:
                     setup,
                     appSettings,
                     apiKeys,
-                    rawKv,
+                    rawKv: { ...rawKv, ...scenarioKv },
                     micLabel: values.device as string,
                     ...(scenario.silentFacilitator ? { muteTts: true } : {}),
                     headless: values.headless as boolean,

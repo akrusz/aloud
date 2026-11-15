@@ -158,7 +158,11 @@ Three switches also live there with no URL twin:
   session ends. A webview can't download a blob, so the desktop app writes each
   clip as it is transcribed to `<app-data>/stt-clips/<capture>/` (a `.wav` and
   a `.json` per clip, through the shell's `/app/v1/stt-clips/...`). Cloud or
-  local Whisper STT; nothing is recorded on mobile. `npm run stt:replay`
+  local Whisper STT; nothing is recorded on mobile. An incremental pass
+  (`incremental` in `whisper-pcm-stt.ts`) records only its piece, with `from`
+  (seconds of the turn's audio before it) and the turn's joined text;
+  `loadCapture` in the replay script chains the pieces back into each pass's
+  whole audio. `npm run stt:replay`
   (`ts/scripts/stt-replay.ts`) plays a capture against hosted models: a
   no-speech gate, word error against a reference, latency, real cost, and
   the end-of-turn check on each model's own punctuation. Its `--set noise`

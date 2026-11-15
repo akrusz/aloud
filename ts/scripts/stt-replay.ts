@@ -40,6 +40,10 @@
  * A model that invents a sentence on silence takes the meditator's turn with
  * it; nothing else about it matters after that.
  *
+ * A capture made with incremental passes holds pieces; loadCapture puts each
+ * back after the pieces before it, so every set reads a pass as the audio and
+ * text the turn had at that point, as with a capture of full passes.
+ *
  * Results cache per model in <capture-dir>/replay/, so a rerun re-sends
  * nothing and `--report` is free. Transcript text prints only with --show.
  *
@@ -246,11 +250,14 @@ interface ClipMeta {
     name: string;
     turn: number;
     seconds: number;
+    /** Seconds of the turn's audio before this clip's: above 0 for an
+     *  incremental piece, absent from captures made before them. */
+    from?: number;
     text: string;
 }
 
 function captureIndex(dir: string): ClipMeta[] {
-    type Entry = { file?: string; turn: number; seconds: number; text: string };
+    type Entry = { file?: string; turn: number; seconds: number; from?: number; text: string };
     const read = (f: string): unknown => JSON.parse(readFileSync(join(dir, f), 'utf8'));
     // A browser capture: one manifest for clips/*.wav.
     if (readdirSync(dir).includes('clips.json')) {
@@ -263,18 +270,48 @@ function captureIndex(dir: string): ClipMeta[] {
         .map((f) => ({ ...(read(f) as Entry), name: f.slice(0, -5) }));
 }
 
+/** Slack when chaining pieces by `from` + `seconds`: the recorder rounds each
+ *  to the millisecond. Pieces are far longer, so no two ends are this close. */
+const PIECE_JOIN_SLACK_SECONDS = 0.003;
+
+/**
+ * Every clip as the audio its turn had been transcribed on at that pass, and
+ * the text the turn had then. An incremental piece (`from` > 0) is put after
+ * the chain before it: the latest earlier piece of the turn that ends where it
+ * starts, which skips a piece whose pass heard no words (it was sent again
+ * from the same place). Its recorded text is already the joined text.
+ */
 function loadCapture(dir: string): Clip[] {
-    const clips: Clip[] = captureIndex(dir).map((meta) => {
+    const built: Array<{ clip: Clip; from: number; seconds: number }> = [];
+    let orphans = 0;
+    for (const meta of captureIndex(dir)) {
         const name = meta.name;
         const wav = new Uint8Array(readFileSync(join(dir, `${name}.wav`)));
         const v = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
         if (v.getUint32(24, true) !== SAMPLE_RATE || v.getUint16(22, true) !== 1) {
             throw new Error(`${name}.wav is not ${SAMPLE_RATE} Hz mono (the recorder's format)`);
         }
-        const pcm = new Int16Array((wav.byteLength - 44) >> 1);
-        for (let i = 0; i < pcm.length; i++) pcm[i] = v.getInt16(44 + i * 2, true);
-        return { name, seconds: meta.seconds, pcm, wav, captured: meta.text, turn: meta.turn, last: false };
-    });
+        const piece = new Int16Array((wav.byteLength - 44) >> 1);
+        for (let i = 0; i < piece.length; i++) piece[i] = v.getInt16(44 + i * 2, true);
+        const from = meta.from ?? 0;
+        let clip: Clip = { name, seconds: meta.seconds, pcm: piece, wav, captured: meta.text, turn: meta.turn, last: false };
+        if (from > 0) {
+            const before = [...built]
+                .reverse()
+                .find((b) => b.clip.turn === meta.turn && Math.abs(b.from + b.seconds - from) < PIECE_JOIN_SLACK_SECONDS);
+            if (!before) {
+                orphans++;
+                continue;
+            }
+            const pcm = new Int16Array(before.clip.pcm.length + piece.length);
+            pcm.set(before.clip.pcm);
+            pcm.set(piece, before.clip.pcm.length);
+            clip = { ...clip, pcm, wav: wavOf(pcm), seconds: before.clip.seconds + meta.seconds };
+        }
+        built.push({ clip, from, seconds: meta.seconds });
+    }
+    if (orphans) console.log(`${orphans} pieces left out: the piece before each is missing from the capture.`);
+    const clips = built.map((b) => b.clip);
     if (clips.length === 0) throw new Error(`No clips in ${dir} (expected NNNN-tNNN-<label>.wav + .json pairs)`);
     const lastOfTurn = new Map<number, Clip>();
     for (const c of clips) lastOfTurn.set(c.turn, c);
@@ -558,9 +595,11 @@ interface Sent {
     seconds: number;
     prompt?: string;
     outcome?: Outcome | undefined;
-    /** Speech replies only: the turn's text before, and what the reply added. */
+    /** Speech replies only: the turn's text before, what the reply added,
+     *  and the two joined. */
     before?: string;
     added?: string;
+    joined?: string;
 }
 
 interface Piece {
@@ -635,7 +674,8 @@ function fold(s: Sent, text: string, pieces: Piece[]): string {
     if (isNonSpeechOnly(s.outcome!.text)) return text;
     const joined = joinTranscripts(text, s.outcome!.text);
     s.before = text;
-    s.added = joined.slice(text.length).trim();
+    s.added = s.outcome!.text.trim();
+    s.joined = joined;
     pieces.push({ text: s.added, seconds: s.seconds });
     return joined;
 }
@@ -951,7 +991,9 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
     const art = [['', ...arms.map((a) => a.id)]];
     const per = (f: (a: Arm, answered: Sent[]) => string): string[] => arms.map((a) => f(a, a.sent.filter((s) => s.outcome)));
     const density = (s: Sent): number => s.outcome!.text.length / s.seconds;
-    const periodJoin = (s: Sent): boolean => !!s.before && /(?:^|[^.])\.$/u.test(s.before) && /^\p{Ll}/u.test(s.added ?? '');
+    // The joined text kept a clip's closing period before a lowercase word.
+    const periodJoin = (s: Sent): boolean =>
+        !!s.before && /(?:^|[^.])\.$/u.test(s.before) && /^\p{Ll}/u.test(s.added ?? '') && !!s.joined?.startsWith(s.before);
     art.push(['replies', ...per((_, ok) => String(ok.length))]);
     art.push(['empty or non-speech', ...per((_, ok) => String(ok.filter((s) => isNonSpeechOnly(s.outcome!.text)).length))]);
     art.push(['opens repeating 3+ words of the text before', ...per((_, ok) => String(ok.filter((s) => s.before && echoWords(s.before, s.added!)).length))]);

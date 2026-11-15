@@ -5,7 +5,7 @@
  * the audio checks are pinned without owning the machine's speakers.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { runWebSoakSession } from '../soak/browser/orchestrator.js';
 import { runAudioChecks } from '../soak/browser/checks.js';
@@ -310,6 +310,25 @@ describe('tier-2 pause experiments', () => {
         expect(configForScenario(off!, { provider: 'anthropic', model: 'm', sttEngine: 'aloud-gpt-transcribe' }).appSettings.sttSpeculation).toBe(false);
         // The product matrix stays as it was: the experiments are opt-in.
         expect(getWebScenarios('all').some((s) => s.id.startsWith('pauses'))).toBe(false);
+    });
+
+    it('runs pauses-full as pauses with every STT pass sent whole, through the developer switch', async () => {
+        const [inc, full] = getWebScenarios(['pauses', 'pauses-full']);
+        expect(full!.script).toEqual(inc!.script);
+        const opts = { provider: 'anthropic', model: 'm', sttEngine: 'aloud-gpt-transcribe' };
+        const incConfig = configForScenario(inc!, opts);
+        const fullConfig = configForScenario(full!, opts);
+        expect(fullConfig.appSettings).toEqual(incConfig.appSettings);
+        expect(incConfig.rawKv).toEqual({});
+        // The driver writes each entry under the app's `aloud:` prefix.
+        const stored = new Map(Object.entries(fullConfig.rawKv).map(([k, v]) => [`aloud:${k}`, v]));
+        vi.stubGlobal('localStorage', { getItem: (k: string) => stored.get(k) ?? null });
+        try {
+            const { isSttFullPassesDebug } = await import('../ui/src/dev-mode.js');
+            expect(isSttFullPassesDebug()).toBe(true);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     it('tallies the client-side STT billing lines by pass kind', async () => {

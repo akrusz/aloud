@@ -14,9 +14,18 @@
  * lifetime - only stop() tears it down - so the onset pre-buffer stays warm and
  * a barge-in's first word isn't clipped. A short pause fires a speculative pass
  * emitted as a `partial`; the full adaptive silence window submits the `final`.
+ * Each pass sends the turn's audio from its start, or with `incremental` only
+ * the piece the passes before it have not transcribed, the text so far riding
+ * along as the model's prompt.
  */
 
-import type { SttEngine, SttEvent, SttStopOptions } from '../../../src/platform/stt.js';
+import {
+    isNonSpeechOnly,
+    type SttEngine,
+    type SttEvent,
+    type SttStopOptions,
+} from '../../../src/platform/stt.js';
+import { joinTranscripts, priorPrompt } from '../../../src/platform/stt-stitch.js';
 import { defaultPacingConfig, type PacingConfig } from '../../../src/facilitation/pacing.js';
 import { transcriptLooksIncomplete } from '../../../src/facilitation/end-of-turn.js';
 import { getCloudSessionId } from '../cloud-session.js';
@@ -52,17 +61,20 @@ export const CLOUD_FINAL_RETRY_BUDGET_MS = 30_000;
 const SPECULATIVE_SILENCE_MS = 750;
 // Past this much buffered audio, a speculative pass fires just before the
 // submit window closes (needed - SPEC_TERMINAL_LEAD_MS) instead of at 750ms.
-// Every pass re-sends the whole buffer, so early passes on a long rambly turn
-// re-billed its opening once per phrase-pause (measured: 76% of a session's
-// STT spend). Mid-thought pauses rarely outlast the late trigger, so the pass
+// On full passes every pass re-sends the turn from its start, so early passes
+// on a long rambly turn re-billed its opening once per phrase-pause (measured:
+// 76% of a session's STT spend). Incremental passes send only the audio since
+// the last one, so an early pass re-bills nothing, but each is still a request
+// of its own. Mid-thought pauses rarely outlast the late trigger, so the pass
 // runs on the terminal pause, where the final reuses it for free.
 const SPEC_EARLY_MAX_BUFFER_MS = 12_000;
 // The same cutoff for hosted STT, where every pass bills (stt-picker
 // createServerAloudStt). The buffer still holds the 2s pre-roll at this point,
 // so this is about 4s of SENT audio: the first phrase previews at 750ms, later
-// pauses wait for the late trigger. Replayed over a real 40-min sit's passes
-// (meditation-pal-m56t): at 12s, 35% of the audio sent was a re-send of a
-// turn's opening; at this, 10%.
+// pauses wait for the late trigger. Replayed over a real 40-min sit's full
+// passes (meditation-pal-m56t): at 12s, 35% of the audio sent was a re-send of
+// a turn's opening; at this, 10%. Incremental passes re-send only a piece
+// whose pass failed or heard no words.
 export const CLOUD_SPEC_EARLY_MAX_BUFFER_MS = 6_000;
 // Lead before the submit decision, enough for the round-trip to finish first.
 const SPEC_TERMINAL_LEAD_MS = 1500;
@@ -124,7 +136,7 @@ const INCOMPLETE_CLAUSE_EXTRA_MS = 4000;
 // Tail-recovery thresholds (meditation-pal-rcdz). Frames keep accumulating
 // after the last speculative pass; if any look even slightly speech-like, the
 // cached transcript may be missing trailing words ("...in my belly" spoken too
-// softly to move lastSpeechMs), so the final pass re-sends the full buffer.
+// softly to move lastSpeechMs), so the final pass runs instead of reusing it.
 // Deliberately below the VAD's own gates: a false positive costs one extra
 // transcription, a false negative costs the user's words.
 const TAIL_RETRANSCRIBE_PROB = 0.4;
@@ -157,10 +169,21 @@ const COMPACT_QUIET_PROB = 0.2;
 // pre-buffer is billed room tone; this also covers Silero's trigger debounce
 // when the prefix has no hint. ⭐ TWEAK ME (up) if a first word ever clips.
 const LEAD_KEEP_MS = 500;
+// Incremental passes: a speculative pass ends at the quietest chunk of its
+// last SEAM_SPAN_MS, where the next pass begins, so no audio goes twice and
+// each seam falls in the quietest spot near the pause. No piece is cut
+// shorter than this (submitPayload).
+const SEAM_SPAN_MS = 500;
+// The shortest final piece sent after a seam: OpenAI is believed to refuse a
+// clip under about 0.1 s with a 400, and whisper.cpp returns nothing under
+// 100 ms. A shorter one (a cap cut just past a seam) goes unsent, and the
+// turn's text is the text so far.
+const MIN_FINAL_PIECE_MS = 250;
 // Speculative passes allowed per utterance - a runaway guard, and every pass
 // bills. Keep it loose: the terminal pause's pass is roughly free (the final
 // reuses it, and the transcription overlaps the silence window), so a cap the
-// mid-turn pauses exhaust pushes a long turn's whole transcription AFTER
+// mid-turn pauses exhaust pushes a long turn's transcription (all of it on
+// full passes, everything since the last pass on incremental ones) AFTER
 // submit, right where the user is waiting.
 const MAX_SPECULATIVE_PASSES = 6;
 
@@ -215,6 +238,12 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  use hosted STT - at the price of no preview and a turn that can be cut
      *  at a mid-thought pause the VAD alone can't tell from an ending. */
     speculation?: boolean;
+    /** Send each pass only the audio the passes before it have not
+     *  transcribed, with the turn's text so far as the model's prompt (the
+     *  `x-stt-prior` header), and join the replies (stt-stitch.ts). Default
+     *  off: every pass sends the turn from its start. For a model that takes
+     *  a prompt (stt-picker.ts incrementalFor). */
+    incremental?: boolean;
     /** Buffered audio (ms) past which a speculative pass waits for the late
      *  trigger. Default SPEC_EARLY_MAX_BUFFER_MS. */
     specEarlyMaxBufferMs?: number;
@@ -367,6 +396,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
+            incremental: options.incremental ?? false,
             specEarlyMaxBufferMs: options.specEarlyMaxBufferMs ?? SPEC_EARLY_MAX_BUFFER_MS,
             compactSilence: options.compactSilence ?? true,
             finalRetryBudgetMs: options.finalRetryBudgetMs ?? 0,
@@ -444,24 +474,32 @@ export class WhisperPcmSttEngine implements SttEngine {
     }
 
     /**
-     * The utterance's frames with the leading and trailing quiet cut: the tail
-     * past the last speech-hint chunk + TAIL_KEEP_MS, the pre-buffer before
-     * its first hint + LEAD_KEEP_MS (energy-only - Silero probs aren't
-     * retained for the prefix). Never mutates the buffer: a reopened utterance
-     * (rcdz) has to stay contiguous.
+     * The frames one pass sends: chunk `from` onward with the trailing quiet
+     * cut (past the last speech-hint chunk + TAIL_KEEP_MS) and, from the
+     * turn's start, the leading quiet (the pre-buffer before its first hint +
+     * LEAD_KEEP_MS, energy-only - Silero probs aren't retained for the
+     * prefix). A piece from a seam starts on it: the seam is already quiet.
+     *
+     * `seamCut` (an incremental speculative pass) pulls the end back to the
+     * quietest chunk of the last SEAM_SPAN_MS, returned as `seam`, where the
+     * next pass starts. Null when every such chunk would leave a piece shorter
+     * than SEAM_SPAN_MS: the piece then runs to the end and moves no seam.
+     *
+     * Never mutates the buffer: a reopened utterance (rcdz) has to stay
+     * contiguous.
      */
-    private submitPayload(): readonly Float32Array[] {
+    private submitPayload(
+        from: number,
+        seamCut: boolean
+    ): { frames: readonly Float32Array[]; seam: number | null } {
         const rate = this.context?.sampleRate;
-        if (!rate) return this.chunks;
+        if (!rate) return { frames: this.chunks.slice(from), seam: null };
+        const framesIn = (ms: number) => Math.ceil(((ms / 1000) * rate) / FRAME_SIZE);
         let end = this.chunks.length;
-        if (this.lastHintChunk > 0) {
-            const keepFrames = Math.ceil(((TAIL_KEEP_MS / 1000) * rate) / FRAME_SIZE);
-            end = Math.min(end, this.lastHintChunk + keepFrames);
-        }
-        let start = 0;
-        const prefix = Math.min(this.prependedPreFrames, end);
+        if (this.lastHintChunk > 0) end = Math.min(end, this.lastHintChunk + framesIn(TAIL_KEEP_MS));
+        let start = from;
+        const prefix = from === 0 ? Math.min(this.prependedPreFrames, end) : 0;
         if (prefix > 0) {
-            const leadKeep = Math.ceil(((LEAD_KEEP_MS / 1000) * rate) / FRAME_SIZE);
             // No hint anywhere in the prefix: speech began right where the VAD
             // tripped (prefix end), so keep only the onset margin before it.
             let firstHint = prefix;
@@ -471,7 +509,19 @@ export class WhisperPcmSttEngine implements SttEngine {
                     break;
                 }
             }
-            start = Math.max(0, firstHint - leadKeep);
+            start = Math.max(0, firstHint - framesIn(LEAD_KEEP_MS));
+        }
+        let seam: number | null = null;
+        if (seamCut) {
+            const span = framesIn(SEAM_SPAN_MS);
+            let quietest = Infinity;
+            for (let i = end - 1; i >= end - span && i > start + span; i--) {
+                if (this.chunkMeta[i]!.e < quietest) {
+                    quietest = this.chunkMeta[i]!.e;
+                    seam = i;
+                }
+            }
+            if (seam !== null) end = seam;
         }
         const secs = (frames: number) => ((frames * FRAME_SIZE) / rate).toFixed(1);
         const chunkMs = (FRAME_SIZE / rate) * 1000;
@@ -488,16 +538,19 @@ export class WhisperPcmSttEngine implements SttEngine {
             ).map(([a, b]) => [a + start, b + start]);
         }
         const kept = ranges.reduce((n, [a, b]) => n + (b - a), 0);
-        if (ranges.length === 1 && start === 0 && end >= this.chunks.length) return this.chunks;
+        if (ranges.length === 1 && start === 0 && end >= this.chunks.length) {
+            return { frames: this.chunks, seam };
+        }
         diag(
-            `[stt-cost] trim lead=${secs(start)}s tail=${secs(this.chunks.length - end)}s ` +
+            `[stt-cost] trim ${from > 0 ? `piece from=${secs(from)}s` : `lead=${secs(start)}s`} ` +
+                `tail=${secs(this.chunks.length - end)}s ` +
                 `compacted=${secs(end - start - kept)}s in ${ranges.length - 1} gap(s) ` +
                 `payload=${secs(kept)}s of ${secs(this.chunks.length)}s buffered`
         );
-        if (ranges.length === 1) return this.chunks.slice(start, end);
+        if (ranges.length === 1) return { frames: this.chunks.slice(start, end), seam };
         const out: Float32Array[] = [];
         for (const [a, b] of ranges) for (let i = a; i < b; i++) out.push(this.chunks[i]!);
-        return out;
+        return { frames: out, seam };
     }
 
     private echoGateLevel(): number {
@@ -1002,11 +1055,14 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     /** Transcribe a snapshot of captured frames - a speculative pass or the
      *  final submission. `label` feeds [stt-cost]: spec-vs-final is invisible
-     *  server-side. */
+     *  server-side. On incremental passes `piece` says what precedes the
+     *  frames: the turn's text so far, and how many seconds of sent audio it
+     *  came from. */
     private async transcribe(
         frames: readonly Float32Array[],
         label: 'spec' | 'final',
-        nativeRate: number
+        nativeRate: number,
+        piece: { prior: string; fromSec: number } = { prior: '', fromSec: 0 }
     ): Promise<TranscribeResult> {
         const downsampled = downsampleLinear(concatFloat32(frames), nativeRate, TARGET_SAMPLE_RATE);
         // No samples → nothing to transcribe. A speculative pass can fire
@@ -1034,12 +1090,14 @@ export class WhisperPcmSttEngine implements SttEngine {
                 .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
                 .join('');
             const url = `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${query}`;
+            const prior = this.opts.incremental ? priorHeader(piece.prior) : null;
             const send = (): Promise<Response> =>
                 withTimeout(
                     (async () => {
                         const headers: Record<string, string> = {
                             'content-type': 'application/octet-stream',
                         };
+                        if (prior) headers['x-stt-prior'] = prior;
                         if (this.opts.authProvider) {
                             const token = await this.opts.authProvider();
                             if (token) headers['authorization'] = `Bearer ${token}`;
@@ -1081,10 +1139,11 @@ export class WhisperPcmSttEngine implements SttEngine {
             const text = (data.text ?? '').trim();
             const seconds = downsampled.length / TARGET_SAMPLE_RATE;
             diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
+            const turnText = withPiece(piece.prior, text);
             // Provenance for transcript anomalies: a user turn with no
             // matching [stt-text] line did not come from the mic.
-            if (label === 'final') diag(`[stt-text] ${text.length} chars`);
-            recordSttClip({ turn: this.turnSeq, label, pcm16, text });
+            if (label === 'final') diag(`[stt-text] ${turnText.length} chars`);
+            recordSttClip({ turn: this.turnSeq, label, pcm16, text: turnText, from: piece.fromSec });
             return { ok: true, text, seconds };
         } catch (err) {
             return { ok: false, error: err };
@@ -1137,13 +1196,34 @@ export class WhisperPcmSttEngine implements SttEngine {
         // hosted STT each one is billed, so the session tally reports the sum,
         // not just the final (m56t).
         let turnBilledSec = 0;
-        const transcribeChunks = async (
-            frames: readonly Float32Array[],
+        // Incremental passes: the chunks before `seam` are transcribed, as
+        // `textSoFar`, and a pass sends only what follows. Only a speculative
+        // pass that comes back with words moves them, to where it cut its
+        // piece. `seamSec` is the sent audio before the seam
+        // (stt-clip-recorder.ts). On full passes the seam stays at 0.
+        const incremental = this.opts.incremental;
+        let seam = 0;
+        let textSoFar = '';
+        let seamSec = 0;
+        /** One transcription pass from the seam. A speculative one ends at a
+         *  new seam, `cut` (null: none, see submitPayload). */
+        const pass = async (
             label: 'spec' | 'final'
-        ): Promise<TranscribeResult> => {
-            const result = await this.transcribe(frames, label, nativeRate);
+        ): Promise<{ result: TranscribeResult; cut: number | null }> => {
+            const payload = this.submitPayload(seam, incremental && label === 'spec');
+            const sentMs = (payload.frames.reduce((n, f) => n + f.length, 0) / nativeRate) * 1000;
+            // seam > 0 only on incremental passes.
+            if (label === 'final' && seam > 0 && sentMs < MIN_FINAL_PIECE_MS) {
+                diag(`[stt-cost] final piece of ${Math.round(sentMs)}ms not sent - 0s billed`);
+                diag(`[stt-text] ${textSoFar.length} chars`);
+                return { result: { ok: true, text: '', seconds: 0 }, cut: null };
+            }
+            const result = await this.transcribe(payload.frames, label, nativeRate, {
+                prior: textSoFar,
+                fromSec: seamSec,
+            });
             if (result.ok) turnBilledSec += result.seconds;
-            return result;
+            return { result, cut: payload.seam };
         };
 
         try {
@@ -1173,8 +1253,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             // decision (postSubmitSpeech - the user was still talking when the
             // adaptive window closed) REOPENS the utterance so the continuing
             // words join this turn (meditation-pal-rcdz). What's transcribed so
-            // far is surfaced as a partial; the next submit re-transcribes the
-            // whole buffer.
+            // far is surfaced as a partial, and the passes after it send the
+            // turn from its start again, or incrementally from the last
+            // speculative pass's seam.
             for (;;) {
                 while (!this.utteranceDone && !this.stopRequested) {
                     await new Promise<void>((r) => setTimeout(r, 200));
@@ -1208,20 +1289,35 @@ export class WhisperPcmSttEngine implements SttEngine {
                         lastSpecAt = performance.now();
                         // submitPayload, not the raw buffer: the pre-buffer
                         // quiet bills on spec passes too (mid-utterance the
-                        // tail cut is a no-op, so this is purely a lead trim).
-                        const result = await transcribeChunks(this.submitPayload(), 'spec');
+                        // tail cut is a no-op).
+                        const { result, cut } = await pass('spec');
                         this.specInFlight = false;
                         // Drop the preview if the turn ended while it was in flight
                         // (the final pass will emit the authoritative text).
-                        if (!this.utteranceDone && result.ok && result.text) {
+                        // Incrementally only words count: after an empty or
+                        // wordless reply the next pass sends this piece again.
+                        const heard =
+                            result.ok && (incremental ? !isNonSpeechOnly(result.text) : !!result.text);
+                        if (!this.utteranceDone && heard) {
+                            const text = incremental ? withPiece(textSoFar, result.text) : result.text;
+                            // Incrementally the text commits only with a seam
+                            // to end the piece at. Without one it is shown, and
+                            // the next pass sends the piece again.
+                            if (!incremental) {
+                                lastSpecResult = { text, seconds: result.seconds };
+                            } else if (cut !== null) {
+                                lastSpecResult = { text, seconds: result.seconds };
+                                seam = cut;
+                                seamSec += result.seconds;
+                                textSoFar = text;
+                            }
                             // Dangling clause → extra silence before submit (see
                             // INCOMPLETE_CLAUSE_EXTRA_MS).
-                            this.partialIncomplete = transcriptLooksIncomplete(result.text);
+                            this.partialIncomplete = transcriptLooksIncomplete(text);
                             emittedPartial = true;
-                            lastSpecResult = { text: result.text, seconds: result.seconds };
                             yield {
                                 type: 'partial',
-                                text: result.text,
+                                text,
                                 startedDuringTts: this.startedWhileTtsActive,
                             };
                         }
@@ -1246,35 +1342,41 @@ export class WhisperPcmSttEngine implements SttEngine {
                 // arrived since (the common single-pause turn) - re-running would
                 // bill an identical call. Speech since then invalidates it, and
                 // so does speech-LIKE activity in the untranscribed tail (see
-                // TAIL_RETRANSCRIBE_*, meditation-pal-rcdz).
-                const tailHasSpeechHints =
-                    lastSpecAt > 0 &&
-                    this.energyHistory.some(
-                        ({ t, e, p }) =>
-                            t > lastSpecAt &&
-                            (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
-                    );
+                // TAIL_RETRANSCRIBE_*, meditation-pal-rcdz): incrementally any
+                // hint chunk past the seam, the withheld SEAM_SPAN_MS included,
+                // since no pass has sent it.
+                const tailHasSpeechHints = incremental
+                    ? this.lastHintChunk > seam
+                    : lastSpecAt > 0 &&
+                      this.energyHistory.some(
+                          ({ t, e, p }) =>
+                              t > lastSpecAt &&
+                              (p >= TAIL_RETRANSCRIBE_PROB || e >= TAIL_RETRANSCRIBE_ENERGY)
+                      );
                 let result: TranscribeResult;
                 if (lastSpecResult && this.lastSpeechMs === lastSpecSpeechMs && !tailHasSpeechHints) {
                     diag('[stt-cost] final reused the speculative transcript - 0s billed');
                     diag(`[stt-text] ${lastSpecResult.text.length} chars`);
                     result = { ok: true, text: lastSpecResult.text, seconds: lastSpecResult.seconds };
                 } else {
-                    result = await transcribeChunks(this.submitPayload(), 'final');
+                    const sent = (await pass('final')).result;
+                    // Incrementally the reply covers only the piece past the seam.
+                    result = sent.ok && incremental ? { ...sent, text: withPiece(textSoFar, sent.text) } : sent;
                 }
                 if (tailHasSpeechHints && lastSpecResult) {
-                    diag('[vad] tail had speech hints after the speculative pass - re-transcribed full buffer');
+                    diag('[vad] tail had speech hints after the speculative pass - not reused');
                 }
 
                 // The user kept talking past the submit decision: reopen (see
-                // the loop comment above).
+                // the loop comment above). The seam stays where the last
+                // speculative pass put it: this final's snapshot ended while
+                // they were still talking.
                 if (this.postSubmitSpeech && !this.hitMaxUtterance && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
                     diag('[vad] speech continued past submit - reopening the utterance');
                     if (result.ok && result.text) {
                         emittedPartial = true;
-                        lastSpecResult = { text: result.text, seconds: result.seconds };
                         this.partialIncomplete = transcriptLooksIncomplete(result.text);
                         yield {
                             type: 'partial',
@@ -1449,6 +1551,27 @@ export function streamNeedsRefresh(stream: MediaStream | null): boolean {
     const track = stream.getAudioTracks()[0];
     if (!track) return true;
     return track.muted || track.readyState === 'ended';
+}
+
+/** The turn's text once an incremental piece's reply joins it. A wordless
+ *  reply adds nothing to the words before it, and stands as it is when there
+ *  are none, as a full pass's would. */
+function withPiece(textSoFar: string, reply: string): string {
+    if (!textSoFar) return reply;
+    return isNonSpeechOnly(reply) ? textSoFar : joinTranscripts(textSoFar, reply);
+}
+
+/** The `x-stt-prior` header for an incremental piece: a header, not a query
+ *  param, because it is the meditator's words and URLs get logged. Null when
+ *  there is no text yet, or when it won't encode (a lone surrogate in a
+ *  transcript): the piece then goes unprompted rather than failing. */
+function priorHeader(textSoFar: string): string | null {
+    if (!textSoFar) return null;
+    try {
+        return encodeURIComponent(priorPrompt(textSoFar));
+    } catch {
+        return null;
+    }
 }
 
 function frameRms(frame: Float32Array): number {

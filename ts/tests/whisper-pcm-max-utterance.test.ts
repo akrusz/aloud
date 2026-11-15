@@ -1,11 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import type { SttEvent } from '../src/platform/stt.js';
-
-/**
- * WhisperPcmSttEngine driven frame by frame: a fake mic feeds the capture
- * callback on fake time, and a fake endpoint records what each POST sent.
- */
+import { advance, engineWithMic, FRAME_MS, heard, listen, rig, useWhisperHarness, type Post } from './whisper-pcm-harness.js';
 
 // `broken` puts the engine on its energy speech decision, so a loud frame is
 // speech and a near-zero frame is quiet.
@@ -13,136 +8,9 @@ vi.mock('../ui/src/adapters/silero-vad.js', () => ({
     loadSileroVad: async () => ({ broken: true }),
 }));
 
-// 32 kHz: a 4096-sample frame is 128 ms (shorter than the engine's 200 ms
-// poll, as at 48 kHz) and decimates to exactly 2048 wire samples, so the
-// first sample of each 2048-block carries its captured frame's tag back.
-const RATE = 32_000;
-const FRAME = 4096;
-const WIRE_BLOCK = 2048;
-const WIRE_RATE = 16_000;
-const FRAME_MS = (FRAME / RATE) * 1000;
-const FETCH_MS = 1000;
+useWhisperHarness();
+
 const CAP_MS = 3000;
-
-type Processor = { onaudioprocess: ((e: unknown) => void) | null };
-let processor: Processor | null;
-
-class FakeContext {
-    state = 'running';
-    sampleRate = RATE;
-    destination = {};
-    addEventListener(): void {}
-    async resume(): Promise<void> {}
-    close(): Promise<void> {
-        return Promise.resolve();
-    }
-    createMediaStreamSource() {
-        return { connect(): void {}, disconnect(): void {} };
-    }
-    createScriptProcessor(): Processor {
-        processor = { onaudioprocess: null };
-        return Object.assign(processor, { connect(): void {}, disconnect(): void {} });
-    }
-}
-
-let talking: boolean;
-let nextTag: number;
-let mic: ReturnType<typeof setInterval> | null = null;
-
-/** One captured frame: a loud square wave while talking, else zeros, with a
- *  tag in sample 0 small enough to leave a quiet frame quiet. */
-function frame(): Float32Array {
-    const f = new Float32Array(FRAME);
-    if (talking) for (let i = 0; i < FRAME; i++) f[i] = i % 4 < 2 ? 0.2 : -0.2;
-    f[0] = (nextTag++ * 16 + 8) / 0x7fff;
-    return f;
-}
-
-type Post = { seconds: number; tags: number[] };
-let posts: Post[];
-
-const heard = (text: string): Response => new Response(JSON.stringify({ text }), { status: 200 });
-/** The answer to the nth POST (from 1). Throwing is a dropped connection. */
-let reply: (n: number) => Response;
-
-const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
-    const pcm = new Int16Array(init!.body as ArrayBuffer);
-    const tags: number[] = [];
-    for (let i = 0; i < pcm.length; i += WIRE_BLOCK) tags.push(Math.floor(pcm[i]! / 16));
-    posts.push({ seconds: pcm.length / WIRE_RATE, tags });
-    const n = posts.length;
-    // In flight long enough for speech frames to land during the pass.
-    await new Promise((r) => setTimeout(r, FETCH_MS));
-    return reply(n);
-}) as typeof fetch;
-
-beforeEach(() => {
-    processor = null;
-    talking = false;
-    nextTag = 0;
-    posts = [];
-    reply = (n) => heard(`pass ${n}`);
-    vi.useFakeTimers({
-        toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'],
-    });
-    vi.spyOn(console, 'info').mockImplementation(() => {});
-    vi.stubGlobal('AudioContext', FakeContext);
-    vi.stubGlobal('navigator', {
-        mediaDevices: {
-            getUserMedia: async () => {
-                const track = {
-                    muted: false,
-                    readyState: 'live',
-                    stop(): void {},
-                    getSettings: () => ({}),
-                    addEventListener(): void {},
-                };
-                return { active: true, getTracks: () => [track], getAudioTracks: () => [track] };
-            },
-        },
-    });
-});
-
-afterEach(() => {
-    if (mic) clearInterval(mic);
-    mic = null;
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-});
-
-type Engine = { start(): AsyncIterable<SttEvent> };
-const capturing = (engine: Engine): boolean => (engine as unknown as { capturing: boolean }).capturing;
-
-async function engineWithMic(opts: Record<string, unknown>): Promise<Engine> {
-    const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
-    const engine = new WhisperPcmSttEngine({ fetchImpl, ...opts });
-    await engine.prime();
-    mic = setInterval(() => {
-        processor?.onaudioprocess?.({ inputBuffer: { getChannelData: () => frame() } });
-    }, FRAME_MS);
-    // Fill the onset pre-buffer with room tone, as between real turns.
-    await vi.advanceTimersByTimeAsync(2500);
-    return engine;
-}
-
-/** Start a turn; resolves once it is capturing. Fake time stands still while
- *  start() loads, so no frame lands before the turn opens. */
-async function listen(engine: Engine): Promise<{ events: SttEvent[]; done: () => boolean }> {
-    const events: SttEvent[] = [];
-    let finished = false;
-    void (async () => {
-        for await (const ev of engine.start()) events.push(ev);
-        finished = true;
-    })();
-    for (let i = 0; i < 1000 && !capturing(engine); i++) await new Promise((r) => setImmediate(r));
-    expect(capturing(engine)).toBe(true);
-    return { events, done: () => finished };
-}
-
-async function advance(ms: number, stopWhen: () => boolean = () => false): Promise<void> {
-    for (let t = 0; t < ms && !stopWhen(); t += 50) await vi.advanceTimersByTimeAsync(50);
-}
 
 // The cap is a runaway valve (background speech, a TV, speaker echo holding
 // the VAD open): the turn it ends is final. Speech still going during that
@@ -159,12 +27,12 @@ describe('the max utterance cap', () => {
             const engine = await engineWithMic({ maxUtteranceMs: CAP_MS });
             const first = await listen(engine);
             await vi.advanceTimersByTimeAsync(phaseMs);
-            talking = true;
+            rig.talking = true;
             await advance(CAP_MS + 4000, first.done);
             expect(first.done()).toBe(true);
 
-            expect(posts).toHaveLength(1);
-            const [cut] = posts as [Post];
+            expect(rig.posts).toHaveLength(1);
+            const [cut] = rig.posts as [Post];
             // The cap plus the onset margin (LEAD_KEEP_MS), each rounded up to
             // whole frames.
             expect(cut.seconds).toBeGreaterThanOrEqual(CAP_MS / 1000);
@@ -177,11 +45,11 @@ describe('the max utterance cap', () => {
             // up right after the cut frame, with no frame sent twice.
             const second = await listen(engine);
             await advance(1000);
-            talking = false;
+            rig.talking = false;
             await advance(15_000, second.done);
             expect(second.done()).toBe(true);
 
-            const later = posts.slice(1);
+            const later = rig.posts.slice(1);
             expect(later.length).toBeGreaterThan(0);
             const firstTags = new Set(cut.tags);
             for (const p of later) expect(p.tags.some((t) => firstTags.has(t))).toBe(false);
@@ -200,21 +68,21 @@ describe('speech that continues past a silence-window submit', () => {
             silenceRampRate: 0,
         });
         const turn = await listen(engine);
-        talking = true;
+        rig.talking = true;
         await advance(1500);
-        talking = false;
+        rig.talking = false;
         // The window closes about 1s into the pause and the pass goes out.
         await advance(1300);
-        expect(posts).toHaveLength(1);
+        expect(rig.posts).toHaveLength(1);
         // The meditator picks up again while that pass is in flight.
-        talking = true;
+        rig.talking = true;
         await advance(1500);
-        talking = false;
+        rig.talking = false;
         await advance(8000, turn.done);
         expect(turn.done()).toBe(true);
 
-        expect(posts).toHaveLength(2);
-        const [before, after] = posts as [Post, Post];
+        expect(rig.posts).toHaveLength(2);
+        const [before, after] = rig.posts as [Post, Post];
         expect(after.tags[0]).toBe(before.tags[0]);
         expect(after.tags.at(-1)!).toBeGreaterThan(before.tags.at(-1)! + 5);
         expect(turn.events).toEqual([
@@ -238,33 +106,33 @@ describe('a final after speculative passes', () => {
     /** Speech, a pause the first speculative pass answers, more speech, then
      *  quiet: the second pass goes out on that last pause. */
     async function twoPhrases(turn: { done: () => boolean }): Promise<void> {
-        talking = true;
+        rig.talking = true;
         await advance(1500);
-        talking = false;
+        rig.talking = false;
         await advance(2500);
-        expect(posts).toHaveLength(1);
-        talking = true;
+        expect(rig.posts).toHaveLength(1);
+        rig.talking = true;
         await advance(1500);
-        talking = false;
+        rig.talking = false;
         await advance(12_000, turn.done);
         expect(turn.done()).toBe(true);
     }
 
     it('reuses the transcript of a single pause instead of sending again', async () => {
-        reply = () => heard('One.');
+        rig.reply = () => heard('One.');
         const engine = await engineWithMic(windowed);
         const turn = await listen(engine);
-        talking = true;
+        rig.talking = true;
         await advance(1500);
-        talking = false;
+        rig.talking = false;
         await advance(8000, turn.done);
         expect(turn.done()).toBe(true);
 
-        expect(posts).toHaveLength(1);
+        expect(rig.posts).toHaveLength(1);
         expect(turn.events.at(-1)).toEqual({
             type: 'final',
             text: 'One.',
-            seconds: posts[0]!.seconds,
+            seconds: rig.posts[0]!.seconds,
             startedDuringTts: false,
         });
     });
@@ -276,26 +144,26 @@ describe('a final after speculative passes', () => {
         ['fails with a 500', (): Response => new Response('upstream', { status: 500 })],
         ['comes back empty', (): Response => heard('')],
     ])('sends the whole turn again when the last pause\'s pass %s', async (_, second) => {
-        reply = (n) => (n === 1 ? heard('One.') : n === 2 ? second() : heard('One. Two.'));
+        rig.reply = (n) => (n === 1 ? heard('One.') : n === 2 ? second() : heard('One. Two.'));
         const engine = await engineWithMic(windowed);
         const turn = await listen(engine);
         await twoPhrases(turn);
 
-        expect(posts).toHaveLength(3);
-        const [spec, , final] = posts as [Post, Post, Post];
+        expect(rig.posts).toHaveLength(3);
+        const [spec, , final] = rig.posts as [Post, Post, Post];
         expect(final.tags[0]).toBe(spec.tags[0]);
-        expect(final.tags.at(-1)).toBeGreaterThanOrEqual(posts[1]!.tags.at(-1)!);
+        expect(final.tags.at(-1)).toBeGreaterThanOrEqual(rig.posts[1]!.tags.at(-1)!);
         expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'One. Two.' });
     });
 
     it('sends the whole turn again when the cap drops the last pause\'s pass', async () => {
-        reply = (n) => heard(n === 1 ? 'One.' : n === 2 ? 'One. Tw' : 'One. Two.');
+        rig.reply = (n) => heard(n === 1 ? 'One.' : n === 2 ? 'One. Tw' : 'One. Two.');
         // The cap lands while the second pass is in flight.
         const engine = await engineWithMic({ ...windowed, maxUtteranceMs: 6900 });
         const turn = await listen(engine);
         await twoPhrases(turn);
 
-        expect(posts).toHaveLength(3);
+        expect(rig.posts).toHaveLength(3);
         expect(turn.events.map((e) => e.type)).toEqual(['partial', 'final']);
         expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'One. Two.' });
     });

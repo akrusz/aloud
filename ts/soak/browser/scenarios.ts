@@ -118,8 +118,10 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
  * 5s with speech, +4s when a speculative pass sees an unfinished clause).
  * Run once with speculation on and once off: the finals-per-line column says
  * where each configuration cuts the speaker, and sttBilled says what each
- * paid. Two sentence-complete pauses are controls: a cut there is a legitimate
- * end of turn, not an endpointing miss.
+ * paid. `pauses-full` is `pauses` with every pass sending the whole turn, the
+ * A/B for incremental passes (meditation-pal-12q9). Two sentence-complete
+ * pauses are controls: a cut there is a legitimate end of turn, not an
+ * endpointing miss.
  */
 const PAUSE_LINES: readonly string[] = [
     "I'm noticing a kind of tightness in my [[slnc 2000]] chest, right around the center.",
@@ -165,6 +167,13 @@ export const PAUSE_SCENARIOS: readonly WebScenario[] = [
         title: 'Mid-thought pauses with speculative passes OFF (one transcription per turn)',
         sttSpeculation: false,
     },
+    {
+        ...PAUSES_BASE,
+        id: 'pauses-full',
+        title: 'Mid-thought pauses with speculative passes ON, each sending the whole turn (not incremental)',
+        sttSpeculation: true,
+        sttFullPasses: true,
+    },
 ];
 
 export function getWebScenarios(ids: string[] | 'all'): WebScenario[] {
@@ -198,12 +207,16 @@ function dirStepFor(directiveness: number): number {
 export interface ScenarioConfig {
     setup: Record<string, unknown>;
     appSettings: Record<string, unknown>;
+    /** Raw localStorage entries under the app's `aloud:` prefix
+     *  (DriverOptions.rawKv): developer switches no user setting reaches. */
+    rawKv: Record<string, string>;
 }
 
 /**
- * Turn a scenario into the two localStorage blobs the driver seeds. Mirrors what
- * a user would have chosen in the setup panel and Settings, so the session view
- * builds itself exactly as it would for them.
+ * Turn a scenario into the two localStorage blobs the driver seeds, plus any
+ * developer switch it flips. Mirrors what a user would have chosen in the
+ * setup panel and Settings, so the session view builds itself exactly as it
+ * would for them.
  */
 export function configForScenario(
     scenario: WebScenario,
@@ -250,5 +263,7 @@ export function configForScenario(
             enableByok: true,
             ...(scenario.sttSpeculation !== undefined ? { sttSpeculation: scenario.sttSpeculation } : {}),
         },
+        // dev-mode.ts isSttFullPassesDebug.
+        rawKv: scenario.sttFullPasses ? { debugSttFullPasses: '1' } : {},
     };
 }

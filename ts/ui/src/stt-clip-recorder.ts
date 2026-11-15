@@ -3,13 +3,17 @@
  * isSttClipsDebug): every pass's PCM with the transcript it got back. The
  * point is a corpus of real, soft, short meditation speech to replay against
  * other STT models (meditation-pal-376v); published benchmarks cover none of it.
+ * An incremental pass sends a piece of the turn, so its clip says where the
+ * piece starts (`from`) and carries the turn's text through it;
+ * scripts/stt-replay.ts loadCapture puts the pieces back together.
  *
  * In a browser the clips are held in memory and saved as one .tar when the
  * session ends. A webview can't download a blob (views/history.ts
  * exportSessions has the same limit), so the desktop app instead writes each
  * clip through the shell as it is transcribed, to
  * <app-data>/stt-clips/<capture>/NNNN-tNNN-<label>.wav with a .json beside it
- * (turn, label, seconds, text). Mobile has neither path and records nothing.
+ * (turn, label, seconds, from, text). Mobile has neither path and records
+ * nothing.
  *
  * Nothing leaves the device, and nothing is kept unless the flag is on.
  */
@@ -21,11 +25,19 @@ import { isTauri } from './is-desktop.js';
 export const STT_CLIP_SAMPLE_RATE = 16_000;
 
 interface Clip {
-    /** The utterance this pass belongs to. A turn's audio is its LAST pass:
-     *  the final when one ran, else the speculative pass the final reused. */
+    /** The utterance this pass belongs to. A turn's audio is its LAST pass
+     *  (the final when one ran, else the speculative pass the final reused),
+     *  after the pieces before it when that pass was a piece. */
     turn: number;
     label: 'spec' | 'final';
     pcm16: Int16Array;
+    /** Seconds of the turn's sent audio before this clip's: 0 for a pass sent
+     *  from the turn's start, more for an incremental piece. Its pieces chain
+     *  by `from` + `seconds`; a piece whose pass heard no words is sent again
+     *  from the same `from`. */
+    from: number;
+    /** What the turn says through this clip: a piece's reply joined onto the
+     *  text before it. */
     text: string;
 }
 
@@ -39,6 +51,15 @@ const clipName = (n: number, c: Clip): string =>
     `${String(n).padStart(4, '0')}-t${String(c.turn).padStart(3, '0')}-${c.label}`;
 
 const secondsOf = (c: Clip): number => Number((c.pcm16.length / STT_CLIP_SAMPLE_RATE).toFixed(3));
+
+/** The clip's .json / manifest entry, less the file name. */
+const metaOf = (c: Clip) => ({
+    turn: c.turn,
+    label: c.label,
+    seconds: secondsOf(c),
+    from: Number(c.from.toFixed(3)),
+    text: c.text,
+});
 
 /** Keep one transcription pass. A no-op unless the developer flag is on. */
 export function recordSttClip(clip: Clip): void {
@@ -55,10 +76,7 @@ async function saveThroughShell(n: number, clip: Clip): Promise<void> {
         fetch(appUrl(`/stt-clips/${captureDir}/${clipName(n, clip)}/${kind}`), { method: 'POST', body });
     try {
         const wav = await put('wav', wavBytes(clip.pcm16) as BodyInit);
-        const meta = await put(
-            'json',
-            JSON.stringify({ turn: clip.turn, label: clip.label, seconds: secondsOf(clip), text: clip.text })
-        );
+        const meta = await put('json', JSON.stringify(metaOf(clip)));
         if (!wav.ok || !meta.ok) console.warn('STT clip save failed', wav.status, meta.status);
     } catch (err) {
         console.warn('STT clip save failed', err);
@@ -120,7 +138,7 @@ export function takeSttClipArchive(): Blob | null {
     const manifest = taken.map((c, i) => {
         const file = `clips/${clipName(i + 1, c)}.wav`;
         parts.push(tarEntry(file, wavBytes(c.pcm16)));
-        return { file, turn: c.turn, label: c.label, seconds: secondsOf(c), text: c.text };
+        return { file, ...metaOf(c) };
     });
     const json = new TextEncoder().encode(JSON.stringify({ sampleRate: STT_CLIP_SAMPLE_RATE, clips: manifest }, null, 1));
     parts.push(tarEntry('clips.json', json), new Uint8Array(1024));
