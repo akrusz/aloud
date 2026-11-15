@@ -44,6 +44,18 @@ describe('GET /cloud/v1/me/models', () => {
         expect(Number.isInteger(body.sttCreditsPerHour)).toBe(false);
     });
 
+    it('carries a rate per hosted STT model, keyed by the id the client sends', async () => {
+        const app = createApp(buildDeps(loadConfig({})));
+        const res = await app.request('/cloud/v1/me/models');
+        const body = (await res.json()) as { sttCreditsPerHour: number; sttCreditsPerHourByModel: Record<string, number> };
+        const rates = body.sttCreditsPerHourByModel;
+        expect(Object.keys(rates).sort()).toEqual(['gpt-transcribe', 'moondream/parakeet-ultra', 'x-ai/grok-stt-2.0']);
+        for (const [model, rate] of Object.entries(rates)) expect(rate).toBe(estimateStt(model).creditsPerHour);
+        expect(rates['gpt-transcribe']).toBe(body.sttCreditsPerHour);
+        expect(rates['moondream/parakeet-ultra']!).toBeLessThan(rates['x-ai/grok-stt-2.0']!);
+        expect(rates['x-ai/grok-stt-2.0']!).toBeLessThan(rates['gpt-transcribe']!);
+    });
+
     it('flags exactly one default model (the picker pre-selection)', async () => {
         const app = createApp(buildDeps(loadConfig({})));
         const res = await app.request('/cloud/v1/me/models');

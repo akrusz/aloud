@@ -82,6 +82,67 @@ export interface SttHints {
  *  Groq's Whisper). */
 const PROMPTLESS_MODELS = new Set(['gpt-4o-transcribe-diarize']);
 
+/**
+ * The hosted STT models served through OpenRouter's transcription API, keyed
+ * by the id a client sends as `?model=`. Each is pinned to the one host the
+ * privacy policy names for it (docs/privacy/index.html), with fallbacks off:
+ * a host that drops out fails the call instead of moving the audio somewhere
+ * the policy doesn't say. `zdr` adds OpenRouter's zero-data-retention filter,
+ * which the policy's "keeps none of it" rests on, so that call fails closed if
+ * the host ever stops qualifying. Neither model takes keyterms through
+ * OpenRouter (400, probed 2026-11-15), so setup listening goes unprompted here.
+ */
+export const OPENROUTER_STT_MODELS: Readonly<Record<string, { host: string; zdr: boolean }>> = {
+    // Moondream's post-trained Parakeet TDT 0.6B v3. European languages only:
+    // the client never offers it in a zh session.
+    'moondream/parakeet-ultra': { host: 'primeintellect', zdr: true },
+    // xAI's own endpoint. Passes data_collection: deny, but has no ZDR
+    // offering (zdr:true finds no endpoint).
+    'x-ai/grok-stt-2.0': { host: 'xai', zdr: false },
+};
+
+const OPENROUTER_STT_URL = 'https://openrouter.ai/api/v1/audio/transcriptions';
+
+/** Transcribe mono Float32 PCM with one of OPENROUTER_STT_MODELS. Throws on an
+ *  unknown model or an upstream error. */
+export async function transcribeOpenRouter(
+    samples: Float32Array,
+    sampleRate: number,
+    apiKey: string,
+    model: string,
+    hints: Pick<SttHints, 'language'> = {},
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+): Promise<SttResult> {
+    const route = OPENROUTER_STT_MODELS[model];
+    if (!route) throw new Error(`STT openrouter: unknown model ${model}`);
+    const wav = encodeWav(samples, sampleRate);
+    const res = await fetchImpl(OPENROUTER_STT_URL, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+            model,
+            input_audio: { data: Buffer.from(wav).toString('base64'), format: 'wav' },
+            ...(hints.language ? { language: hints.language } : {}),
+            provider: {
+                only: [route.host],
+                allow_fallbacks: false,
+                data_collection: 'deny',
+                ...(route.zdr ? { zdr: true } : {}),
+            },
+        }),
+    });
+    if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`STT openrouter ${res.status}: ${detail}`);
+    }
+    const data = (await res.json()) as { text?: string; usage?: { seconds?: unknown } };
+    const reported = data.usage?.seconds;
+    return {
+        text: (data.text ?? '').trim(),
+        ...(typeof reported === 'number' && Number.isFinite(reported) ? { reportedSeconds: reported } : {}),
+    };
+}
+
 /** Transcribe mono Float32 PCM via the configured backend. Throws on upstream
  *  error. */
 export async function transcribeWhisper(

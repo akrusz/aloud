@@ -577,8 +577,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             capacitor:
                 "Uses your device's built-in speech recognition. Free, but quality varies and speaking won't interrupt the facilitator.",
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
-            'aloud-gpt-transcribe':
-                "Audio is transcribed by aloud's hosted provider and spends credits.",
+            'aloud-gpt-transcribe': 'Transcribed by OpenAI, which runs GPT.',
+            'aloud-parakeet': 'Transcribed by Prime Intellect, which runs Parakeet and retains no audio.',
+            'aloud-grok': 'Transcribed by xAI, which runs Grok.',
         };
         hintEl.textContent = t(hints[resolveSttChoice(settings.sttEngine, isWebMode())]);
     }

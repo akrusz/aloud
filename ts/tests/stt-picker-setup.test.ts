@@ -91,6 +91,18 @@ describe('aloud cloud on the setup screen', () => {
     });
 });
 
+describe('each hosted choice asks for its own model', () => {
+    it.each([
+        ['aloud-gpt-transcribe', 'gpt-transcribe'],
+        ['aloud-parakeet', 'moondream/parakeet-ultra'],
+        ['aloud-grok', 'x-ai/grok-stt-2.0'],
+    ] as const)('%s sends model=%s', async (choice, model) => {
+        const post = (await fetched(choice, { language: 'en' })).find(isTranscription)!;
+        expect(post.pathname).toBe('/cloud/v1/stt');
+        expect(post.searchParams.get('model')).toBe(model);
+    });
+});
+
 describe('a session (no setupListening)', () => {
     it.each(['whisper', 'aloud-gpt-transcribe'] as const)('%s sends neither param', async (choice) => {
         for (const url of await fetched(choice, { language: 'en' })) {

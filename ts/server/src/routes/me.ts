@@ -31,6 +31,8 @@ import {
     estimateVoices,
 } from '../pricing/estimate.js';
 import { errorJson } from '../http.js';
+import { DEFAULT_STT_MODEL } from '../pricing/providers.js';
+import { OPENROUTER_STT_MODELS } from '../providers/stt.js';
 
 export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -83,6 +85,11 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // model + stt + voice, and a client-side copy of this number drifts
             // the moment STT pricing moves. Unrounded, like the model rates.
             sttCreditsPerHour: estimateStt().creditsPerHour,
+            // Per hosted model, keyed by the id a client sends as /stt?model=.
+            // sttCreditsPerHour above stays for installed builds (the default's rate).
+            sttCreditsPerHourByModel: Object.fromEntries(
+                [DEFAULT_STT_MODEL, ...Object.keys(OPENROUTER_STT_MODELS)].map((m) => [m, estimateStt(m).creditsPerHour])
+            ),
             // The background-assistant leg (Haiku classifiers/summaries + the
             // recap model) every aloud-cloud session carries on top of the
             // picked model's badge. The setup footer adds it to the composed

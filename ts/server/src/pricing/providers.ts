@@ -92,6 +92,15 @@ export interface ModelPricing extends TokenRates {
 
 const M = 1_000_000;
 
+/** OpenRouter passes provider prices through unmarked, but takes 5.5% ($0.80
+ *  minimum) on every credit purchase (openrouter.ai/docs/faq, 2026-11-15), so
+ *  a call through it really costs us list x 1.055. Every OpenRouter rate goes
+ *  through this, LLM or STT, so the meter bills what we pay. (Top-ups of
+ *  $14.55 or more, where the percentage and not the minimum applies.) */
+export function viaOpenRouter(listRate: number): number {
+    return listRate * 1.055;
+}
+
 /**
  * ADDING A MODEL - checklist (each item has bitten us at least once):
  *
@@ -107,7 +116,7 @@ const M = 1_000_000;
  *    and if tokens ever do appear we over-charge, never under-bill.
  * 2. Run the math through estimate.ts before calling a model "cheap": a no-cache
  *    $0.57 model and a 50%-cached $1 model come within a cent/hr.
- * 3. OpenRouter slugs: list the real endpoints
+ * 3. OpenRouter slugs: wrap every rate in viaOpenRouter (its credit fee). List the real endpoints
  *    (GET /api/v1/models/<slug>/endpoints) for host, jurisdiction, quantization.
  *    Pin routing (extraBody provider.only) if the host matters, and update the
  *    privacy policy's provider list (docs/privacy/index.html) to name where
@@ -438,11 +447,11 @@ const MODELS: Record<string, ModelPricing> = {
         model: 'moonshotai/kimi-k2',
         expanded: true, // niche draw, same logic as Opus 3
         zhCurated: true, // zh shortlist: Moonshot's own model, the budget slot there
-        input: 0.57 / M,
-        output: 2.3 / M,
-        cacheRead: 0.57 / M,
-        cacheCreation: 0.57 / M,
-        cacheCreation1h: 0.57 / M, // no caching on this endpoint; never accrues
+        input: viaOpenRouter(0.57 / M),
+        output: viaOpenRouter(2.3 / M),
+        cacheRead: viaOpenRouter(0.57 / M),
+        cacheCreation: viaOpenRouter(0.57 / M),
+        cacheCreation1h: viaOpenRouter(0.57 / M), // no caching on this endpoint; never accrues
     },
 };
 
@@ -452,6 +461,11 @@ const MODELS: Record<string, ModelPricing> = {
 export const STT_USD_PER_SECOND_BY_MODEL: Record<string, number> = {
     'gpt-4o-transcribe': 0.36 / 3600,
     'gpt-transcribe': 0.27 / 3600,
+    // Through OpenRouter (providers/stt.ts OPENROUTER_STT_MODELS): list rates
+    // (2026-11-15) plus its credit fee. Billed by the exact second:
+    // usage.seconds matched each of 116 replayed clips to the sample.
+    'moondream/parakeet-ultra': viaOpenRouter(0.06 / 3600),
+    'x-ai/grok-stt-2.0': viaOpenRouter(0.1 / 3600),
 };
 
 /** Models billed per request in WHOLE seconds, rounded up: OpenAI reports

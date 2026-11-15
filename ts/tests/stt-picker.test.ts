@@ -27,6 +27,7 @@ import {
 } from '../ui/src/adapters/stt-picker.js';
 import type { SttEngineChoice } from '../ui/src/app-settings.js';
 import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
+import { setUiLang } from '../ui/src/i18n.js';
 
 const isTauriMock = vi.mocked(isTauri);
 const isCapacitorMock = vi.mocked(isCapacitor);
@@ -38,20 +39,20 @@ beforeEach(() => {
 
 describe('sttEngineOptions — browser (non-Tauri; no Web Speech in Node)', () => {
     it('local mode offers only the hosted option — no on-device Whisper in a browser', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('web mode offers only the hosted option', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
     });
 });
 
 describe('sttEngineOptions — desktop (Tauri)', () => {
     beforeEach(() => isTauriMock.mockReturnValue(true));
     it('local mode offers Whisper then the hosted option', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('web mode still hides Whisper (local-only)', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
     });
 });
 
@@ -81,13 +82,13 @@ describe('sttEngineOptions — Web Speech gating', () => {
     });
 
     it('offers web-speech in a browser that exposes the API', () => {
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['web-speech', 'aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('hides web-speech under Tauri even though the WKWebView exposes the API', () => {
         // Recognition silently never returns results in the embedded webview —
         // offering it gives a pulsing mic that can't transcribe.
         isTauriMock.mockReturnValue(true);
-        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe']);
+        expect(sttEngineOptions(false).map((o) => o.value)).toEqual(['whisper', 'aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('a web-speech pick stored before the Tauri gate resolves to the desktop default', () => {
         isTauriMock.mockReturnValue(true);
@@ -111,7 +112,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
     });
 
     it('does not offer web-speech on an iPhone', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('defaults an iPhone to aloud cloud, not the browser recognizer', () => {
         expect(defaultSttChoice(true)).toBe('aloud-gpt-transcribe');
@@ -125,7 +126,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
             platform: 'MacIntel',
             maxTouchPoints: 5,
         });
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
     });
     it('leaves a real Mac (no touch) on the browser recognizer', () => {
         vi.stubGlobal('navigator', {
@@ -136,6 +137,7 @@ describe('sttEngineOptions — iOS/iPadOS (WebKit exposes the API, unusably)', (
         expect(sttEngineOptions(true).map((o) => o.value)).toEqual([
             'web-speech',
             'aloud-gpt-transcribe',
+            'aloud-parakeet',
         ]);
     });
 });
@@ -147,7 +149,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     beforeEach(() => isCapacitorMock.mockReturnValue(true));
 
     it('offers aloud cloud first, then the built-in recognizer', () => {
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'capacitor']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet', 'capacitor']);
     });
 
     // No privacy promise: it's the PLATFORM's recognizer and Android's routes to
@@ -165,7 +167,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         (globalThis as unknown as { window: unknown }).window = {
             webkitSpeechRecognition: class {},
         };
-        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'capacitor']);
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet', 'capacitor']);
         delete (globalThis as unknown as { window?: unknown }).window;
     });
     describe('sparse-speech modes (noting)', () => {
@@ -177,6 +179,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
             expect(sttEngineOptions(true, 'noting').map((o) => o.value)).toEqual([
                 'capacitor',
                 'aloud-gpt-transcribe',
+                'aloud-parakeet',
             ]);
             expect(defaultSttChoice(true, 'noting')).toBe('capacitor');
         });
@@ -193,7 +196,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
         });
         it('is the same list as the other modes off the phone', () => {
             isCapacitorMock.mockReturnValue(false);
-            expect(sttEngineOptions(true, 'noting').map((o) => o.value)).toEqual(['aloud-gpt-transcribe']);
+            expect(sttEngineOptions(true, 'noting').map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-parakeet']);
         });
     });
 
@@ -205,7 +208,7 @@ describe('sttEngineOptions — native mobile (Capacitor)', () => {
     });
 });
 
-describe('hosted STT — the one cloud model', () => {
+describe('hosted STT', () => {
     it('badges the hosted entry with its rate, and only it', () => {
         const opts = sttEngineOptions(true);
         const badgeOf = (v: string) => opts.find((o) => o.value === v)!.label.match(/\((.*)\)/)?.[1];
@@ -213,8 +216,10 @@ describe('hosted STT — the one cloud model', () => {
         // Free engines carry no badge at all.
         expect(opts.find((o) => o.value === 'whisper')?.label ?? '').not.toContain('☁');
     });
-    it('maps the hosted choice to the continuous PCM backend', () => {
-        expect(sttBackendForChoice('aloud-gpt-transcribe')).toBe('server-whisper');
+    it('maps every hosted choice to the continuous PCM backend', () => {
+        for (const c of ['aloud-gpt-transcribe', 'aloud-parakeet', 'aloud-grok'] as const) {
+            expect(sttBackendForChoice(c)).toBe('server-whisper');
+        }
     });
     it("drops a stored 'aloud' pick from before gpt-transcribe replaced it", () => {
         // The retired gpt-4o-transcribe choice (meditation-pal-vazw). No
@@ -224,6 +229,40 @@ describe('hosted STT — the one cloud model', () => {
     it('resolveSttChoice honors a stored gpt-transcribe pick in every mode', () => {
         expect(resolveSttChoice('aloud-gpt-transcribe', true)).toBe('aloud-gpt-transcribe');
         expect(resolveSttChoice('aloud-gpt-transcribe', false)).toBe('aloud-gpt-transcribe');
+    });
+});
+
+describe('hosted STT by language', () => {
+    afterEach(() => setUiLang('en'));
+
+    it('offers GPT and Parakeet in English, GPT and Grok in Chinese', () => {
+        expect(sttEngineOptions(true, 'exploration', 'en').map((o) => o.value)).toEqual([
+            'aloud-gpt-transcribe',
+            'aloud-parakeet',
+        ]);
+        expect(sttEngineOptions(true, 'exploration', 'zh').map((o) => o.value)).toEqual([
+            'aloud-gpt-transcribe',
+            'aloud-grok',
+        ]);
+    });
+    it('follows the language setting when none is passed', () => {
+        setUiLang('zh');
+        expect(sttEngineOptions(true).map((o) => o.value)).toEqual(['aloud-gpt-transcribe', 'aloud-grok']);
+    });
+    it('labels each by its model, with its rate', () => {
+        const label = (lang: 'en' | 'zh', v: string) =>
+            sttEngineOptions(true, 'exploration', lang).find((o) => o.value === v)!.label;
+        expect(label('en', 'aloud-gpt-transcribe')).toMatch(/^GPT .*☁/);
+        expect(label('en', 'aloud-parakeet')).toMatch(/^Parakeet .*☁/);
+        expect(label('zh', 'aloud-grok')).toMatch(/^Grok .*☁/);
+    });
+    it('keeps a hosted pick the language drops on aloud cloud, on GPT, not the local default', () => {
+        isTauriMock.mockReturnValue(true); // desktop: the flow default would be Whisper
+        setUiLang('zh');
+        expect(resolveSttChoice('aloud-parakeet', false)).toBe('aloud-gpt-transcribe');
+        setUiLang('en');
+        expect(resolveSttChoice('aloud-grok', false)).toBe('aloud-gpt-transcribe');
+        expect(resolveSttChoice('aloud-parakeet', false)).toBe('aloud-parakeet');
     });
 });
 
@@ -275,6 +314,24 @@ describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', 
     it('adopts the server rate from /me/models over the built-in seed', () => {
         setCloudSttCreditsPerHour(0.42);
         expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(0.42);
+    });
+
+    it('adopts a rate per hosted model, keyed by the model each choice sends', () => {
+        setCloudSttCreditsPerHour(1.9, {
+            'gpt-transcribe': 1.8,
+            'moondream/parakeet-ultra': 0.4,
+            'x-ai/grok-stt-2.0': 0.7,
+        });
+        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(1.8);
+        expect(cloudSttCreditsPerHour('aloud-parakeet')).toBe(0.4);
+        expect(cloudSttCreditsPerHour('aloud-grok')).toBe(0.7);
+    });
+
+    it("takes an older server's single rate for GPT alone", () => {
+        setCloudSttCreditsPerHour(0.4, { 'moondream/parakeet-ultra': 0.3 });
+        setCloudSttCreditsPerHour(0.5);
+        expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(0.5);
+        expect(cloudSttCreditsPerHour('aloud-parakeet')).toBe(0.3);
     });
 
     it('keeps the last good rate when the server sends nothing usable', () => {

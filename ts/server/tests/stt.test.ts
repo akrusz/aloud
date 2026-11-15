@@ -18,12 +18,22 @@ let sttCalls: Array<{
     language: string | null;
     prompt: string | null;
 }> = [];
+/** JSON bodies sent to OpenRouter's transcription endpoint. */
+let openRouterCalls: Array<Record<string, unknown>> = [];
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     sttCalls = [];
+    openRouterCalls = [];
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
+        if (u === 'https://openrouter.ai/api/v1/audio/transcriptions') {
+            const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+            openRouterCalls.push(body);
+            const wav = Buffer.from((body['input_audio'] as { data: string }).data, 'base64');
+            const seconds = (wav.length - 44) / 2 / 16_000;
+            return new Response(JSON.stringify({ text: ' ni hao ', usage: { seconds, cost: 0 } }), { status: 200 });
+        }
         if (u.includes('api.openai.com') || u.includes('groq.com')) {
             const body = init?.body as FormData | undefined;
             sttCalls.push({
@@ -473,5 +483,87 @@ describe('POST /cloud/v1/stt?setup=1 (setup-screen listening)', () => {
         expect(rows[0]!.providerCostUsd).toBeCloseTo((3 * 0.27) / 3600, 12);
         expect(rows[1]!.credits).toBeGreaterThan(0);
         expect(rows.every((r) => r.accountId === accountId && r.kind === 'stt')).toBe(true);
+    });
+});
+
+describe('POST /cloud/v1/stt through OpenRouter', () => {
+    function orApp(extra: Record<string, string> = { OPENROUTER_API_KEY: 'or-test' }) {
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            OPENAI_API_KEY: 'sk-test',
+            ALOUD_FREE_SIGNUP_CREDITS: '20',
+            ...extra,
+        });
+        return createApp(buildDeps(config));
+    }
+
+    it.each([
+        ['moondream/parakeet-ultra', 'primeintellect', true, 0.06],
+        ['x-ai/grok-stt-2.0', 'xai', false, 0.1],
+    ] as const)('%s: pinned to %s, billed by the exact second at list plus the OpenRouter fee', async (model, host, zdr, listPerHour) => {
+        const a = orApp();
+        const token = await devToken(a);
+        const res = await a.request(`/cloud/v1/stt?sample_rate=16000&format=i16&lang=zh-CN&model=${encodeURIComponent(model)}`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+            body: pcm16Body(2.5),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body.text).toBe('ni hao');
+        expect(sttCalls).toHaveLength(0); // never the Whisper backend
+        expect(openRouterCalls).toHaveLength(1);
+        const sent = openRouterCalls[0]!;
+        expect(sent['model']).toBe(model);
+        expect(sent['language']).toBe('zh');
+        expect((sent['input_audio'] as { format: string }).format).toBe('wav');
+        // Only the host the privacy policy names, no fallback, no data
+        // collection, and ZDR where the host offers it.
+        expect(sent['provider']).toEqual({
+            only: [host],
+            allow_fallbacks: false,
+            data_collection: 'deny',
+            ...(zdr ? { zdr: true } : {}),
+        });
+        // 2.5 s, not rounded up to 3, at list x 1.055 / $0.05 per credit.
+        expect(body.creditsCharged).toBeCloseTo((2.5 * listPerHour * 1.055) / 3600 / 0.05, 8);
+    });
+
+    it('sends no prompt or keyterms on setup listening (neither host takes them)', async () => {
+        const a = orApp();
+        const token = await devToken(a);
+        await a.request('/cloud/v1/stt?sample_rate=16000&setup=1&lang=en&model=moondream%2Fparakeet-ultra', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: pcmBody(2),
+        });
+        expect(openRouterCalls).toHaveLength(1);
+        expect(openRouterCalls[0]).not.toHaveProperty('prompt');
+        expect(openRouterCalls[0]).not.toHaveProperty('keyterms');
+    });
+
+    it('refuses an OpenRouter model on a server with no OpenRouter key, before any call', async () => {
+        const a = orApp({});
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=x-ai%2Fgrok-stt-2.0', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: pcmBody(1),
+        });
+        expect(res.ok).toBe(false);
+        expect(openRouterCalls).toHaveLength(0);
+        expect(sttCalls).toHaveLength(0);
+    });
+
+    it('still refuses an OpenRouter slug it does not list (the model keys billing)', async () => {
+        const a = orApp();
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&model=nvidia%2Fnemotron-3.5-transcribe', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: pcmBody(1),
+        });
+        expect(res.status).toBe(400);
+        expect(openRouterCalls).toHaveLength(0);
     });
 });

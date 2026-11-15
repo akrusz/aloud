@@ -10,8 +10,9 @@
  *                     and not under Tauri (sttEngineOptions)
  *   whisper         - the desktop Rust shell's /app/v1/stt/whisper, so the
  *                     reliable desktop path
- *   aloud cloud     - /cloud/v1/stt through the same PCM engine; the fallback
- *                     every mode can reach
+ *   aloud-*         - aloud cloud's /cloud/v1/stt through the same PCM
+ *                     engine, one choice per hosted model (HOSTED_STT); GPT is
+ *                     the fallback every mode and language can reach
  */
 
 import type { SttEngine } from '../../../src/platform/stt.js';
@@ -35,7 +36,8 @@ import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import { simulateSttFault } from '../dev-sim.js';
 import { whisperWarmUrl } from '../whisper-ready.js';
-import type { AppSettings, SttEngineChoice } from '../app-settings.js';
+import type { AppSettings, HostedSttChoice, SttEngineChoice } from '../app-settings.js';
+import { uiLang, type UiLang } from '../i18n.js';
 import type { MeditationType } from '../settings.js';
 import { getMode } from '../../../src/facilitation/modes.js';
 import { setupVocabulary } from '../../../src/facilitation/setup-command.js';
@@ -90,8 +92,37 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
 }
 
 /**
- * STT through the aloud cloud's authed /cloud/v1/stt (OpenAI gpt-transcribe
- * by default; Groq/custom via server env). Same client-side capture/VAD as
+ * The aloud cloud STT choices: the model each asks /cloud/v1/stt for (the
+ * server allowlists it: config.ts sttModelChoices, providers/stt.ts
+ * OPENROUTER_STT_MODELS), its picker label (the model, as in the LLM picker),
+ * its credits/hr until /me/models answers, and the languages it's offered in.
+ * Moving a choice to a newer model means moving `model` here and the server's
+ * allowlist together; the choice id stays.
+ */
+const HOSTED_STT: Record<
+    HostedSttChoice,
+    { model: string; label: string; seedCreditsPerHour: number; offeredIn: (lang: UiLang) => boolean }
+> = {
+    'aloud-gpt-transcribe': { model: 'gpt-transcribe', label: 'GPT', seedCreditsPerHour: 2.11, offeredIn: () => true },
+    // Parakeet knows European languages, not Chinese.
+    'aloud-parakeet': {
+        model: 'moondream/parakeet-ultra',
+        label: 'Parakeet',
+        seedCreditsPerHour: 0.49,
+        offeredIn: (lang) => lang !== 'zh',
+    },
+    // The cheap alternative for Chinese only (dev call, 2026-11-15).
+    'aloud-grok': {
+        model: 'x-ai/grok-stt-2.0',
+        label: 'Grok',
+        seedCreditsPerHour: 0.82,
+        offeredIn: (lang) => lang === 'zh',
+    },
+};
+
+/**
+ * STT through the aloud cloud's authed /cloud/v1/stt, on the server's default
+ * model unless `model` names an allowlisted one. Same client-side capture/VAD as
  * desktop server-Whisper - only endpoint + bearer token differ. Used when a
  * session runs on the hosted ('aloud') provider. Null when mic capture isn't
  * available here.
@@ -194,7 +225,9 @@ async function buildSttForChoice(
             // mic-unavailable state, not a plugin that throws at start().
             return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
         case 'aloud-gpt-transcribe':
-            return createServerAloudStt(vadOpts, 'gpt-transcribe');
+        case 'aloud-parakeet':
+        case 'aloud-grok':
+            return createServerAloudStt(vadOpts, HOSTED_STT[choice].model);
         case 'web-speech':
             // Same Tauri guard as sttEngineOptions - honor a stale stored pick
             // with null rather than a mic that pulses forever.
@@ -215,6 +248,8 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
         case 'capacitor':
             return 'capacitor';
         case 'aloud-gpt-transcribe':
+        case 'aloud-parakeet':
+        case 'aloud-grok':
         case 'whisper':
             return 'server-whisper';
         case 'web-speech':
@@ -223,47 +258,56 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
 }
 
 /** aloud cloud STT bills at provider cost: credits/hour of speech at the
- *  assumed talk profile. UNROUNDED, like the server's model/voice rates, so it
- *  composes honestly into the setup footer's session total.
+ *  assumed talk profile, per hosted choice. UNROUNDED, like the server's
+ *  model/voice rates, so it composes honestly into the setup footer's session
+ *  total.
  *
- *  This is a SEED, not the authority: /me/models carries the server's own
- *  estimateStt figure and setCloudSttCreditsPerHour overwrites this the moment
- *  the model catalog loads. It only renders when the picker paints before (or
- *  without) a reachable cloud, so it should stay roughly right but can't drift
- *  into a real charge. 'aloud-gpt-transcribe' pins OpenAI's gpt-transcribe,
- *  which is what the picker calls "aloud cloud". */
-const FALLBACK_STT_CREDITS_PER_HOUR = 1.9;
+ *  Seeded from HOSTED_STT, not the authority: /me/models carries the server's
+ *  own estimateStt figures and setCloudSttCreditsPerHour overwrites these the
+ *  moment the model catalog loads. A seed only renders when the picker paints
+ *  before (or without) a reachable cloud, so it should stay roughly right but
+ *  can't drift into a real charge. */
+const sttCreditsPerHour = new Map<HostedSttChoice, number>(
+    (Object.keys(HOSTED_STT) as HostedSttChoice[]).map((c) => [c, HOSTED_STT[c].seedCreditsPerHour])
+);
 
-let sttCreditsPerHour = FALLBACK_STT_CREDITS_PER_HOUR;
-
-/** Adopt the server's hosted-STT rate (model-picker.ts, from /me/models). A
- *  missing or non-positive value leaves the seed in place rather than zeroing
- *  the leg - a hosted choice must never read as free. */
-export function setCloudSttCreditsPerHour(rate: number | null | undefined): void {
-    if (typeof rate === 'number' && rate > 0) sttCreditsPerHour = rate;
+/** Adopt the server's hosted-STT rates (model-picker.ts, from /me/models):
+ *  `byModel` per hosted model, `rate` the default model's (all an older server
+ *  sends). A missing or non-positive value leaves the seed in place rather than
+ *  zeroing the leg - a hosted choice must never read as free. */
+export function setCloudSttCreditsPerHour(
+    rate: number | null | undefined,
+    byModel?: Record<string, number | null | undefined> | null
+): void {
+    for (const choice of Object.keys(HOSTED_STT) as HostedSttChoice[]) {
+        const r = byModel?.[HOSTED_STT[choice].model] ?? (choice === 'aloud-gpt-transcribe' ? rate : undefined);
+        if (typeof r === 'number' && r > 0) sttCreditsPerHour.set(choice, r);
+    }
 }
 
-/** The hosted (credit-spending, cloud-auth) STT choice. */
-export function isHostedSttChoice(choice: SttEngineChoice): boolean {
-    return choice === 'aloud-gpt-transcribe';
+/** The hosted (credit-spending, cloud-auth) STT choices. */
+export function isHostedSttChoice(choice: SttEngineChoice): choice is HostedSttChoice {
+    return Object.hasOwn(HOSTED_STT, choice);
 }
 
 /** ☁/hr for a picker choice - 0 for the free local/browser engines. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
-    return isHostedSttChoice(choice) ? sttCreditsPerHour : 0;
+    return isHostedSttChoice(choice) ? (sttCreditsPerHour.get(choice) ?? 0) : 0;
 }
 
 /**
- * Which STT choices to offer for the current mode, in flow-default order:
- * Whisper (local-only - no on-device backend on the web), then browser speech
- * (only when the browser exposes the API), then the hosted option (always, and
- * the only one that costs credits), then the phone's own recognizer. The first
- * entry is the mode's default. In a sparse-speech mode (noting) the phone's
- * recognizer leads instead (see sparseSttEngine in app-settings.ts).
+ * Which STT choices to offer for the current mode and language, in
+ * flow-default order: Whisper (local-only - no on-device backend on the web),
+ * then browser speech (only when the browser exposes the API), then the hosted
+ * models the language takes (GPT always; they're the only ones that cost
+ * credits), then the phone's own recognizer. The first entry is the mode's
+ * default. In a sparse-speech mode (noting) the phone's recognizer leads
+ * instead (see sparseSttEngine in app-settings.ts).
  */
 export function sttEngineOptions(
     webMode: boolean,
-    mode: MeditationType = 'exploration'
+    mode: MeditationType = 'exploration',
+    lang: UiLang = uiLang()
 ): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
     const native = { value: 'capacitor' as const, label: 'Built-in transcription' };
@@ -284,13 +328,13 @@ export function sttEngineOptions(
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser' });
     }
-    // OpenAI's gpt-transcribe: cheaper upstream and (per benchmarks) more
-    // accurate than gpt-4o-transcribe (meditation-pal-vazw). Always offered, so
-    // it's the fallback every mode can reach.
-    out.push({
-        value: 'aloud-gpt-transcribe',
-        label: `aloud cloud${rateSuffix(sttCreditsPerHour)}`,
-    });
+    // aloud cloud, labelled by model. GPT is offered in every mode and
+    // language, so it's the fallback every session can reach.
+    for (const choice of Object.keys(HOSTED_STT) as HostedSttChoice[]) {
+        const h = HOSTED_STT[choice];
+        if (!h.offeredIn(lang)) continue;
+        out.push({ value: choice, label: `${h.label}${rateSuffix(cloudSttCreditsPerHour(choice))}` });
+    }
     // The native mobile recognizer: free, no credits. Labelled for what it IS,
     // not where the audio goes - Android's routes to Google, so don't
     // reintroduce a privacy claim ("private", "On-device"; sn1w tracks earning
@@ -332,12 +376,16 @@ export function defaultSttChoice(webMode: boolean, mode: MeditationType = 'explo
 }
 
 /** The stored pick if this mode offers it, else the mode's flow default.
- *  Handles null (never chosen) and a stale pick carried across a mode change. */
+ *  Handles null (never chosen) and a stale pick carried across a mode change.
+ *  A hosted pick the language doesn't offer (Parakeet in a Chinese session)
+ *  stays on aloud cloud, on GPT, rather than dropping to a local default. */
 export function resolveSttChoice(
     stored: SttEngineChoice | null,
     webMode: boolean,
     mode: MeditationType = 'exploration'
 ): SttEngineChoice {
     const offered = sttEngineOptions(webMode, mode).map((o) => o.value);
-    return stored && offered.includes(stored) ? stored : defaultSttChoice(webMode, mode);
+    if (stored && offered.includes(stored)) return stored;
+    if (stored && isHostedSttChoice(stored) && offered.includes('aloud-gpt-transcribe')) return 'aloud-gpt-transcribe';
+    return defaultSttChoice(webMode, mode);
 }

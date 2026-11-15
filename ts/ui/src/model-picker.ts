@@ -309,6 +309,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             if (!resp.ok) return null;
             const data = (await resp.json()) as {
                 sttCreditsPerHour?: number | null;
+                sttCreditsPerHourByModel?: Record<string, number | null> | null;
                 utilityCreditsPerHour?: number | null;
                 models?: Array<{
                     provider: string;
@@ -328,7 +329,7 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
             // The hosted STT leg is included in this payload (it has no catalog of
             // its own) so the setup footer's model + stt + voice sum uses the
             // server's rate, not a client-side copy that drifts.
-            setCloudSttCreditsPerHour(data.sttCreditsPerHour);
+            setCloudSttCreditsPerHour(data.sttCreditsPerHour, data.sttCreditsPerHourByModel);
             if (typeof data.utilityCreditsPerHour === 'number' && data.utilityCreditsPerHour > 0) {
                 utilityCreditsPerHour = data.utilityCreditsPerHour;
             }

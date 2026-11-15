@@ -23,7 +23,7 @@ specific manufacturer's stack.
 ## What the app offers on mobile (the options under test)
 
 - **STT**
-  - `aloud-gpt-transcribe` - hosted STT (OpenAI `gpt-transcribe`), shown as "aloud cloud".
+  - `aloud-gpt-transcribe` - hosted STT (OpenAI `gpt-transcribe`), shown as "GPT". `aloud-parakeet` ("Parakeet", not in zh) and `aloud-grok` ("Grok", zh only) are the cheaper hosted choices.
     **Costs credits.** Current mobile default for the facilitated modes (since 2026-10-15, see below).
   - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.**
     The noting default, under the sparse-speech modes' own pick (`ModeSpec.sparseSpeech`,

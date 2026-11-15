@@ -120,6 +120,7 @@ import {
     sttBackendForChoice,
     resolveSttChoice,
     sttEngineOptions,
+    isHostedSttChoice,
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
@@ -1150,14 +1151,14 @@ export async function mountSessionView(
     }
     /**
      * Fill the trouble banner. When aloud cloud is an available STT option and
-     * we're not on it, offer a one-click switch, so a user whose browser blocks
+     * we're on none of its models, offer a one-click switch to GPT, so a user whose browser blocks
      * its speech recognizer (common on Edge/Windows) gets a working mic without
      * leaving the session or hunting through Settings.
      */
     function renderSttTrouble(): void {
         if (!sttTroubleEl) return;
         const canSwitchToCloud =
-            sttChoice !== 'aloud-gpt-transcribe' &&
+            !isHostedSttChoice(sttChoice) &&
             sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud-gpt-transcribe');
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');

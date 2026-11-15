@@ -3,7 +3,8 @@
  * with `format=i16` (current clients; half the bytes of the same audio), Float32
  * otherwise (older clients) - sample rate in the `sample_rate` query param.
  * Forwards to the configured Whisper backend (OpenAI by default, Groq/custom
- * via env; config.ts resolveSttConfig), debits fractional credits by the
+ * via env; config.ts resolveSttConfig), or through OpenRouter for the models
+ * in providers/stt.ts OPENROUTER_STT_MODELS; debits fractional credits by the
  * audio seconds the provider bills (pricing sttBilledSeconds), returns the
  * transcript.
  *
@@ -31,7 +32,7 @@ import { sttBilledSeconds } from '../pricing/providers.js';
 import { serverIncidents } from '../credits/incidents.js';
 import { recordUsage } from '../credits/usage.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
-import { int16ToFloat32, transcribeWhisper } from '../providers/stt.js';
+import { OPENROUTER_STT_MODELS, int16ToFloat32, transcribeOpenRouter, transcribeWhisper } from '../providers/stt.js';
 import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
@@ -70,15 +71,22 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const sampleRate = Number(c.req.query('sample_rate') ?? 16_000);
         if (!ALLOWED_SAMPLE_RATES.has(sampleRate)) return errorJson(c, 'bad_request', 'invalid sample_rate');
 
-        // Optional per-call model pick (the client picker's two hosted options).
-        // Allowlisted against the configured backend: the model keys billing, so
-        // an arbitrary value could otherwise name a cheaper rate — or make us
-        // forward garbage upstream.
+        // Optional per-call model pick (the client picker's hosted options).
+        // Allowlisted: the configured backend's models, or one of the models
+        // served through OpenRouter. The model keys billing, so an arbitrary
+        // value could otherwise name a cheaper rate - or make us forward
+        // garbage upstream.
         const requestedModel = c.req.query('model');
-        if (requestedModel && !sttModelChoices(stt).includes(requestedModel)) {
+        const viaOpenRouter = requestedModel !== undefined && Object.hasOwn(OPENROUTER_STT_MODELS, requestedModel);
+        if (requestedModel && !viaOpenRouter && !sttModelChoices(stt).includes(requestedModel)) {
             return errorJson(c, 'bad_request', 'unknown stt model');
         }
+        const openRouterKey = deps.config.providerKeys.openrouter;
+        if (viaOpenRouter && !openRouterKey) {
+            return errorJson(c, 'provider_error', 'this STT model is not configured on this server');
+        }
         const model = requestedModel || stt.model;
+        const provider = viaOpenRouter ? 'openrouter' : stt.provider;
 
         // Wire format: i16 (current clients), f32 default for old ones. It
         // keys the alignment check and billed duration, so unknown = 400.
@@ -93,7 +101,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const seconds = samples.length / sampleRate;
 
         const sessionId = sessionIdOf(c.req.query('session_id'));
-        const incident = serverIncidents(deps.store, { accountId: account.id, provider: stt.provider, model, sessionId });
+        const incident = serverIncidents(deps.store, { accountId: account.id, provider, model, sessionId });
 
         const billedSeconds = sttBilledSeconds(seconds, model);
         const cost = priceSttSeconds(billedSeconds, model);
@@ -127,16 +135,20 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const langMatch = /^([a-z]{2,3})(-|$)/i.exec(c.req.query('lang') ?? '');
         const language = langMatch ? langMatch[1]!.toLowerCase() : undefined;
         // Built here from core, never taken from the request: a client prompt
-        // would be free-form text forwarded upstream on our key.
+        // would be free-form text forwarded upstream on our key. The
+        // OpenRouter models take none (OPENROUTER_STT_MODELS).
         const prompt = setup ? (setupVocabulary(language ?? 'en').prompt ?? undefined) : undefined;
 
         let text: string;
         try {
-            const result = await transcribeWhisper(samples, sampleRate, { ...stt, model }, { language, prompt });
+            const result = viaOpenRouter
+                ? await transcribeOpenRouter(samples, sampleRate, openRouterKey!, model, { language })
+                : await transcribeWhisper(samples, sampleRate, { ...stt, model }, { language, prompt });
             text = result.text;
             // The charge is our own count; the provider's is the tripwire for
-            // a billing rule that has moved under it.
-            if (result.reportedSeconds !== undefined && result.reportedSeconds !== billedSeconds) {
+            // a billing rule that has moved under it. Exact-second billers
+            // report a float, so a hair of rounding isn't a moved rule.
+            if (result.reportedSeconds !== undefined && Math.abs(result.reportedSeconds - billedSeconds) > 0.01) {
                 log.warn('stt billed seconds differ from provider usage', {
                     model,
                     billedSeconds,
@@ -154,7 +166,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             accountId: account.id,
             sessionId,
             kind: 'stt' as const,
-            provider: stt.provider,
+            provider,
             model,
             seconds: billedSeconds,
             purpose: setup ? ('setup' as const) : null,
@@ -167,7 +179,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
                 creditsRemaining: await deps.ledger.balance(account.id),
             } satisfies TranscribeResponse);
         }
-        const charged = await chargeUpfront(deps, gate, cost, `stt:${stt.provider}:${billedSeconds.toFixed(1)}s`, usage);
+        const charged = await chargeUpfront(deps, gate, cost, `stt:${provider}:${billedSeconds.toFixed(1)}s`, usage);
         return c.json({ text, ...charged } satisfies TranscribeResponse);
     });
 

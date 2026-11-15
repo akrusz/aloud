@@ -15,12 +15,14 @@ import type { SignatureSound } from './signature-sound.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
 export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenlabs';
+/** The aloud cloud STT choices, labelled by their model (GPT, Parakeet, Grok;
+ *  adapters/stt-picker.ts HOSTED_STT). Each id names a model family, not a
+ *  version, so a stored pick outlives an upgrade. */
+export type HostedSttChoice = 'aloud-gpt-transcribe' | 'aloud-parakeet' | 'aloud-grok';
 /** Speech-to-text source. Always an explicit pick (no hidden "automatic") so
  *  the user controls where audio goes and knows when it costs credits. A stored
- *  null means the mode's flow default (resolveSttChoice in adapters/stt-picker).
- *  'aloud-gpt-transcribe' is the one hosted choice, labelled "aloud cloud"; the
- *  id keeps the model in the name because a stored pick outlives the model. */
-export type SttEngineChoice = 'whisper' | 'web-speech' | 'aloud-gpt-transcribe' | 'capacitor';
+ *  null means the mode's flow default (resolveSttChoice in adapters/stt-picker). */
+export type SttEngineChoice = 'whisper' | 'web-speech' | HostedSttChoice | 'capacitor';
 
 /** When the facilitator checks in during silence: never, after a fixed
  *  interval (silenceCheckinSec), or model-set ('smart': the LLM prefixes
