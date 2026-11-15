@@ -40,6 +40,11 @@ export const SETUP_LINES = {
     'timer-60': { en: 'Timer set for an hour.', zh: '计时一小时。' },
     'timer-set': { en: 'Okay, the timer is set.', zh: '计时已设好。' },
     'timer-off': { en: 'The timer is off.', zh: '计时已关闭。' },
+    'clock-hidden': { en: 'The clock is hidden.', zh: '时钟已隐藏。' },
+    'clock-shown': { en: 'The clock is showing.', zh: '时钟已显示。' },
+    'clock-off': { en: 'The clock is off.', zh: '时钟已关闭。' },
+    'clock-wall': { en: 'The clock will show the time of day.', zh: '时钟会显示当前时间。' },
+    'clock-elapsed': { en: 'The clock will show time in session.', zh: '时钟会显示已用时间。' },
 
     'focus-body-on': { en: 'Body focus is on.', zh: '已加上身体与感受。' },
     'focus-body-off': { en: 'Body focus is off.', zh: '已去掉身体与感受。' },
@@ -75,6 +80,11 @@ export const SETUP_LINES = {
 
     'intention-set': { en: 'Your intention is set.', zh: '意图已记下。' },
     'intention-cleared': { en: 'Your intention is cleared.', zh: '意图已清除。' },
+    // Asked after "set my intention"; whatever is said next is the intention.
+    'intention-ask': { en: 'What is your intention?', zh: '你的意图是什么？' },
+    'never-mind': { en: 'Okay, never mind.', zh: '好的，不改了。' },
+
+    'model-set': { en: 'Okay, the model is set.', zh: '好的，模型已设好。' },
 
     'checkins-on': { en: 'Check-ins are on.', zh: '安静时我会轻声问候。' },
     'checkins-off': { en: 'Check-ins are off.', zh: '安静时我不会打扰。' },
@@ -167,6 +177,13 @@ export type SetupOutcome =
     | { kind: 'guidance'; step: number }
     | { kind: 'verbosity'; value: Verbosity }
     | { kind: 'intention'; set: boolean }
+    /** Nothing changed yet: the app asks, and the next thing said is it. */
+    | { kind: 'intention-ask' }
+    /** The readout as it now stands; `off` when the countdown went with it. */
+    | { kind: 'clock'; show: boolean; off?: boolean }
+    | { kind: 'clock-mode'; mode: 'elapsed' | 'wall' }
+    /** The picker is to be opened; nothing is said, it is on screen. */
+    | { kind: 'voice-picker' }
     | { kind: 'checkins'; on: boolean }
     | { kind: 'stop-listening' }
     | { kind: 'help' }
@@ -189,6 +206,7 @@ export function setupActionModes(action: SetupAction): readonly BeginMode[] | nu
         case 'checkins':
             return ['felt_sense'];
         case 'intention':
+        case 'intention-ask':
             return ['exploration', 'felt_sense'];
         default:
             return null;
@@ -223,7 +241,7 @@ function minutesText(minutes: number, language: SetupLanguage): string {
     return `Timer set for ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
 }
 
-function lineFor(outcome: SetupOutcome, language: SetupLanguage): SpokenSetupLine {
+function lineFor(outcome: Exclude<SetupOutcome, { kind: 'voice-picker' }>, language: SetupLanguage): SpokenSetupLine {
     const fixed = (id: SetupLineId): SpokenSetupLine => ({ id, text: SETUP_LINES[id][language] });
     switch (outcome.kind) {
         case 'mode':
@@ -246,6 +264,12 @@ function lineFor(outcome: SetupOutcome, language: SetupLanguage): SpokenSetupLin
             return fixed(`responses-${outcome.value}`);
         case 'intention':
             return fixed(outcome.set ? 'intention-set' : 'intention-cleared');
+        case 'intention-ask':
+            return fixed('intention-ask');
+        case 'clock':
+            return fixed(outcome.show ? 'clock-shown' : outcome.off ? 'clock-off' : 'clock-hidden');
+        case 'clock-mode':
+            return fixed(outcome.mode === 'wall' ? 'clock-wall' : 'clock-elapsed');
         case 'checkins':
             return fixed(outcome.on ? 'checkins-on' : 'checkins-off');
         case 'stop-listening':
@@ -265,6 +289,13 @@ function lineFor(outcome: SetupOutcome, language: SetupLanguage): SpokenSetupLin
     }
 }
 
+/** The line for a model picked by name (setup-pick.ts): one clip for all of
+ *  them, and the model's own name for a voice that synthesizes. */
+export function modelSetLine(label: string, language: string): SpokenSetupLine {
+    const lang = setupLanguage(language);
+    return { id: 'model-set', text: lang === 'zh' ? `模型设为 ${label}。` : `Model set to ${label}.` };
+}
+
 /** Past this many lines a request is answered with one "all set". */
 const MAX_SPOKEN_LINES = 3;
 
@@ -275,7 +306,8 @@ const MAX_SPOKEN_LINES = 3;
  */
 export function setupOutcomeLines(outcomes: readonly SetupOutcome[], language: string): SpokenSetupLine[] {
     const lang = setupLanguage(language);
-    const said = outcomes.filter((outcome, i) => {
+    const said = outcomes.filter((outcome, i): outcome is Exclude<SetupOutcome, { kind: 'voice-picker' }> => {
+        if (outcome.kind === 'voice-picker') return false;
         if (outcome.kind !== 'cleared') return true;
         return !outcomes.slice(i + 1).some((later) => later.kind === outcome.group && later.on);
     });

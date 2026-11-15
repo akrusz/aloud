@@ -1,7 +1,7 @@
 SETUP-SCREEN SPEECH THROUGH LOCAL WHISPER (synthetic voices)
 Synthetic macOS voices through one recognizer: good for systematic mishearings and the
 prompt's effect, not a measure of accuracy in a real room with a real voice.
-Scored with the parser as of 2026-11-14T12:03:52.899Z.
+Scored with the parser as of 2026-11-15T02:11:40.073Z.
 
 en: ggml-base.en.bin; voices: Samantha (English (US)), Daniel (English (UK)), Rishi (English (India)), Ava (Premium), Moira (English (Ireland)), Reed (English (US)), Karen, Eddy (English (UK)), Tessa (English (South Africa))
   scope: core voices clean+noisy on every phrase; every third phrase far (one core voice) and one extra voice clean+noisy
@@ -17,20 +17,20 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
 
 == 2. Command phrases: exact / wrong (a different change, or a begin) / missed
   lang room      n        no prompt: exact  wrong   miss     with prompt: exact  wrong   miss
-  en clean       474              94.3%   0.2%   5.5%                 96.2%   0.2%   3.6%
+  en clean       474              94.5%   0.2%   5.3%                 96.4%   0.2%   3.4%
   en noisy       474              82.7%   0.6%  16.7%                 88.0%   0.2%  11.8%
   en far         48               39.6%   0.0%  60.4%                 58.3%   0.0%  41.7%
-  en all         996              86.1%   0.4%  13.5%                 90.5%   0.2%   9.3%
+  en all         996              86.2%   0.4%  13.4%                 90.6%   0.2%   9.2%
   zh clean       108              53.7%   0.0%  46.3%                 64.8%   2.8%  32.4%
   zh noisy       108              47.2%   0.0%  52.8%                 51.9%   3.7%  44.4%
   zh far         16               18.8%   0.0%  81.3%                 18.8%  12.5%  68.8%
   zh all         232              48.3%   0.0%  51.7%                 55.6%   3.9%  40.5%
 
   by request kind (all rooms), exact share: no prompt -> with prompt
-  en: mode 91.7%->97.2%; length 88.6%->90.9%; focus 84.9%->90.5%; vibe 83.1%->89.3%; guidance 82.3%->89.6%; responses 83.3%->82.1%; intention 95.2%->95.2%; checkins 88.1%->92.9%; stop-listening 70.4%->77.8%; help 90.5%->100.0%; begin 91.0%->91.0%; combined 84.5%->91.7%
+  en: mode 91.7%->97.2%; length 88.6%->90.9%; focus 85.7%->91.3%; vibe 83.1%->89.3%; guidance 82.3%->89.6%; responses 83.3%->82.1%; intention 95.2%->95.2%; checkins 88.1%->92.9%; stop-listening 70.4%->77.8%; help 90.5%->100.0%; begin 91.0%->91.0%; combined 84.5%->91.7%
   zh: mode 45.5%->63.6%; length 76.7%->66.7%; focus 73.7%->57.9%; vibe 36.6%->48.8%; guidance 21.7%->73.9%; responses 33.3%->40.0%; intention 27.3%->45.5%; checkins 63.6%->63.6%; stop-listening 0.0%->12.5%; help 63.6%->45.5%; begin 73.7%->57.9%; combined 40.9%->54.5%
   by voice (all rooms), exact share: no prompt -> with prompt
-  en: Samantha (English (US)) 92.7%->95.7% (n=300); Daniel (English (UK)) 84.0%->91.3% (n=300); Rishi (English (India)) 83.7%->87.7% (n=300); Ava (Premium) 93.8%->93.8% (n=16); Moira (English (Ireland)) 87.5%->87.5% (n=16); Reed (English (US)) 62.5%->62.5% (n=16); Karen 100.0%->100.0% (n=16); Eddy (English (UK)) 56.3%->62.5% (n=16); Tessa (English (South Africa)) 81.3%->75.0% (n=16)
+  en: Samantha (English (US)) 92.7%->95.7% (n=300); Daniel (English (UK)) 84.0%->91.3% (n=300); Rishi (English (India)) 84.0%->88.0% (n=300); Ava (Premium) 93.8%->93.8% (n=16); Moira (English (Ireland)) 87.5%->87.5% (n=16); Reed (English (US)) 62.5%->62.5% (n=16); Karen 100.0%->100.0% (n=16); Eddy (English (UK)) 56.3%->62.5% (n=16); Tessa (English (South Africa)) 81.3%->75.0% (n=16)
   zh: Tingting (Chinese (China mainland)) 74.0%->82.0% (n=100); Eddy (Chinese (China mainland)) 24.0%->30.0% (n=100); Meijia (Chinese (Taiwan)) 50.0%->75.0% (n=16); Reed (Chinese (China mainland)) 37.5%->31.3% (n=16)
 
   zh transcript artifacts (command + negative clips): no prompt -> with prompt
@@ -42,7 +42,7 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
   3a. the written phrase itself fails: see section 1 (0 command phrases).
   3b. the phrase passes as written but Whisper's spelling of it fails: 0 transcripts, 0 distinct
 
-== 4. Mishearings the parser misses or gets wrong: 456 transcripts over 116 phrases (plus 0 with no words at all)
+== 4. Mishearings the parser misses or gets wrong: 454 transcripts over 116 phrases (plus 0 with no words at all)
   "慈悲" (zh) 12/14 misheard-and-failed; want compassionate on
         2x "拜拜~" -> nothing  [clean/noisy, 0/2 with prompt]
         1x "詞:碧。" -> nothing  [clean, 0/1 with prompt]
@@ -291,9 +291,6 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
         1x "Come on baby." -> nothing  [far, 0/1 with prompt]
         1x "Two others." -> nothing  [noisy, 1/1 with prompt]
         1x "Come on, baby." -> nothing  [far, 1/1 with prompt]
-  "change the focus to parts" (en) 4/18 misheard-and-failed; want clear focus, inner_parts on
-        2x "Change the focus two parts." -> nothing  [clean, 1/2 with prompt]
-        2x "Change the focus to balance." -> nothing  [far, 1/2 with prompt]
   "turn up the guidance" (en) 4/12 misheard-and-failed; want guidance up
         4x "Turn off the guidance." -> nothing  [noisy, 2/4 with prompt]
   "talk more" (en) 4/12 misheard-and-failed; want verbosity up
@@ -321,6 +318,11 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
         1x "看起來了" -> nothing  [noisy, 0/1 with prompt]
         1x "太多了" -> nothing  [far, 0/1 with prompt]
         1x "太爽" -> nothing  [noisy, 0/1 with prompt]
+  "标记模式" (zh) 4/8 misheard-and-failed; want mode noting
+        1x "不要記我事。" -> nothing  [clean, 0/1 with prompt]
+        1x "不要進無學!" -> nothing  [noisy, 0/1 with prompt]
+        1x "表记我事。" -> nothing  [clean, 1/1 with prompt]
+        1x "表情模式，" -> nothing  [noisy, 1/1 with prompt]
   ... 71 more phrases in results/summary.json
 
 == 5. False triggers
@@ -343,9 +345,9 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
   False setup changes (0, 0 distinct transcripts):
 
 == 6. Does the prompt help? (same clip, prompt off vs on)
-  en all clips (n=996): exact 86.1% -> 90.5% (50 clips fixed by the prompt, 7 broken by it); wrong 0.4% -> 0.2% (0 newly wrong, 2 no longer wrong)
+  en all clips (n=996): exact 86.2% -> 90.6% (50 clips fixed by the prompt, 7 broken by it); wrong 0.4% -> 0.2% (0 newly wrong, 2 no longer wrong)
       false begins 0 -> 0; false setup changes (negatives, noise, prose) 0 -> 0
-  en core voices, clean+noisy (n=852): exact 89.4% -> 93.4% (38 clips fixed by the prompt, 4 broken by it); wrong 0.1% -> 0.1% (0 newly wrong, 0 no longer wrong)
+  en core voices, clean+noisy (n=852): exact 89.6% -> 93.5% (38 clips fixed by the prompt, 4 broken by it); wrong 0.1% -> 0.1% (0 newly wrong, 0 no longer wrong)
   zh all clips (n=232): exact 48.3% -> 55.6% (33 clips fixed by the prompt, 16 broken by it); wrong 0.0% -> 3.9% (9 newly wrong, 0 no longer wrong)
       false begins 0 -> 0; false setup changes (negatives, noise, prose) 0 -> 0
   zh core voices, clean+noisy (n=184): exact 51.6% -> 59.2% (26 clips fixed by the prompt, 12 broken by it); wrong 0.0% -> 3.3% (6 newly wrong, 0 no longer wrong)

@@ -53,8 +53,8 @@ const SITUATION =
     'plausibly said, by sound, among the few things one can ask for here. Modes: exploration, noting, felt ' +
     'sense. Vibes: playful, compassionate, loving, spacious, effortless, feeling good. Focuses: body and ' +
     'sensations, emotions, parts. Also: more or less guidance, shorter or longer responses, a session ' +
-    'length or no timer, check-ins on or off, stop listening, help. Asking to begin or start the session ' +
-    'is not a setting.';
+    'length or no timer, the clock shown or hidden, setting an intention, picking a voice, check-ins on or ' +
+    'off, stop listening, help. Asking to begin or start the session is not a setting.';
 
 /**
  * Each ask here is paid for on every call (~170 tokens however short), so the
@@ -266,6 +266,34 @@ const SETTINGS = {
         ["Don't set a timer.", 'Let it run as long as it runs.'],
         'Setting a length. Timers on other things.'
     ),
+    // The readout, not the timer behind it: "no timer" is the ask above, and
+    // "turn off the clock" (both at once) is the parser's.
+    clock_hide: ask(
+        'Is the request to hide the clock or time readout during the session, so it is not seen?',
+        ["I'd rather not see the clock.", 'Hi the clock, please.'],
+        'Having no timer or time limit. The time of day in general.',
+        ["Don't set a timer.", 'What time is it?']
+    ),
+    clock_show: ask(
+        'Is the request to show the clock or time readout during the session?',
+        ['Put the clock back where I can see it.', 'Show me the clock, please.'],
+        'Setting how long the session will be. Asking what time it is.',
+        ["Let's do about fifteen minutes.", 'What time is it?']
+    ),
+    // The request with the intention still to come; the app asks for it. An
+    // intention said outright is free text and stays the parser's.
+    set_intention: ask(
+        'Is the request to set, add or change an intention for the session, without yet saying what the intention is?',
+        ["I'd like to give this session an intention.", 'Can I sat an intention?'],
+        'Talk about what someone intends or meant to do.',
+        ['I had every intention of calling her.']
+    ),
+    voice_picker: ask(
+        "Is the request to choose, browse or change the voice the app speaks in?",
+        ['Could I pick a different voice for you?', 'What other voices do you have?'],
+        "A person's voice, or how loud something is.",
+        ['Her voice is lovely.', 'Keep your voice down.']
+    ),
     checkins: ask(
         'Is the request about the facilitator checking in when the meditator goes quiet, on or off?',
         ['Check on me if I go quiet.', "Don't interrupt my silences."],
@@ -298,12 +326,21 @@ type SettingKey = keyof typeof SETTINGS;
  * 0.6-0.9; a caption or a remark that names a value ("Effortless style.",
  * "and some playful ones too") 0.5-0.9. The bars sit over every such line in
  * the corpus, which costs most mishearings.
+ *
+ * The scores are not exact. The same request asked twice comes back up to
+ * about 0.05 apart ("Check on me now and then." 0.74, 0.78, 0.83, 0.83 for
+ * check-ins), so a line within that of its bar goes either way from one call
+ * to the next: 66 of the 299 corpus lines that reach the full set have an ask
+ * that close, and 40 of 604 sit that close to the gate's. A bar set a hundredth
+ * over one reading of a television line is not over it. jev-setup.ts caches
+ * one reading per line, which hides this. Adding asks does not move the
+ * others beyond that noise (measured with and without the last four).
  */
 const VALUE_THRESHOLD = 0.75;
 const THRESHOLDS: Partial<Record<string, number>> = {
     mode_noting: 0.82, // "Noting that." 0.80
     vibe_compassionate: 0.8, // "Don't be so compassionate with him." 0.67
-    vibe_effortless: 0.9, // "Effortless style." 0.86
+    vibe_effortless: 0.93, // "Effortless style." 0.83 to 0.90 over five asks of the same line
     focus_parts: 0.8, // "Only the parts that matter." 0.64
     begin: 0.5, // a veto: low is the cautious side
     remove: 0.6,
@@ -315,6 +352,13 @@ const THRESHOLDS: Partial<Record<string, number>> = {
     length: 0.9, // "Half an hour from here." 0.83
     no_timer: 0.92, // "No time." 0.88
     checkins: 0.8, // "Check in online." 0.73
+    // Measured 2026-11-14. Requests in plain words score 0.90 to 0.99 on all
+    // four ("Could you take the time off the screen?" 0.82, "I'd like the time
+    // up on the screen." 0.81 and lost to its opposite).
+    clock_hide: 0.75, // nothing else above 0.58
+    clock_show: 0.93, // "I can't see the clock from here." 0.86
+    set_intention: 0.85, // Whisper's "请因，" 0.75
+    voice_picker: 0.9, // Whisper's "Change the Vaidya spacious." 0.83, for "change the vibe to spacious"
     // Lower than the rest on purpose: a false one closes the mic ("Put it on
     // mute." 0.86), the one change a noisy room can't make worse.
     stop_listening: 0.75,
@@ -453,6 +497,12 @@ const SIBLINGS: ReadonlyArray<readonly [string, string]> = [
 const NAMES_GUIDANCE = /guid|lead|\bled\b|direct|steer|follow/i;
 const NAMES_RESPONSES = /respon|repl|answer|talk|word|\bsay|speak|brief|short|long/i;
 
+/** Which of the two a request names, when it names exactly one. */
+export function namesGuidanceOrResponses(text: string): 'guidance' | 'responses' | null {
+    const guidance = NAMES_GUIDANCE.test(text);
+    return guidance === NAMES_RESPONSES.test(text) ? null : guidance ? 'guidance' : 'responses';
+}
+
 function siblingKept(a: string, b: string, answers: JudgeAnswers, text: string): string {
     if (a.startsWith('guide_')) {
         const guidance = NAMES_GUIDANCE.test(text);
@@ -465,6 +515,7 @@ function siblingKept(a: string, b: string, answers: JudgeAnswers, text: string):
 const OPPOSITES: ReadonlyArray<readonly [string, string]> = [
     ['guide_more', 'guide_less'],
     ['shorter', 'longer'],
+    ['clock_hide', 'clock_show'],
 ];
 
 const RELATIVE_WORDS = /^(more|another|extra|additional|longer|add|extend)$/;
@@ -476,7 +527,7 @@ const RELATIVE_WORDS = /^(more|another|extra|additional|longer|add|extend)$/;
  * makes it so ("five more minutes"), and a relative length is no length on a
  * screen with no timer running.
  */
-function sessionMinutes(text: string): number | null {
+export function sessionMinutes(text: string): number | null {
     const request = parseTimerRequest(text);
     if (!request || request.minutes <= 0) return null;
     if (request.relative) {
@@ -517,6 +568,11 @@ export function resolveSetupAnswers(answers: JudgeAnswers, text: string): SetupA
             cleared.delete(b);
         }
     }
+    // A request that names one of the two and not the other is about that
+    // one, whichever asks cleared: "set the guidance level to medium" cleared
+    // `longer` alone (said in a room, 2026-11-14) and made the responses long.
+    const named = namesGuidanceOrResponses(text);
+    if (named) for (const key of named === 'guidance' ? ['shorter', 'longer'] : ['guide_more', 'guide_less']) cleared.delete(key);
     const on = (key: string): boolean => cleared.has(key);
     const remove = on('remove');
     const replace = on('replace');
@@ -541,6 +597,12 @@ export function resolveSetupAnswers(answers: JudgeAnswers, text: string): SetupA
     if (on('guide_more') || on('guide_less')) actions.push({ kind: 'guidance', to: on('guide_more') ? 'up' : 'down' });
     if (on('shorter') || on('longer')) actions.push({ kind: 'verbosity', to: on('longer') ? 'up' : 'down' });
     if (on('checkins')) actions.push({ kind: 'checkins', on: !remove });
+    // "No clock" names the readout; with `no_timer` cleared beside it the
+    // request was about the timer, and that ask has already been acted on.
+    if (on('clock_hide') && !on('no_timer')) actions.push({ kind: 'clock', show: false });
+    if (on('clock_show')) actions.push({ kind: 'clock', show: true });
+    if (on('set_intention')) actions.push({ kind: 'intention-ask' });
+    if (on('voice_picker')) actions.push({ kind: 'voice-picker' });
 
     const stop = on('stop_listening');
     if (on('help') && actions.length === 0 && !stop) actions.push({ kind: 'help' });

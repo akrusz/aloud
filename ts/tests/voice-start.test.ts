@@ -18,9 +18,11 @@ import {
     LOBBY_STT,
     micPermission,
     voiceStartBlocker,
+    setupListeningLimits,
     SPEECH_TAIL_MS,
     VOICE_START_MAX_OPEN_MS,
     VOICE_START_WINDOW_MS,
+    type SetupListeningLimits,
     type VoiceStartEnd,
 } from '../ui/src/voice-start.js';
 
@@ -30,6 +32,14 @@ describe('voiceStartBlocker', () => {
     it('allows it when everything lines up', () => {
         expect(voiceStartBlocker(ready)).toBeNull();
     });
+    it('still shows a mic that is switched off, wherever it could be switched on', () => {
+        // Off is the last thing checked: a mic that can't open is hidden or
+        // blocked whatever the setting says.
+        expect(voiceStartBlocker({ ...ready, enabled: false, canBegin: false })).toBe('not-ready');
+        expect(voiceStartBlocker({ ...ready, enabled: false, mic: 'denied' })).toBe('mic-denied');
+        expect(voiceStartBlocker({ ...ready, enabled: false, mic: 'ask' })).toBe('off');
+    });
+
     it('is off unless switched on', () => {
         expect(voiceStartBlocker({ ...ready, enabled: false })).toBe('off');
     });
@@ -165,7 +175,8 @@ describe('listenOnSetup', () => {
     function run(
         engine: SttEngine,
         alive: () => boolean = () => true,
-        onHeard?: (text: string) => boolean | Promise<boolean>
+        onHeard?: (text: string) => boolean | Promise<boolean>,
+        limits: Partial<SetupListeningLimits> = {}
     ) {
         const ends: VoiceStartEnd[] = [];
         const order: string[] = [];
@@ -178,6 +189,7 @@ describe('listenOnSetup', () => {
                 order.push('begin');
             },
             ...(onHeard ? { onHeard } : {}),
+            ...limits,
             onEnd: (why) => {
                 ends.push(why);
                 order.push(`end:${why}`);
@@ -232,6 +244,34 @@ describe('listenOnSetup', () => {
         expect(ends).toEqual(['window']);
         expect(engine.stops).toBe(1);
         expect(order).not.toContain('begin');
+    });
+
+    it('stays open on a free desktop recognizer, however long nothing is said', async () => {
+        const engine = scriptedEngine([]);
+        const { ends } = run(engine, () => true, undefined, setupListeningLimits(true));
+        await vi.advanceTimersByTimeAsync(VOICE_START_MAX_OPEN_MS * 3);
+        expect(ends).toEqual([]);
+    });
+
+    it('closes there on a room that keeps talking, and a request starts the count over', async () => {
+        const room = (n: number): string[] => Array.from({ length: n }, (_, i) => `the weather on channel ${i}`);
+        const talk = scriptedEngine(room(3));
+        const first = run(talk, () => true, () => false, { ...setupListeningLimits(true), unheardLimit: 3 });
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(first.ends).toEqual(['window']);
+
+        const mixed = scriptedEngine([...room(2), 'twenty minutes', ...room(2)]);
+        const second = run(mixed, () => true, (text) => text === 'twenty minutes', { ...setupListeningLimits(true), unheardLimit: 3 });
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(second.ends).toEqual([]);
+    });
+
+    it("keeps the clock where listening is paid for, or the recognizer is a phone's", () => {
+        expect(setupListeningLimits(false)).toEqual({
+            windowMs: VOICE_START_WINDOW_MS,
+            maxOpenMs: VOICE_START_MAX_OPEN_MS,
+            unheardLimit: Infinity,
+        });
     });
 
     it('closes the mic as soon as the setup screen is gone', async () => {

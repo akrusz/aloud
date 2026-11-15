@@ -60,9 +60,9 @@ async function open(settings, setupPatch = {}) {
     };
     merge('preview:setup', { meditationType: 'exploration', intention: '', intentionByMode: {}, focuses: [], qualities: [],
         dirStep: 2, feltSensePaceStep: 2, feltSenseCheckins: true, verbosity: 'low', customInstructions: '',
-        provider: 'openai', model: 'gpt-5-nano' });
+        provider: 'openai', model: '${process.env.CHECK_MODEL ?? 'gpt-5-nano'}' });
     merge('preview:setup', ${JSON.stringify(setupPatch)});
-    merge('app:settings', Object.assign({ defaultProvider: 'openai', defaultModel: 'gpt-5-nano', sttEngine: 'web-speech',
+    merge('app:settings', Object.assign({ defaultProvider: 'openai', defaultModel: '${process.env.CHECK_MODEL ?? 'gpt-5-nano'}', sttEngine: 'web-speech',
         ttsEngine: 'browser', defaultVoice: 'browser:Samantha', checkinTiming: 'fixed', checkinContent: 'canned', silenceCheckinSec: 600,
         silenceModeEnabled: true, sessionClockMode: 'elapsed', saveSessionLogs: false, autoQuitAfterSilence: false,
         showAllModels: true, enableByok: true, voiceCommandsViaCloud: false }, ${JSON.stringify(settings)}));
@@ -103,13 +103,28 @@ async function open(settings, setupPatch = {}) {
 })();`,
     });
 
-    const model = { calls: 0 };
+    // `calls` are facilitator replies. The trouble check (core stepping-out.ts)
+    // asks the same endpoint on the models that get it, during the pause
+    // before a turn is final: counted apart, or "the model was called" would
+    // come true before the turn it was said of.
+    const model = { calls: 0, checks: 0, requests: [] };
     await context.route('https://api.openai.com/**', async (route) => {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' };
         if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-        model.calls++;
-        const text = `Model reply ${model.calls}.`;
         const body = JSON.parse(route.request().postData() || '{}');
+        const asked = JSON.stringify(body.messages ?? body.input ?? '');
+        if (/You are screening one thing/.test(asked)) {
+            model.checks++;
+            const verdict = /disappearing|can't breathe|not want to be alive/i.test(asked) ? 'YES' : 'NO';
+            return route.fulfill({
+                status: 200,
+                headers: { ...cors, 'content-type': 'application/json' },
+                body: JSON.stringify({ choices: [{ message: { content: verdict }, finish_reason: 'stop' }] }),
+            });
+        }
+        model.calls++;
+        model.requests.push(asked);
+        const text = `Model reply ${model.calls}.`;
         if (!body.stream) {
             return route.fulfill({
                 status: 200,
@@ -235,6 +250,71 @@ try {
         await s.context.close();
     }
 
+    // ---- stepping out: the trouble check beside the reply ------------------------
+    // Only on a model that gets the check (wantsTroubleCheck: the stand-in
+    // default, GPT-5 nano, is one).
+    {
+        const s = await open({ setupVoice: false });
+        await s.setup();
+        await s.page.locator('#begin-btn').click();
+        await s.until(s.inSession);
+        const noted = (request) => /sounds like they are frightened/.test(request ?? '');
+
+        let calls = s.model.calls;
+        let checks = s.model.checks;
+        await s.say('There is a warmth in my chest.');
+        check('an ordinary turn is answered', await s.modelCalledSince(calls));
+        check('with the check asked beside it', await s.until(() => s.model.checks > checks));
+        check('and no note in what the model was sent', !noted(s.model.requests.at(-1)));
+
+        calls = s.model.calls;
+        await s.say("I feel like I'm disappearing and it's scaring me.");
+        check(
+            'a frightened turn reaches the model with the stepping-out note',
+            await s.until(() => s.model.calls > calls && noted(s.model.requests.at(-1))),
+            `(${s.model.calls - calls} model calls)`
+        );
+        // The reply spoken is the one written with the note: either the only
+        // one (the verdict was in before the request went), or the second.
+        const spoken = await s.page.evaluate(() => document.body.innerText);
+        const last = s.model.requests.findLastIndex(noted) + 1;
+        check('and the reply on screen is the one written with it', new RegExp(`Model reply ${last}\\.`).test(spoken), `(reply ${last})`);
+
+        calls = s.model.calls;
+        await s.say('Okay, I can feel the chair again.');
+        check('the turn after is an ordinary one', await s.modelCalledSince(calls));
+        await s.until(s.recognizerOpen, 20_000);
+        const before = s.model.checks;
+        await s.say('End the session.');
+        await s.shown(/Would you like to end the session\?/);
+        check('a request matched on the device is not screened', s.model.checks === before, `(${s.model.checks - before} checks)`);
+        await s.say('Yes.');
+        check('and the session ends by voice', await s.until(async () => !(await s.inSession())));
+        await s.context.close();
+    }
+
+    // ---- the mic is the setting --------------------------------------------------
+    {
+        const s = await open({ setupVoice: false });
+        await s.setup();
+        await s.page.waitForTimeout(800);
+        await s.page.mouse.click(5, 300);
+        const setting = () => s.page.evaluate(() => JSON.parse(localStorage.getItem('aloud:app:settings') || '{}').setupVoice);
+        check('switched off, the mic still shows, slashed', await s.until(async () => (await s.status()) === 'Tap to listen'));
+        check('and nothing is listening', !(await s.recognizerOpen()));
+        await s.page.locator('#voice-start-mic').click();
+        check('a tap opens it', await s.until(async () => /^Listening\./.test(await s.status())));
+        check('and switches the setting on', await s.until(async () => (await setting()) === true));
+        await s.page.locator('#voice-start-mic').click();
+        check('a tap on the lit mic closes it', await s.until(async () => !(await s.recognizerOpen()), 8_000));
+        check('and switches the setting off', await s.until(async () => (await setting()) === false));
+        await s.page.reload({ waitUntil: 'domcontentloaded' });
+        await s.page.locator('#begin-btn').waitFor({ state: 'visible', timeout: 30_000 });
+        await s.page.waitForTimeout(1500);
+        check('so the next visit opens no recognizer', !(await s.recognizerOpen()) && (await s.status()) === 'Tap to listen', `(${await s.status()})`);
+        await s.context.close();
+    }
+
     // ---- a whole sitting after one touch ----------------------------------------
     {
         const s = await open({ setupVoice: true });
@@ -321,6 +401,22 @@ try {
         );
         check('and its box on the form shows it', await s.page.locator('input[name="quality"][value="playful"]').isChecked());
         check('and the answer is on screen', /Playful is on\. Spacious is on\./.test(await note()), `(${await note()})`);
+        check(
+            'in the bar beside the mic, where there is room',
+            await s.page.evaluate(() => {
+                const el = document.querySelector('#voice-start-note');
+                const mic = document.querySelector('#voice-start-mic');
+                const bar = document.querySelector('.setup-footer');
+                if (!el || !mic || !bar || !el.classList.contains('in-bar')) return false;
+                const n = el.getBoundingClientRect();
+                const b = bar.getBoundingClientRect();
+                return n.right <= mic.getBoundingClientRect().left && n.top >= b.top && n.bottom <= b.bottom;
+            })
+        );
+        check(
+            'and the mic wears the level ring a session does',
+            await s.until(() => s.page.evaluate(() => document.querySelector('#voice-start-mic').style.getPropertyValue('--mic-level') !== ''), 5_000)
+        );
 
         await s.say('Change the vibe to loving.');
         check(
@@ -344,6 +440,95 @@ try {
         await s.say('My intention is to rest.');
         check('an intention lands in its field', await s.until(async () => (await s.page.locator('#intention').inputValue()) === 'to rest'));
 
+        await s.say('Set the guidance level to medium.');
+        check('guidance by level sets the stop', await s.until(async () => (await stored()).setup.dirStep === 2));
+        check('and says which', /Guidance set to balanced/.test(await note()), `(${await note()})`);
+
+        await s.say('Set the focus two parts.');
+        check(
+            '"two" heard for "to" still sets the focus',
+            await s.until(async () => JSON.stringify((await stored()).setup.focuses) === '["inner_parts"]')
+        );
+
+        await s.say('Hide the clock.');
+        check(
+            '"hide the clock" hides it and keeps the timer',
+            await s.until(async () => {
+                const { app } = await stored();
+                return app.showSessionClock === false && app.sessionClockMode === 'timer';
+            })
+        );
+        check('and the clock button says so', await s.shown(/25 min timer \(hidden\)/));
+        await s.say('Turn off the clock.');
+        check(
+            '"turn off the clock" drops the timer too',
+            await s.until(async () => {
+                const { app } = await stored();
+                return app.showSessionClock === false && app.sessionClockMode === 'elapsed';
+            })
+        );
+        await s.say('Show the clock.');
+        check('"show the clock" brings it back', await s.until(async () => (await stored()).app.showSessionClock === true));
+
+        await s.say('Set my intention.');
+        check('"set my intention" asks for it', await s.until(async () => /What is your intention/.test(await note())), `(${await note()})`);
+        await s.say('To be kind to myself.');
+        check(
+            'and the next thing said is the intention',
+            await s.until(async () => (await s.page.locator('#intention').inputValue()) === 'To be kind to myself')
+        );
+        await s.say('Set my intention.');
+        await s.until(async () => /What is your intention/.test(await note()));
+        await s.say('Never mind.');
+        check('"never mind" leaves it', await s.until(async () => /never mind/i.test(await note())), `(${await note()})`);
+        check('as it was', (await s.page.locator('#intention').inputValue()) === 'To be kind to myself');
+        await s.say('Spacious.');
+        check(
+            'and after that a vibe is a vibe again',
+            await s.until(async () => ((await stored()).setup.qualities ?? []).includes('spacious'))
+        );
+        await s.say('Remove spacious.');
+        await s.until(async () => !((await stored()).setup.qualities ?? []).includes('spacious'));
+
+        const pickerUp = () => s.page.evaluate(() => !document.querySelector('#setup-voice-modal')?.classList.contains('hidden'));
+        await s.say('Open the voice picker.');
+        check('"open the voice picker" opens it', await s.until(pickerUp));
+        const other = await s.page.evaluate(() => {
+            const rows = [...document.querySelectorAll('#setup-voice-modal-list .voice-row')];
+            const free = rows.filter((r) => !r.classList.contains('voice-row-locked') && !r.classList.contains('selected'));
+            return free.map((r) => r.dataset.voiceName).find((n) => /^[A-Za-z]+$/.test(n ?? '') && n !== 'Samantha') ?? null;
+        });
+        if (other) {
+            await s.say(`${other}.`);
+            check(
+                `a name said to the open picker picks it (${other})`,
+                await s.until(async () => String((await stored()).app.defaultVoice ?? '').endsWith(`:${other}`)),
+                `(${(await stored()).app.defaultVoice})`
+            );
+        } else console.log('SKIP  no second voice in this browser to pick by name');
+        await s.say('Close.');
+        check('"close" closes it', await s.until(async () => !(await pickerUp())));
+        await s.say('Set the voice to Samantha.');
+        check(
+            'a voice set by name with the picker closed',
+            await s.until(async () => String((await stored()).app.defaultVoice ?? '').endsWith(':Samantha')),
+            `(${(await stored()).app.defaultVoice})`
+        );
+
+        const models = await s.page.evaluate(() =>
+            [...(document.querySelector('#model-select')?.options ?? [])].map((o) => ({ value: o.value, label: o.textContent }))
+        );
+        const current = (await stored()).setup.model;
+        const next = models.find((m) => m.value && m.value !== current);
+        if (next) {
+            await s.say(`Set the model to ${next.label}.`);
+            check(
+                `a model set by name (${next.label})`,
+                await s.until(async () => (await stored()).setup.model === next.value),
+                `(${(await stored()).setup.model})`
+            );
+        } else console.log('SKIP  one model or none listed, nothing to switch to');
+
         await s.say('I love playing with my kids.');
         await s.page.waitForTimeout(1200);
         check('room talk changes nothing', JSON.stringify((await stored()).setup.qualities) === '["loving"]' && !(await s.inSession()));
@@ -358,6 +543,10 @@ try {
         await s.say('Stop listening.');
         check('"stop listening" closes the mic', await s.until(async () => !(await s.recognizerOpen()), 8_000));
         check('and says it is closed', (await s.status()) === 'Tap to listen', `(${await s.status()})`);
+        check(
+            'with no ring left on it',
+            await s.until(() => s.page.evaluate(() => document.querySelector('#voice-start-mic').style.getPropertyValue('--mic-level') === ''), 3_000)
+        );
         await s.page.waitForTimeout(4000);
         check('and it stays closed until tapped', (await s.status()) === 'Tap to listen' && !(await s.recognizerOpen()));
         await s.page.locator('#voice-start-mic').click();

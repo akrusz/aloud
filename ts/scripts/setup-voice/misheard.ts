@@ -239,8 +239,6 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Come on baby.","two hours",[{"kind":"length","minutes":120}]], // 1x
     ["Two others.","two hours",[{"kind":"length","minutes":120}]], // 1x
     ["Come on, baby.","two hours",[{"kind":"length","minutes":120}]], // 1x
-    ["Change the focus two parts.","change the focus to parts",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"inner_parts","on":true}]], // 2x
-    ["Change the focus to balance.","change the focus to parts",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"inner_parts","on":true}]], // 2x
     ["Turn off the guidance.","turn up the guidance",[{"kind":"guidance","to":"up"}]], // 4x
     ["Don't move.","talk more",[{"kind":"verbosity","to":"up"}]], // 2x
     ["TOT MORE.","talk more",[{"kind":"verbosity","to":"up"}]], // 1x
@@ -350,6 +348,7 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Emotion.","emotions",[{"kind":"focus","focus":"emotions","on":true}]], // 2x
     ["Inner paths.","inner parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
     ["in our parts.","inner parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
+    ["Change the focus to balance.","change the focus to parts",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"inner_parts","on":true}]], // 2x
     ["Focus on emotions and paths.","focus on emotions and parts",[{"kind":"focus","focus":"emotions","on":true},{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
     ["Focus on emotions and heart.","focus on emotions and parts",[{"kind":"focus","focus":"emotions","on":true},{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
     ["more light out there.","more lighthearted",[{"kind":"quality","quality":"playful","on":true}]], // 1x

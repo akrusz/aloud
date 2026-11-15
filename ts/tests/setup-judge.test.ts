@@ -140,3 +140,20 @@ describe('createSetupJudge: a server that refuses', () => {
         expect(await w.ask(REQUEST)).toEqual(SPACIOUS);
     });
 });
+
+describe('where no judge may be asked', () => {
+    it('hands the request to the local reader, and only there', async () => {
+        const heard: string[] = [];
+        const local = async (text: string) => {
+            heard.push(text);
+            return [{ kind: 'quality', quality: 'loving', on: true } as const];
+        };
+        const off = world({ provider: () => 'ollama', local });
+        expect(await off.ask('Could we make it more loving?')).toEqual([{ kind: 'quality', quality: 'loving', on: true }]);
+        expect(off.asked).toEqual([]);
+        // A judge that can be asked is the one asked, whatever it finds.
+        const cloud = world({ provider: () => 'aloud', local });
+        expect(await cloud.ask('Could we make it more spacious?')).toEqual(SPACIOUS);
+        expect(heard).toEqual(['Could we make it more loving?']);
+    });
+});

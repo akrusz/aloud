@@ -30,6 +30,7 @@ import {
     saveSetup,
 } from '../settings.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
+import type { SttEngine } from '../../../src/platform/index.js';
 import {
     defaultVoicePick,
     downloadVoiceFromRow,
@@ -75,13 +76,19 @@ import {
     micPermission,
     pageTouched,
     voiceStartBlocker,
+    setupListeningLimits,
     type MicPermission,
     type VoiceStartHandle,
 } from '../voice-start.js';
 import {
     parseSetupCommand,
+    parseSetupPick,
     looksLikeSpokenTail,
+    modelSetLine,
+    setupLineText,
     setupOutcomeLines,
+    type SetupPick,
+    type SpokenSetupLine,
     type BeginRequest,
     type SetupAction,
     type SetupFocus,
@@ -90,6 +97,9 @@ import {
 } from '../../../src/facilitation/index.js';
 import { applySetupActions, type SetupForm } from '../setup-actions.js';
 import { createSetupJudge } from '../setup-judge.js';
+import { startMicMeter } from '../mic-meter.js';
+import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
+import { createLocalSetupReader, readsSetupLocally } from '../setup-local-reader.js';
 import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
 import {
     acquireMicOnce,
@@ -105,7 +115,7 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
-import { capacitorPlatform } from '../is-desktop.js';
+import { capacitorPlatform, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import {
     computeProviderMarker,
     fetchKeyPresence,
@@ -588,6 +598,8 @@ export async function mountSetupView(
             return timerMin;
         },
         clearTimer: () => setClock({ sessionClockMode: 'elapsed' }),
+        setClockVisible: (show) => setClock({ showSessionClock: show }),
+        setClockMode: (mode) => setClock({ sessionClockMode: mode, showSessionClock: true }),
         focuses: () => setup.focuses.filter((f): f is SetupFocus => f !== 'open_awareness'),
         // Open awareness has no card on this screen; a stored one is kept.
         setFocuses: (list) => setFocuses([...setup.focuses.filter((f) => f === 'open_awareness'), ...list]),
@@ -763,10 +775,15 @@ export async function mountSetupView(
      * Wiring lives inline because render() would blow the modal away with the
      * rest of the form.
      */
+    // The picker while it is up, for a request made by voice: close it, or
+    // pick a row the way a tap on it would (a noting participant's included).
+    let openVoicePicker: { close: () => void; pick: (name: string) => boolean } | null = null;
+
     function openVoiceModal(target?: {
         current: () => string | null;
         onSelect: (voiceId: string) => void;
     }): void {
+        openVoicePicker?.close();
         const modal = root.querySelector<HTMLElement>('#setup-voice-modal');
         const listEl = root.querySelector<HTMLElement>('#setup-voice-modal-list');
         const closeBtn = root.querySelector<HTMLButtonElement>('#setup-voice-modal-close');
@@ -836,6 +853,18 @@ export async function mountSetupView(
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
             offBackdrop();
+            openVoicePicker = null;
+            // The note that was showing over the picker goes with it.
+            modal.querySelector('.voice-start-note')?.classList.add('hidden');
+        };
+        openVoicePicker = {
+            close: closeModal,
+            pick: (name) => {
+                const row = [...listEl.querySelectorAll<HTMLElement>('.voice-row')].find((r) => r.dataset['voiceName'] === name);
+                if (!row || row.classList.contains('voice-row-locked')) return false;
+                row.click();
+                return true;
+            },
         };
 
         listEl.addEventListener('click', onListClick);
@@ -998,11 +1027,15 @@ export async function mountSetupView(
         root.querySelector('#voice-start-mic')?.addEventListener('click', () => {
             // A toggle, like the session's mic: lit is listening, and a tap
             // on a lit one closes it until it is tapped again.
+            // The tap is also the setting: off stays off on the next visit,
+            // and on stays on (the same switch as Settings has).
             if (voiceStart) {
                 speaker.stop();
+                setSetupVoice(false);
                 return closeVoiceStart();
             }
             voiceStartClosed = false;
+            setSetupVoice(true);
             if (mic !== 'ask') return void syncVoiceStart();
             // The one place this feature may raise the permission prompt: a
             // tap that asked for it. Called before any await, like Begin's
@@ -1099,7 +1132,7 @@ export async function mountSetupView(
     // mic is known to be granted and on a tap where it isn't; closes itself
     // after VOICE_START_WINDOW_MS with nothing asked and when the screen goes
     // away.
-    let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice } | null = null;
+    let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice; engine: SttEngine } | null = null;
     let voiceStartGen = 0;
     // Null until the first reading lands: nothing is offered on a guess.
     let mic: MicPermission | null = null;
@@ -1115,17 +1148,24 @@ export async function mountSetupView(
     // The recognizer this mode would use is the hosted one and nobody is
     // signed in (runVoiceSync).
     let sttNeedsAccount = false;
-    if (appSettings.setupVoice) {
-        void micPermission().then((permission) => {
-            mic = permission;
+    // Read whether the setting is on or off: with it off the mic still shows,
+    // slashed, and a tap switches it on. Neither probe prompts or listens.
+    void micPermission().then((permission) => {
+        mic = permission;
+        void syncVoiceStart();
+    });
+    if (!canSound) {
+        void canPlayUntouched().then((ok) => {
+            canSound = ok;
             void syncVoiceStart();
         });
-        if (!canSound) {
-            void canPlayUntouched().then((ok) => {
-                canSound = ok;
-                void syncVoiceStart();
-            });
-        }
+    }
+
+    /** Voice on this screen, switched by a tap on the mic or by the tour. */
+    function setSetupVoice(on: boolean): void {
+        if (appSettings.setupVoice === on) return;
+        appSettings.setupVoice = on;
+        void saveAppPatch({ setupVoice: on });
     }
 
     // What answers a request made by voice: a clip in a house voice, or the
@@ -1166,24 +1206,198 @@ export async function mountSetupView(
     // The words of the line just spoken, above Begin: the answer for anyone
     // with the sound off, and where a mishearing shows.
     let voiceNoteTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The note's element: the one in the Begin bar, or, while the voice
+     *  picker is up, one inside the picker's own layer. The bar is under the
+     *  picker's dimming, and so was the hint that says how to use it. */
+    function voiceNoteEl(): HTMLElement | null {
+        const bar = root.querySelector<HTMLElement>('#voice-start-note');
+        const modal = openVoicePicker ? root.querySelector<HTMLElement>('#setup-voice-modal') : null;
+        if (!modal) return bar;
+        let over = modal.querySelector<HTMLElement>('.voice-start-note');
+        if (!over) {
+            over = document.createElement('p');
+            over.className = 'voice-start-note over-modal hidden';
+            over.setAttribute('role', 'status');
+            over.setAttribute('aria-live', 'polite');
+            modal.appendChild(over);
+        }
+        bar?.classList.add('hidden');
+        return over;
+    }
+
     function showVoiceNote(text: string, aside = false): void {
-        const el = root.querySelector<HTMLElement>('#voice-start-note');
+        const el = voiceNoteEl();
         if (!el || !text) return;
         el.textContent = text;
         // An aside is not an answer: what was heard and not understood, or
         // the first-visits hint.
         el.classList.toggle('aside', aside);
-        el.classList.remove('hidden');
+        // Back at full strength at once, whatever the last one was doing.
+        el.classList.remove('hidden', 'leaving');
+        el.style.removeProperty('width');
+        placeVoiceNote(el);
+        balanceVoiceNote(el);
         clearTimeout(voiceNoteTimer);
-        voiceNoteTimer = setTimeout(() => el.classList.add('hidden'), VOICE_NOTE_MS);
+        // Whole for its time, then a short fade, then gone.
+        voiceNoteTimer = setTimeout(() => {
+            el.classList.add('leaving');
+            voiceNoteTimer = setTimeout(() => {
+                el.classList.add('hidden');
+                el.classList.remove('leaving');
+            }, VOICE_NOTE_FADE_MS);
+        }, VOICE_NOTE_MS);
+    }
+
+    /**
+     * Where the note goes: in the bar, left of the mic, when its words fit
+     * there in two lines; otherwise floated above the bar, where there is
+     * always room. Measured each time, since the room is whatever the window
+     * leaves between the bar's edge and the mic.
+     */
+    function placeVoiceNote(el: HTMLElement): void {
+        el.classList.remove('in-bar');
+        if (el.classList.contains('over-modal')) return;
+        const micEl = root.querySelector<HTMLElement>('#voice-start-mic');
+        const bar = el.closest<HTMLElement>('.setup-footer');
+        if (!micEl || micEl.classList.contains('hidden') || !bar) return;
+        const micBox = micEl.getBoundingClientRect();
+        const barBox = bar.getBoundingClientRect();
+        const room = micBox.left - barBox.left - VOICE_NOTE_GAP_PX - VOICE_NOTE_EDGE_PX;
+        if (room < VOICE_NOTE_MIN_ROOM_PX) return;
+        el.style.setProperty('--note-right', `${barBox.right - micBox.left + VOICE_NOTE_GAP_PX}px`);
+        el.style.setProperty('--note-top', `${micBox.top + micBox.height / 2 - barBox.top}px`);
+        el.style.setProperty('--note-room', `${room}px`);
+        el.classList.add('in-bar');
+        if (el.offsetHeight > barBox.height - 6) el.classList.remove('in-bar');
+    }
+
+    /**
+     * Two lines of about the same length, in a pill no wider than they need.
+     * `text-wrap: balance` evens the lines but leaves the pill as wide as the
+     * room it was given, with air at both ends; so the pill is narrowed to
+     * the least width that still takes two lines.
+     */
+    function balanceVoiceNote(el: HTMLElement): void {
+        const style = getComputedStyle(el);
+        const lineHeight = parseFloat(style.lineHeight);
+        const chrome =
+            parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+        const lines = (): number => Math.round((el.getBoundingClientRect().height - chrome) / lineHeight);
+        if (!(lineHeight > 0) || lines() !== 2) return;
+        let wide = el.getBoundingClientRect().width;
+        let narrow = wide / 2;
+        while (wide - narrow > 4) {
+            const mid = (wide + narrow) / 2;
+            el.style.width = `${mid}px`;
+            if (lines() === 2) wide = mid;
+            else narrow = mid;
+        }
+        el.style.width = `${Math.ceil(wide)}px`;
+    }
+
+    /** While the app is saying `line`, the ring around the mic stays still:
+     *  what the meter hears then is the app. */
+    function quietRingDuring(line: Promise<void>): void {
+        const micEl = root.querySelector<HTMLElement>('#voice-start-mic');
+        micEl?.classList.add('app-speaking');
+        void line.finally(() => {
+            if (speaking === line) micEl?.classList.remove('app-speaking');
+        });
+    }
+
+    /** Say lines, with their words on screen. */
+    function sayLines(lines: readonly SpokenSetupLine[]): Promise<void> {
+        showVoiceNote(lines.map((line) => line.text).join(' '));
+        speaking = speaker.say(lines).then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
+        quietRingDuring(speaking);
+        return speaking;
     }
 
     /** Say what a request came to, on screen and out loud. */
     function answer(outcomes: readonly SetupOutcome[]): Promise<void> {
-        const lines = setupOutcomeLines(outcomes, appSettings.language);
-        showVoiceNote(lines.map((line) => line.text).join(' '));
-        speaking = speaker.say(lines).then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
-        return speaking;
+        return sayLines(setupOutcomeLines(outcomes, appSettings.language));
+    }
+
+    // "Set my intention" was said with nothing after it and the app has asked:
+    // until this passes, the next thing heard is the intention.
+    let intentionAskedUntil = 0;
+
+    /** An intention is a sentence, with the pauses of one; a request is a
+     *  breath. While the answer is awaited the turn waits longer to end, on
+     *  the recognizers that take the hint. */
+    function awaitIntention(on: boolean): void {
+        intentionAskedUntil = on ? Date.now() + INTENTION_ANSWER_MS : 0;
+        const [base, max] = on ? INTENTION_PAUSE_MS : [LOBBY_STT.silenceBaseMs, LOBBY_STT.silenceMaxMs];
+        voiceStart?.engine.setPauseWindow?.(base, max);
+    }
+
+    /** What was said after "What is your intention?", as the actions it makes. */
+    function intentionAnswer(text: string): SetupAction[] | null {
+        const said = text.trim();
+        if (NEVER_MIND_RE.test(said)) return null;
+        // "My intention is to rest" is still the intention "to rest", and
+        // "clear it" by its own words still clears.
+        const own = parseSetupCommand(said);
+        if (own?.length === 1 && (own[0]!.kind === 'intention' || own[0]!.kind === 'intention-ask')) return own;
+        return [{ kind: 'intention', text: said.replace(/[.。]+$/u, '') }];
+    }
+
+    /** What the voice and model lists hold right now, for a pick by name. */
+    function pickContext(): Parameters<typeof parseSetupPick>[1] {
+        const select = root.querySelector<HTMLSelectElement>('#model-select');
+        const usable = scoredVoices.filter((v) => !(v.needsDownload && !v.downloaded));
+        return {
+            // Voices of the session's language first: "the first listed wins".
+            voices: [...usable.filter((v) => !v.langMismatch), ...usable.filter((v) => v.langMismatch)].map((v) => v.name),
+            models:
+                select && !select.disabled && needsLLM()
+                    ? [...select.options].filter((o) => o.value).map((o) => ({ value: o.value, label: o.textContent ?? '' }))
+                    : [],
+            pickerOpen: openVoicePicker !== null,
+        };
+    }
+
+    /** Play a voice's sample with the recognizer stopped, saying why on screen
+     *  when it can't be played. */
+    function previewByVoice(name: string): Promise<void> {
+        return sayHeld(() =>
+            runPreview(name, setup.ttsRate, findVoice(name)?.engine).catch((err: unknown) => {
+                showVoiceNote(previewErrorMessage(err), true);
+            })
+        );
+    }
+
+    /** A voice or a model picked by name (core setup-pick.ts). */
+    async function applyPick(pick: SetupPick): Promise<void> {
+        if (pick.kind === 'voice-picker') {
+            if (!pick.open) return void openVoicePicker?.close();
+            openVoiceModal();
+            return showVoiceNote(t('Say a name to pick a voice, or "preview" and a name.'), true);
+        }
+        if (pick.kind === 'model') {
+            const select = root.querySelector<HTMLSelectElement>('#model-select');
+            const option = select ? [...select.options].find((o) => o.value === pick.value) : undefined;
+            if (!select || !option) return;
+            select.value = pick.value;
+            // The picker's own handler: the same path as choosing it by hand.
+            select.dispatchEvent(new Event('change'));
+            return sayLines([modelSetLine(option.textContent ?? '', appSettings.language)]);
+        }
+        if (pick.preview) {
+            showVoiceNote(t('Previewing {name}', { name: pick.name }), true);
+            return previewByVoice(pick.name);
+        }
+        // A row tap where the picker is up (it may be choosing a noting
+        // participant's voice); else the session's voice.
+        if (!openVoicePicker?.pick(pick.name)) {
+            if (openVoicePicker) return;
+            setup.voice = prefixedVoiceId(findVoice(pick.name)?.engine, pick.name);
+            void persistDefaultVoice(setup.voice, setup.ttsRate);
+            updateVoiceButtonLabel();
+        }
+        showVoiceNote(t('Voice: {name}', { name: pick.name }));
+        // The voice answers for itself.
+        return previewByVoice(pick.name);
     }
 
     /** The tail of the app's own line, late out of a slow speaker or still in
@@ -1203,6 +1417,21 @@ export async function mountSetupView(
     async function heardOnSetup(text: string): Promise<boolean> {
         // The tour's own words ("next", a voice's name) while it is up.
         if (tourHeard?.(text)) return true;
+        const answering = Date.now() < intentionAskedUntil;
+        if (intentionAskedUntil) awaitIntention(false);
+        if (answering) {
+            const answered = intentionAnswer(text);
+            if (!answered) {
+                await sayLines([{ id: 'never-mind', text: setupLineText('never-mind', appSettings.language) }]);
+                return true;
+            }
+            return act(answered);
+        }
+        const pick = parseSetupPick(text, pickContext());
+        if (pick) {
+            await applyPick(pick);
+            return true;
+        }
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
         if (!isLiveMount() || beginning) return false;
         if (!actions) {
@@ -1215,10 +1444,19 @@ export async function mountSetupView(
             }
             return false;
         }
+        return act(actions);
+    }
+
+    /** Make the changes and say them back. */
+    async function act(actions: readonly SetupAction[]): Promise<boolean> {
         const outcomes = applyActions(actions);
         // Closed before it is said to be: the mic shows off while the line plays.
         if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
+        // The judge's reading of "could I pick a different voice?".
+        if (outcomes.some((outcome) => outcome.kind === 'voice-picker')) await applyPick({ kind: 'voice-picker', open: true });
         await answer(outcomes);
+        // After the question, so the wait for an answer starts when it ends.
+        if (outcomes.some((outcome) => outcome.kind === 'intention-ask')) awaitIntention(true);
         return true;
     }
 
@@ -1265,7 +1503,7 @@ export async function mountSetupView(
         const choice = sttSetupChoice();
         // Hosted recognition with nobody signed in would refuse the first
         // thing heard. Nothing here may raise a sign-in, so there is no mic.
-        sttNeedsAccount = appSettings.setupVoice && isHostedSttChoice(choice) && !(await canReachJudge());
+        sttNeedsAccount = isHostedSttChoice(choice) && !(await canReachJudge());
         if (gen !== voiceStartGen || !isLiveMount() || beginning) return;
         const blocker = sttNeedsAccount
             ? 'not-ready'
@@ -1297,7 +1535,7 @@ export async function mountSetupView(
             );
             return;
         }
-        if (blocker === 'mic-ask') return paintVoiceMic('off');
+        if (blocker === 'mic-ask' || blocker === 'off') return paintVoiceMic('off');
         if (blocker === 'mic-denied') return paintVoiceMic('blocked');
         if (blocker) return paintVoiceMic('hidden');
         if (voiceStart) return;
@@ -1329,7 +1567,10 @@ export async function mountSetupView(
             onBegin: (request) => void beginByVoice(request, beginBtn),
             onHeard: heardOnSetup,
             isEcho: heardOwnLine,
+            // Free to leave open on a desktop; the rest close by the clock.
+            ...setupListeningLimits(choice === 'whisper' || choice === 'web-speech'),
             onEnd: (why) => {
+                meter.stop();
                 if (voiceStart?.handle === handle) voiceStart = null;
                 // The screen went away under a line: nobody is there to hear
                 // the rest of it, and the next screen's mic would.
@@ -1340,9 +1581,60 @@ export async function mountSetupView(
                 paintVoiceMic(why === 'begin' ? 'hidden' : 'off');
             },
         });
-        voiceStart = { handle, choice };
+        const meter = meterVoiceMic(engine, choice);
+        voiceStart = { handle, choice, engine };
         paintVoiceMic('listening');
         void hintAtVoice();
+    }
+
+    /**
+     * The ring around the mic that swells with the voice, as in a session
+     * (.btn-voice.active reads --mic-level). Whisper's engine reports its own
+     * level, so no second stream is opened beside it; the browser's
+     * recognizer hides its audio and gets a small meter stream of its own,
+     * except where a second capture would starve the recognizer (phones).
+     */
+    function meterVoiceMic(engine: SttEngine, choice: SttEngineChoice): { stop: () => void } {
+        const el = root.querySelector<HTMLButtonElement>('#voice-start-mic');
+        if (!el) return { stop: () => undefined };
+        if (engine instanceof WhisperPcmSttEngine) {
+            let smoothed = 0;
+            let lastFrame = 0;
+            engine.setLevelListener((rms) => {
+                lastFrame = Date.now();
+                smoothed = smoothed * 0.6 + Math.min(1, rms * 4) * 0.4;
+                el.style.setProperty('--mic-level', smoothed.toFixed(3));
+            });
+            // The engine stops between turns and while the app speaks, and
+            // sends nothing then: the ring must not stay where it last was.
+            const settle = setInterval(() => {
+                if (Date.now() - lastFrame < 300) return;
+                smoothed = 0;
+                el.style.removeProperty('--mic-level');
+            }, 250);
+            return {
+                stop: () => {
+                    clearInterval(settle);
+                    engine.setLevelListener(null);
+                    el.style.removeProperty('--mic-level');
+                },
+            };
+        }
+        if (sttBackendForChoice(choice) !== 'web-speech' || isSingleOwnerMicPlatform()) return { stop: () => undefined };
+        let stopped = false;
+        let live: { stop(): void } | null = null;
+        void startMicMeter(el, appSettings.micDeviceId)
+            .then((m) => {
+                if (stopped) m.stop();
+                else live = m;
+            })
+            .catch(() => undefined);
+        return {
+            stop: () => {
+                stopped = true;
+                live?.stop();
+            },
+        };
     }
 
     /** The first few times the mic opens here, say on screen what it is for.
@@ -1424,6 +1716,7 @@ export async function mountSetupView(
         const tail = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS));
         const run = voiceStart ? voiceStart.handle.hold(say) : say().then(tail);
         speaking = run.catch(() => undefined);
+        quietRingDuring(speaking);
         return speaking;
     }
 
@@ -1452,13 +1745,12 @@ export async function mountSetupView(
         },
         mic: () => {
             const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
-            if (!appSettings.setupVoice || mic === 'denied' || sttNeedsAccount || !beginBtn || beginBtn.disabled) {
-                return 'off';
-            }
+            if (mic === 'denied' || sttNeedsAccount || !beginBtn || beginBtn.disabled) return 'off';
             return voiceStart ? 'listening' : 'ask';
         },
         enableMic: () => {
             voiceStartClosed = false;
+            setSetupVoice(true);
             // Before any await, like Begin's own: the gesture is still behind it.
             const asked = mic === 'granted' ? Promise.resolve('ok' as const) : acquireMicOnce();
             return asked.then(async (status) => {
@@ -1483,6 +1775,14 @@ export async function mountSetupView(
     const judgedSetupCommand = createSetupJudge({
         provider: () => setup.provider,
         optedIn: () => appSettings.voiceCommandsViaCloud,
+        // No judge to ask and a local model picked: that model could read
+        // the request (setup-local-reader.ts), and only one that keeps a
+        // room out is allowed to.
+        local: createLocalSetupReader({
+            provider: () => setup.provider,
+            model: () => setup.model,
+            usable: () => needsLLM() && providerAvailable() && readsSetupLocally(setup.model),
+        }),
     });
 
     function updateBeginButton(): void {
@@ -2092,11 +2392,28 @@ export async function mountSetupView(
     };
 }
 
-/** How long the line just spoken stays on screen above Begin. */
+/** How long the line just spoken stays on screen, and how long it then takes
+ *  to fade (app-base.css .voice-start-note.leaving runs the same half second). */
 const VOICE_NOTE_MS = 6000;
+const VOICE_NOTE_FADE_MS = 500;
+
+/** The note in the bar: the gap between it and the mic, the margin kept at
+ *  the bar's left edge, and the least room worth using. */
+const VOICE_NOTE_GAP_PX = 16;
+const VOICE_NOTE_EDGE_PX = 16;
+const VOICE_NOTE_MIN_ROOM_PX = 150;
 
 /** Something heard and not understood is shown back only this short. */
 const UNMATCHED_NOTE_MAX_WORDS = 6;
+
+/** After "What is your intention?", how long the next thing heard is taken as
+ *  the answer, and how long a pause ends that answer (base, max). */
+const INTENTION_ANSWER_MS = 30_000;
+const INTENTION_PAUSE_MS = [2000, 3500] as const;
+
+/** Said in answer to the question to leave the intention as it was. */
+const NEVER_MIND_RE =
+    /^(?:(?:ok|okay|oh|no|actually|um)[,\s]+)*(?:never\s*mind|cancel|forget it|forget that|nothing|skip|skip it|no|none|stop)[.!]?$|^(?:算了|不用了|取消|没有|不改了)[。！]?$/i;
 
 /** How many times the mic opening on this screen says what it is for. */
 const VOICE_HINT_KEY = 'aloud-setup-voice-hints';

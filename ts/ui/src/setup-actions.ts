@@ -6,7 +6,8 @@
  * The view owns the form (views/setup.ts implements SetupForm over its state
  * and its DOM); this decides what an action means against it: which mode a
  * setting belongs to, where a stepper stops, what "change the vibe to" clears.
- * Voice, model, provider and speech recognition are not here: those stay
+ * A voice or a model picked by name is not here (core setup-pick.ts, applied
+ * in the view, which owns those lists); provider and speech recognition stay
  * button-only.
  */
 
@@ -30,6 +31,11 @@ export interface SetupForm {
     setTimer(minutes: number): number;
     /** Back to the plain clock, no countdown. */
     clearTimer(): void;
+    /** Show or hide the clock readout during a session. A timer keeps running
+     *  behind a hidden one. */
+    setClockVisible(show: boolean): void;
+    /** What the readout counts with no timer; also shows it. */
+    setClockMode(mode: 'elapsed' | 'wall'): void;
     focuses(): readonly SetupFocus[];
     setFocuses(list: SetupFocus[]): void;
     qualities(): readonly Quality[];
@@ -102,6 +108,17 @@ export function applySetupAction(form: SetupForm, action: SetupAction): SetupOut
         case 'intention':
             form.setIntention(action.text);
             return { kind: 'intention', set: action.text !== '' };
+        case 'intention-ask':
+            return { kind: 'intention-ask' };
+        case 'clock':
+            if (action.timerOff) form.clearTimer();
+            form.setClockVisible(action.show);
+            return action.timerOff ? { kind: 'clock', show: action.show, off: true } : { kind: 'clock', show: action.show };
+        case 'clock-mode':
+            form.setClockMode(action.mode);
+            return { kind: 'clock-mode', mode: action.mode };
+        case 'voice-picker':
+            return { kind: 'voice-picker' };
         case 'checkins':
             form.setCheckins(action.on);
             return { kind: 'checkins', on: action.on };

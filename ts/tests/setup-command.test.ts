@@ -753,3 +753,70 @@ describe('setupVocabulary', () => {
         }
     });
 });
+
+describe('said on 2026-11-14, in a room', () => {
+    const read = (said: string) => parseSetupCommand(said);
+
+    it('reads the number a recognizer writes for "to" and "for"', () => {
+        expect(read('Set the focus two parts.')).toEqual(read('Set the focus to parts.'));
+        expect(read('set the vibe 2 playful')).toEqual(read('set the vibe to playful'));
+        expect(read('set a timer four ten minutes')).toEqual([{ kind: 'length', minutes: 10 }]);
+        // Where the number can be the length, it is.
+        expect(read('set the timer for two minutes')).toEqual([{ kind: 'length', minutes: 2 }]);
+        expect(read('two parts')).toBeNull();
+        expect(read('it comes in two parts')).toBeNull();
+    });
+
+    it('sets the guidance by level, all five stops', () => {
+        expect(read('Set the guidance level to medium.')).toEqual([{ kind: 'guidance', to: 2 }]);
+        expect(read('minimum guidance')).toEqual([{ kind: 'guidance', to: 0 }]);
+        expect(read('low guidance')).toEqual([{ kind: 'guidance', to: 1 }]);
+        expect(read('set guidance to high')).toEqual([{ kind: 'guidance', to: 3 }]);
+        expect(read('guidance to the max')).toEqual([{ kind: 'guidance', to: 4 }]);
+    });
+
+    it('gives a level to the setting named beside it, and to neither alone', () => {
+        expect(read('set response length to medium')).toEqual([{ kind: 'verbosity', to: 'medium' }]);
+        expect(read('set verbosity to low')).toEqual([{ kind: 'verbosity', to: 'low' }]);
+        expect(read('Medium.')).toBeNull();
+        expect(read('high')).toBeNull();
+        expect(read('medium guidance and responses')).toBeNull();
+    });
+
+    it('tells hiding the clock from turning it off, and both from the timer', () => {
+        expect(read('Hide the clock.')).toEqual([{ kind: 'clock', show: false }]);
+        expect(read('hide the timer')).toEqual([{ kind: 'clock', show: false }]);
+        expect(read('show the clock')).toEqual([{ kind: 'clock', show: true }]);
+        expect(read("don't show the clock")).toEqual([{ kind: 'clock', show: false }]);
+        expect(read('Turn off the clock.')).toEqual([{ kind: 'clock', show: false, timerOff: true }]);
+        expect(read('turn off the timer')).toEqual([{ kind: 'no-timer' }]);
+        expect(read('set the clock for twenty minutes')).toEqual([{ kind: 'length', minutes: 20 }]);
+        expect(read('hide it')).toBeNull();
+    });
+
+    it('switches what the clock counts, when asked to', () => {
+        expect(read('show the time of day')).toEqual([{ kind: 'clock-mode', mode: 'wall' }]);
+        expect(read('set the clock to time in session')).toEqual([{ kind: 'clock-mode', mode: 'elapsed' }]);
+        expect(read('Time of day.')).toBeNull();
+    });
+
+    it('asks for the intention when the request stops short of one', () => {
+        for (const said of ['Set intention.', 'set my intention', "I'd like to set an intention", 'Set my intention to.']) {
+            expect(read(said), said).toEqual([{ kind: 'intention-ask' }]);
+        }
+        expect(read('set my intention to rest')).toEqual([{ kind: 'intention', text: 'rest' }]);
+        expect(read('intention')).toBeNull();
+        expect(read('设置意图')).toEqual([{ kind: 'intention-ask' }]);
+        expect(read('隐藏时钟')).toEqual([{ kind: 'clock', show: false }]);
+    });
+
+    it('takes a few more ways of saying the same things', () => {
+        expect(read('set the length to half an hour')).toEqual([{ kind: 'length', minutes: 30 }]);
+        expect(read('be more directive')).toEqual([{ kind: 'guidance', to: 'up' }]);
+        expect(read('just the body')).toEqual(read('body only'));
+        expect(read('set the mood to playful')).toEqual(read('set the vibe to playful'));
+        expect(read('just a little more guidance')).toEqual([{ kind: 'guidance', to: 'up' }]);
+        expect(read("I'll be twenty minutes")).toBeNull();
+        expect(read('what a mood')).toBeNull();
+    });
+});

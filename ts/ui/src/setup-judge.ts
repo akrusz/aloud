@@ -7,6 +7,11 @@
  * desktop (through the shell relay, nothing via aloud cloud), or the opt-in
  * with an account. Anywhere else nothing is sent.
  *
+ * Where no judge may be asked and the session is set to a local model, the
+ * request goes to that model instead (`local`, setup-local-reader.ts): the
+ * same tier, on the device. Never both: a judge that was asked and found
+ * nothing has answered.
+ *
  * It never raises a sign-in from the setup screen: aloud cloud and the opt-in
  * need a token already stored (canReachJudge) before anything is sent, and
  * CloudJudge only throws without one.
@@ -35,6 +40,8 @@ export interface SetupJudgeOptions {
     makeJudge?: (route: SetupJudgeRoute, key: string | null) => UtteranceJudge;
     /** Routes that refused a setup id; shared by every setup screen on the page. */
     refused?: Set<string>;
+    /** Asked in the judge's place where there is no judge to ask. */
+    local?: (text: string) => Promise<SetupAction[] | null>;
 }
 
 /**
@@ -61,6 +68,7 @@ export function createSetupJudge(options: SetupJudgeOptions): (text: string) => 
         hostedOff = () => getJevClassifierMode() === 'off',
         makeJudge = (route, key) => (route === 'own-key' && key ? new OwnKeyJudge(key) : new CloudJudge()),
         refused = REFUSED,
+        local,
     } = options;
     // One judge per route, so its failure backoff carries across utterances.
     let current: { id: string; judge: UtteranceJudge } | null = null;
@@ -77,7 +85,7 @@ export function createSetupJudge(options: SetupJudgeOptions): (text: string) => 
                 optedIn: optedIn(),
                 signedIn: true,
             });
-            if (access === 'off') return null;
+            if (access === 'off') return local ? await local(text) : null;
             if (access === 'hosted' && hostedOff()) return null;
             const route: SetupJudgeRoute = access === 'own-key' ? 'own-key' : 'cloud';
             if (route === 'cloud' && !(await canReach())) return null;

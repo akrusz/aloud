@@ -47,6 +47,17 @@ export type SetupAction =
     | { kind: 'verbosity'; to: 'up' | 'down' | Verbosity }
     /** The intention field of the mode on screen; '' empties it. */
     | { kind: 'intention'; text: string }
+    /** "Set my intention", with nothing after it: the app asks, and the next
+     *  thing said is the intention (views/setup.ts). */
+    | { kind: 'intention-ask' }
+    /** The clock readout during a session. `timerOff` also drops the countdown
+     *  ("turn off the clock"); "hide the clock" leaves a timer running. */
+    | { kind: 'clock'; show: boolean; timerOff?: boolean }
+    /** What the readout counts when there is no timer. */
+    | { kind: 'clock-mode'; mode: 'elapsed' | 'wall' }
+    /** Open the voice picker. Only the judge tier produces this one; said in
+     *  the parser's own words it is a SetupPick (setup-pick.ts). */
+    | { kind: 'voice-picker' }
     | { kind: 'checkins'; on: boolean }
     | { kind: 'stop-listening' }
     | { kind: 'help' };
@@ -71,9 +82,10 @@ type Meaning =
     | { t: 'length-word'; to: 'up' | 'down' | Verbosity }
     | { t: 'checkin' }
     | { t: 'open-ended' }
+    | { t: 'clock-mode'; mode: 'elapsed' | 'wall' }
     | { t: 'target'; of: Target };
 
-type Target = 'vibe' | 'focus' | 'guidance' | 'responses' | 'timer' | 'mode';
+type Target = 'vibe' | 'focus' | 'guidance' | 'responses' | 'timer' | 'clock' | 'mode';
 
 interface Entry {
     meaning: Meaning;
@@ -170,7 +182,6 @@ const PHRASES: Record<string, Entry> = {
     longer: named({ t: 'length-word', to: 'up' }),
     brief: named({ t: 'length-word', to: 'low' }),
     short: named({ t: 'length-word', to: 'low' }),
-    medium: named({ t: 'length-word', to: 'medium' }),
     long: named({ t: 'length-word', to: 'high' }),
 
     'check in': named({ t: 'checkin' }),
@@ -182,8 +193,19 @@ const PHRASES: Record<string, Entry> = {
     'open ended': named({ t: 'open-ended' }),
     untimed: named({ t: 'open-ended' }),
 
+    // The clock picker's own names. Not on the setup screen itself, so they
+    // need a word that asks ("show the time of day").
+    'time of day': also({ t: 'clock-mode', mode: 'wall' }),
+    'wall clock': also({ t: 'clock-mode', mode: 'wall' }),
+    'time in session': also({ t: 'clock-mode', mode: 'elapsed' }),
+    'time in the session': also({ t: 'clock-mode', mode: 'elapsed' }),
+    'session time': also({ t: 'clock-mode', mode: 'elapsed' }),
+    'elapsed time': also({ t: 'clock-mode', mode: 'elapsed' }),
+    'time elapsed': also({ t: 'clock-mode', mode: 'elapsed' }),
+
     vibe: target('vibe'),
     vibes: target('vibe'),
+    mood: target('vibe'),
     focus: target('focus'),
     focuses: target('focus'),
     attention: target('focus'),
@@ -201,9 +223,13 @@ const PHRASES: Record<string, Entry> = {
     speaking: target('responses'),
     say: target('responses'),
     words: target('responses'),
+    verbosity: target('responses'),
     timer: target('timer'),
-    clock: target('timer'),
+    countdown: target('timer'),
     'time limit': target('timer'),
+    // The readout, which a timer may or may not be running behind.
+    clock: target('clock'),
+    readout: target('clock'),
     mode: target('mode'),
 };
 
@@ -249,9 +275,30 @@ const LEVEL_STEPS = new Set(['up', 'down', 'higher', 'lower', 'raise']);
 /** What may stand around a length for it to be a request to set one. "Give me
  *  five minutes" and "in twenty minutes" are what people say to each other. */
 const LENGTH_COMPANY = new Set([
-    'a', 'an', 'the', 'for', 'to', 'it', 'set', 'make', 'change', 'timer', 'clock', 'session', 'meditation',
+    'a', 'an', 'the', 'for', 'to', 'it', 'set', 'make', 'change', 'timer', 'clock', 'session', 'meditation', 'length',
     'please', 'ok', 'okay', "let's", 'lets', 'do', 'i', "i'd", 'id', 'want', 'like', 'would', 'about',
 ]);
+
+/**
+ * A level by its name, for the two settings that have levels. Which one is
+ * meant comes from the word beside it ("guidance", "responses"); alone these
+ * say nothing. Guidance has five stops and gets all five; how much is said has
+ * three.
+ */
+type Level = 'min' | 'low' | 'medium' | 'high' | 'max';
+const LEVELS: Record<string, Level> = {
+    minimum: 'min', minimal: 'min', lowest: 'min',
+    low: 'low',
+    medium: 'medium', middle: 'medium', mid: 'medium', moderate: 'medium', halfway: 'medium', normal: 'medium',
+    high: 'high',
+    maximum: 'max', max: 'max', highest: 'max', full: 'max',
+};
+const LEVEL_GUIDANCE: Record<Level, number> = { min: 0, low: 1, medium: 2, high: 3, max: 4 };
+const LEVEL_VERBOSITY: Record<Level, Verbosity> = { min: 'low', low: 'low', medium: 'medium', high: 'high', max: 'high' };
+
+/** Said of the clock readout: "hide the clock", "show the timer". */
+const HIDES = new Set(['hide', 'hidden', 'conceal']);
+const SHOWS = new Set(['show', 'display', 'unhide', 'see']);
 
 /** Said in front of (or after) a value to take it away. */
 const NEGATIONS = new Set([
@@ -273,7 +320,7 @@ const STEPS: Record<string, 'up' | 'down'> = {
 
 /** The words people wrap around a request. Exact only. */
 const FILLER = new Set([
-    'a', 'about', 'all', 'aloud', 'also', 'an', 'back', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
+    'a', 'about', 'all', 'aloud', 'also', 'an', 'back', 'be', 'bit', 'can', 'choose', 'could', 'do', 'for', 'give', 'go',
     'have', 'hey', 'i', "i'd", 'id', 'in', 'it', 'just', 'keep', 'kinda', 'length', 'let',
     "let's", 'lets', 'level', 'like', 'little', 'me', 'meditation', 'now', 'of', 'ok', 'okay', 'one',
     'pick', 'please', 'practice', 'put', 'select', 'session', 'setting', 'some', 'thanks', 'the',
@@ -288,7 +335,7 @@ const FILLER = new Set([
  * nothing.
  */
 const ASKING = new Set([
-    ...NEGATIONS, ...ADDITIONS, ...SETTERS, ...ONLY, ...Object.keys(STEPS),
+    ...NEGATIONS, ...ADDITIONS, ...SETTERS, ...ONLY, ...Object.keys(STEPS), ...HIDES, ...SHOWS,
     'choose', 'pick', 'select', 'use',
 ]);
 
@@ -390,6 +437,7 @@ const EXACT_WORDS = new Set<string>([
     ...Object.keys(PHRASES).flatMap((p) => p.split(' ')),
     ...Object.keys(HEARD_AS).flatMap((p) => p.split(' ')),
     ...NEGATIONS, ...ADDITIONS, ...SETTERS, ...ONLY, ...Object.keys(STEPS), ...FILLER,
+    ...Object.keys(LEVELS), ...HIDES, ...SHOWS,
     ...LENGTH_UNITS, ...NUMBER_WORDS, ...JOINERS,
     // Never a setting, whatever they sound like: begin-command.ts owns these.
     'begin', 'start',
@@ -507,11 +555,37 @@ function family(meaning: Meaning): string {
     return meaning.t;
 }
 
+/** Single words that name a setting, for `numberAsWord` below. */
+const NAMES_A_SETTING = new Set(
+    Object.entries(PHRASES).flatMap(([phrase, entry]) => (entry.meaning.t === 'target' && !phrase.includes(' ') ? [phrase] : []))
+);
+
+/**
+ * "Set the focus two parts", "set a timer four ten minutes": a recognizer
+ * writes the number for "to" and "for". Only after a word that sets something
+ * or names a setting, and never where the number could be the length itself
+ * ("set the timer for two minutes").
+ */
+function numberAsWord(words: string[]): string[] {
+    let setting = false;
+    return words.map((word, at) => {
+        const before = setting;
+        if (SETTERS.has(word) || NAMES_A_SETTING.has(word)) setting = true;
+        if (JOINERS.has(word)) setting = false;
+        if (!before || at === words.length - 1) return word;
+        const next = words[at + 1]!;
+        const number = NUMBER_WORDS.has(next) || /^\d+$/.test(next);
+        if (word === 'two' || word === '2') return LENGTH_UNITS.has(next) ? word : 'to';
+        if (word === 'four' || word === '4') return number || next === 'a' || next === 'an' ? 'for' : word;
+        return word;
+    });
+}
+
 function respell(words: string[]): string[] {
     // "On check parts" is Whisper's "uncheck parts"; "on check-ins" is not.
     let said = ` ${words.join(' ')} `.replace(/^ on check (?!in |ins |ends |inns )/, ' uncheck ');
     for (const [heard, meant] of RESPELLED) said = said.split(` ${heard} `).join(` ${meant} `);
-    return said.trim().split(' ').filter(Boolean);
+    return numberAsWord(said.trim().split(' ').filter(Boolean));
 }
 
 /** One part of a request (between "and"s). Null when it isn't one. */
@@ -526,12 +600,16 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     let only = false;
     let step: 'up' | 'down' | null = null;
     let levelStep = false;
+    let hide = false;
+    let show = false;
+    const levels: Level[] = [];
 
     for (const [i, item] of items.entries()) {
         if ('entry' in item) {
             const { meaning } = item.entry;
             meanings.push(meaning);
-            const isValue = meaning.t === 'mode' || meaning.t === 'focus' || meaning.t === 'quality' || meaning.t === 'lead';
+            const isValue =
+                meaning.t === 'mode' || meaning.t === 'focus' || meaning.t === 'quality' || meaning.t === 'lead' || meaning.t === 'clock-mode';
             if (isValue && (item.loose || !item.entry.bare)) needsAsking = true;
             continue;
         }
@@ -541,6 +619,9 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
             negated = true;
             if (DENIALS.has(word)) denied = true;
         } else if (ADDITIONS.has(word)) added = true;
+        else if (HIDES.has(word)) hide = true;
+        else if (SHOWS.has(word)) show = true;
+        else if (word in LEVELS) levels.push(LEVELS[word]!);
         else if (SETTERS.has(word)) setter = true;
         else if (ONLY.has(word)) only = true;
         else if (word in STEPS) {
@@ -550,8 +631,9 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
             step = STEPS[word]!;
             if (LEVEL_STEPS.has(word)) levelStep = true;
         } else if (word === 'just') {
-            // "Just spacious" is only spacious; "just a little more" is filler.
-            const next = items[i + 1];
+            // "Just spacious" and "just the body" are only that; "just a
+            // little more" is filler.
+            const next = items.slice(i + 1).find((later) => 'entry' in later || !FILLER.has(later.word) || later.word === 'little' || later.word === 'bit');
             if (next && 'entry' in next && (next.entry.meaning.t === 'focus' || next.entry.meaning.t === 'quality')) {
                 only = true;
             }
@@ -572,10 +654,27 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     const lengthWords = meanings.filter((m): m is Extract<Meaning, { t: 'length-word' }> => m.t === 'length-word');
     const values = meanings.filter((m) => m.t === 'mode' || m.t === 'focus' || m.t === 'quality');
 
+    // A level by name belongs to exactly one of the two settings that have
+    // them: "set the guidance level to medium", "medium responses".
+    if (levels.length > 1) return null;
+    const level = levels[0];
+    if (level !== undefined) {
+        if (negated || step || has('guidance') === has('responses')) return null;
+        if (has('guidance')) {
+            if (leads.length > 0) return null;
+            actions.push({ kind: 'guidance', to: LEVEL_GUIDANCE[level] });
+        } else {
+            if (lengthWords.length > 0) return null;
+            actions.push({ kind: 'verbosity', to: LEVEL_VERBOSITY[level] });
+        }
+    }
+
     // Who leads. "More guidance", "guide me less", "more directing", or a
     // stop by its name ("following").
     if (leads.length > 1) return null;
-    if (leads.length === 1) {
+    if (level !== undefined) {
+        // Said above.
+    } else if (leads.length === 1) {
         const lead = leads[0]!;
         if (step) {
             // "More following" is less guidance.
@@ -592,7 +691,9 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     // How much it says. Always beside a word for the talking, since "longer"
     // alone could as well be the session.
     if (lengthWords.length > 1) return null;
-    if (lengthWords.length === 1) {
+    if (level !== undefined) {
+        // Said above.
+    } else if (lengthWords.length === 1) {
         if (!has('responses')) return null;
         actions.push({ kind: 'verbosity', to: lengthWords[0]!.to });
     } else if (has('responses')) {
@@ -603,7 +704,20 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
 
     if (meanings.some((m) => m.t === 'open-ended')) actions.push({ kind: 'no-timer' });
     // A timer by itself says nothing; with a length it is filler.
-    if (has('timer') && negated) actions.push({ kind: 'no-timer' });
+    if (has('timer') && negated && !hide && !show) actions.push({ kind: 'no-timer' });
+
+    // The readout. "Hide the clock" (or the timer) leaves a countdown
+    // running; "turn off the clock" is the whole thing off.
+    const clockModes = meanings.filter((m): m is Extract<Meaning, { t: 'clock-mode' }> => m.t === 'clock-mode');
+    if (clockModes.length > 1 || (hide && show)) return null;
+    if (clockModes.length === 1) {
+        if (negated || hide) return null;
+        actions.push({ kind: 'clock-mode', mode: clockModes[0]!.mode });
+    } else if (hide || show) {
+        if (!has('clock') && !has('timer')) return null;
+        actions.push({ kind: 'clock', show: show && !denied });
+    } else if (has('clock') && negated) actions.push({ kind: 'clock', show: false, timerOff: true });
+    else if (has('clock') && added) actions.push({ kind: 'clock', show: true });
 
     // Only with a direction said: "just checking in" is not a request.
     if (meanings.some((m) => m.t === 'checkin')) {
@@ -672,9 +786,20 @@ const SIT_WITH_RE =
 const CLEAR_INTENTION_RE =
     /^(?:(?:ok|okay|please)[,\s]+)*(?:clear|remove|drop|delete|erase|no|cancel|forget)\s+(?:(?:my|the)\s+)?intention(?:\s+please)?$/i;
 
+/** "Set my intention", "I'd like to add an intention": the request with the
+ *  intention still to come. A trailing "to" or "is" is a sentence the
+ *  recognizer cut at a pause. */
+const ASK_INTENTION_RE = new RegExp(
+    `^${INTENTION_LEAD}(?:(?:i\\s+want|i'd\\s+like|i\\s+would\\s+like|let\\s+me|can\\s+i|could\\s+i|let's|lets)\\s+(?:to\\s+)?)?` +
+        `(?:set|change|add|make|edit|update|enter|give|say|dictate|new)\\s+(?:(?:you|it)\\s+)?(?:(?:my|the|an|a|our)\\s+)?(?:new\\s+)?intention` +
+        `(?:\\s+(?:to|is|as|for\\s+(?:this|today|the)(?:\\s+(?:session|meditation))?))?(?:\\s+please)?$`,
+    'i'
+);
+
 function parseIntention(utterance: string): SetupAction | null {
-    const said = utterance.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?。]+$/u, '');
+    const said = utterance.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?。,]+$/u, '');
     if (CLEAR_INTENTION_RE.test(said)) return { kind: 'intention', text: '' };
+    if (ASK_INTENTION_RE.test(said)) return { kind: 'intention-ask' };
     const match = INTENTION_SET_RE.exec(said) ?? INTENTION_IS_RE.exec(said) ?? SIT_WITH_RE.exec(said);
     if (!match) return null;
     const text = match[1]!.trim();
@@ -725,6 +850,12 @@ const ZH_STEPS: ReadonlyArray<[RegExp, SetupAction]> = [
     [/^(?:停止聆听|别听了|不要听了|停止收听|静音|关闭麦克风|关掉麦克风)$/, { kind: 'stop-listening' }],
     [/^(?:帮助|我可以说什么|我能说什么|可以说什么|有哪些选项)$/, { kind: 'help' }],
     [/^(?:清除|清空|删除|去掉|取消)(?:我的)?意图$/, { kind: 'intention', text: '' }],
+    [/^(?:设置|设定|添加|修改|更改|写下?|说)(?:一个|一下)?(?:我的)?意图$/, { kind: 'intention-ask' }],
+    [/^(?:隐藏|不显示|藏起)(?:时钟|时间|计时器?)$/, { kind: 'clock', show: false }],
+    [/^(?:显示|打开)(?:时钟|时间)$/, { kind: 'clock', show: true }],
+    [/^(?:关掉|关闭|不要)时钟$/, { kind: 'clock', show: false, timerOff: true }],
+    [/^(?:显示)?(?:当前时间|现在的?时间|几点)$/, { kind: 'clock-mode', mode: 'wall' }],
+    [/^(?:显示)?(?:已用时间|冥想时间|用时)$/, { kind: 'clock-mode', mode: 'elapsed' }],
 ];
 
 const ZH_INTENTION_RE = /^(?:请|把)?(?:我的|这次的?)?意图(?:是|设为|设成|改成|为)/u;

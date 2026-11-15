@@ -79,6 +79,13 @@ export interface CompletionOptions {
     system?: string;
     maxTokens?: number;
     /**
+     * A JSON schema the reply must follow, for a short machine-read answer
+     * (facilitation/setup-local.ts). Only a provider that can hold the model
+     * to one takes it (Ollama); the rest ignore it, so a caller still parses
+     * defensively.
+     */
+    format?: unknown;
+    /**
      * Aborts the in-flight request (barge-in cancellation). Passed through to
      * `fetch`, so aborting mid-stream tears down the HTTP body and stops
      * billable generation. Abort can surface as an AbortError from the next

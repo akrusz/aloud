@@ -81,6 +81,26 @@ describe('mightBeSetupRequest', () => {
 });
 
 describe('resolveSetupAnswers', () => {
+    it('reads the clock, an intention to come and the voice picker', () => {
+        expect(resolve({ clock_hide: true })).toEqual([{ kind: 'clock', show: false }]);
+        expect(resolve({ clock_show: true })).toEqual([{ kind: 'clock', show: true }]);
+        // Both: the judge could not tell.
+        expect(resolve({ clock_hide: true, clock_show: true })).toBeNull();
+        // "No clock, I'll go as long as I like": the timer's, not the readout's.
+        expect(resolve({ clock_hide: true, no_timer: true })).toEqual([{ kind: 'no-timer' }]);
+        expect(resolve({ set_intention: true })).toEqual([{ kind: 'intention-ask' }]);
+        expect(resolve({ voice_picker: true })).toEqual([{ kind: 'voice-picker' }]);
+    });
+
+    it('keeps guidance and response length apart by the word that names one', () => {
+        // Said in a room, 2026-11-14: only `longer` cleared and the responses went long.
+        expect(resolve({ longer: true }, 'Set the guidance level to medium.')).toBeNull();
+        expect(resolve({ guide_more: true }, 'Could your replies be fuller?')).toBeNull();
+        expect(resolve({ longer: true }, 'Could your replies be fuller?')).toEqual([{ kind: 'verbosity', to: 'up' }]);
+        // Neither named: the ask that cleared stands.
+        expect(resolve({ longer: true })).toEqual([{ kind: 'verbosity', to: 'up' }]);
+    });
+
     it('is nothing when nothing clears, or only a bar-short score', () => {
         expect(resolve({})).toBeNull();
         expect(resolve({ vibe_spacious: bar('vibe_spacious') - 0.01 })).toBeNull();

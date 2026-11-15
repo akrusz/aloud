@@ -68,7 +68,6 @@ import type { SessionState } from '../../../src/facilitation/session.js';
 import {
     AnthropicProvider,
     OllamaProvider,
-    contextLengthForRam,
     OpenAIProvider,
     OpenRouterProvider,
     VeniceProvider,
@@ -175,7 +174,7 @@ import { playCannedApology } from '../canned-apology.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { outOfCreditsNotice, BILLING_PAUSED_FINISH } from '../billing-messages.js';
 import { startMicMeter, type MicMeter } from '../mic-meter.js';
-import { isCapacitor, isIosWeb, isSingleOwnerMicPlatform, systemRamGb } from '../is-desktop.js';
+import { isCapacitor, isIosWeb, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
 import { playClosing, playOpening, resolveSignatureSound } from '../signature-sound.js';
 import { navOrbPainted } from '../orb-pulse.js';
@@ -207,8 +206,8 @@ import {
     stripVoicePrefix,
 } from '../voice-picker.js';
 import { onBackdropClick } from '../modal-backdrop.js';
+import { sessionOllama } from '../setup-local-reader.js';
 
-const OLLAMA_PROXY_URL = '/ollama';
 const HAIKU_MODEL = 'claude-haiku-5-5';
 
 async function requireApiKey(provider: Provider): Promise<string> {
@@ -246,13 +245,9 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
             return new CloudLlmProvider({ provider: sub as CloudProviderId, model });
         }
         case 'ollama':
-            return new OllamaProvider({
-                baseUrl: OLLAMA_PROXY_URL,
-                // Down-clamp the context window on low-RAM machines; the
-                // system-info probe has run by the time a session starts.
-                contextLength: contextLengthForRam(systemRamGb()),
-                ...modelOpt,
-            });
+            // One builder with the setup screen's local reader, so both ask
+            // for the same context window (setup-local-reader.ts).
+            return sessionOllama(setup.model || undefined);
         case 'anthropic':
             // BYOK direct: Anthropic accepts browser-origin requests that carry
             // anthropic-dangerous-direct-browser-access, and there is no relay

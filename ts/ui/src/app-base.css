@@ -5165,13 +5165,56 @@ input[type="range"].preview-range {
     font-size: 0.9rem;
     line-height: 1.35;
     text-align: center;
+    /* Two lines break near the middle (balanceVoiceNote in views/setup.ts
+       then fits the pill to them). */
+    text-wrap: balance;
     pointer-events: none;
+}
+
+/* In the bar, left of the mic, when the words fit there (placeVoiceNote in
+   views/setup.ts measures the room and sets the three lengths). */
+.voice-start-note.in-bar {
+    left: auto;
+    right: var(--note-right);
+    bottom: auto;
+    top: var(--note-top, 50%);
+    transform: translateY(-50%);
+    max-width: var(--note-room);
+    padding: 0.3rem 0.8rem;
+    font-size: 0.85rem;
+    line-height: 1.25;
+}
+
+/* While the app speaks, the meter is hearing the app: no ring. Important,
+   because the level is set on the element itself. */
+.voice-start-mic.app-speaking {
+    --mic-level: 0 !important;
 }
 
 /* Not an answer: what was heard and not understood, or the first-visits
    hint. */
 .voice-start-note.aside {
     color: var(--text-secondary);
+}
+
+/* Over the voice picker, inside its own layer (the Begin bar is under the
+   picker's dimming): bottom center of the screen. */
+.voice-start-note.over-modal {
+    bottom: 1.25rem;
+}
+
+/* Its time is up: fade, and views/setup.ts hides it when the fade is done.
+   The transition lives here and not on the note itself, so the next note
+   comes up whole instead of fading in. */
+.voice-start-note.leaving {
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-start-note.leaving {
+        transition: none;
+    }
 }
 
 .voice-start-note.hidden {

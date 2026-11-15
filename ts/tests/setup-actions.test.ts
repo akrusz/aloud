@@ -8,6 +8,8 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
     const state = {
         mode: start.mode ?? ('exploration' as BeginMode),
         timer: null as number | null,
+        clockShown: true,
+        clockMode: 'elapsed' as 'elapsed' | 'wall',
         focuses: ['body_sensations', 'emotions'] as SetupFocus[],
         qualities: [] as Quality[],
         guidance: 2,
@@ -24,6 +26,11 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
         },
         setTimer: (minutes) => (state.timer = Math.max(1, Math.min(180, minutes))),
         clearTimer: () => void (state.timer = null),
+        setClockVisible: (show) => void (state.clockShown = show),
+        setClockMode: (mode) => {
+            state.clockMode = mode;
+            state.clockShown = true;
+        },
         focuses: () => state.focuses,
         setFocuses: (list) => void (state.focuses = list),
         qualities: () => state.qualities,
@@ -105,6 +112,26 @@ describe('applySetupAction', () => {
         expect(applySetupAction(f, { kind: 'intention', text: 'to rest' })).toEqual({ kind: 'intention', set: true });
         expect(state.intention).toBe('to rest');
         expect(applySetupAction(f, { kind: 'intention', text: '' })).toEqual({ kind: 'intention', set: false });
+    });
+
+    it('hides the clock and leaves a timer running, or turns the whole thing off', () => {
+        const { f, state } = form();
+        applySetupAction(f, { kind: 'length', minutes: 20 });
+        expect(applySetupAction(f, { kind: 'clock', show: false })).toEqual({ kind: 'clock', show: false });
+        expect(state).toMatchObject({ clockShown: false, timer: 20 });
+        expect(applySetupAction(f, { kind: 'clock', show: true })).toEqual({ kind: 'clock', show: true });
+        expect(applySetupAction(f, { kind: 'clock', show: false, timerOff: true })).toEqual({ kind: 'clock', show: false, off: true });
+        expect(state).toMatchObject({ clockShown: false, timer: null });
+        expect(applySetupAction(f, { kind: 'clock-mode', mode: 'wall' })).toEqual({ kind: 'clock-mode', mode: 'wall' });
+        expect(state).toMatchObject({ clockShown: true, clockMode: 'wall' });
+    });
+
+    it('asks for an intention without changing one, and only where there is a field for it', () => {
+        const { f, state } = form();
+        applySetupAction(f, { kind: 'intention', text: 'to rest' });
+        expect(applySetupAction(f, { kind: 'intention-ask' })).toEqual({ kind: 'intention-ask' });
+        expect(state.intention).toBe('to rest');
+        expect(applySetupAction(form({ mode: 'noting' }).f, { kind: 'intention-ask' })).toEqual({ kind: 'elsewhere', mode: null });
     });
 
     it('hands the mic requests back untouched', () => {

@@ -55,8 +55,13 @@ judge-only.
 ## Voice on the setup screen
 
 Settings → Language & Speech Recognition → **Voice control on the setup
-screen** (`AppSettings.setupVoice`, on by default). The mic on the setup screen
-hears two kinds of request, and they are held to different standards.
+screen** (`AppSettings.setupVoice`). On by default at a desk and off on a
+phone (`loadAppSettings`): an open mic there puts Android into call audio,
+which drops Bluetooth to call quality and reaches other apps' sound, before
+anyone has asked for anything. The mic beside Begin is the same switch: a tap
+on the lit mic turns the setting off, a tap on the slashed one turns it on,
+and either is how the next visit starts. The mic on the setup screen hears two
+kinds of request, and they are held to different standards.
 
 **"Begin"** starts the session the Begin button would (`parseBeginRequest`,
 `begin-command.ts`: begin or start, optionally the session, and the words
@@ -69,13 +74,23 @@ into a list of `SetupAction`s:
 
 - a mode by the name on its tab ("noting", "switch to felt sense");
 - a length ("twenty minutes", "half an hour", "no timer");
+- the clock readout: "hide the clock" (or "hide the timer") hides it and
+  leaves a countdown running, "show the clock" brings it back, "turn off the
+  clock" is the readout hidden and the timer off, and "show the time of day" /
+  "time in session" pick what it counts;
 - focuses and vibes: a name adds it, "no" / "remove" / "off" takes it away,
   "change the vibe to" / "only" replaces the set, "clear the vibes" empties it;
-- guidance, by step ("more guidance", "guide me less") or by stop
-  ("balanced", "somewhat directing");
-- response length ("shorter responses", "keep your replies brief");
+- guidance, by step ("more guidance", "guide me less"), by stop
+  ("balanced", "somewhat directing") or by level ("set the guidance level to
+  medium": minimum, low, medium, high and maximum are the five stops);
+- response length ("shorter responses", "keep your replies brief", "set
+  response length to medium");
 - the intention ("my intention is to rest", "clear my intention"), kept in the
-  meditator's own words and case;
+  meditator's own words and case. "Set my intention" with nothing after it is
+  answered "What is your intention?", and whatever is said in the next thirty
+  seconds is the intention, word for word ("never mind" leaves it); the turn
+  waits out a longer pause for that answer on the recognizers that can
+  (`awaitIntention` in `views/setup.ts`);
 - check-ins on or off (felt sense);
 - "stop listening" / "mute" (closes the mic until tapped), and "what can I
   say?".
@@ -84,8 +99,33 @@ Several can ride one utterance ("felt sense and twenty minutes"). A comma or a
 full stop parts a request as "and" does, and so does a "no" between two things
 ("effortless no check-ins"), which is said of the one after it. A "no" said
 ahead carries to more of the same ("remove playful and loving" removes both)
-and not to something else ("no check-ins and spacious" adds spacious). Voice,
-model, provider and speech recognition stay button-only.
+and not to something else ("no check-ins and spacious" adds spacious).
+Provider and speech recognition stay button-only.
+
+**A voice or a model, by name** (`parseSetupPick`, `setup-pick.ts`). These
+lists are not known ahead, so the names come in with the utterance
+(`pickContext` in `views/setup.ts`: the voices this machine and account have,
+the model picker's options as shown) and nothing here goes to the judge, which
+scores fixed asks and extracts no names.
+
+- "Open the voice picker" opens it; "close" or "done" closes it, only while it
+  is up.
+- "Set the voice to Ethan" makes it the session's voice and plays its sample as
+  the answer. "Preview Ethan" / "let me hear Ethan" plays the sample and
+  changes nothing. With the picker up a name alone picks, the way a tap on its
+  row would (a noting participant's voice included); with it closed a name
+  needs "voice" or a word that asks to hear it, since a name alone is a person
+  being called across a room.
+- "Set the model to Opus" picks the first option listed whose name has every
+  word said. It needs the word "model".
+- A name is the whole name, else the first listed that contains what was said
+  ("amy" for a Piper voice), else, for one word, the one name that sounds like
+  it (`namedIn`).
+
+A recognizer writes "two" for "to" and "four" for "for" ("set the focus two
+parts", said in a room on 2026-11-14 and in the synthetic corpus). After a
+word that sets something or names a setting they are read as the word, except
+where the number can be the length itself (`numberAsWord`).
 
 The whole utterance has to be the request, as with "begin": one word this
 doesn't know and it is the room talking. Inside that rule the value words are
@@ -130,9 +170,13 @@ such thing (a vibe on the felt sense tab) is not applied, and the outcome says
 whose it is.
 
 `setupOutcomeLines` (`setup-lines.ts`) turns the outcomes into the lines said
-back, and the same words show above Begin for six seconds
-(`#voice-start-note`): the answer for anyone with the sound off, and where a
-mishearing shows. A clear that only made room is not announced; more than
+back, and the same words show in a pill for six seconds, then fade over half
+a second (`#voice-start-note`): the answer for anyone with the sound off, and
+where a mishearing shows. The pill sits in the Begin bar to the left of the
+mic when its words fit there in two lines, and floats above the bar when they
+don't (`placeVoiceNote` in `views/setup.ts` measures the room each time). While
+the voice picker is up it shows inside the picker's own layer, bottom center:
+the bar is under the picker's dimming. A clear that only made room is not announced; more than
 three lines become one "Okay, all set."
 
 ### The judge tier
@@ -148,14 +192,30 @@ until the page reloads.
 
 Two ids in `setup-command-specs.ts` (`judgeSetupCommand`):
 
-- `setup-gate`: one ask, "is this phrased as a request to the app?" (~760
+- `setup-gate`: one ask, "is this phrased as a request to the app?" (~775
   tokens, about $0.00003). A cost filter, not the safeguard.
-- `setup-command`: 24 asks (~4,700 tokens, about $0.0002): one per mode, vibe
-  and focus, `remove` and `replace` as modifiers, guidance up and down,
-  shorter and longer responses, a length (the minutes come from
-  `parseTimerRequest`), no timer, check-ins, stop listening, help, and
-  `begin` as a veto that empties everything. `resolveSetupAnswers` turns the
-  answers into the same `SetupAction`s.
+- `setup-command`: 28 asks (~5,450 tokens, about $0.00023; an ask is about
+  190 tokens whatever its length): one per mode, vibe and focus, `remove` and
+  `replace` as modifiers, guidance up and down, shorter and longer responses,
+  a length (the minutes come from `parseTimerRequest`), no timer, the clock
+  hidden or shown, an intention to come (the app then asks for it), the voice
+  picker, check-ins, stop listening, help, and `begin` as a veto that empties
+  everything. `resolveSetupAnswers` turns the answers into the same
+  `SetupAction`s.
+
+Jev answers one ask at a time and returns a probability and nothing else, so
+nothing that has to be read out of the words goes through it: a voice's or a
+model's name, the intention's text, a guidance stop by name. Those are the
+parser's alone.
+
+**The scores wobble.** The same request asked twice comes back up to about
+0.05 apart, so a line within that of a bar goes either way from call to call:
+66 of the 299 corpus lines that reach the full set have an ask that close, and
+40 of 604 sit that close to the gate's. `jev:setup` caches one reading per
+line, so its tallies carry a few lines of noise either way, and a bar set a
+hundredth over one reading of a television line is not over it. Adding asks
+does not move the others beyond that noise (measured 2026-11-14, with and
+without the last four).
 
 `mightBeSetupRequest` keeps the hopeless off the wire: a lone word (sound is
 all the judge would have), more than 16 words, and anything containing begin
@@ -163,9 +223,9 @@ or start, which never comes through this tier.
 
 What it is good for, measured with `npm run jev:setup` (2026-11-14, synthetic
 voices and written lines, no real rooms): natural phrasing the parser misses
-("could you make it a bit more spacious", "I'd rather you led less"), 47 of 51
-and 21 of 23 held out, with 0 false positives on 276 room and television
-lines. It is **not** a mishearing fixer: of 150 lines local Whisper wrote that
+("could you make it a bit more spacious", "I'd rather you led less"), 51 of 59
+and 24 of 27 held out, with no setting changed by 287 room and television
+lines (two of them close the mic, which is the harmless side). It is **not** a mishearing fixer: of 150 lines local Whisper wrote that
 the parser still misses (`scripts/setup-voice/misheard.ts`), it recovered 4,
 and the scores of recovered mishearings sit where television lines with a
 value word in them sit ("Effortless style." 0.86), so the bars keep the room
@@ -179,6 +239,35 @@ marked provisional: they wait on transcripts of real voices in real rooms
 Not billed. Usage rows carry `purpose: 'setup'` and stay out of the session
 numbers; the calls spend the same `judgeDailyCap` / `judgeGlobalCap`
 allowance as a session's (a noisy window is about 60 calls against 5,000).
+
+### A local model in the judge's place (built, switched off)
+
+Where no judge may be asked and the session is set to Ollama, the request can
+go to that model instead (`readSetupLocally`, core `setup-local.ts`;
+`createLocalSetupReader`, `ui/src/setup-local-reader.ts`; `setup-judge.ts`
+hands over only when voice commands have no route at all). One call, answered
+as a short list from a closed set of changes that the provider holds the model
+to (`CompletionOptions.format`). It waits 2.5s at most with the mic closed,
+sends one at a time, and leaves a model alone on a machine where reads are
+slow.
+
+It is off: `READS_SETUP` (the models allowed to do this) is empty, because no
+model has earned a place in it. `npm run setup:local` scores a model on the
+judge tier's own corpus (`scripts/setup-judge-corpus.ts`), paced for heat.
+2026-11-14:
+
+- **qwen3.5:4b**: 62 of 73 natural requests exact at 0.9s a call (Jev: 75 of
+  86 with the newer lines), and then a setting changed on 120 of 243 room and
+  television lines ("The parts arrived yesterday." adds the parts focus) and
+  9 of 27 misheard begins. A filter on the form of the request left 31 false
+  changes and cost a third of the real ones. Not usable.
+- **gemma4:12b**: not measured. Ollama 0.40.6 answers 501 "structured output
+  is unavailable" for it, so it needs the list asked for in the prompt and
+  parsed instead.
+- The answer's shape decides everything on a small model: asked to fill in a
+  form with every setting as a field, qwen filled in all of them (0 of 23).
+
+Next steps are in bead meditation-pal-jhqk.
 
 ### Who speaks
 
@@ -212,8 +301,14 @@ styled voice, which ignores the speed setting in a session too.
 
 The mic beside the Begin button is the indicator and the switch
 (`#voice-start-mic`, the session's mic icon): lit while it listens, slashed
-when it doesn't, a tap toggles. It hangs off Begin's left edge out of flow, so
-the bar keeps its height. Hidden when the setting is off or Begin itself
+when it doesn't, a tap toggles. While it listens it wears the ring a session's
+mic does, swelling with the voice (`meterVoiceMic`): from the Whisper engine's
+own level on desktop, from a small meter stream beside the browser's
+recognizer, and not on phones. The ring is held still while the app speaks. It hangs off Begin's left edge out of flow, so
+the bar keeps its height. With the setting off it still shows, slashed, and a
+tap switches it on. "Stop listening" said aloud, and the mic closing by
+itself, last for the visit and leave the setting alone: a television should
+not be able to switch the feature off for good. Hidden only when Begin itself
 can't run.
 
 A mic open before a session exists is held to narrower rules than one inside
@@ -233,11 +328,22 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
     System Settings says (measured 2026-11-13; it does flip to `granted`
     after a capture);
   - the browser's Permissions API. Safari throwing on the descriptor is `ask`.
-- **Two minutes with nothing asked**, then the mic closes
-  (`VOICE_START_WINDOW_MS`) and stays closed until tapped. Each request it
-  understands starts the two minutes over, up to ten minutes since it opened
-  (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
-  open past that. It also closes the moment the setup screen goes away.
+- **It closes by itself, by what listening costs** (`setupListeningLimits`).
+  It also closes the moment the setup screen goes away.
+  - Hosted recognition and a phone's own: two minutes with nothing
+    asked (`VOICE_START_WINDOW_MS`), then closed until tapped. Each request it
+    understands starts the two minutes over, up to ten minutes since it opened
+    (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
+    open past that.
+  - Local Whisper and the browser's recognizer: no clock. (A browser is taken
+    to be a desktop one; phones use the app.) A quiet room costs nothing
+    there, so it stays open as long as the screen is up. What does cost is a room that
+    keeps talking (Whisper transcribing a television, and each line the parser
+    can't place going to the judge where there is one, against the daily
+    allowance a session's voice commands share), so it closes after
+    `VOICE_START_LOCAL_UNHEARD` things heard in a row that were not requests,
+    about five minutes of unbroken talk. A request understood starts the count
+    over.
 - **It does not hear the app.** A request is answered with the recognizer
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
   step of the tour, stops it first (`hold`). Listening resumes

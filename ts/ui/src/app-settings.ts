@@ -8,6 +8,7 @@
  */
 
 import { createKv } from './adapters/kv.js';
+import { isCapacitor } from './is-desktop.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 import type { Provider } from './settings.js';
 import type { SignatureSound } from './signature-sound.js';
@@ -245,7 +246,12 @@ export async function loadAppSettings(): Promise<AppSettings> {
     const raw = await kv().get(KEY);
     // No stored settings, or none with an explicit language: seed from the
     // browser locale. An explicit stored choice wins.
-    if (!raw) return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
+    // On a phone the setup screen's mic starts switched off: opening it there
+    // puts Android into call audio (Bluetooth drops to call quality, other
+    // apps' sound is affected) before anyone has asked for anything. The mic
+    // still shows, and a tap switches it on for good.
+    const defaults: AppSettings = { ...DEFAULT_APP_SETTINGS, setupVoice: !isCapacitor() };
+    if (!raw) return { ...defaults, language: detectLocale() };
     try {
         const parsed = JSON.parse(raw) as Partial<AppSettings>;
         // Language must be an offered code: the pre-c3a0 list had ~30, so a
@@ -255,9 +261,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
             parsed.language && SUPPORTED_LANGUAGE_CODES.has(parsed.language)
                 ? parsed.language
                 : detectLocale();
-        return { ...DEFAULT_APP_SETTINGS, ...parsed, language };
+        return { ...defaults, ...parsed, language };
     } catch {
-        return { ...DEFAULT_APP_SETTINGS, language: detectLocale() };
+        return { ...defaults, language: detectLocale() };
     }
 }
 

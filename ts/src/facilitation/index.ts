@@ -75,6 +75,8 @@ export { isBeginCommand, parseBeginRequest } from './begin-command.js';
 export type { BeginRequest, BeginMode } from './begin-command.js';
 export { parseSetupCommand, isSetupCommand, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
 export type { SetupAction, SetupFocus } from './setup-command.js';
+export { parseSetupPick, namedIn } from './setup-pick.js';
+export type { SetupPick, PickContext } from './setup-pick.js';
 export {
     SETUP_SPECS,
     SETUP_JUDGE_IDS,
@@ -88,12 +90,20 @@ export {
 } from './setup-command-specs.js';
 export type { SetupJudgeId } from './setup-command-specs.js';
 export {
+    LOCAL_SETUP_CHANGES,
+    LOCAL_SETUP_FORMAT,
+    LOCAL_SETUP_SYSTEM_PROMPT,
+    readSetupLocally,
+    resolveLocalSetupChanges,
+} from './setup-local.js';
+export {
     SETUP_LINES,
     SETUP_LINE_IDS,
     setupLanguage,
     setupLineText,
     setupActionModes,
     setupOutcomeLines,
+    modelSetLine,
 } from './setup-lines.js';
 export type { SetupLanguage, SetupLineId, SetupOutcome, SpokenSetupLine } from './setup-lines.js';
 export { parseTourCommand } from './tour-command.js';

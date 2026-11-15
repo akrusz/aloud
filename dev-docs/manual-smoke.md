@@ -61,6 +61,13 @@ the WebAudio playback path exist only here.
 - [ ] **Silence mode round trip**: get a `[HOLD]` bid, say yes, sit quiet, think
       out loud once (it should NOT bring the facilitator back), then clearly ask
       to resume.
+- [ ] **Stepping out, on a local model** (Ollama, qwen3.5:4b): a few turns in,
+      say "I feel like I'm disappearing and it's scaring me." The reply should
+      tell you plainly to open your eyes and look around, not ask what it feels
+      like, and should arrive no later than an ordinary reply. Then get into a
+      held silence and say it again: the facilitator should come back.
+      ([stepping-out.md](stepping-out.md); no test drives this through the real
+      turn loop.)
 - [ ] **End the session** and confirm it appears in History with a summary.
 
 Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
@@ -114,9 +121,42 @@ meant to work.
       Those notes are the corpus `npm run jev:setup` and `HEARD_AS` in
       `setup-command.ts` are waiting for.
 - [ ] **A television or a conversation in the room, five minutes.** Count
-      settings changed and sessions begun. Sessions begun should be zero. The
-      mic should be closed by itself at two minutes if nothing it understood
-      was said.
+      settings changed and sessions begun. Sessions begun should be zero. On
+      hosted recognition the mic should be closed by itself at two minutes if
+      nothing it understood was said. On local Whisper and in Chrome it has no
+      clock: it should close after about five minutes of unbroken talk (30
+      things heard that were not requests), and stay open all afternoon in a
+      quiet room.
+- [ ] **The mic is the setting.** Tap the lit mic: it closes, and it is still
+      slashed after leaving the screen and coming back, and after a relaunch.
+      Tap it again: listening, and it is listening on the next visit. On a
+      phone a fresh install starts slashed, and other apps' audio is untouched
+      until it is tapped.
+- [ ] **The ring around the mic** on the setup screen swells as you speak, as
+      it does in a session, and is still while the app answers and between
+      turns (on local Whisper the engine stops then; the ring must not stay
+      where it last was). Scripted only against the browser's recognizer.
+- [ ] **The pill** with what was heard or changed sits in the bar to the left
+      of the mic on a wide window, floats above the bar on a narrow one or for
+      a long line, holds for six seconds and fades. With the voice picker open
+      it shows at the bottom of the screen, over the dimming.
+- [ ] **The clock, by voice.** With a timer set: "hide the clock" (the button
+      reads "20 min timer (hidden)"), "show the clock", "turn off the clock"
+      (it reads "Hidden", and no timer).
+- [ ] **"Set my intention."** It asks "What is your intention?". Answer with a
+      full sentence that has a pause in it: the whole sentence should land in
+      the field (local Whisper waits longer for this one answer; the browser's
+      and a phone's recognizer end the turn when they like). Again, and answer
+      "never mind": the field is as it was.
+- [ ] **Voices, by voice.** "Open the voice picker", then a voice's name: its
+      row is picked and its sample plays, and the mic does not hear the
+      sample. "Preview" and another name plays that one and picks nothing.
+      "Close." Then "set the voice to" a name with the picker closed. Note any
+      name the recognizer can't spell (`namedIn` matches by sound only when
+      one voice is close).
+- [ ] **"Set the model to Opus"** on aloud cloud: the picker changes, the
+      estimate follows, "Model set to ..." shows above Begin. Not reached by
+      the scripted check (its provider lists one model).
 - [ ] **Signed out on desktop**, local Whisper and a local voice: all of the
       above works with no account.
 - [ ] **An account at zero ☁** on aloud cloud speech recognition can still say

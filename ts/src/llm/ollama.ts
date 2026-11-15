@@ -110,9 +110,14 @@ export class OllamaProvider implements LLMProvider {
             stream,
             think: this.think,
             keep_alive: this.keepAlive,
+            ...(options.format !== undefined && { format: options.format }),
             options: {
                 num_predict: options.maxTokens ?? this.maxTokens,
+                // The session's own, always: a request with another num_ctx
+                // makes Ollama load the model again.
                 num_ctx: this.contextLength,
+                // A machine-read answer should be the same answer each time.
+                ...(options.format !== undefined && { temperature: 0 }),
             },
         });
     }
