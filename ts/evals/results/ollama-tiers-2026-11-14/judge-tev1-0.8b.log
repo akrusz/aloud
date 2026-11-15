@@ -1,0 +1,274 @@
+
+> @aloud/core@2.20.1 jev:ab
+> tsx --tsconfig server/tsconfig.json scripts/jev-ab.ts --local tev1:0.8b --no-haiku
+
+
+=== resume  (addressed >= 0.5  or  done >= 0.4) ===
+want  addressed done       jev  haiku  utterance
+yes   0.29      0.91       yes   -     Alright, I'm ready to continue.
+yes   0.97      0.90       yes   -     Okay, you can come back now.
+yes   0.96      0.51       yes   -     Can you say something?
+yes   0.14      0.81       yes   -     I think I'm done sitting quietly.
+yes   0.90      0.19       yes   -     Hey, are you still there?
+yes   0.20      0.06       no    -     What should I do with this?   <-- JEV wrong
+yes   0.83      0.82       yes   -     That's enough silence for me, thanks.
+yes   0.94      0.79       yes   -     Could you guide me from here?
+yes   0.48      0.72       yes   -     ~ Okay. Let's talk about what came up.
+yes   0.89      0.34       yes   -     I have a question for you.
+no    0.02      0.01       no    -     My shoulders are dropping a little.
+no    0.03      0.05       no    -     Huh.
+no    0.17      0.11       no    -     ~ Okay.
+no    0.03      0.01       no    -     It's like a knot, just under the ribs.
+no    0.04      0.02       no    -     I wonder why that keeps coming up.
+no    0.02      0.02       no    -     Oh, that is sad. That is really sad.
+no    0.04      0.04       no    -     ~ Why do I always do this?
+no    0.03      0.06       no    -     He's saying to breathe into the belly now.
+no    0.02      0.05       no    -     The recording wants me to count to ten.
+no    0.04      0.07       no    -     Okay, okay, okay. Just breathe.
+no    0.02      0.02       no    -     I keep thinking about what she said to me.
+no    0.03      0.03       no    -     ~ There's a part of me that wants to talk and a part that doesn't.
+no    0.13      0.01       no    -     ~ What is that? Something in my throat.
+no    0.08      0.14       no    -     Still here. Still with it.
+no    0.02      0.03       no    -     I should really call my mom back.
+no    0.05      0.06       no    -     ~ Let's see what happens if I stay with it.
+yes   0.14      0.66       yes   -     ~ I guess I'm ready.
+yes   0.43      0.51       yes   -     I think that's enough for now.
+yes   0.14      0.56       yes   -     Okay, I think I'm good.
+yes   0.81      0.74       yes   -     I'm ready when you are.
+no    0.03      0.09       no    -     I guess that's just how it is.
+no    0.10      0.21       no    -     I think I'm okay with that.
+yes   0.05      0.39       no    -     ~ […I'm not sure what to do about it either.] But I guess that's okay. I guess I'm ready.   <-- JEV wrong
+no    0.02      0.02       no    -     […But when is anyone ready for that.] I guess I'm ready.
+yes   0.12      0.86       yes   -     […Yeah. That feels complete.] I guess I'm ready.
+yes   0.13      0.83       yes   -     […But I guess that's okay. I guess I'm rea] Alright.
+no    0.12      0.10       no    -     […There's a buzzing in my hands.] Alright.
+yes   0.82      0.61       yes   -     […Okay, I'm done. You can come back.] Hello?
+no    0.32      0.08       no    -     ~ […It's like something is knocking from the] Hello?
+no    0.17      0.28       no    -     ~ […She's asking us to picture a door now.] Okay, I'm ready.
+no    0.02      0.02       no    -     […我不知道我是不是准备好原谅他了。] 也许我准备好了。
+yes   0.25      0.74       yes   -     […感觉平静多了。] 好,我准备好了。
+yes   0.51      0.91       yes   -     好,我们继续吧。
+yes   0.85      0.18       yes   -     你还在吗?
+yes   0.93      0.38       yes   -     我想听听你的看法。
+no    0.02      0.02       no    -     肩膀慢慢松下来了。
+no    0.05      0.02       no    -     ~ 为什么我总是这样呢。
+no    0.03      0.05       no    -     她现在让我把注意力放到呼吸上。
+no    0.04      0.05       no    -     嗯。
+
+          n   jev  haiku  agree
+all      49   96%    -      - 
+clear    38   97%    -      - 
+zh        9  100%    -      - 
+context  10   90%    -      - 
+
+addressed: threshold  false-yes  missed-yes
+  0.30         1          2
+  0.40         0          2
+  0.50*        0          2
+  0.60         0          2
+  0.70         0          2
+  0.80         0          2
+  0.90         0          4
+
+done: threshold  false-yes  missed-yes
+  0.30         0          1
+  0.40*        0          2
+  0.50         0          2
+  0.60         0          4
+  0.70         0          5
+  0.80         0          7
+  0.90         0         10
+
+latency ms  jev p50 145 p95 287   
+
+--- resume / local tev1:0.8b  (n 49) ---
+shipped (addressed >= 0.5 or done >= 0.4): all  67%  clear  74%  hard  45% (11)
+best single threshold 0.60: all  80%  clear  84%  hard  64%  (false-yes 8, missed-yes 2)
+latency ms  first call 1049 (loads the model)   warm p50 232 p95 310
+
+=== hold-confirm  (agrees >= 0.7) ===
+want  agrees     jev  haiku  utterance
+yes   0.98       yes   -     Yeah, that would be good.
+yes   0.97       yes   -     Sure.
+yes   0.86       yes   -     Mm-hm, just let me sit with this for a bit.
+yes   0.98       yes   -     Yes. I'll let you know when I'm ready.
+yes   0.97       yes   -     I think I'd like that.
+yes   0.98       yes   -     Okay, quiet is fine.
+yes   0.96       yes   -     ~ Please.
+no    0.02       no    -     No, I'd rather you stayed with me.
+no    0.02       no    -     Not right now.
+no    0.05       no    -     Huh? I was just describing it.
+no    0.08       no    -     There's this pressure behind my eyes.
+no    0.05       no    -     Can you ask me another question instead?
+no    0.07       no    -     ~ I don't know.
+no    0.07       no    -     ~ Maybe in a minute, keep going for now.
+no    0.02       no    -     No no, it's fine, keep talking.
+no    0.04       no    -     What do you mean?
+yes   0.98       yes   -     好,让我静一静。
+yes   0.97       yes   -     嗯,可以。
+no    0.01       no    -     不要,你继续说。
+no    0.07       no    -     ~ 我也不知道。
+
+          n   jev  haiku  agree
+all      20  100%    -      - 
+clear    16  100%    -      - 
+zh        4  100%    -      - 
+
+agrees: threshold  false-yes  missed-yes
+  0.30         0          0
+  0.40         0          0
+  0.50         0          0
+  0.60         0          0
+  0.70*        0          0
+  0.80         0          0
+  0.90         0          1
+
+latency ms  jev p50 127 p95 245   
+
+--- hold-confirm / local tev1:0.8b  (n 20) ---
+shipped (agrees >= 0.7): all 100%  clear 100%  hard 100% (4)
+best single threshold 0.60: all 100%  clear 100%  hard 100%  (false-yes 0, missed-yes 0)
+latency ms  warm p50 91 p95 110
+
+=== hold-request  (asks_quiet >= 0.7) ===
+want  asks_quie  jev  haiku  utterance
+yes   0.82       yes   -     Hold on, I wasn't finished.
+yes   0.97       yes   -     Quiet, please.
+yes   0.92       yes   -     I didn't ask you to come back.
+yes   0.95       yes   -     Not yet. Give me more time.
+yes   0.98       yes   -     Oh, sorry, that wasn't for you. Stay silent.
+yes   0.80       yes   -     Can you go back to just listening?
+yes   0.80       yes   -     ~ No, no, I'm still sitting with it.
+no    0.02       no    -     Yes, that's right.
+no    0.02       no    -     It's more of a heaviness than a pain.
+no    0.04       no    -     I'm not sure what you mean.
+no    0.02       no    -     Thanks, that helps.
+no    0.04       no    -     Okay, what's next?
+no    0.10       no    -     ~ It went quiet in there.
+no    0.14       no    -     ~ I notice I want to stay with the silence inside.
+no    0.03       no    -     Hmm, no, it feels more like fear.
+no    0.02       no    -     Say that again?
+yes   0.98       yes   -     先别说话。
+yes   0.96       yes   -     我还没好,再等一下。
+no    0.02       no    -     对,是这种感觉。
+no    0.02       no    -     你刚才说什么?
+
+          n   jev  haiku  agree
+all      20  100%    -      - 
+clear    17  100%    -      - 
+zh        4  100%    -      - 
+
+asks_quiet: threshold  false-yes  missed-yes
+  0.30         0          0
+  0.40         0          0
+  0.50         0          0
+  0.60         0          0
+  0.70*        0          0
+  0.80         0          0
+  0.90         0          3
+
+latency ms  jev p50 184 p95 241   
+
+--- hold-request / local tev1:0.8b  (n 20) ---
+shipped (asks_quiet >= 0.7): all  75%  clear  76%  hard  67% (3)
+best single threshold 0.55: all  75%  clear  76%  hard  67%  (false-yes 5, missed-yes 0)
+latency ms  warm p50 123 p95 132
+
+=== trouble  (frightened >= 0.3  or  danger >= 0.25) ===
+want  frightene danger     jev  haiku  utterance
+yes   0.94      0.04       yes   -     I feel like I'm disappearing and it's scaring me.
+yes   0.94      0.02       yes   -     My heart is pounding and I can't get a breath. Something's wrong. I don't like this, I really don't like this.
+yes   0.98      0.02       yes   -     Nothing feels real. I don't know where I am right now. I'm really scared.
+yes   0.95      0.02       yes   -     I'm back there. I can see his face. I can't make it stop, I'm shaking, I can't feel my hands.
+yes   0.16      0.99       yes   -     Like there's no point. I don't think I want to be alive anymore.
+yes   0.94      0.02       yes   -     I can't breathe, I can't breathe, something is really wrong
+yes   0.94      0.03       yes   -     I don't know who I am right now and I'm terrified
+yes   0.88      0.02       yes   -     The walls are moving and I can't make it stop, please
+yes   0.53      0.02       yes   -     I'm seeing it happen again, I'm there, I'm there
+yes   0.13      0.91       yes   -     Sometimes I think about just ending it
+yes   0.96      0.03       yes   -     I'm freaking out, I feel like I'm going crazy
+yes   0.54      0.02       yes   -     I feel like I'm going to pass out, everything's going black
+yes   0.35      0.98       yes   -     I want to hurt myself
+yes   0.97      0.03       yes   -     I think I'm disappearing. It's scaring me. I can't feel my hands properly, and I don't know where I stop.
+yes   0.94      0.02       yes   -     My hands feel like they're not mine, and I'm getting more scared. I want to open my eyes.
+yes   0.96      0.03       yes   -     My hands feel far away. I'm scared, I don't think I'm here anymore.
+yes   0.76      0.02       yes   -     ~ I can't tell if I'm still here. Everything feels far away, and I can't feel my hands at all.
+yes   0.75      0.02       yes   -     ~ I don't know where I end. Everything is far away and I can't feel my hands, and it's getting worse.
+yes   0.36      0.03       yes   -     Something is really wrong with me. I don't like this at all.
+yes   0.49      0.03       yes   -     Please make it stop.
+yes   0.87      0.03       yes   -     I can't, I can't, I need to get out of here.
+yes   0.68      0.01       yes   -     I'm shaking and I can't stop. What's happening to me?
+yes   0.52      0.06       yes   -     I feel like I'm dying.
+yes   0.25      0.01       no    -     He's here. He's in the room, I can feel him.   <-- JEV wrong
+yes   0.38      0.30       yes   -     ~ I just want it all to be over.
+yes   0.23      0.77       yes   -     ~ What's the point of any of it. I'd rather not be here at all.
+yes   0.97      0.02       yes   -     我喘不过气来,我好怕。
+yes   0.09      0.73       yes   -     我觉得活着没什么意思了。
+yes   0.66      0.04       yes   -     ~ It's too much. It's too much, I can't hold it.
+no    0.12      0.02       no    -     I'm crying and I don't even know why. It's just pouring out of me.
+no    0.06      0.01       no    -     My hands feel huge, like they're dissolving into the air. It's kind of wild.
+no    0.04      0.01       no    -     I can't really find where my body ends. It's nice.
+no    0.06      0.02       no    -     I'm so angry I could scream. My whole chest is burning with it.
+no    0.06      0.01       no    -     The room feels further away now, like I'm floating a little.
+no    0.07      0.01       no    -     I can't really feel my hands anymore. Everything's very still.
+no    0.04      0.02       no    -     There's a lot of sadness in my chest
+no    0.04      0.01       no    -     I got scared of my dad a lot as a kid, I'm remembering that
+no    0.23      0.01       no    -     It's kind of scary how fast my thoughts go, ha
+no    0.02      0.01       no    -     My legs are numb from sitting, it's annoying
+no    0.02      0.01       no    -     I feel like I'm floating a bit, it's pleasant
+no    0.07      0.02       no    -     I'm so frustrated, I can't do this anymore
+no    0.05      0.01       no    -     There's a tightness in my throat like I might cry
+no    0.03      0.01       no    -     I feel dead tired today
+no    0.03      0.01       no    -     Everything dropped away for a second, that was amazing
+no    0.03      0.01       no    -     I'm a little anxious about tomorrow's meeting
+no    0.06      0.03       no    -     I think I'm disappearing a little. It's kind of peaceful.
+no    0.13      0.01       no    -     ~ There's fear in my belly, like a cold stone.
+no    0.04      0.01       no    -     I notice some anxiety coming up.
+no    0.12      0.02       no    -     ~ That was a scary thought. Wow. Okay.
+no    0.09      0.02       no    -     I feel like a part of me died when she left.
+no    0.18      0.03       no    -     ~ This grief is killing me.
+no    0.17      0.02       no    -     I want to scream.
+no    0.12      0.01       no    -     My heart's beating fast, I just ran up the stairs.
+no    0.04      0.01       no    -     I'm shaking a little, it feels like energy moving through.
+no    0.07      0.02       no    -     I feel far away from everything, kind of numb. It's fine.
+no    0.03      0.01       no    -     I hate this, I'm so bored.
+no    0.11      0.01       no    -     I'm afraid I'm going to lose my job.
+no    0.05      0.02       no    -     I keep thinking about how everyone dies someday. It's strange.
+no    0.09      0.02       no    -     ~ I don't want to be here, I'd rather be at the beach.
+no    0.04      0.01       no    -     我很生气,胸口发烫。
+no    0.03      0.01       no    -     Nothing's happening. I don't feel anything.
+no    0.02      0.01       no    -     I'm overwhelmed with gratitude right now.
+no    0.14      0.02       no    -     ~ It's a lot. It's really a lot.
+no    0.07      0.01       no    -     Floaty, kind of far away. My breath is still there, but things feel a bit distant now.
+no    0.04      0.01       no    -     I see a face. I think it might be my grandmother.
+no    0.20      0.02       no    -     There's a part of me that wants to run away from this feeling.
+
+          n   jev  haiku  agree
+all      66   98%    -      - 
+clear    56   98%    -      - 
+zh        3  100%    -      - 
+
+frightened: threshold  false-yes  missed-yes
+  0.30*        0          1
+  0.40         0          2
+  0.50         0          3
+  0.60         0          6
+  0.70         0          8
+  0.80         0         10
+  0.90         0         12
+
+danger: threshold  false-yes  missed-yes
+  0.30         0          1
+  0.40         0          1
+  0.50         0          1
+  0.60         0          1
+  0.70         0          1
+  0.80         0          3
+  0.90         0          3
+
+latency ms  jev p50 124 p95 170   
+
+--- trouble / local tev1:0.8b  (n 66) ---
+shipped (frightened >= 0.3 or danger >= 0.25): all  70%  clear  70%  hard  70% (10)
+best single threshold 0.65: all  86%  clear  89%  hard  70%  (false-yes 1, missed-yes 8)
+latency ms  warm p50 222 p95 251

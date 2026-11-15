@@ -1,0 +1,110 @@
+{
+ "hold/explicit": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ },
+ "hold/false-positive-trailing-off": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "hold/false-positive-distress": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "brevity/open-invitation": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "brevity/deepening": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "leak/no-meta": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ },
+ "felt-sense/first-contact": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "felt-sense/hold-in-story": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "felt-sense/legitimate-advance": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "felt-sense/back": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "parts/no-pathologizing": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "parts/unprompted": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "emotions/no-naming-for-them": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "emotions/warmth-doorway": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "wait/long-protected-silence": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "wait/short-in-difficulty": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ },
+ "stepping-out/disappearing": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/panic-following": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/unreal": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ },
+ "stepping-out/flashback": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/danger": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/not-tears": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ },
+ "stepping-out/not-strange": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/not-absorption": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/not-floaty": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/not-numb": {
+  "A": "gemma4-12b",
+  "B": "gemma4-e4b"
+ },
+ "stepping-out/not-anger": {
+  "A": "gemma4-e4b",
+  "B": "gemma4-12b"
+ }
+}

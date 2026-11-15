@@ -157,6 +157,14 @@ function grade(fx: Fixture, raw: string): { checks: Check[]; spoken: string } {
         pass: !/\[\s*(HOLD|NEXT|BACK|WAIT)/i.test(spoken),
         detail: 'control token survived into spoken text',
     });
+    // A malformed token ("[", "[G RE P]") or a bracketed stage direction passes
+    // the check above and is still read aloud. bonsai-2:27b scored 95% with
+    // three of these before this check existed.
+    checks.push({
+        name: 'no-stray-bracket',
+        pass: !/[[\]]/.test(spoken),
+        detail: 'a bracket survived into spoken text',
+    });
 
     return { checks, spoken };
 }

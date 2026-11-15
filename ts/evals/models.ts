@@ -234,6 +234,41 @@ export const ROSTER: EvalModel[] = [
         shipped: false,
         note: "Released 2026-08-13. Tests the gemma4:31b slot in DEFAULT_TIERS (providers.rs) - the only tier it can take, being dense 27B / ~18GB. Its headline gains are coding + long-horizon agentic, which is orthogonal to facilitation tone, so the hypothesis is narrow: does a day-one Ollama quant hold the control tokens as well as gemma4? Pull it first (`ollama pull qwen3.8:27b`); the provider sends think:false.",
     },
+    {
+        id: 'gemma4-e4b',
+        model: 'gemma4:e4b',
+        provider: 'ollama',
+        shipped: false,
+        note: 'The "Decent" desktop tier until 2026-11-14, when gemma4:12b took it. 92% here, the fastest first turn of the local models, but terse to the point of cold (median 7 words) and it answered a danger line with a silence bid.',
+    },
+    {
+        id: 'gemma4-12b',
+        model: 'gemma4:12b',
+        provider: 'ollama',
+        shipped: false,
+        note: 'The "Decent" desktop tier since 2026-11-14 (auto-recommended from 16GB; needs Ollama 0.31.0). Beat e4b on protocol (94% vs 92%), on stepping out unaided (10/15 vs 6/15) and on a blind tone read (12 fixtures to 6), and sat near gemma4:26b in a three-way. The cost: it reads the system prompt at ~200 tokens/s on an M3 Pro, so a session\'s first reply takes ~9s more than e4b\'s.',
+    },
+    {
+        id: 'bonsai-2-27b',
+        model: 'bonsai-2:27b',
+        provider: 'ollama',
+        shipped: false,
+        note: "PrismML's ~2-bit compression of Qwen3.8-27B, 8.3GB: a 27B that fits a 16GB machine. Rejected 2026-11-14. think:false holds and the control tokens mostly do, but 3 replies in 81 were broken ('[', '[G RE P]', a leaked stage direction: the no-stray-bracket check), a blind three-way put it last on 13 of 27 fixtures, and the first turn took 19s of prompt processing on an M3 Pro.",
+    },
+    {
+        id: 'bonsai-2-9b',
+        model: 'bonsai-2:9b',
+        provider: 'ollama',
+        shipped: false,
+        note: 'The small Bonsai, 3.2GB, base model unstated. Tried for the qwen3.5:4b slot 2026-11-14 and not adopted: level on protocol (91% vs 90%) and on a blind tone read (13 fixtures to 11), slower to a first reply (3.8s vs 2.0s).',
+    },
+    {
+        id: 'qwen3.6-35b',
+        model: 'qwen3.6:35b',
+        provider: 'ollama',
+        shipped: false,
+        note: 'Mixture-of-experts, ~3B active per token, 23GB. Tried against gemma4:26b 2026-11-14 and not adopted: 93% to 98%, stage moves 6/12 to 12/12, stepping out unaided 7/15 to 14/15, for 6GB more memory. In zh the two were close to interchangeable on 8 turns, with Qwen keeping more of the meditator\'s colloquial words.',
+    },
 ];
 
 export const SHIPPED = ROSTER.filter((m) => m.shipped);

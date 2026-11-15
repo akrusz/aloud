@@ -1,0 +1,41 @@
+{
+ "tag": "bonsai-2:9b",
+ "cold": {
+  "ttftMs": 8698,
+  "totalMs": 8856,
+  "loadMs": 2823,
+  "promptTokens": 1776,
+  "promptMs": 5704,
+  "outTokens": 7,
+  "tokPerSec": 41.8,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 266,
+  "totalMs": 790,
+  "loadMs": 1,
+  "promptTokens": 1813,
+  "promptMs": 253,
+  "outTokens": 19,
+  "tokPerSec": 36.3,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "I see the urge to let it go. What's happening with that wanting right now?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 3756,
+  "totalMs": 4021,
+  "loadMs": 2,
+  "promptTokens": 1885,
+  "promptMs": 3738,
+  "outTokens": 10,
+  "tokPerSec": 37.7,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's going on in that tightness?"
+ },
+ "loadedGB": 2.8,
+ "vramGB": 2.8
+}

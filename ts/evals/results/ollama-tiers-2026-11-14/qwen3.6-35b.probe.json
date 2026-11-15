@@ -1,0 +1,41 @@
+{
+ "tag": "qwen3.6:35b",
+ "cold": {
+  "ttftMs": 14315,
+  "totalMs": 14577,
+  "loadMs": 9725,
+  "promptTokens": 1776,
+  "promptMs": 4204,
+  "outTokens": 6,
+  "tokPerSec": 11.7,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that tension like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 280,
+  "totalMs": 444,
+  "loadMs": 0,
+  "promptTokens": 1813,
+  "promptMs": 214,
+  "outTokens": 7,
+  "tokPerSec": 32.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "You want it to go away."
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 2750,
+  "totalMs": 2929,
+  "loadMs": 0,
+  "promptTokens": 1885,
+  "promptMs": 2662,
+  "outTokens": 6,
+  "tokPerSec": 23,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What is that buzzing like?"
+ },
+ "loadedGB": 23.6,
+ "vramGB": 23.6
+}

@@ -1,0 +1,41 @@
+{
+ "tag": "gemma4:26b",
+ "cold": {
+  "ttftMs": 27704,
+  "totalMs": 27906,
+  "loadMs": 24227,
+  "promptTokens": 1816,
+  "promptMs": 3270,
+  "outTokens": 9,
+  "tokPerSec": 41.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing tightness like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 247,
+  "totalMs": 620,
+  "loadMs": 3,
+  "promptTokens": 1856,
+  "promptMs": 222,
+  "outTokens": 14,
+  "tokPerSec": 37.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What is that \"wanting it to go away\" like?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 1287,
+  "totalMs": 1504,
+  "loadMs": 1,
+  "promptTokens": 1921,
+  "promptMs": 1264,
+  "outTokens": 9,
+  "tokPerSec": 41.2,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing tightness like?"
+ },
+ "loadedGB": 1.1,
+ "vramGB": 1.1
+}

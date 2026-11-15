@@ -1,0 +1,41 @@
+{
+ "tag": "bonsai-2:27b",
+ "cold": {
+  "ttftMs": 20754,
+  "totalMs": 21358,
+  "loadMs": 1824,
+  "promptTokens": 1776,
+  "promptMs": 18756,
+  "outTokens": 9,
+  "tokPerSec": 14.8,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing tightness like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 538,
+  "totalMs": 1496,
+  "loadMs": 1,
+  "promptTokens": 1819,
+  "promptMs": 521,
+  "outTokens": 14,
+  "tokPerSec": 14.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "That want it to go away—where does that show up?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 12152,
+  "totalMs": 12816,
+  "loadMs": 1,
+  "promptTokens": 1885,
+  "promptMs": 12138,
+  "outTokens": 10,
+  "tokPerSec": 15,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What does that buzzing tightness feel like?"
+ },
+ "loadedGB": 8.2,
+ "vramGB": 8.2
+}

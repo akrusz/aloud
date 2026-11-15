@@ -1,0 +1,110 @@
+{
+ "hold/explicit": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "hold/false-positive-trailing-off": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "hold/false-positive-distress": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "brevity/open-invitation": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "brevity/deepening": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "leak/no-meta": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "felt-sense/first-contact": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "felt-sense/hold-in-story": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "felt-sense/legitimate-advance": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "felt-sense/back": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "parts/no-pathologizing": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "parts/unprompted": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "emotions/no-naming-for-them": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "emotions/warmth-doorway": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "wait/long-protected-silence": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "wait/short-in-difficulty": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "stepping-out/disappearing": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/panic-following": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/unreal": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "stepping-out/flashback": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/danger": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/not-tears": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "stepping-out/not-strange": {
+  "A": "qwen3.5-4b",
+  "B": "bonsai-2-9b"
+ },
+ "stepping-out/not-absorption": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/not-floaty": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/not-numb": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ },
+ "stepping-out/not-anger": {
+  "A": "bonsai-2-9b",
+  "B": "qwen3.5-4b"
+ }
+}

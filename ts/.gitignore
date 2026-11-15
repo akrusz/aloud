@@ -15,3 +15,6 @@ coverage/
 
 # Soak-harness run output (npm run soak)
 soak-runs/
+
+# Ad hoc eval output (--out evals/out/...); results worth keeping go in evals/results/
+evals/out/

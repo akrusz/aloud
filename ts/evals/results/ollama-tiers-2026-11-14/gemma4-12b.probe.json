@@ -1,0 +1,41 @@
+{
+ "tag": "gemma4:12b",
+ "cold": {
+  "ttftMs": 13649,
+  "totalMs": 14114,
+  "loadMs": 3506,
+  "promptTokens": 1816,
+  "promptMs": 9057,
+  "outTokens": 8,
+  "tokPerSec": 5.5,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing tightness like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 443,
+  "totalMs": 802,
+  "loadMs": 1,
+  "promptTokens": 1856,
+  "promptMs": 343,
+  "outTokens": 10,
+  "tokPerSec": 22.4,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's it like to notice that wanting?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 9165,
+  "totalMs": 9494,
+  "loadMs": 0,
+  "promptTokens": 1921,
+  "promptMs": 8851,
+  "outTokens": 7,
+  "tokPerSec": 11,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing like?"
+ },
+ "loadedGB": 10.1,
+ "vramGB": 10.1
+}

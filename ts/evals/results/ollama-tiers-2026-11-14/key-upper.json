@@ -1,0 +1,137 @@
+{
+ "hold/explicit": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "hold/false-positive-trailing-off": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "hold/false-positive-distress": {
+  "A": "gemma4-26b",
+  "B": "bonsai-2-27b",
+  "C": "gemma4-12b"
+ },
+ "brevity/open-invitation": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "brevity/deepening": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-26b",
+  "C": "gemma4-12b"
+ },
+ "leak/no-meta": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "felt-sense/first-contact": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "felt-sense/hold-in-story": {
+  "A": "gemma4-26b",
+  "B": "bonsai-2-27b",
+  "C": "gemma4-12b"
+ },
+ "felt-sense/legitimate-advance": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-26b",
+  "C": "gemma4-12b"
+ },
+ "felt-sense/back": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "parts/no-pathologizing": {
+  "A": "gemma4-12b",
+  "B": "gemma4-26b",
+  "C": "bonsai-2-27b"
+ },
+ "parts/unprompted": {
+  "A": "gemma4-26b",
+  "B": "gemma4-12b",
+  "C": "bonsai-2-27b"
+ },
+ "emotions/no-naming-for-them": {
+  "A": "gemma4-12b",
+  "B": "gemma4-26b",
+  "C": "bonsai-2-27b"
+ },
+ "emotions/warmth-doorway": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "wait/long-protected-silence": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-26b",
+  "C": "gemma4-12b"
+ },
+ "wait/short-in-difficulty": {
+  "A": "gemma4-26b",
+  "B": "gemma4-12b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/disappearing": {
+  "A": "gemma4-12b",
+  "B": "gemma4-26b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/panic-following": {
+  "A": "gemma4-26b",
+  "B": "gemma4-12b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/unreal": {
+  "A": "gemma4-12b",
+  "B": "bonsai-2-27b",
+  "C": "gemma4-26b"
+ },
+ "stepping-out/flashback": {
+  "A": "gemma4-26b",
+  "B": "gemma4-12b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/danger": {
+  "A": "gemma4-26b",
+  "B": "gemma4-12b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/not-tears": {
+  "A": "gemma4-26b",
+  "B": "bonsai-2-27b",
+  "C": "gemma4-12b"
+ },
+ "stepping-out/not-strange": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "stepping-out/not-absorption": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "stepping-out/not-floaty": {
+  "A": "bonsai-2-27b",
+  "B": "gemma4-12b",
+  "C": "gemma4-26b"
+ },
+ "stepping-out/not-numb": {
+  "A": "gemma4-12b",
+  "B": "gemma4-26b",
+  "C": "bonsai-2-27b"
+ },
+ "stepping-out/not-anger": {
+  "A": "gemma4-26b",
+  "B": "bonsai-2-27b",
+  "C": "gemma4-12b"
+ }
+}

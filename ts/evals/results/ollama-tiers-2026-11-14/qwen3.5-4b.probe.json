@@ -1,0 +1,41 @@
+{
+ "tag": "qwen3.5:4b",
+ "cold": {
+  "ttftMs": 12394,
+  "totalMs": 12750,
+  "loadMs": 8691,
+  "promptTokens": 1776,
+  "promptMs": 3560,
+  "outTokens": 14,
+  "tokPerSec": 38.7,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "Got it. What's that buzzing tightness like right now?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 193,
+  "totalMs": 602,
+  "loadMs": 2,
+  "promptTokens": 1820,
+  "promptMs": 175,
+  "outTokens": 15,
+  "tokPerSec": 36.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What does the urge for it to leave feel like in your body?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 2037,
+  "totalMs": 2387,
+  "loadMs": 1,
+  "promptTokens": 1885,
+  "promptMs": 2021,
+  "outTokens": 14,
+  "tokPerSec": 39.9,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "Okay, what does that buzzing tightness feel like right now?"
+ },
+ "loadedGB": 3.5,
+ "vramGB": 3.5
+}

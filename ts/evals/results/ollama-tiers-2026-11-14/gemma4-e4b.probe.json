@@ -1,0 +1,41 @@
+{
+ "tag": "gemma4:e4b",
+ "cold": {
+  "ttftMs": 4416,
+  "totalMs": 4780,
+  "loadMs": 2238,
+  "promptTokens": 1812,
+  "promptMs": 1880,
+  "outTokens": 8,
+  "tokPerSec": 17,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "What's that buzzing tightness like?"
+ },
+ "warmNextTurn": {
+  "ttftMs": 117,
+  "totalMs": 378,
+  "loadMs": 0,
+  "promptTokens": 1852,
+  "promptMs": 42,
+  "outTokens": 14,
+  "tokPerSec": 43.4,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "And what happens when you notice that desire for it to go away?"
+ },
+ "firstTurnLoaded": {
+  "ttftMs": 3491,
+  "totalMs": 3615,
+  "loadMs": 0,
+  "promptTokens": 1917,
+  "promptMs": 1935,
+  "outTokens": 11,
+  "tokPerSec": 6.6,
+  "thinkingChars": 0,
+  "thinkTagInText": false,
+  "text": "Buzzing tightness. What's that buzzing like?"
+ },
+ "loadedGB": 9.6,
+ "vramGB": 9.6
+}

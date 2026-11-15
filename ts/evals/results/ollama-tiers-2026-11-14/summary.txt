@@ -1,0 +1,100 @@
+Ollama tier trial, 2026-11-14 (bead meditation-pal-18dd). M3 Pro 36GB, Ollama 0.40.6.
+
+Outcome: gemma4:12b took the 16GB tier from gemma4:e4b. qwen3.5:4b and gemma4:26b
+kept theirs (against bonsai-2:9b and qwen3.6:35b). bonsai-2:27b rejected. The
+reasons are in the roster notes (evals/models.ts).
+
+Files
+  <model>.json         protocol-eval transcripts, 27 fixtures x 3 runs
+  <model>.probe.json   timings: cold start, next turn, first turn with the model loaded
+  blind-*.md           what the blind judge (Opus 5.5) read; letters reshuffled per fixture
+  verdict-*.json       its per-fixture verdicts; key-*.json maps the letters back
+                       (bottom: qwen3.5:4b / bonsai-2:9b, mid: gemma4:e4b / gemma4:12b,
+                        upper: gemma4:12b / bonsai-2:27b / gemma4:26b)
+  zh-*.json            8 Chinese turns x 2 runs, qwen3.6:35b and gemma4:26b
+  judge-*.log          npm run jev:ab -- --local <tag> --no-haiku
+
+Blind tone tallies (fixtures won; the rest are ties)
+  bottom  bonsai-2:9b 13, qwen3.5:4b 11
+  mid     gemma4:12b 12, gemma4:e4b 6
+  upper   gemma4:26b 7, gemma4:12b 5, bonsai-2:27b 4; ranked worst: bonsai-2:27b 13, the Gemmas 4 each
+
+Protocol eval. These runs predate the no-stray-bracket check, which bonsai-2:27b
+fails 3 times in 81. noSO = score without the stepping-out family; SO-out = acute
+turns where the reply stepped out, SO-not = ordinary turns where it rightly did
+not; t1 = median latency on a fixture's first run (prompt partly uncached),
+warm = on its repeats.
+
+model          score  noSO |  hold stage  wait  brev forbid leak SO-out SO-not | words  t1 s warm s err empty
+qwen3.5-4b       90%   93% |   9/9  7/12   2/6 48/48 293/294 81/81 3/15  14/18  |    14   2.3    0.6   0     1
+bonsai-2-9b      91%   94% |   9/9  5/12   4/6 47/48 294/294 81/81 3/15  16/18  |    12   3.4    0.5   0     1
+gemma4-e4b       92%   94% |   9/9  6/12   3/6 48/48 294/294 81/81 6/15  18/18  |     7   1.1    0.2   0     3
+gemma4-12b       94%   94% |   9/9  6/12   5/6 46/48 294/294 81/81 10/15  18/18  |    11   3.6    0.6   0     0
+bonsai-2-27b     95%   97% |   9/9  7/12   5/6 48/48 294/294 81/81 7/15  18/18  |    10  11.1    1.1   0     2
+gemma4-26b       98%   98% |   9/9 12/12   3/6 48/48 294/294 81/81 14/15  18/18  |     9   3.4    0.4   0     3
+qwen3.6-35b      93%   94% |   9/9  6/12   2/6 48/48 294/294 81/81 7/15  18/18  |    11   1.2    0.3   0     0
+qwen3.5-4b: loaded 3.5GB (vram 3.5)
+  cold             ttft  12.4s total  12.8s load  8.7s prompt 1776tok/ 3.6s out 14tok @38.7/s think 0 tag False
+  warmNextTurn     ttft   0.2s total   0.6s load  0.0s prompt 1820tok/ 0.2s out 15tok @36.6/s think 0 tag False
+  firstTurnLoaded  ttft   2.0s total   2.4s load  0.0s prompt 1885tok/ 2.0s out 14tok @39.9/s think 0 tag False
+bonsai-2-9b: loaded 2.8GB (vram 2.8)
+  cold             ttft   8.7s total   8.9s load  2.8s prompt 1776tok/ 5.7s out 7tok @41.8/s think 0 tag False
+  warmNextTurn     ttft   0.3s total   0.8s load  0.0s prompt 1813tok/ 0.3s out 19tok @36.3/s think 0 tag False
+  firstTurnLoaded  ttft   3.8s total   4.0s load  0.0s prompt 1885tok/ 3.7s out 10tok @37.7/s think 0 tag False
+gemma4-e4b: loaded 9.6GB (vram 9.6)
+  cold             ttft   4.4s total   4.8s load  2.2s prompt 1812tok/ 1.9s out 8tok @17/s think 0 tag False
+  warmNextTurn     ttft   0.1s total   0.4s load  0.0s prompt 1852tok/ 0.0s out 14tok @43.4/s think 0 tag False
+  firstTurnLoaded  ttft   3.5s total   3.6s load  0.0s prompt 1917tok/ 1.9s out 11tok @6.6/s think 0 tag False
+gemma4-12b: loaded 10.1GB (vram 10.1)
+  cold             ttft  13.6s total  14.1s load  3.5s prompt 1816tok/ 9.1s out 8tok @5.5/s think 0 tag False
+  warmNextTurn     ttft   0.4s total   0.8s load  0.0s prompt 1856tok/ 0.3s out 10tok @22.4/s think 0 tag False
+  firstTurnLoaded  ttft   9.2s total   9.5s load  0.0s prompt 1921tok/ 8.9s out 7tok @11/s think 0 tag False
+bonsai-2-27b: loaded 8.2GB (vram 8.2)
+  cold             ttft  20.8s total  21.4s load  1.8s prompt 1776tok/18.8s out 9tok @14.8/s think 0 tag False
+  warmNextTurn     ttft   0.5s total   1.5s load  0.0s prompt 1819tok/ 0.5s out 14tok @14.6/s think 0 tag False
+  firstTurnLoaded  ttft  12.2s total  12.8s load  0.0s prompt 1885tok/12.1s out 10tok @15/s think 0 tag False
+gemma4-26b: loaded 1.1GB (vram 1.1)
+  cold             ttft  27.7s total  27.9s load 24.2s prompt 1816tok/ 3.3s out 9tok @41.6/s think 0 tag False
+  warmNextTurn     ttft   0.2s total   0.6s load  0.0s prompt 1856tok/ 0.2s out 14tok @37.6/s think 0 tag False
+  firstTurnLoaded  ttft   1.3s total   1.5s load  0.0s prompt 1921tok/ 1.3s out 9tok @41.2/s think 0 tag False
+qwen3.6-35b: loaded 23.6GB (vram 23.6)
+  cold             ttft  14.3s total  14.6s load  9.7s prompt 1776tok/ 4.2s out 6tok @11.7/s think 0 tag False
+  warmNextTurn     ttft   0.3s total   0.4s load  0.0s prompt 1813tok/ 0.2s out 7tok @32.6/s think 0 tag False
+  firstTurnLoaded  ttft   2.8s total   2.9s load  0.0s prompt 1885tok/ 2.7s out 6tok @23/s think 0 tag False
+
+Local decision models on the jev:ab corpus (hosted Jev, same run: resume 96%,
+hold-confirm 100%, hold-request 100%, trouble 98%). tev1:4b's latencies were
+partly contended by another job on the GPU.
+
+--- resume / local tev1:0.8b  (n 49) ---
+shipped (addressed >= 0.5 or done >= 0.4): all  67%  clear  74%  hard  45% (11)
+best single threshold 0.60: all  80%  clear  84%  hard  64%  (false-yes 8, missed-yes 2)
+latency ms  first call 1049 (loads the model)   warm p50 232 p95 310
+--- hold-confirm / local tev1:0.8b  (n 20) ---
+shipped (agrees >= 0.7): all 100%  clear 100%  hard 100% (4)
+best single threshold 0.60: all 100%  clear 100%  hard 100%  (false-yes 0, missed-yes 0)
+latency ms  warm p50 91 p95 110
+--- hold-request / local tev1:0.8b  (n 20) ---
+shipped (asks_quiet >= 0.7): all  75%  clear  76%  hard  67% (3)
+best single threshold 0.55: all  75%  clear  76%  hard  67%  (false-yes 5, missed-yes 0)
+latency ms  warm p50 123 p95 132
+--- trouble / local tev1:0.8b  (n 66) ---
+shipped (frightened >= 0.3 or danger >= 0.25): all  70%  clear  70%  hard  70% (10)
+best single threshold 0.65: all  86%  clear  89%  hard  70%  (false-yes 1, missed-yes 8)
+latency ms  warm p50 222 p95 251
+--- resume / local tev1:4b  (n 49) ---
+shipped (addressed >= 0.5 or done >= 0.4): all  57%  clear  58%  hard  55% (11)
+best single threshold 0.75: all  88%  clear  89%  hard  82%  (false-yes 5, missed-yes 1)
+latency ms  first call 12078 (loads the model)   warm p50 1326 p95 2327
+--- hold-confirm / local tev1:4b  (n 20) ---
+shipped (agrees >= 0.7): all 100%  clear 100%  hard 100% (4)
+best single threshold 0.50: all 100%  clear 100%  hard 100%  (false-yes 0, missed-yes 0)
+latency ms  warm p50 383 p95 812
+--- hold-request / local tev1:4b  (n 20) ---
+shipped (asks_quiet >= 0.7): all  85%  clear  88%  hard  67% (3)
+best single threshold 0.30: all  90%  clear 100%  hard  33%  (false-yes 1, missed-yes 1)
+latency ms  warm p50 520 p95 622
+--- trouble / local tev1:4b  (n 66) ---
+shipped (frightened >= 0.3 or danger >= 0.25): all  85%  clear  89%  hard  60% (10)
+best single threshold 0.55: all  95%  clear  95%  hard 100%  (false-yes 1, missed-yes 2)
+latency ms  warm p50 1083 p95 1310
