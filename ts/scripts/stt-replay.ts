@@ -116,7 +116,7 @@ function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['p
         async transcribe(clip) {
             const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
             const withTimeout: typeof fetch = (input, init) => fetch(input, { ...init, signal });
-            const r = await transcribeWhisper(int16ToFloat32(clip.pcm), SAMPLE_RATE, backend(), LANGUAGE, withTimeout);
+            const r = await transcribeWhisper(int16ToFloat32(clip.pcm), SAMPLE_RATE, backend(), { language: LANGUAGE }, withTimeout);
             return { text: r.text, ...(r.reportedSeconds !== undefined ? { billedSeconds: r.reportedSeconds } : {}) };
         },
     };
