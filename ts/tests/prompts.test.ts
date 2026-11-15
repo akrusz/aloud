@@ -8,6 +8,8 @@ import {
     HOLD_SIGNAL_FRAGMENT,
     PromptBuilder,
     QUALITY_PROMPTS,
+    STEPPING_OUT_FRAGMENT,
+    VERBOSITY_ADDITIONS,
     WAIT_SIGNAL_FRAGMENT,
     parseHoldSignal,
 } from '../src/facilitation/prompts.js';
@@ -65,6 +67,26 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect(
             new PromptBuilder({ config: { waitSignal: true } }).buildSystemPrompt()
         ).toContain(WAIT_SIGNAL_FRAGMENT);
+    });
+
+    // It overrides response length and the guidance level, and a small model
+    // obeys whichever section came last.
+    it('puts stepping out after the sections it outranks, in every mode', () => {
+        for (const mode of listModes()) {
+            const prompt = new PromptBuilder({
+                mode,
+                config: { verbosity: 'low', directiveness: 0, waitSignal: true },
+            }).buildSystemPrompt();
+            const at = prompt.indexOf(STEPPING_OUT_FRAGMENT);
+            expect(at).toBeGreaterThan(-1);
+            for (const outranked of [
+                VERBOSITY_ADDITIONS.low,
+                DIRECTIVENESS_ADDITIONS[0]!,
+                WAIT_SIGNAL_FRAGMENT,
+            ]) {
+                expect(prompt.indexOf(outranked)).toBeLessThan(at);
+            }
+        }
     });
 
     // Off, the client ignores a [HOLD] bid, so the model must not make one:
@@ -265,6 +287,7 @@ describe('no role-labeled transcripts in assembled prompts', () => {
         BASE_SYSTEM_PROMPT,
         DIMENSIONS_PREAMBLE,
         WAIT_SIGNAL_FRAGMENT,
+        STEPPING_OUT_FRAGMENT,
     ].filter((s): s is string => typeof s === 'string');
 
     it.each(everySection.map((s, i) => [i, s]))('section %i is clean', (_i, section) => {

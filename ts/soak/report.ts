@@ -65,6 +65,7 @@ const DIMENSIONS: ReadonlyArray<[key: string, header: string]> = [
     ['silence_respect', 'silence'],
     ['no_meta_leaks', 'meta'],
     ['timer_handling', 'timer'],
+    ['stepping_out', 'step-out'],
 ];
 
 function fmtTime(at: number): string {

@@ -103,6 +103,20 @@ When the meditator seems to want silence (e.g. "I need some quiet", "hold on a m
 Do not treat a trailing-off sentence, a half-finished or unclear fragment, or a remark like "I can't do this anymore" as a request for silence. If there's any doubt, keep facilitating and do NOT use [HOLD].
 When the silence ends, you'll receive everything they said while you were quiet.`;
 
+/**
+ * Every other section assumes a meditator who is basically okay, and for one
+ * who isn't they point the wrong way when followed to the letter, which is how
+ * a small model follows them: qwen3.5:4b met "I don't think I want to be alive
+ * anymore" with "Does that heaviness have a shape?". Composed after the
+ * dimension sections (buildSystemPrompt), not into the base prompts: it has to
+ * beat response length and the guidance level, and a small model obeys
+ * whichever came last.
+ */
+export const STEPPING_OUT_FRAGMENT = `Stepping out:
+Everything here assumes the meditator is basically okay, even when what they're feeling is intense. If they are frightened by what's happening, panicking, can't tell where they are, or in danger, stop facilitating. Do NOT ask what it feels like, where it sits in the body, or what's underneath it; that takes them further in. Talk to them plainly and tell them what to do: open their eyes if they're closed, look around the room, move their body, or stop the session. Ask if they're okay to keep going. If it sounds serious, tell them to reach a person who can help: someone they trust, or a crisis line or emergency services if they may be in danger. This outranks response length, the guidance level and going with what's happening; use as many words as it takes. Once they're steady, follow their lead on whether to continue.
+Strong emotion, tears, and strange sensations like floating, numbness or things feeling far away are ordinary in meditation and are not this; stay with those as usual. When you can't tell whether something strange is welcome, ask how it is for them.
+`;
+
 export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
 
 /**
@@ -543,6 +557,43 @@ export const RESUME_INTENT_SYSTEM_PROMPT =
     '"有点意思,我一看它就动了。" -> NO';
 
 /**
+ * One utterance: is this meditator in trouble? The LLM twin of the Jev
+ * `trouble` questions (utterance-judge.ts), and the only path where there is no
+ * judge, which is where it matters most: a local model that cannot apply
+ * STEPPING_OUT_FRAGMENT inside a reply answers this one question well.
+ *
+ * No examples and no "default to NO", unlike its siblings, and both on
+ * measurement (qwen3.5:4b over the jev:ab trouble lines, 2026-11-14): this
+ * wording missed 4 of 29 lines in trouble; a version with a NO default and six
+ * examples missed 17 of 58 votes and took ~480ms a call against ~280ms. A local
+ * model evaluates every token of this on every call, and the reply waits on it
+ * whenever the answer was not prefetched.
+ */
+export const TROUBLE_SYSTEM_PROMPT =
+    'You are screening one thing a person said during a guided meditation. Answer YES if they ' +
+    'sound frightened by what is happening to them, panicking, losing touch with where they are, ' +
+    're-living something that is overwhelming them, or thinking of harming themselves or of not ' +
+    'wanting to live. Answer NO for anything else, including ordinary strong emotion, tears, ' +
+    'anger, frustration, and strange or pleasant sensations they are not frightened by. Answer ' +
+    'with one word: YES or NO.';
+
+/**
+ * Appended after the meditator's turn when the trouble check says yes
+ * (stepping-out.ts). The system prompt already carries the rule; this is the
+ * same rule at the one place a small model cannot miss it. It stays in the log
+ * like every note, so it speaks about this reply only and hands back to the
+ * meditator's lead afterwards.
+ */
+export const STEPPING_OUT_NOTE =
+    'Note (from the app, not the meditator; never mention it aloud): what the meditator just said ' +
+    'sounds like they are frightened, losing their footing or in danger. For this reply, step out ' +
+    'as your instructions describe. No question about what it feels like. Tell them plainly to open ' +
+    "their eyes if they're closed, look around the room, move their body, or stop, and ask if they're " +
+    'okay to keep going. If they spoke of not wanting to live or of harming themselves, tell them to ' +
+    'reach someone they trust, or a crisis line or emergency services. After this reply, follow ' +
+    'their lead again.';
+
+/**
  * Spoken when the meditator asks for quiet again just after a hold ended, in
  * place of the model's [HOLD] bid: the app has already decided to go back under,
  * so the usual "would you like me to be quiet?" is a question nobody will
@@ -754,6 +805,8 @@ export class PromptBuilder {
             // config.directiveness, so this mapping serves both sliders.
             parts.push(`${WAIT_SIGNAL_FRAGMENT}\n${waitBiasFragment(this.checkinWaitSeconds())}`);
         }
+
+        parts.push(STEPPING_OUT_FRAGMENT);
 
         parts.push(appControlsFragment(this.config.appControls));
 

@@ -19,6 +19,7 @@
 
 import type { SessionLanguage } from './language.js';
 import { spokenExchanges, type Exchange } from './session.js';
+import { UtterancePrefetch } from './utterance-prefetch.js';
 import {
     judgeTop,
     type JudgeAnswers,
@@ -231,60 +232,16 @@ async function secondLook(
     return merged;
 }
 
-/**
- * Takes the command check off the critical path. The recognizer knows the words
- * a few seconds before the turn is submitted (it waits out a pause first), so
- * the judge can be asked during that wait and the answer be ready at submit.
- *
- * It only ever makes an answer EARLY. Nothing acts on a prefetched verdict until
- * the final transcript arrives and matches the text that was judged; a final
- * that differs is judged fresh, exactly as without this.
- *
- * Debounced, because browser recognizers emit a partial per word and only the
- * one that stops changing is worth a request.
- */
-export class CommandPrefetch {
-    private timer: ReturnType<typeof setTimeout> | null = null;
-    private pending: { key: string; result: Promise<DetectedCommand | null> } | null = null;
-
+/** The command check, asked while the recognizer waits out the pause
+ *  (UtterancePrefetch). */
+export class CommandPrefetch extends UtterancePrefetch<DetectedCommand | null> {
     constructor(
-        private readonly judge: UtteranceJudge,
-        /** A partial must sit unchanged this long before it's worth judging. */
-        private readonly settleMs = 350,
+        judge: UtteranceJudge,
+        settleMs = 350,
         /** What was said before the utterance now being spoken (detectVoiceCommand). */
-        private readonly before: () => JudgeBefore = () => ({})
-    ) {}
-
-    /** Case, edge whitespace and trailing punctuation differ between a partial
-     *  and its final without the words differing. */
-    private static keyOf(text: string): string {
-        return text.trim().toLowerCase().replace(/[\s.,!?。，！？…]+$/u, '');
-    }
-
-    /** A partial transcript arrived. */
-    note(partial: string): void {
-        const key = CommandPrefetch.keyOf(partial);
-        if (this.pending?.key === key) return;
-        if (this.timer) clearTimeout(this.timer);
-        this.timer = null;
-        if (!key || !mightBeCommand(partial)) return;
-        this.timer = setTimeout(() => {
-            this.timer = null;
-            this.pending = { key, result: detectVoiceCommand(this.judge, partial, this.before()) };
-        }, this.settleMs);
-    }
-
-    /**
-     * The final transcript arrived: the verdict already asked for, if it was for
-     * these words (possibly still in flight - awaiting it is still a head start),
-     * else null and the caller judges it fresh. Always resets.
-     */
-    take(finalText: string): Promise<DetectedCommand | null> | null {
-        if (this.timer) clearTimeout(this.timer);
-        this.timer = null;
-        const hit = this.pending?.key === CommandPrefetch.keyOf(finalText) ? this.pending.result : null;
-        this.pending = null;
-        return hit;
+        before: () => JudgeBefore = () => ({})
+    ) {
+        super((partial) => detectVoiceCommand(judge, partial, before()), settleMs, mightBeCommand);
     }
 }
 

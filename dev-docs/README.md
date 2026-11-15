@@ -38,6 +38,7 @@ params, gotchas. It's the one to keep open.
 
 | Doc | |
 |---|---|
+| [stepping-out.md](stepping-out.md) | A meditator who is frightened, ungrounded or in danger: the prompt section, the per-utterance trouble check behind it, and what each was measured to do. |
 | [silence-mode.md](silence-mode.md) | `[HOLD]` as a bid, the three silence classifiers, and the Jev judge in front of them. |
 | [pacing.md](pacing.md) | Check-ins (canned vs smart content, fixed vs `[WAIT]` timing), the spoken session timer, and what a first sit ("Try right now") overrides. |
 | [voice-commands.md](voice-commands.md) | Mic pre-flight, the commands that need no judge ("mute", "end the session"), starting by voice, and the judge-backed spoken commands. |

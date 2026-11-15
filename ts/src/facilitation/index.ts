@@ -35,7 +35,9 @@ export {
     type ResumeMessage,
     type ResumeContextOptions,
 } from './resume.js';
-export { classifyResumeIntent, classifyHoldConfirm, classifyHoldRequest } from './resume-intent.js';
+export { classifyResumeIntent, classifyHoldConfirm, classifyHoldRequest, classifyTrouble } from './resume-intent.js';
+export { wantsTroubleCheck, localCheckFits, TROUBLE_GRACE_MS, TROUBLE_LOCAL_BUDGET_MS } from './stepping-out.js';
+export { UtterancePrefetch } from './utterance-prefetch.js';
 export type { ClassifyResumeIntentOptions } from './resume-intent.js';
 export {
     JUDGE_SPECS,
@@ -212,6 +214,7 @@ export {
     DIMENSIONS_PREAMBLE,
     VOICE_STYLE_FRAGMENT,
     HOLD_SIGNAL_FRAGMENT,
+    STEPPING_OUT_FRAGMENT,
     REALTIME_VOICE_FRAGMENT,
     WAIT_SIGNAL_FRAGMENT,
     waitBiasFragment,
@@ -224,6 +227,8 @@ export {
     EMPTY_REPLY_FALLBACKS,
     RESUME_INTENT_SYSTEM_PROMPT,
     HOLD_REQUEST_SYSTEM_PROMPT,
+    TROUBLE_SYSTEM_PROMPT,
+    STEPPING_OUT_NOTE,
     HOLD_REENTRY_LINES,
     type PromptConfig,
     type PromptBuilderOptions,

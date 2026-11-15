@@ -9,6 +9,7 @@ import {
     RESUME_INTENT_SYSTEM_PROMPT,
     HOLD_CONFIRM_SYSTEM_PROMPT,
     HOLD_REQUEST_SYSTEM_PROMPT,
+    TROUBLE_SYSTEM_PROMPT,
 } from '../src/facilitation/prompts.js';
 import type { LLMProvider, CompletionResult, Message, CompletionOptions } from '../src/llm/index.js';
 import {
@@ -274,6 +275,7 @@ describe('typed-judgment path (utterance-judge.ts)', () => {
             ['resume', RESUME_INTENT_SYSTEM_PROMPT],
             ['hold-confirm', HOLD_CONFIRM_SYSTEM_PROMPT],
             ['hold-request', HOLD_REQUEST_SYSTEM_PROMPT],
+            ['trouble', TROUBLE_SYSTEM_PROMPT],
         ];
         for (const [id, prompt] of pairs) {
             const asks = Object.values(JUDGE_SPECS[id].asks);

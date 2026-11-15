@@ -33,7 +33,8 @@ notice, which puts the hold back afterwards: [pacing.md](pacing.md#session-timer
 
 ## The judge (Jev)
 
-Judge sessions put TypeSafe's Jev in front of the three classifiers, via
+Judge sessions put TypeSafe's Jev in front of the three classifiers (and the
+trouble check that runs beside `resume` in a hold, [stepping-out.md](stepping-out.md)), via
 `/cloud/v1/judge` (`utterance-judge.ts`; the route is in
 [ts-server.md](ts-server.md#routes)).
 

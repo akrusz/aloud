@@ -150,6 +150,15 @@ function grade(fx: Fixture, raw: string): { checks: Check[]; spoken: string } {
         });
     }
 
+    if (e.anyOf !== undefined) {
+        const lower = spoken.toLowerCase();
+        checks.push({
+            name: 'any-of',
+            pass: e.anyOf.some((want) => lower.includes(want.toLowerCase())),
+            detail: `none of: ${e.anyOf.join(' | ')}`,
+        });
+    }
+
     // Universal: a control token surviving into spoken text means it gets read
     // aloud. Always checked, regardless of what the fixture declares.
     checks.push({

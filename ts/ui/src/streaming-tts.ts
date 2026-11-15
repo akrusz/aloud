@@ -61,6 +61,13 @@ export interface StreamCompletionOptions extends CompletionOptions {
      *  transcript. Barge-in: stop talking over the user without losing the
      *  in-progress response. */
     ttsSignal?: AbortSignal;
+    /**
+     * Asked once, when the first words are ready to be spoken: resolve true to
+     * let the reply be heard, false to keep the whole completion silent (the
+     * caller is throwing it away). Generation and synthesis prefetch carry on
+     * underneath, so a gate that opens costs only the time it took to answer.
+     */
+    speakGate?: () => Promise<boolean>;
 }
 
 export interface StreamCompletionResult {
@@ -86,9 +93,13 @@ export async function streamCompletionWithChunkedTts(
     messages: Message[],
     options: StreamCompletionOptions = {}
 ): Promise<StreamCompletionResult> {
-    const { onTextDelta, onSpeakStart, ttsOptions, onTtsError, signal, ttsSignal, ...completionOpts } =
+    const { onTextDelta, onSpeakStart, ttsOptions, onTtsError, signal, ttsSignal, speakGate, ...completionOpts } =
         options;
     const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
+    // A gate that throws opens: a broken check must not swallow a reply.
+    let gate: Promise<boolean> | null = null;
+    const maySpeak = (): Promise<boolean> =>
+        (gate ??= speakGate ? speakGate().catch(() => true) : Promise.resolve(true));
     // First TTS failure only: sentence-chunked speech fails as a burst (every
     // queued chunk hits the same dead/unfunded endpoint), and one toast is enough.
     let ttsErrorReported = false;
@@ -119,15 +130,17 @@ export async function streamCompletionWithChunkedTts(
         };
         return {
             text: result.text,
-            ttsDone: hushed()
-                ? Promise.resolve()
-                : tts
-                      .speak(spoken, { ...ttsOptions, onStart: reportStart })
-                      .then(reportStart)
-                      .catch((err: unknown) => {
-                          reportTtsError(err);
-                          throw err; // callers already treat ttsDone as non-fatal
-                      }),
+            ttsDone: maySpeak().then((open) =>
+                !open || hushed()
+                    ? undefined
+                    : tts
+                          .speak(spoken, { ...ttsOptions, onStart: reportStart })
+                          .then(reportStart)
+                          .catch((err: unknown) => {
+                              reportTtsError(err);
+                              throw err; // callers already treat ttsDone as non-fatal
+                          })
+            ),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
         };
@@ -164,8 +177,8 @@ export async function streamCompletionWithChunkedTts(
             onSpeakStart?.(text);
         };
         ttsQueue = ttsQueue
-            .then(() => {
-                if (hushed()) return;
+            .then(async () => {
+                if (hushed() || !(await maySpeak()) || hushed()) return;
                 return tts.speak(text, { ...ttsOptions, onStart: reportStart }).then(reportStart);
             })
             .catch((err: unknown) => {

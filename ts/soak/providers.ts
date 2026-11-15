@@ -13,6 +13,7 @@ import { join } from 'node:path';
 
 import {
     AnthropicProvider,
+    GoogleProvider,
     GroqProvider,
     OllamaProvider,
     OpenAIProvider,
@@ -29,6 +30,8 @@ const KEY_VARS: Record<string, string> = {
     openrouter: 'OPENROUTER_API_KEY',
     venice: 'VENICE_API_KEY',
     groq: 'GROQ_API_KEY',
+    // The name server/.env gives it; the evals read GOOGLE_API_KEY.
+    google: 'GEMINI_API_KEY',
 };
 
 function requireKey(provider: string): string {
@@ -111,6 +114,8 @@ export function buildProviderFromSpec(spec: string): LLMProvider {
             return new VeniceProvider({ apiKey: requireKey(name), ...modelOption });
         case 'groq':
             return new GroqProvider({ apiKey: requireKey(name), ...modelOption });
+        case 'google':
+            return new GoogleProvider({ apiKey: requireKey(name), ...modelOption });
         case 'ollama':
             return new OllamaProvider(modelOption);
         case 'claude_proxy':
@@ -119,7 +124,7 @@ export function buildProviderFromSpec(spec: string): LLMProvider {
             return new AnthropicProvider({ apiKey: requireKey('anthropic'), ...modelOption });
         default:
             throw new Error(
-                `Unknown provider "${name}". Use one of: anthropic, anthropic_api, openai, openrouter, venice, groq, ollama, claude_proxy (optionally ":model").`
+                `Unknown provider "${name}". Use one of: anthropic, anthropic_api, openai, google, openrouter, venice, groq, ollama, claude_proxy (optionally ":model").`
             );
     }
 }

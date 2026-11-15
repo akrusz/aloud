@@ -28,6 +28,9 @@ import {
     classifyHoldConfirm,
     classifyHoldRequest,
     classifyResumeIntent,
+    classifyTrouble,
+    wantsTroubleCheck,
+    STEPPING_OUT_NOTE,
     defaultPacingConfig,
     defaultWaitSeconds,
     getMode,
@@ -44,7 +47,7 @@ import {
     EXPLORATION_MODE,
     type LlmUsage,
 } from '../src/facilitation/index.js';
-import type { CompletionResult, LLMProvider } from '../src/llm/index.js';
+import { OllamaProvider, type CompletionResult, type LLMProvider } from '../src/llm/index.js';
 import type {
     LlmCallStat,
     Scenario,
@@ -220,8 +223,26 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         pacing.onResponseEnd();
     }
 
+    // The trouble check (core stepping-out.ts). The view runs it beside the
+    // reply and gates the first words on it; with no audio and a fake clock
+    // there is nothing to gate, so here it simply answers first.
+    const troubleOnTurns = wantsTroubleCheck(
+        facilitator instanceof OllamaProvider ? 'ollama' : '',
+        facilitator.model
+    );
+    async function askTrouble(text: string): Promise<boolean> {
+        const t0 = Date.now();
+        const troubled = await classifyTrouble(utility, text, onClassifierUsage);
+        calls.push({ kind: 'classify-trouble', latencyMs: Date.now() - t0 });
+        event('classifier', 'trouble', { troubled, utterance: text });
+        return troubled;
+    }
+
     /** A full facilitation turn (respondTo in the view). */
-    async function respondTo(userText: string, opts2: { skipTranscript?: boolean } = {}): Promise<void> {
+    async function respondTo(
+        userText: string,
+        opts2: { skipTranscript?: boolean; troubled?: boolean } = {}
+    ): Promise<void> {
         pacing.onSpeechEnd();
         pacing.onTranscription();
         smartCheckinStreak = 0;
@@ -237,6 +258,10 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         if (!opts2.skipTranscript) record('user', 'user', userText);
         utteranceAdvance(userText);
         session.addUserMessage(userText);
+        if (opts2.troubled ?? (troubleOnTurns && (await askTrouble(userText)))) {
+            session.appendSystemNote(STEPPING_OUT_NOTE, 'trouble');
+            event('note', 'stepping-out');
+        }
 
         let raw: string;
         let latencyMs: number;
@@ -458,14 +483,17 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             utteranceAdvance(userText);
             silenceBuffer.push(userText);
             const t0 = Date.now();
-            const verdict = await classifyResumeIntent(utility, userText, onClassifierUsage);
+            const [verdict, troubled] = await Promise.all([
+                classifyResumeIntent(utility, userText, onClassifierUsage),
+                askTrouble(userText),
+            ]);
             calls.push({ kind: 'classify-resume', latencyMs: Date.now() - t0 });
             event('classifier', 'resume', { verdict, utterance: userText });
-            if (verdict === 'stay') return;
+            if (verdict === 'stay' && !troubled) return;
             // 'resume' or 'error': fail open, as the view does (ff1y).
             const joined = silenceBuffer.join(' ');
             silenceBuffer = [];
-            await respondTo(joined, { skipTranscript: true });
+            await respondTo(joined, { skipTranscript: true, troubled });
             return;
         }
         if (route === 'hold-confirm') {

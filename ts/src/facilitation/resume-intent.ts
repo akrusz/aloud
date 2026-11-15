@@ -12,6 +12,7 @@ import {
     RESUME_INTENT_SYSTEM_PROMPT,
     HOLD_CONFIRM_SYSTEM_PROMPT,
     HOLD_REQUEST_SYSTEM_PROMPT,
+    TROUBLE_SYSTEM_PROMPT,
 } from './prompts.js';
 import { llmUsageOf, type LlmUsage } from './session.js';
 import { stripThinkTags } from './strip-think-tags.js';
@@ -39,6 +40,9 @@ export interface ClassifyResumeIntentOptions {
     judgeMode?: JudgeMode;
     /** Every classification that had a judge, both sides timed. For the A/B. */
     onJudged?: (report: JudgeReport) => void;
+    /** Calls off the LLM call (the judge's is too short to bother). An aborted
+     *  classification is an 'error', like any other that did not finish. */
+    signal?: AbortSignal;
 }
 
 /**
@@ -74,8 +78,13 @@ async function llmYesNo(
     // ANSWERED by some models instead of judged (Haiku 5.5, v36y corpus).
     const messages: Message[] = [{ role: 'user', content: `"${text}" ->` }];
     for (let attempt = 0; attempt < 2; attempt++) {
+        if (options.signal?.aborted) return 'error';
         try {
-            const result = await provider.complete(messages, { system, maxTokens: 10 });
+            const result = await provider.complete(messages, {
+                system,
+                maxTokens: 10,
+                ...(options.signal && { signal: options.signal }),
+            });
             options.onUsage?.(llmUsageOf(result));
             // A safety-classifier decline is no verdict: its empty text would
             // read as NO below. No second attempt either - the same utterance
@@ -177,4 +186,18 @@ export async function classifyHoldConfirm(
     options: ClassifyResumeIntentOptions = {}
 ): Promise<boolean> {
     return (await classifyYesNo(provider, text, 'hold-confirm', HOLD_CONFIRM_SYSTEM_PROMPT, options)) === 'yes';
+}
+
+/**
+ * Is the meditator in trouble: frightened by what is happening, losing their
+ * footing, or in danger (stepping-out.ts)? False on a classifier error: the
+ * reply then goes out as it would have, with STEPPING_OUT_FRAGMENT still in
+ * the prompt, and a check that fails must never cost a turn.
+ */
+export async function classifyTrouble(
+    provider: LLMProvider,
+    text: string,
+    options: ClassifyResumeIntentOptions = {}
+): Promise<boolean> {
+    return (await classifyYesNo(provider, text, 'trouble', TROUBLE_SYSTEM_PROMPT, options)) === 'yes';
 }

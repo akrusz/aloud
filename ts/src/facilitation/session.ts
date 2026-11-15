@@ -18,12 +18,14 @@ export type Role = 'user' | 'assistant' | 'system';
  *  - 'phase': a staged-mode phase note (role 'system').
  *  - 'setting': a mid-sit change the frozen system prompt can't take (role
  *    'system'), e.g. voice commands switched on.
+ *  - 'trouble': the stepping-out note for a meditator in trouble (role
+ *    'system'; stepping-out.ts).
  *  - 'context': resume scaffolding (recap, hand-off note).
  */
-export type ExchangeKind = 'opener' | 'event' | 'phase' | 'setting' | 'context';
+export type ExchangeKind = 'opener' | 'event' | 'phase' | 'setting' | 'trouble' | 'context';
 
 /** The kinds that travel as a mid-conversation system note. */
-export type SystemNoteKind = Extract<ExchangeKind, 'phase' | 'setting'>;
+export type SystemNoteKind = Extract<ExchangeKind, 'phase' | 'setting' | 'trouble'>;
 
 /**
  * One entry of the session log. The log is exactly what the model was sent,
@@ -276,6 +278,21 @@ export class SessionManager {
     queueSystemNote(content: string, kind: SystemNoteKind): void {
         this.pendingNotes.delete(kind);
         this.pendingNotes.set(kind, content);
+    }
+
+    /**
+     * Append a system note NOW, for one that is only known once the meditator's
+     * turn is already in the log (the trouble check answers while the reply is
+     * being asked for). The last entry must be that turn or a note behind it: a
+     * mid-conversation system message has to follow a user message.
+     */
+    appendSystemNote(content: string, kind: SystemNoteKind): void {
+        const exchanges = this.requireActive().exchanges;
+        const last = exchanges[exchanges.length - 1];
+        if (!last || last.role === 'assistant') {
+            throw new Error('appendSystemNote: a system note must follow a user turn');
+        }
+        exchanges.push({ role: 'system', content, kind, timestamp: this.clock() });
     }
 
     private flushSystemNotes(): void {

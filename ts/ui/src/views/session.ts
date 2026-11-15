@@ -27,6 +27,12 @@ import {
     endConfirmReply,
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
+    classifyTrouble,
+    wantsTroubleCheck,
+    localCheckFits,
+    TROUBLE_GRACE_MS,
+    STEPPING_OUT_NOTE,
+    UtterancePrefetch,
     type ClassifyResumeIntentOptions,
     CommandPrefetch,
     detectVoiceCommand,
@@ -1750,6 +1756,69 @@ export async function mountSessionView(
     }
     if (cloudJudge) attachJudge(cloudJudge);
 
+    // The trouble check (core stepping-out.ts): on ordinary turns for the
+    // models that need it, in a held silence for every session.
+    const troubleOnTurns = wantsTroubleCheck(setup.provider, provider.model);
+    interface TroubleAsk {
+        text: string;
+        verdict: Promise<boolean>;
+        /** Null until the verdict is in. */
+        settled: boolean | null;
+        startedAt: number;
+        cancel: () => void;
+    }
+    // What the check has been taking here, for the budget below: the quickest
+    // of the last few, since one asked beside the resume classifier in a hold
+    // queues behind it and reads long.
+    const troubleTook: number[] = [];
+    const troubleTypicalMs = (): number | null => (troubleTook.length ? Math.min(...troubleTook) : null);
+    async function askTrouble(text: string, signal?: AbortSignal, timingOnly = false): Promise<boolean> {
+        const t0 = Date.now();
+        const troubled = await classifyTrouble(utilityProvider, text, {
+            ...classifierOptions,
+            ...(signal && { signal }),
+        }).catch(() => false);
+        if (signal?.aborted) return false;
+        troubleTook.push(Date.now() - t0);
+        if (troubleTook.length > 5) troubleTook.shift();
+        tapCall('classify-trouble', Date.now() - t0);
+        if (!timingOnly) tapEvent('classifier', 'trouble', { troubled, utterance: text });
+        return troubled;
+    }
+    function trackTrouble(
+        text: string,
+        verdict: Promise<boolean>,
+        startedAt: number,
+        cancel: () => void
+    ): TroubleAsk {
+        const ask: TroubleAsk = { text, verdict, settled: null, startedAt, cancel };
+        void verdict.then((v) => {
+            ask.settled = v;
+        });
+        return ask;
+    }
+    // Asked while the recognizer waits out the pause, like the command judge,
+    // so the verdict is usually in before the reply is requested.
+    // Not for the two requests matched on the device: they never become a
+    // turn, and on a meditator's own key each ask is theirs to pay for.
+    const troublePrefetch = new UtterancePrefetch(askTrouble, undefined, (text) => !isMuteCommand(text) && !isEndCommand(text));
+    /** The verdict for the utterance now being handled: one per utterance,
+     *  whichever of the handlers asks first. */
+    let troubleAsked: TroubleAsk | null = null;
+    function troubleFor(text: string): TroubleAsk {
+        if (troubleAsked?.text !== text) {
+            const abort = new AbortController();
+            troubleAsked = trackTrouble(text, askTrouble(text, abort.signal), Date.now(), () => abort.abort());
+        }
+        return troubleAsked;
+    }
+    /** A local session's check runs on the facilitator's own model, and Ollama
+     *  takes the two calls one after the other: a check still out at submit is
+     *  time in front of the reply (core stepping-out.ts, localCheckFits). Read
+     *  at call time: turning voice commands on mid-session brings a judge. */
+    const troubleContends = (): boolean =>
+        provider instanceof OllamaProvider && utilityProvider === provider && !classifierOptions.judge;
+
     /** The info panel's "Off" row on a BYOK/local sit: say what turning it on
      *  sends where, then switch it on for this sit and the ones after. */
     async function offerVoiceCommands(): Promise<void> {
@@ -2101,17 +2170,23 @@ export async function mountSessionView(
         silenceBuffer.push(userText);
         setStatus(t('Going quiet, one moment…'));
         const classifyStart = Date.now();
-        const verdict = await classifyResumeIntent(utilityProvider, userText, {
-            ...classifierOptions,
-            // Everything buffered in this hold before the utterance being judged.
-            judgeContext: { earlier: silenceBuffer.slice(0, -1) },
-        });
+        // The resume classifiers hear a frightened line as thinking out loud
+        // ("describing experience"), so the trouble check is asked beside them:
+        // a meditator in trouble inside a hold gets the facilitator back.
+        const [verdict, troubled] = await Promise.all([
+            classifyResumeIntent(utilityProvider, userText, {
+                ...classifierOptions,
+                // Everything buffered in this hold before the utterance being judged.
+                judgeContext: { earlier: silenceBuffer.slice(0, -1) },
+            }),
+            troubleFor(userText).verdict,
+        ]);
         tapCall('classify-resume', Date.now() - classifyStart);
         tapEvent('classifier', 'resume', { verdict, utterance: userText });
         // The user may have toggled out of the hold (or the view torn down)
         // during the classifier round-trip; bail so we don't resurrect it.
         if (torn || !silenceMode) return;
-        if (verdict === 'stay') {
+        if (verdict === 'stay' && !troubled) {
             setStatus(holdingStatus());
             return;
         }
@@ -2123,8 +2198,9 @@ export async function mountSessionView(
         // the normal error banner instead of trapping the user in limbo.
         const joined = silenceBuffer.join(' ');
         silenceBuffer = [];
-        // The buffered utterances' bubbles are already on screen.
-        await respondTo(joined, { skipUserBubble: true });
+        // The buffered utterances' bubbles are already on screen. Each one was
+        // checked as it was said, so the turn doesn't ask again.
+        await respondTo(joined, { skipUserBubble: true, troubled });
     }
 
     // The meditator's reply to the facilitator's "shall I be quiet?" bid (see
@@ -2184,7 +2260,9 @@ export async function mountSessionView(
 
     async function respondTo(
         userText: string,
-        opts: { skipUserBubble?: boolean } = {}
+        /** `troubled`: the trouble check's verdict when the caller already has
+         *  it (a hold); left out, the turn asks for itself where it should. */
+        opts: { skipUserBubble?: boolean; troubled?: boolean } = {}
     ): Promise<void> {
         // Drop transcriptions that are only non-speech markers ("[cough]",
         // "[BLANK_AUDIO]", "(wind blowing)", "*sighs*") or carry no words: a
@@ -2231,6 +2309,38 @@ export async function mountSessionView(
             // screen (and tapped); only the joined text goes into history.
             if (!opts.skipUserBubble) showUserTurn(userText);
             session.addUserMessage(userText);
+            // The trouble check never stands in front of the reply. A verdict
+            // already in (prefetched during the pause, or from the hold) is
+            // acted on here; one still out runs beside the reply and holds
+            // only its first words, briefly (troubleStillOut, below).
+            let troubleAsk: TroubleAsk | null = null;
+            if (opts.troubled === undefined && troubleOnTurns) {
+                const had = troubleAsked?.text === userText ? troubleAsked : null;
+                // A prefetched verdict that came in during the pause is only
+                // marked settled a tick after it is handed over here. Without
+                // this it read as still out: the reply was requested without
+                // the note, then called off and asked for again with it.
+                if (had && had.settled === null) await Promise.race([had.verdict, Promise.resolve()]);
+                if (superseded()) return;
+                if (had && had.settled !== null) {
+                    troubleAsk = had;
+                } else if (
+                    !troubleContends() ||
+                    localCheckFits(troubleTypicalMs(), had ? Date.now() - had.startedAt : 0)
+                ) {
+                    troubleAsk = had ?? troubleFor(userText);
+                } else {
+                    // Too slow on this machine to stand in front of a reply.
+                    had?.cancel();
+                    tapEvent('note', 'stepping-out', { when: 'skipped-slow', typicalMs: troubleTypicalMs() });
+                }
+            }
+            let troubled = opts.troubled === true || troubleAsk?.settled === true;
+            if (troubled) {
+                session.appendSystemNote(STEPPING_OUT_NOTE, 'trouble');
+                tapEvent('note', 'stepping-out', { when: 'before-reply' });
+            }
+            const troubleStillOut = troubleAsk?.settled === null ? troubleAsk.verdict : null;
             // Dots the instant we submit, before any network round-trip, so the
             // user sees their turn was received.
             showTyping();
@@ -2255,13 +2365,17 @@ export async function mountSessionView(
             let bubble = createAssistantReveal();
             reveal = bubble;
             const turnStart = Date.now();
-            const attemptCompletion = (target: typeof bubble) =>
+            const attemptCompletion = (
+                target: typeof bubble,
+                gated?: { signal: AbortSignal; speakGate: () => Promise<boolean> }
+            ) =>
                 streamCompletionWithChunkedTts(provider, tts, session.getContextMessages(), {
                     system,
                     ttsOptions: { rate: setup.ttsRate },
                     onTtsError: handleTtsError,
-                    signal: myFullAbort.signal,
+                    signal: gated?.signal ?? myFullAbort.signal,
                     ttsSignal: myTtsAbort.signal,
+                    ...(gated && { speakGate: gated.speakGate }),
                     onSpeakStart: (sentence) => {
                         if (!superseded()) {
                             clearSlowResponseStatus();
@@ -2270,7 +2384,65 @@ export async function mountSessionView(
                         }
                     },
                 });
-            let { text: rawText, ttsDone, usage, finishReason } = await attemptCompletion(bubble);
+            let completion: Awaited<ReturnType<typeof attemptCompletion>> | null = null;
+            if (troubleStillOut) {
+                // The reply is asked for now and the verdict is awaited beside
+                // it. Nothing is spoken until the verdict is in or the grace
+                // runs out, whichever is first; a yes in time stops this reply
+                // and asks again with the note. A yes that arrives after the
+                // grace is too late to act on: the reply is already being heard.
+                const firstAbort = new AbortController();
+                const stopFirst = (): void => firstAbort.abort();
+                myFullAbort.signal.addEventListener('abort', stopFirst, { once: true });
+                let decided: Promise<boolean> | null = null;
+                const decide = (yes: boolean): boolean => {
+                    if (yes) {
+                        troubled = true;
+                        stopFirst();
+                    }
+                    return yes;
+                };
+                const verdictInTime = (): Promise<boolean> =>
+                    (decided ??= Promise.race([
+                        troubleStillOut,
+                        sleep(TROUBLE_GRACE_MS).then(() => false),
+                    ]).then(decide));
+                void troubleStillOut.then((yes) => {
+                    if (!yes) return;
+                    if (decided === null) decided = Promise.resolve(decide(true));
+                    else if (!troubled) tapEvent('note', 'stepping-out', { when: 'too-late' });
+                });
+                try {
+                    completion = await attemptCompletion(bubble, {
+                        signal: firstAbort.signal,
+                        speakGate: async () => !(await verdictInTime()),
+                    });
+                } catch (err) {
+                    // Stopping the reply mid-stream surfaces as an abort.
+                    if (!troubled || superseded()) throw err;
+                }
+                if (superseded()) {
+                    bubble.discard();
+                    return;
+                }
+                // A reply that ended before any of it was ready to speak never
+                // asked the gate.
+                if (!troubled) await verdictInTime();
+                if (superseded()) {
+                    bubble.discard();
+                    return;
+                }
+                if (troubled) {
+                    session.appendSystemNote(STEPPING_OUT_NOTE, 'trouble');
+                    tapEvent('note', 'stepping-out', { when: 'replaced-reply' });
+                    bubble.discard();
+                    bubble = createAssistantReveal();
+                    reveal = bubble;
+                    completion = null;
+                }
+            }
+            let { text: rawText, ttsDone, usage, finishReason } =
+                completion ?? (await attemptCompletion(bubble));
             if (superseded()) {
                 bubble.discard();
                 return;
@@ -2610,6 +2782,7 @@ export async function mountSessionView(
                                 continue;
                             }
                             commandPrefetch?.note(event.text);
+                            if (troubleOnTurns || silenceMode) troublePrefetch.note(event.text);
                             if (!currentPartial) {
                                 currentPartial = appendMessage('user', event.text, true);
                             } else {
@@ -2686,6 +2859,10 @@ export async function mountSessionView(
                     // Taken even when unused below, so a verdict never
                     // outlives the utterance it was asked about.
                     const early = commandPrefetch?.take(text) ?? null;
+                    const earlyTrouble = troublePrefetch.takeAsk(text);
+                    troubleAsked = earlyTrouble
+                        ? trackTrouble(text, earlyTrouble.result, earlyTrouble.startedAt, earlyTrouble.cancel)
+                        : null;
                     if (Date.now() < endConfirmUntil) {
                         // The open end question takes the reply, judge or not.
                         if (await handleEndConfirm(text)) continue;
@@ -3115,6 +3292,10 @@ export async function mountSessionView(
                 reveal.discard();
                 return;
             }
+            // One throwaway check while the greeting plays and the model is
+            // otherwise idle, so the first turn already knows what the check
+            // costs on this machine.
+            if (troubleOnTurns && troubleContends()) void askTrouble('My breath is slow and even.', undefined, true);
             clearSlowResponseStatus();
             // Strip control tokens an eager model put on the greeting: an opener
             // can neither hold nor move the arc.

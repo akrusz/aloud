@@ -113,6 +113,74 @@ describe('splitOffSentences', () => {
 });
 
 describe('streamCompletionWithChunkedTts', () => {
+    // The trouble check's hook (views/session.ts): the reply generates while
+    // the verdict is out, and is heard only if the gate opens.
+    describe('speakGate', () => {
+        const chunks = ['Stay with that for a moment longer. ', 'What do you notice now?'];
+
+        it('holds every sentence until the gate opens, then speaks them in order', async () => {
+            const tts = new RecordingTts();
+            let open!: (go: boolean) => void;
+            let asked = 0;
+            const result = await streamCompletionWithChunkedTts(
+                new FakeStreamingProvider(chunks),
+                tts,
+                [{ role: 'user', content: 'hi' }],
+                {
+                    speakGate: () => {
+                        asked++;
+                        return new Promise<boolean>((resolve) => (open = resolve));
+                    },
+                }
+            );
+            // The whole reply has been generated; none of it has been heard.
+            expect(result.text).toBe(chunks.join(''));
+            await Promise.resolve();
+            expect(tts.spoken).toEqual([]);
+            open(true);
+            await result.ttsDone;
+            expect(tts.spoken).toEqual(['Stay with that for a moment longer.', 'What do you notice now?']);
+            expect(asked).toBe(1);
+        });
+
+        it('keeps the completion silent when the gate stays shut', async () => {
+            const tts = new RecordingTts();
+            const result = await streamCompletionWithChunkedTts(
+                new FakeStreamingProvider(chunks),
+                tts,
+                [{ role: 'user', content: 'hi' }],
+                { speakGate: async () => false }
+            );
+            await result.ttsDone;
+            expect(result.text).toBe(chunks.join(''));
+            expect(tts.spoken).toEqual([]);
+        });
+
+        it('opens when the gate itself fails', async () => {
+            const tts = new RecordingTts();
+            const result = await streamCompletionWithChunkedTts(
+                new FakeStreamingProvider(chunks),
+                tts,
+                [{ role: 'user', content: 'hi' }],
+                { speakGate: () => Promise.reject(new Error('check broke')) }
+            );
+            await result.ttsDone;
+            expect(tts.spoken).toHaveLength(2);
+        });
+
+        it('gates the non-streaming fallback too', async () => {
+            const tts = new RecordingTts();
+            const result = await streamCompletionWithChunkedTts(
+                new FakeNonStreamingProvider('Hello there. How are you?'),
+                tts,
+                [{ role: 'user', content: 'hi' }],
+                { speakGate: async () => false }
+            );
+            await result.ttsDone;
+            expect(tts.spoken).toEqual([]);
+        });
+    });
+
     it('falls back to single-shot speak when provider lacks completeStream', async () => {
         const tts = new RecordingTts();
         const result = await streamCompletionWithChunkedTts(

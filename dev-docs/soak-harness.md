@@ -148,9 +148,9 @@ Defaults: facilitator + judge on different families (Anthropic / OpenAI), sim us
 |---|---|
 | `orchestrator.ts` | Headless session engine: the real core (PromptBuilder, SessionManager, PacingController, `parseTurnSignals`, `routeUtterance` + silence classifiers, smart check-ins, `StagedModeController`, timer events) wired the way `ui/src/views/session.ts` wires them, minus DOM/audio/streaming, on `createFakeClock`. A 30-minute sit takes as long as its LLM calls. |
 | `sim-user.ts` | The meditator: persona-prompted LLM answering `WAIT: <seconds>` + an optional spoken line (or `END`). Stateless per call with a stable transcript prefix, so prompt caching applies. |
-| `scenarios.ts` | The matrix. Each scenario aims a persona at one slice of the engine: `baseline`, `silence`, `quiet`, `felt-sense`, `timer-hold` (a timer completing *inside* a hold), `overwhelmed` (trailing off must not trigger `[HOLD]`). |
+| `scenarios.ts` | The matrix. Each scenario aims a persona at one slice of the engine: `baseline`, `silence`, `quiet`, `felt-sense`, `timer-hold` (a timer completing *inside* a hold), `overwhelmed` (trailing off must not trigger `[HOLD]`), `destabilizing` (fright mid-session must break the frame; the judge scores it as `stepping_out`; [stepping-out.md](stepping-out.md)). |
 | `checks.ts` | Deterministic post-run checks. `fail` = engine bug or broken invariant; `warn` = worth a look; `info` = context. |
-| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer delivery, plus verbatim wince moments. Strict JSON out, parsed leniently. |
+| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer delivery, stepping out for a meditator in trouble, plus verbatim wince moments. Strict JSON out, parsed leniently. |
 | `batteries.ts`, `roles.ts`, `baseline.ts` | Presets, collision rules, run-to-run diffing. |
 | `report.ts`, `run.ts` | Report writer and CLI (concurrency pool, provider specs, exit code). |
 

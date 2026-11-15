@@ -226,7 +226,23 @@ export const ROSTER: EvalModel[] = [
         note: 'Thinking Machines, released 2026-07-15. Unknown quantity - worth one pass precisely because nobody has characterized its conversational register yet.',
     },
 
-    // --- Candidates: local (Ollama desktop tiers) ---------------------------
+    // --- Local (Ollama desktop tiers) ---------------------------------------
+    {
+        id: 'qwen3.5-4b',
+        model: 'qwen3.5:4b',
+        provider: 'ollama',
+        // In DEFAULT_TIERS, but `shipped` means the cloud allowlist: a default
+        // run must not need a local daemon.
+        shipped: false,
+        note: 'The smallest desktop tier (DEFAULT_TIERS in providers.rs, "Acceptable"). The follows-the-letter case: where a prompt rule points the wrong way, this model goes there. Pull it first (`ollama pull qwen3.5:4b`).',
+    },
+    {
+        id: 'gemma4-26b',
+        model: 'gemma4:26b',
+        provider: 'ollama',
+        shipped: false,
+        note: 'The "Good" desktop tier, auto-recommended from 24GB. ~18GB download; loads ~22GB.',
+    },
     {
         id: 'qwen3.8-27b',
         model: 'qwen3.8:27b',

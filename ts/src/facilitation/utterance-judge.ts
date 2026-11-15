@@ -26,17 +26,17 @@
 import { COMMAND_SPECS } from './voice-command-specs.js';
 import { isSetupJudgeId, SETUP_SPECS, type SetupJudgeId } from './setup-command-specs.js';
 
-export type ClassifierId = 'resume' | 'hold-confirm' | 'hold-request';
+export type ClassifierId = 'resume' | 'hold-confirm' | 'hold-request' | 'trouble';
 
-export const CLASSIFIER_IDS: readonly ClassifierId[] = ['resume', 'hold-confirm', 'hold-request'];
+export const CLASSIFIER_IDS: readonly ClassifierId[] = ['resume', 'hold-confirm', 'hold-request', 'trouble'];
 
 export function isClassifierId(v: unknown): v is ClassifierId {
     return typeof v === 'string' && (CLASSIFIER_IDS as readonly string[]).includes(v);
 }
 
 /**
- * Everything /cloud/v1/judge will answer: the three silence classifiers, which
- * have an LLM twin to fall back on, plus the voice-command ones
+ * Everything /cloud/v1/judge will answer: the three silence classifiers and the
+ * trouble check, which have an LLM twin to fall back on, plus the voice-command ones
  * (voice-command.ts), which have none - no judge, no voice commands - and the
  * setup screen's pair (setup-command-specs.ts).
  */
@@ -248,6 +248,100 @@ export const JUDGE_SPECS: Readonly<Record<ClassifierId, JudgeSpec>> = {
                     },
                 },
                 threshold: 0.7,
+            },
+        },
+    },
+    // Is the meditator in trouble (stepping-out.ts)? Two asks, since fear and
+    // danger are different sentences: "I don't think I want to be alive
+    // anymore" is calm, and scores 0.15 on `frightened`. Thresholds from
+    // `npm run jev:ab -- trouble`: ordinary lines top out at 0.25 on
+    // `frightened` and 0.04 on `danger`.
+    trouble: {
+        situation:
+            'A person is meditating with a voice facilitator that asks about their present-moment ' +
+            'experience. This is the latest thing they said. Meditation often brings strong emotion ' +
+            'and strange sensations, and that is fine; the facilitator needs to know only whether ' +
+            'this person is in trouble right now.',
+        asks: {
+            frightened: {
+                question: {
+                    type: 'noul',
+                    instructions: {
+                        question:
+                            'Is the meditator frightened by what is happening to them right now, or losing ' +
+                            'their grip on where they are?',
+                        inspect: '`utterance`',
+                        focus:
+                            'Fear or loss of footing in this moment, about themselves. Intensity alone is ' +
+                            'not it: strong emotion, tears, anger, and strange, floating or dissolving ' +
+                            'sensations are ordinary in meditation unless the meditator is scared by them ' +
+                            'or cannot tell where they are. A fear they are remembering, or naming calmly ' +
+                            'as one more thing they notice, is not it.',
+                    },
+                    criteria: {
+                        true: {
+                            what:
+                                'Scared by what is happening, panicking, unable to breathe or to tell what ' +
+                                'is real or where they are, or re-living something they cannot stop.',
+                            examples: [
+                                'This is frightening me, I want it to stop.',
+                                "I can't tell what's real anymore.",
+                                "I think I'm having a panic attack.",
+                                "It's happening again and I can't get out of it.",
+                                '我好害怕,我不知道自己在哪儿。',
+                            ],
+                        },
+                        false: {
+                            what:
+                                'Ordinary experience, however intense or odd: emotion, tears, anger, ' +
+                                'frustration with the practice, pleasant or curious dissolving, floating, ' +
+                                'numbness, and fear that is only being talked about.',
+                            examples: [
+                                "There's a lot of grief here.",
+                                'My arms have gone all tingly and light.',
+                                'I used to be terrified of the dark.',
+                                "I'm annoyed, I keep losing it.",
+                                "Everything went still, it's lovely.",
+                                '眼泪一直流,但我没事。',
+                            ],
+                        },
+                    },
+                },
+                threshold: 0.3,
+            },
+            danger: {
+                question: {
+                    type: 'noul',
+                    instructions: {
+                        question:
+                            'Is the meditator saying they might harm themselves, or that they do not want ' +
+                            'to be alive?',
+                        inspect: '`utterance`',
+                        focus:
+                            'Their own life or safety, now. Figures of speech ("dead tired", "this is ' +
+                            'killing me"), a part of them wanting to hide or get away from a situation, and ' +
+                            'thoughts about death or loss in general are not it.',
+                    },
+                    criteria: {
+                        true: {
+                            what: 'Thoughts of suicide or self-harm, or of not wanting to live, however quietly said.',
+                            examples: [
+                                "I've been thinking about killing myself.",
+                                'Everyone would be better off without me.',
+                                '我不想活了。',
+                            ],
+                        },
+                        false: {
+                            what: 'Anything else, including dark feelings, exhaustion, and wanting to escape a situation.',
+                            examples: [
+                                'My back is killing me.',
+                                'Part of me just wants to disappear from that meeting.',
+                                '有一部分的我想躲起来。',
+                            ],
+                        },
+                    },
+                },
+                threshold: 0.25,
             },
         },
     },
