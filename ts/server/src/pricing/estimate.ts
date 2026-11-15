@@ -13,14 +13,15 @@
  * dominated by one returning user, so "measured for that practice style", not
  * "typical"; re-estimate as the account mix widens, meditation-pal-bv9p):
  *   - turns match (40.9/hr measured vs 39.6 assumed): left at the seed.
- *   - sttSeconds 1,055: billed STT holds at ~20-25 min/hr (~1,000 s a
- *     session). Talking vs VAD padding is still meditation-pal-0uw7's
- *     question, but the BILLED figure is what the badge should predict. The
- *     other 5.5% is gpt-transcribe billing each request in whole seconds
- *     (providers.sttBilledSeconds), measured across 268 real clips in the dev
- *     database (median 4.5 s, Oct 2026). Usage rows written since then
- *     already hold billed seconds, so a later reseed from the admin report
- *     needs no such factor.
+ *   - sttSeconds 1,170 (~23.4 min/hr): the Nov 2026 report, real users only
+ *     (admin omitted), whole history: 23.4 min/hr over 72.2 h, 2.1 cr/hr
+ *     against the 1.9 badge of the old 1,055. The last month alone read 56
+ *     min/hr over 7.2 h: too few hours to price on, but a jump to explain
+ *     (meditation-pal-0uw7) before the next reseed. Talking vs VAD
+ *     padding is still meditation-pal-0uw7's question, but the BILLED figure
+ *     is what the badge should predict. Usage rows hold billed seconds
+ *     (gpt-transcribe's whole-second round-up included), so a reseed from the
+ *     admin report needs no factor for it.
  *   - TTS band (TTS_CHAR_PROFILES): measured cloud-voice sessions ran
  *     ~1k-6.2k chars. `engaged` 8,500 (Oct 2026): a fully metered 40-min sit
  *     spoke 7,031 chars per 50 min (58 turns/hr, ~143 chars a reply), and
@@ -50,7 +51,7 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
-    sttSeconds: 1_055, // ~17.5 min billed audio per 50-min session (~21 min/hr)
+    sttSeconds: 1_170, // ~19.5 min billed audio per 50-min session (~23.4 min/hr)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };
 
