@@ -1202,6 +1202,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                         this.specInFlight = true;
                         specPasses += 1;
                         lastSpecSpeechMs = this.lastSpeechMs;
+                        // Only this pass's own text may stand in for the final:
+                        // an older one is missing what was said since.
+                        lastSpecResult = null;
                         lastSpecAt = performance.now();
                         // submitPayload, not the raw buffer: the pre-buffer
                         // quiet bills on spec passes too (mid-utterance the

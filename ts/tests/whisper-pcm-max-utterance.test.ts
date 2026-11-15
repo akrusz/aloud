@@ -3,11 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SttEvent } from '../src/platform/stt.js';
 
 /**
- * The max utterance cap is a runaway valve (background speech, a TV, speaker
- * echo holding the VAD open): the turn it ends is final. Speech still going
- * during that final pass starts the NEXT turn from the onset pre-buffer; it
- * must not reopen this one, or each pass re-sends (and hosted STT bills) the
- * whole buffer again. meditation-pal-uuh4.
+ * WhisperPcmSttEngine driven frame by frame: a fake mic feeds the capture
+ * callback on fake time, and a fake endpoint records what each POST sent.
  */
 
 // `broken` puts the engine on its energy speech decision, so a loud frame is
@@ -64,14 +61,19 @@ function frame(): Float32Array {
 type Post = { seconds: number; tags: number[] };
 let posts: Post[];
 
+const heard = (text: string): Response => new Response(JSON.stringify({ text }), { status: 200 });
+/** The answer to the nth POST (from 1). Throwing is a dropped connection. */
+let reply: (n: number) => Response;
+
 const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
     const pcm = new Int16Array(init!.body as ArrayBuffer);
     const tags: number[] = [];
     for (let i = 0; i < pcm.length; i += WIRE_BLOCK) tags.push(Math.floor(pcm[i]! / 16));
     posts.push({ seconds: pcm.length / WIRE_RATE, tags });
+    const n = posts.length;
     // In flight long enough for speech frames to land during the pass.
     await new Promise((r) => setTimeout(r, FETCH_MS));
-    return new Response(JSON.stringify({ text: `pass ${posts.length}` }), { status: 200 });
+    return reply(n);
 }) as typeof fetch;
 
 beforeEach(() => {
@@ -79,6 +81,7 @@ beforeEach(() => {
     talking = false;
     nextTag = 0;
     posts = [];
+    reply = (n) => heard(`pass ${n}`);
     vi.useFakeTimers({
         toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'],
     });
@@ -141,6 +144,11 @@ async function advance(ms: number, stopWhen: () => boolean = () => false): Promi
     for (let t = 0; t < ms && !stopWhen(); t += 50) await vi.advanceTimersByTimeAsync(50);
 }
 
+// The cap is a runaway valve (background speech, a TV, speaker echo holding
+// the VAD open): the turn it ends is final. Speech still going during that
+// final pass starts the NEXT turn from the onset pre-buffer; it must not
+// reopen this one, or each pass re-sends (and hosted STT bills) the whole
+// buffer again. meditation-pal-uuh4.
 describe('the max utterance cap', () => {
     // Where the cut lands against the engine's 200 ms poll decides whether a
     // frame arrives between the cut and the final pass's snapshot, so sweep
@@ -218,5 +226,77 @@ describe('speech that continues past a silence-window submit', () => {
                 startedDuringTts: false,
             },
         ]);
+    });
+});
+
+// The final reuses a speculative transcript only when no speech came after
+// it. A later speculative pass that failed, came back empty, or was dropped
+// leaves an older transcript behind that is missing the newer words.
+describe('a final after speculative passes', () => {
+    const windowed = { silenceBaseMs: 4000, silenceMaxMs: 4000, silenceRampRate: 0 };
+
+    /** Speech, a pause the first speculative pass answers, more speech, then
+     *  quiet: the second pass goes out on that last pause. */
+    async function twoPhrases(turn: { done: () => boolean }): Promise<void> {
+        talking = true;
+        await advance(1500);
+        talking = false;
+        await advance(2500);
+        expect(posts).toHaveLength(1);
+        talking = true;
+        await advance(1500);
+        talking = false;
+        await advance(12_000, turn.done);
+        expect(turn.done()).toBe(true);
+    }
+
+    it('reuses the transcript of a single pause instead of sending again', async () => {
+        reply = () => heard('One.');
+        const engine = await engineWithMic(windowed);
+        const turn = await listen(engine);
+        talking = true;
+        await advance(1500);
+        talking = false;
+        await advance(8000, turn.done);
+        expect(turn.done()).toBe(true);
+
+        expect(posts).toHaveLength(1);
+        expect(turn.events.at(-1)).toEqual({
+            type: 'final',
+            text: 'One.',
+            seconds: posts[0]!.seconds,
+            startedDuringTts: false,
+        });
+    });
+
+    it.each([
+        ['fails on a dropped connection', (): Response => {
+            throw new TypeError('Failed to fetch');
+        }],
+        ['fails with a 500', (): Response => new Response('upstream', { status: 500 })],
+        ['comes back empty', (): Response => heard('')],
+    ])('sends the whole turn again when the last pause\'s pass %s', async (_, second) => {
+        reply = (n) => (n === 1 ? heard('One.') : n === 2 ? second() : heard('One. Two.'));
+        const engine = await engineWithMic(windowed);
+        const turn = await listen(engine);
+        await twoPhrases(turn);
+
+        expect(posts).toHaveLength(3);
+        const [spec, , final] = posts as [Post, Post, Post];
+        expect(final.tags[0]).toBe(spec.tags[0]);
+        expect(final.tags.at(-1)).toBeGreaterThanOrEqual(posts[1]!.tags.at(-1)!);
+        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'One. Two.' });
+    });
+
+    it('sends the whole turn again when the cap drops the last pause\'s pass', async () => {
+        reply = (n) => heard(n === 1 ? 'One.' : n === 2 ? 'One. Tw' : 'One. Two.');
+        // The cap lands while the second pass is in flight.
+        const engine = await engineWithMic({ ...windowed, maxUtteranceMs: 6900 });
+        const turn = await listen(engine);
+        await twoPhrases(turn);
+
+        expect(posts).toHaveLength(3);
+        expect(turn.events.map((e) => e.type)).toEqual(['partial', 'final']);
+        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'One. Two.' });
     });
 });
