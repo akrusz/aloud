@@ -7,8 +7,18 @@
  *   npm run jev:ab                 (all three classifiers)
  *   npm run jev:ab -- resume       (one)
  *   npm run jev:ab -- --runs 3     (repeat each call; shows verdict flips)
+ *   npm run jev:ab -- --local tev1:0.8b,d3:2b --no-haiku
+ *                                  (also ask local Ollama decision models, which
+ *                                   must already be pulled; repeatable flag)
  *
- * Needs TYPESAFE_API_KEY, from ts/server/.env or the environment. Haiku runs on
+ * Jev needs TYPESAFE_API_KEY, from ts/server/.env or the environment; without it
+ * the Jev column is skipped (it is the reference, so keep it when you can).
+ * --no-haiku skips the Haiku column. --local sends the same state and questions
+ * to http://localhost:11434/v1/systemone (OLLAMA_URL overrides the origin) with
+ * `model: <tag>`, and reports per classifier and model: accuracy at the shipped
+ * thresholds, the best single threshold on this corpus, and latency. The first
+ * call of a run loads the model, so it is timed apart from the warm p50. Run one
+ * model at a time on a machine doing other GPU work. Haiku runs on
  * your subscription through the `claude` CLI (soak/providers.ts scriptClaude);
  * ALOUD_CLAUDE_VIA=api puts it on ANTHROPIC_API_KEY, which is the only way its
  * latency column means anything. Jev's latency is from this machine, not from
@@ -29,6 +39,8 @@ import {
     judgeQuestions,
     judgeState,
     type ClassifierId,
+    type JudgeCriterion,
+    type JudgeQuestion,
     type JudgeAnswers,
 } from '../src/facilitation/utterance-judge.js';
 import { askNouls } from '../server/src/providers/typesafe.js';
@@ -172,7 +184,21 @@ interface Row extends Case {
     llm: Array<boolean | 'error'>;
     llmMs: number[];
     judgeError?: string;
+    /** Per --local tag. `coldMs` is the call that loaded the model, kept out of `ms`. */
+    local: Record<string, { answers: JudgeAnswers[]; ms: number[]; coldMs?: number; error?: string }>;
 }
+
+/** Ollama's /v1/systemone takes each criterion as one description string, where
+ *  TypeSafe takes {what, not_for, examples}; flatten, keeping all three. */
+function flatCriteria(q: JudgeQuestion): unknown {
+    const flat = (c: JudgeCriterion): string =>
+        [c.what, c.not_for ? `Not for: ${c.not_for}` : '', c.examples.length ? `Examples: ${c.examples.map((e) => `"${e}"`).join('; ')}` : '']
+            .filter(Boolean)
+            .join(' ');
+    return { ...q, criteria: { true: flat(q.criteria.true), false: flat(q.criteria.false) } };
+}
+
+const LOCAL_TIMEOUT_MS = 60_000;
 
 function pct(a: number, b: number): string {
     return b === 0 ? '  -  ' : `${((100 * a) / b).toFixed(0).padStart(3)}%`;
@@ -186,27 +212,58 @@ function quantile(xs: number[], q: number): number {
 
 const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
 
-async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: string }): Promise<Row[]> {
-    const haiku = scriptClaude('claude-haiku-5-5');
+interface Sources {
+    typesafe?: string | undefined;
+    haiku: boolean;
+    local: string[];
+}
+
+/** Local tags not yet called this process; the first call of each loads the model. */
+const cold = new Set<string>();
+
+async function runClassifier(id: ClassifierId, runs: number, src: Sources): Promise<Row[]> {
+    const haiku = src.haiku ? scriptClaude('claude-haiku-5-5') : null;
+    const ollama = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
     const rows: Row[] = [];
     for (const c of CORPUS[id]) {
-        const row: Row = { ...c, answers: [], judgeMs: [], llm: [], llmMs: [] };
+        const row: Row = { ...c, answers: [], judgeMs: [], llm: [], llmMs: [], local: {} };
+        const state = judgeState(id, c.text, { earlier: c.earlier ?? [] });
         for (let i = 0; i < runs; i++) {
             let t0 = Date.now();
-            try {
-                const r = await askNouls(
-                    keys.typesafe,
-                    judgeState(id, c.text, { earlier: c.earlier ?? [] }),
-                    judgeQuestions(id)
-                );
-                row.answers.push(r.answers);
-                row.judgeMs.push(Date.now() - t0);
-            } catch (err) {
-                row.judgeError = String(err);
+            if (src.typesafe) {
+                try {
+                    const r = await askNouls(src.typesafe, state, judgeQuestions(id));
+                    row.answers.push(r.answers);
+                    row.judgeMs.push(Date.now() - t0);
+                } catch (err) {
+                    row.judgeError = String(err);
+                }
             }
-            t0 = Date.now();
-            row.llm.push(await LLM[id](haiku, c.text));
-            row.llmMs.push(Date.now() - t0);
+            for (const tag of src.local) {
+                const l = (row.local[tag] ??= { answers: [], ms: [] });
+                const questions = Object.fromEntries(
+                    Object.entries(judgeQuestions(id)).map(([k, q]) => [k, flatCriteria(q)])
+                ) as Record<string, JudgeQuestion>;
+                t0 = Date.now();
+                try {
+                    const r = await askNouls('ollama', state, questions, undefined, {
+                        url: `${ollama}/v1/systemone`,
+                        model: tag,
+                        timeoutMs: LOCAL_TIMEOUT_MS,
+                    });
+                    l.answers.push(r.answers);
+                    if (cold.delete(tag)) l.coldMs = Date.now() - t0;
+                    else l.ms.push(Date.now() - t0);
+                } catch (err) {
+                    l.error = String(err);
+                    cold.delete(tag);
+                }
+            }
+            if (haiku) {
+                t0 = Date.now();
+                row.llm.push(await LLM[id](haiku, c.text));
+                row.llmMs.push(Date.now() - t0);
+            }
         }
         rows.push(row);
     }
@@ -216,7 +273,7 @@ async function runClassifier(id: ClassifierId, runs: number, keys: { typesafe: s
 /** Mean P(yes) for one ask across a row's runs. */
 const pOf = (r: Row, key: string): number => mean(r.answers.map((a) => a[key] ?? NaN));
 
-function report(id: ClassifierId, rows: Row[]): void {
+function report(id: ClassifierId, rows: Row[], src: Sources): void {
     const asks = Object.entries(JUDGE_SPECS[id].asks);
     const keys = asks.map(([k]) => k);
     /** The verdict under `thresholds` (defaults: the shipped ones). */
@@ -225,6 +282,7 @@ function report(id: ClassifierId, rows: Row[]): void {
 
     console.log(`\n=== ${id}  (${asks.map(([k, a]) => `${k} >= ${a.threshold}`).join('  or  ')}) ===`);
     console.log(`want  ${keys.map((k) => k.slice(0, 9).padEnd(9)).join(' ')}  jev  haiku  utterance`);
+    const hasJev = Boolean(src.typesafe);
     for (const r of rows) {
         const scored = r.answers.length > 0;
         const jev = scored ? jevYes(r) : null;
@@ -236,16 +294,16 @@ function report(id: ClassifierId, rows: Row[]): void {
             const spread = ps.length > 1 ? `±${((Math.max(...ps) - Math.min(...ps)) / 2).toFixed(2)}` : '';
             return `${pOf(r, k).toFixed(2)}${spread}`.padEnd(9);
         });
-        const flag = [jev !== null && jev !== r.want ? 'JEV' : '', (llm === 'yes') !== r.want ? 'HAIKU' : '']
+        const flag = [jev !== null && jev !== r.want ? 'JEV' : '', src.haiku && (llm === 'yes') !== r.want ? 'HAIKU' : '']
             .filter(Boolean)
             .join('+');
         const ctx = r.earlier ? `[…${r.earlier[r.earlier.length - 1]!.slice(0, 40)}] ` : '';
         console.log(
-            `${r.want ? 'yes' : 'no '}   ${cells.join(' ')}  ${jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${llm}    ${r.hard ? '~ ' : ''}${ctx}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
+            `${r.want ? 'yes' : 'no '}   ${cells.join(' ')}  ${!hasJev ? ' - ' : jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${src.haiku ? llm : ' - '}    ${r.hard ? '~ ' : ''}${ctx}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
         );
     }
 
-    const scored = rows.filter((r) => r.answers.length);
+    const scored = hasJev ? rows.filter((r) => r.answers.length) : rows;
     const sets: Array<[string, Row[]]> = [
         ['all', scored],
         ['clear', scored.filter((r) => !r.hard)],
@@ -255,16 +313,19 @@ function report(id: ClassifierId, rows: Row[]): void {
     console.log('\n          n   jev  haiku  agree');
     for (const [name, set] of sets) {
         if (set.length === 0) continue;
-        const jevOk = set.filter((r) => jevYes(r) === r.want).length;
+        const jevOk = hasJev ? set.filter((r) => jevYes(r) === r.want).length : 0;
         const llmOk = set.filter((r) => r.llm.every((v) => v === r.want)).length;
         const agree = set.filter((r) => r.llm.every((v) => v === jevYes(r))).length;
-        console.log(`${name.padEnd(8)}${String(set.length).padStart(3)}  ${pct(jevOk, set.length)}  ${pct(llmOk, set.length)}   ${pct(agree, set.length)}`);
+        const cell = (ok: number, on: boolean): string => (on ? pct(ok, set.length) : '  - ');
+        console.log(
+            `${name.padEnd(8)}${String(set.length).padStart(3)}  ${cell(jevOk, hasJev)}  ${cell(llmOk, src.haiku)}   ${cell(agree, hasJev && src.haiku)}`
+        );
     }
 
     // The errors are not symmetric (a false resume breaks a silence; a missed one
     // costs a repeat), so show both kinds at each candidate rather than one score.
     // One ask moves at a time, the others held at their shipped thresholds.
-    for (const [k, a] of asks) {
+    for (const [k, a] of hasJev ? asks : []) {
         console.log(`\n${k}: threshold  false-yes  missed-yes`);
         for (const th of [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) {
             const fy = scored.filter((r) => !r.want && jevYes(r, { [k]: th })).length;
@@ -276,7 +337,44 @@ function report(id: ClassifierId, rows: Row[]): void {
     const jm = rows.flatMap((r) => r.judgeMs);
     const lm = rows.flatMap((r) => r.llmMs);
     console.log(
-        `\nlatency ms  jev p50 ${quantile(jm, 0.5)} p95 ${quantile(jm, 0.95)}   haiku p50 ${quantile(lm, 0.5)} p95 ${quantile(lm, 0.95)}`
+        `\nlatency ms  ${hasJev ? `jev p50 ${quantile(jm, 0.5)} p95 ${quantile(jm, 0.95)}   ` : ''}${src.haiku ? `haiku p50 ${quantile(lm, 0.5)} p95 ${quantile(lm, 0.95)}` : ''}`
+    );
+}
+
+/** One local model against the labels: shipped thresholds, then a sweep that moves
+ *  every ask's threshold together (the best row says where this model's
+ *  probabilities separate, not what to ship; the corpus is small). */
+function reportLocal(id: ClassifierId, rows: Row[], tag: string): void {
+    const asks = Object.entries(JUDGE_SPECS[id].asks);
+    const scored = rows.filter((r) => r.local[tag]?.answers.length);
+    const errors = rows.filter((r) => r.local[tag]?.error).length;
+    const p = (r: Row, k: string): number => mean(r.local[tag]!.answers.map((a) => a[k] ?? NaN));
+    const yes = (r: Row, th?: number): boolean => asks.some(([k, a]) => p(r, k) >= (th ?? a.threshold));
+    const acc = (set: Row[], th?: number): string => pct(set.filter((r) => yes(r, th) === r.want).length, set.length);
+    const clear = scored.filter((r) => !r.hard);
+    const hard = scored.filter((r) => r.hard);
+
+    console.log(`\n--- ${id} / local ${tag}  (n ${scored.length}${errors ? `, ${errors} failed` : ''}) ---`);
+    if (scored.length === 0) {
+        console.log(`no answers: ${rows.find((r) => r.local[tag]?.error)?.local[tag]?.error ?? 'none'}`);
+        return;
+    }
+    console.log(
+        `shipped (${asks.map(([k, a]) => `${k} >= ${a.threshold}`).join(' or ')}): all ${acc(scored)}  clear ${acc(clear)}  hard ${acc(hard)} (${hard.length})`
+    );
+    const sweep = Array.from({ length: 19 }, (_, i) => (i + 1) / 20).map((th) => {
+        const fy = scored.filter((r) => !r.want && yes(r, th)).length;
+        const my = scored.filter((r) => r.want && !yes(r, th)).length;
+        return { th, ok: scored.length - fy - my, fy, my };
+    });
+    const best = sweep.reduce((a, b) => (b.ok > a.ok || (b.ok === a.ok && Math.abs(b.th - 0.5) < Math.abs(a.th - 0.5)) ? b : a));
+    console.log(
+        `best single threshold ${best.th.toFixed(2)}: all ${acc(scored, best.th)}  clear ${acc(clear, best.th)}  hard ${acc(hard, best.th)}  (false-yes ${best.fy}, missed-yes ${best.my})`
+    );
+    const cold = rows.find((r) => r.local[tag]?.coldMs !== undefined)?.local[tag]?.coldMs;
+    const ms = rows.flatMap((r) => r.local[tag]?.ms ?? []);
+    console.log(
+        `latency ms  ${cold !== undefined ? `first call ${cold} (loads the model)   ` : ''}warm p50 ${quantile(ms, 0.5)} p95 ${quantile(ms, 0.95)}`
     );
 }
 
@@ -288,18 +386,27 @@ async function main(): Promise<void> {
     const picked = args.filter(isClassifierId);
     const ids = picked.length ? picked : CLASSIFIER_IDS;
 
-    const typesafe = process.env['TYPESAFE_API_KEY'];
-    if (!typesafe) {
-        console.error('Need TYPESAFE_API_KEY (ts/server/.env or the environment).');
+    const local = args.flatMap((a, i) => (args[i - 1] === '--local' ? a.split(',') : [])).filter(Boolean);
+    const src: Sources = { typesafe: process.env['TYPESAFE_API_KEY'], haiku: !args.includes('--no-haiku'), local };
+    if (!src.typesafe && !src.haiku && local.length === 0) {
+        console.error('Nothing to run: set TYPESAFE_API_KEY, or pass --local <tag>, or drop --no-haiku.');
         process.exit(1);
     }
-    console.log(
-        claudeVia() === 'api'
-            ? 'Haiku: API key'
-            : 'Haiku: your subscription (claude CLI); its latency includes the CLI startup. ALOUD_CLAUDE_VIA=api for the key.'
-    );
+    if (!src.typesafe) console.log('No TYPESAFE_API_KEY: the Jev column is skipped.');
+    if (src.haiku) {
+        console.log(
+            claudeVia() === 'api'
+                ? 'Haiku: API key'
+                : 'Haiku: your subscription (claude CLI); its latency includes the CLI startup. ALOUD_CLAUDE_VIA=api for the key.'
+        );
+    }
+    for (const tag of local) cold.add(tag);
 
-    for (const id of ids) report(id, await runClassifier(id, runs, { typesafe }));
+    for (const id of ids) {
+        const rows = await runClassifier(id, runs, src);
+        if (src.typesafe || src.haiku) report(id, rows, src);
+        for (const tag of local) reportLocal(id, rows, tag);
+    }
 }
 
 void main();

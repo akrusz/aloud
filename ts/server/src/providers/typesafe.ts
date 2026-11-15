@@ -39,13 +39,16 @@ export async function askNouls(
     apiKey: string,
     state: unknown,
     questions: Record<string, JudgeQuestion>,
-    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+    /** Only the offline A/B (scripts/jev-ab.ts) sets this, to try a local Ollama decision model. */
+    target: { url?: string; model?: string; timeoutMs?: number } = {}
 ): Promise<NoulResult> {
-    const res = await fetchImpl(ENDPOINT, {
+    const model = target.model ?? JEV_MODEL;
+    const res = await fetchImpl(target.url ?? ENDPOINT, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ state, model: JEV_MODEL, questions }),
-        signal: AbortSignal.timeout(JEV_TIMEOUT_MS),
+        body: JSON.stringify({ state, model, questions }),
+        signal: AbortSignal.timeout(target.timeoutMs ?? JEV_TIMEOUT_MS),
     });
     if (!res.ok) {
         // 422 bodies name the offending field, which is the only way to debug a
@@ -56,5 +59,5 @@ export async function askNouls(
     }
     const data = (await res.json()) as SystemOneResponse;
     const answers = noulAnswers(Object.keys(questions), data);
-    return { answers, model: data.model ?? JEV_MODEL, inputTokens: data.usage?.input_tokens ?? 0 };
+    return { answers, model: data.model ?? model, inputTokens: data.usage?.input_tokens ?? 0 };
 }
