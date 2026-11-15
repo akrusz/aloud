@@ -35,6 +35,13 @@ describe('isNonSpeechOnly', () => {
         expect(isNonSpeechOnly('(laughs) yeah')).toBe(false);
     });
 
+    it('counts a number as speech: a spoken "seven" comes back as "7."', () => {
+        expect(isNonSpeechOnly('7.')).toBe(false);
+        expect(isNonSpeechOnly('20')).toBe(false);
+        expect(isNonSpeechOnly('[cough] 3')).toBe(false);
+        expect(isNonSpeechOnly('７。')).toBe(false);
+    });
+
     it('leaves bare hallucinated words alone', () => {
         // Whisper's classic silence hallucination — has letters, not filtered.
         expect(isNonSpeechOnly('you')).toBe(false);

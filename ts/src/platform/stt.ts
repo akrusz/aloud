@@ -88,7 +88,8 @@ export interface SttEngine {
  *
  * STT engines annotate non-verbal audio in parens, brackets, or asterisks:
  * "[BLANK_AUDIO]", "[inaudible]", "(coughing)", "*sighs*". Strip those spans;
- * if no Unicode letter remains it was a cough, breath, or noise, not a turn.
+ * if no Unicode letter or digit remains it was a cough, breath, or noise, not
+ * a turn. A digit is a spoken word: "seven" comes back as "7.".
  * (Web Speech yields words or nothing, so this is a no-op there.)
  *
  * Only catches utterances that are ENTIRELY markers. A bare hallucinated word
@@ -100,5 +101,5 @@ export function isNonSpeechOnly(text: string): boolean {
         .replace(/\([^)]*\)/g, '')
         .replace(/\[[^\]]*\]/g, '')
         .replace(/\*[^*]*\*/g, '');
-    return !/\p{L}/u.test(stripped);
+    return !/[\p{L}\p{N}]/u.test(stripped);
 }
