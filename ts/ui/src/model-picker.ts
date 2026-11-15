@@ -370,8 +370,9 @@ export async function fetchModels(provider: string): Promise<ModelOption[] | nul
     }
 
     try {
-        // The BYOK key travels only to the loopback (desktop) or same-origin
-        // (web) backend, which uses it to query the provider.
+        // The BYOK key travels only to the app's own backend (loopback on
+        // desktop, the cloud origin cross-origin on the hosted web app), which
+        // uses it to query the provider and keeps nothing.
         const key = await getApiKey(provider as Provider);
         const resp = await fetch(appUrl(`/models/${encodeURIComponent(provider)}`), {
             headers: key ? { 'x-provider-key': key } : {},
