@@ -70,9 +70,11 @@ export interface SttHints {
      *  hint removes the misfire where a soft zh utterance comes back
      *  transliterated or translated. */
     language?: string | undefined;
-    /** Vocabulary the audio is likely to contain, sent as the multipart
-     *  `prompt`: it biases spelling and word choice, it is not an instruction.
-     *  Server-built text only, never a client's (routes/stt.ts). */
+    /** Sent as the multipart `prompt`: the setup vocabulary, built on the
+     *  server, or the turn's transcript up to this clip, which the caller sends
+     *  bounded and cleaned by routes/stt.ts sttPrior. It biases spelling and
+     *  word choice and lets a clip continue the turn; it is not an
+     *  instruction. Meditation content either way: never log it. */
     prompt?: string | undefined;
 }
 

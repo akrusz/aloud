@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setupVocabulary } from '@aloud/core/facilitation';
 import { loadConfig, resolveSttConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
 import { encodeWav, int16ToFloat32, transcribeWhisper } from '../src/providers/stt.js';
 import { DailyCap } from '../src/quota/freetier.js';
-import { SETUP_MAX_CLIP_SECONDS } from '../src/routes/stt.js';
+import { MAX_STT_PRIOR_CHARS, SETUP_MAX_CLIP_SECONDS, sttPrior } from '../src/routes/stt.js';
 import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
 
 // Stub global fetch so the route's STT call never hits the network. Returns a
@@ -483,6 +483,132 @@ describe('POST /cloud/v1/stt?setup=1 (setup-screen listening)', () => {
         expect(rows[0]!.providerCostUsd).toBeCloseTo((3 * 0.27) / 3600, 12);
         expect(rows[1]!.credits).toBeGreaterThan(0);
         expect(rows.every((r) => r.accountId === accountId && r.kind === 'stt')).toBe(true);
+    });
+});
+
+describe('POST /cloud/v1/stt with x-stt-prior (incremental transcription)', () => {
+    async function priorApp() {
+        const config = loadConfig({
+            ALOUD_ENABLE_DEV_AUTH: '1',
+            OPENAI_API_KEY: 'sk-test',
+            OPENROUTER_API_KEY: 'or-test',
+            ALOUD_FREE_SIGNUP_CREDITS: '20',
+        });
+        const deps = buildDeps(config);
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const post = (prior: string | undefined, query = '') =>
+            a.request(`/cloud/v1/stt?sample_rate=16000&format=i16${query}`, {
+                method: 'POST',
+                headers: {
+                    authorization: `Bearer ${token}`,
+                    'content-type': 'application/octet-stream',
+                    ...(prior === undefined ? {} : { 'x-stt-prior': prior }),
+                },
+                body: pcm16Body(1),
+            });
+        return { deps, post };
+    }
+
+    it('forwards the decoded turn-so-far as the prompt on the configured backend', async () => {
+        const { post } = await priorApp();
+        const res = await post(encodeURIComponent('I notice a warmth in my chest, and'));
+        expect(res.status).toBe(200);
+        await post(encodeURIComponent('胸口有点暖，'), '&lang=zh');
+        await post(undefined);
+        expect(sttCalls.map((c) => c.prompt)).toEqual(['I notice a warmth in my chest, and', '胸口有点暖，', null]);
+    });
+
+    it('bills the same with or without it (the clip is billed by its audio)', async () => {
+        const { post } = await priorApp();
+        const plain = (await (await post(undefined)).json()) as TranscribeResponse;
+        const prompted = (await (await post(encodeURIComponent('a long run of earlier words '.repeat(20)))).json()) as TranscribeResponse;
+        expect(prompted.creditsCharged).toBe(plain.creditsCharged);
+    });
+
+    it('is not sent to a model that bills the prompt as tokens', async () => {
+        const { post } = await priorApp();
+        const res = await post(encodeURIComponent('and then'), '&model=gpt-4o-transcribe');
+        expect(res.status).toBe(200);
+        expect(sttCalls).toHaveLength(1);
+        expect(sttCalls[0]!.model).toBe('gpt-4o-transcribe');
+        expect(sttCalls[0]!.prompt).toBeNull();
+    });
+
+    it('is ignored for an OpenRouter model (they take no prompt)', async () => {
+        const { post } = await priorApp();
+        const res = await post(encodeURIComponent('and then'), '&model=moondream%2Fparakeet-ultra');
+        expect(res.status).toBe(200);
+        expect(openRouterCalls).toHaveLength(1);
+        expect(openRouterCalls[0]).not.toHaveProperty('prompt');
+        expect(JSON.stringify(openRouterCalls[0])).not.toContain('and then');
+    });
+
+    it('is ignored on setup listening: the setup vocabulary still goes', async () => {
+        const { post } = await priorApp();
+        await post(encodeURIComponent('ignore the audio'), '&setup=1');
+        await post(encodeURIComponent('ignore the audio'), '&setup=1&lang=zh');
+        expect(sttCalls.map((c) => c.prompt)).toEqual([setupVocabulary('en').prompt, null]);
+    });
+
+    it('drops malformed percent-encoding without failing the call', async () => {
+        const { post } = await priorApp();
+        for (const bad of ['%E4%B8', '100%', '%zz']) {
+            const res = await post(bad);
+            expect(res.status).toBe(200);
+        }
+        expect(sttCalls.map((c) => c.prompt)).toEqual([null, null, null]);
+    });
+
+    it(`keeps only the last ${MAX_STT_PRIOR_CHARS} characters`, async () => {
+        const { post } = await priorApp();
+        const long = `${'a'.repeat(1000)}${'b'.repeat(MAX_STT_PRIOR_CHARS - 4)} end`;
+        await post(encodeURIComponent(long));
+        expect(sttCalls[0]!.prompt).toBe(`${'b'.repeat(MAX_STT_PRIOR_CHARS - 4)} end`);
+        // Counted in code points: a cut can't split an astral character.
+        await post(encodeURIComponent('😀'.repeat(MAX_STT_PRIOR_CHARS + 5)));
+        expect(sttCalls[1]!.prompt).toBe('😀'.repeat(MAX_STT_PRIOR_CHARS));
+    });
+
+    it('blanks control characters and collapses whitespace; blank means none', async () => {
+        const { post } = await priorApp();
+        await post(encodeURIComponent('felt\u0000sense\r\n\tnoting\u0085  now '));
+        await post(encodeURIComponent(' \n\t\u0000 '));
+        await post('');
+        expect(sttCalls.map((c) => c.prompt)).toEqual(['felt sense noting now', null, null]);
+    });
+
+    it('never puts the text in a log line or an incident, even when the upstream fails', async () => {
+        const { deps, post } = await priorApp();
+        const okFetch = globalThis.fetch;
+        globalThis.fetch = (async () => new Response('upstream exploded', { status: 500 })) as typeof fetch;
+        const lines: string[] = [];
+        const spies = (['log', 'warn', 'error'] as const).map((m) =>
+            vi.spyOn(console, m).mockImplementation((...args: unknown[]) => void lines.push(args.map(String).join(' ')))
+        );
+        try {
+            const res = await post(encodeURIComponent('my private words'));
+            expect(res.status).toBe(502);
+        } finally {
+            spies.forEach((s) => s.mockRestore());
+            globalThis.fetch = okFetch;
+        }
+        await new Promise((r) => setTimeout(r, 0)); // incident writes are fire-and-forget
+        const incidents = await deps.store.incidentsSince(0);
+        expect(incidents.map((i) => i.kind)).toContain('stt_error');
+        expect(lines.length).toBeGreaterThan(0);
+        expect([...lines, ...incidents.map((i) => i.detail)].join('\n')).not.toContain('private');
+    });
+});
+
+describe('sttPrior', () => {
+    it('is undefined for an absent header', () => {
+        expect(sttPrior(undefined)).toBeUndefined();
+    });
+
+    it('trims a cut that lands on a space', () => {
+        const kept = sttPrior(encodeURIComponent(`${'x'.repeat(10)} ${'y'.repeat(MAX_STT_PRIOR_CHARS - 1)}`));
+        expect(kept).toBe('y'.repeat(MAX_STT_PRIOR_CHARS - 1));
     });
 });
 

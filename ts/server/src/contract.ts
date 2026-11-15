@@ -102,7 +102,9 @@ export interface JudgeResponse {
 // see CompleteRequest.sessionId). The server computes duration from the byte
 // length (authoritative: the client can't under-report to underpay), wraps it to
 // WAV, and forwards to the configured Whisper backend (gpt-transcribe by
-// default).
+// default). An optional `x-stt-prior` header carries the turn's transcript up
+// to where the clip begins, percent-encoded (encodeURIComponent), which that
+// backend gets as its prompt (routes/stt.ts sttPrior).
 
 export interface TranscribeResponse {
     text: string;

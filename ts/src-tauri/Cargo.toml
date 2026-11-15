@@ -60,6 +60,9 @@ sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # Crash breadcrumbs (src/crash.rs): unix signal handlers + dladdr. Already in
 # the tree via tauri; listed for direct use.
 libc = "0.2"
+# Decodes the stt route's x-stt-prior header. Already in the tree via
+# url/reqwest; listed for direct use.
+percent-encoding = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The OS microphone grant, read without asking for it (server.rs

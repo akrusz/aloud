@@ -480,6 +480,16 @@ export function sttBilledSeconds(seconds: number, model: string): number {
     return STT_WHOLE_SECOND_MODELS.has(model) ? Math.ceil(seconds) : seconds;
 }
 
+/** Token-billed models: a request's text `prompt` is billed as input tokens,
+ *  which the per-second meter never counts. The -mini is reachable only by
+ *  pinning it through STT_MODEL. */
+const STT_PROMPT_BILLED_MODELS = new Set(['gpt-4o-transcribe', 'gpt-4o-mini-transcribe']);
+
+/** True when a prompt sent with `model` adds to what the provider bills. */
+export function sttPromptIsBilled(model: string): boolean {
+    return STT_PROMPT_BILLED_MODELS.has(model);
+}
+
 /** The server-default model (config.ts STT_DEFAULTS), used when a request names
  *  no model — and the cost fallback for env-pinned backends (Groq, custom)
  *  whose models aren't in the table. Those bill the default's rate, so keep the

@@ -89,6 +89,22 @@ describe('CORS allowlist', () => {
         expect(methods).toEqual(expect.arrayContaining(['GET', 'POST', 'PATCH', 'DELETE']));
     });
 
+    // The same holds for request headers: incremental STT sends x-stt-prior.
+    it('allows the STT request headers on the /cloud/v1/stt preflight', async () => {
+        const res = await corsApp('https://aloud.rest').request('/cloud/v1/stt', {
+            method: 'OPTIONS',
+            headers: {
+                origin: 'https://aloud.rest',
+                'access-control-request-method': 'POST',
+                'access-control-request-headers': 'authorization,content-type,x-stt-prior',
+            },
+        });
+        expect(res.status).toBeLessThan(300);
+        expect(res.headers.get('access-control-allow-origin')).toBe('https://aloud.rest');
+        const allowed = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase().split(/,\s*/);
+        expect(allowed).toEqual(expect.arrayContaining(['authorization', 'content-type', 'x-stt-prior']));
+    });
+
     // The hosted web app reaches /app/v1 on this origin too, sending a BYOK key
     // with the live model-list lookup.
     it('allows x-provider-key on the /app/v1/models preflight', async () => {

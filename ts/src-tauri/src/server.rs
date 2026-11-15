@@ -9,9 +9,11 @@
 //!
 //! Whisper STT (`POST /app/v1/stt/whisper`) runs on whisper.cpp via whisper-rs:
 //! raw little-endian mono PCM in the body (i16 with `?format=i16`, f32
-//! otherwise) plus a `?sample_rate=` query and an optional `?prompt=` (the
-//! initial prompt, stt_prompt), returning `{text,language,duration}`, or 503
-//! while the model is loading.
+//! otherwise) plus a `?sample_rate=` query, an optional `?prompt=` (the setup
+//! vocabulary) and an optional `x-stt-prior` header (the turn's transcript up
+//! to where this clip begins, percent-encoded; incremental transcription sends
+//! a turn in pieces). Both feed the initial prompt (stt_initial_prompt).
+//! Returns `{text,language,duration}`, or 503 while the model is loading.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -236,6 +238,7 @@ fn router(state: Shared, auth: Arc<AuthConfig>) -> Router {
             TOKEN_HEADER,
             HeaderName::from_static("x-provider-key"),
             HeaderName::from_static("x-api-key"),
+            STT_PRIOR_HEADER,
         ]);
     Router::new()
         .nest("/app/v1", app_v1)
@@ -803,11 +806,11 @@ struct SttQuery {
     /// absent/"f32" (the bug-report roundtrip).
     format: Option<String>,
     /// Initial prompt for this request alone: the setup screen's vocabulary
-    /// (ui stt-picker.ts). Cleaned and bounded by stt_prompt.
+    /// (ui stt-picker.ts). Joined with any x-stt-prior by stt_initial_prompt.
     prompt: Option<String>,
 }
 
-/// Longest `prompt` the stt route passes on, in characters. whisper.cpp
+/// Longest initial prompt the stt route passes on, in characters. whisper.cpp
 /// conditions on at most 223 prompt tokens and drops the front of a longer
 /// prompt, so stt_prompt keeps the tail too.
 const MAX_STT_PROMPT_CHARS: usize = 500;
@@ -827,11 +830,29 @@ fn stt_prompt(raw: Option<&str>) -> Option<String> {
     (!kept.is_empty()).then(|| kept.to_string())
 }
 
+/// The turn's transcript up to where the request's audio begins,
+/// percent-encoded (encodeURIComponent). Header, not query: it is the
+/// meditator's words.
+const STT_PRIOR_HEADER: HeaderName = HeaderName::from_static("x-stt-prior");
+
+/// The initial prompt for one stt request: the `?prompt=` vocabulary, then the
+/// percent-decoded `x-stt-prior` bytes (lossy UTF-8), through stt_prompt, so
+/// a long result loses its front and the prior, nearest the audio, survives.
+fn stt_initial_prompt(query: Option<&str>, prior: Option<&[u8]>) -> Option<String> {
+    let prior = prior.map(|raw| percent_encoding::percent_decode(raw).decode_utf8_lossy());
+    let joined = match (query, prior.as_deref()) {
+        (Some(q), Some(p)) => format!("{q} {p}"),
+        (q, p) => q.or(p)?.to_string(),
+    };
+    stt_prompt(Some(&joined))
+}
+
 /// Transcribe raw mono PCM (i16 or f32 per `format`). Body and response match
 /// the UI's WhisperPcmSttEngine adapter.
 async fn stt_whisper(
     State(state): State<Shared>,
     Query(q): Query<SttQuery>,
+    headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> ApiResult {
     if let Some(size) = q.model_size.as_deref() {
@@ -891,7 +912,8 @@ async fn stt_whisper(
     // Whisper inference is CPU-heavy and blocking; keep it off the async
     // reactor so the server stays responsive.
     let lang = q.lang.clone();
-    let prompt = stt_prompt(q.prompt.as_deref());
+    let prior = headers.get(&STT_PRIOR_HEADER).map(|v| v.as_bytes());
+    let prompt = stt_initial_prompt(q.prompt.as_deref(), prior);
     let (text, duration) = tokio::task::spawn_blocking(move || {
         transcribe(&ctx, &samples, sample_rate, &lang, prompt.as_deref())
     })
@@ -1454,6 +1476,14 @@ fn transcribe(
             "expected {TARGET_SAMPLE_RATE} Hz audio, got {sample_rate} Hz"
         ));
     }
+    let duration = samples.len() as f64 / sample_rate as f64;
+    // whisper.cpp returns nothing for under 100 ms, and under 201 samples its
+    // mel padding reads past the end of the buffer. Padding the clip out would
+    // be worse than an empty answer: a prompted decode of a sliver plus
+    // silence is where Whisper continues its prompt with words nobody said.
+    if samples.len() < MIN_WHISPER_SAMPLES {
+        return Ok((String::new(), duration));
+    }
 
     let _busy = crate::crash::busy(crate::crash::Phase::Whisper);
     // A fresh state per request: whisper.cpp keeps the initial prompt and the
@@ -1483,9 +1513,11 @@ fn transcribe(
     // The model can stop partway through a character (seen in zh); what is
     // left of it decodes to U+FFFD, which nobody said.
     text.truncate(text.trim_end_matches('\u{FFFD}').len());
-    let duration = samples.len() as f64 / sample_rate as f64;
     Ok((text, duration))
 }
+
+/// 100 ms at TARGET_SAMPLE_RATE, whisper.cpp's own floor (whisper_full_with_state).
+const MIN_WHISPER_SAMPLES: usize = TARGET_SAMPLE_RATE as usize / 10;
 
 #[cfg(test)]
 mod stt_prompt_tests {
@@ -1530,6 +1562,60 @@ mod stt_prompt_tests {
         // Counted in characters, not bytes: a CJK prompt isn't cut to a third.
         let zh = "探".repeat(MAX_STT_PROMPT_CHARS + 10);
         assert_eq!(stt_prompt(Some(&zh)).unwrap().chars().count(), MAX_STT_PROMPT_CHARS);
+    }
+
+    fn initial(query: Option<&str>, prior: Option<&str>) -> Option<String> {
+        stt_initial_prompt(query, prior.map(str::as_bytes))
+    }
+
+    #[test]
+    fn initial_prompt_takes_either_source_alone() {
+        assert_eq!(initial(None, None), None);
+        assert_eq!(initial(Some("Felt sense, noting."), None).as_deref(), Some("Felt sense, noting."));
+        assert_eq!(
+            initial(None, Some("I%20notice%20a%20warmth%2C%20and")).as_deref(),
+            Some("I notice a warmth, and")
+        );
+        assert_eq!(initial(None, Some("")), None);
+    }
+
+    #[test]
+    fn initial_prompt_puts_the_prior_after_the_query() {
+        assert_eq!(
+            initial(Some("Felt sense, noting."), Some("and%20then")).as_deref(),
+            Some("Felt sense, noting. and then")
+        );
+    }
+
+    #[test]
+    fn initial_prompt_decodes_non_ascii_prior() {
+        // encodeURIComponent("胸口有点暖，")
+        let prior = "%E8%83%B8%E5%8F%A3%E6%9C%89%E7%82%B9%E6%9A%96%EF%BC%8C";
+        assert_eq!(initial(None, Some(prior)).as_deref(), Some("胸口有点暖，"));
+    }
+
+    #[test]
+    fn initial_prompt_survives_malformed_encoding() {
+        // A bad escape stays literal; a cut-off UTF-8 sequence decodes lossily.
+        assert_eq!(initial(None, Some("100%zz")).as_deref(), Some("100%zz"));
+        assert_eq!(initial(None, Some("warm%E8%83")).as_deref(), Some("warm\u{FFFD}"));
+        // Raw bytes no encoder would send, and encoded controls, are cleaned too.
+        assert_eq!(
+            stt_initial_prompt(None, Some(&b"felt\xffsense%00noting%0A"[..])).as_deref(),
+            Some("felt\u{FFFD}sense noting")
+        );
+    }
+
+    #[test]
+    fn initial_prompt_keeps_the_prior_when_too_long() {
+        let query = "x".repeat(MAX_STT_PROMPT_CHARS);
+        let kept = initial(Some(&query), Some("and%20then%20the%20breath")).unwrap();
+        assert_eq!(kept.chars().count(), MAX_STT_PROMPT_CHARS);
+        assert!(kept.ends_with(" and then the breath"));
+        let long_prior = format!("{}%20end", "%E6%9A%96".repeat(MAX_STT_PROMPT_CHARS));
+        let kept = initial(None, Some(&long_prior)).unwrap();
+        assert_eq!(kept.chars().count(), MAX_STT_PROMPT_CHARS);
+        assert!(kept.ends_with("暖 end"));
     }
 
     /// Runs the real decoder: a prompted request, then an unprompted one on the

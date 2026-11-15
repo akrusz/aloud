@@ -73,6 +73,7 @@ dependencies = [
  "libc",
  "log",
  "objc2",
+ "percent-encoding",
  "piper-rs",
  "rand",
  "serde",

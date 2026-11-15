@@ -12,6 +12,13 @@
  * under-report seconds to underpay. Stateless: audio in, text out, nothing
  * persisted.
  *
+ * An `x-stt-prior` header (percent-encoded) carries the transcript of the same
+ * turn up to where this clip's audio begins: incremental transcription sends a
+ * turn in pieces, and the configured backend gets that text as its prompt so a
+ * piece continues the turn instead of starting cold (sttPrior). A header, not
+ * a query param, because it is the meditator's words and URLs get logged. Like
+ * the audio, it is forwarded and never logged or kept.
+ *
  * `setup=1` marks the setup screen's listening (ui voice-start.ts), before any
  * session exists: the transcription is prompted with the setup vocabulary, and
  * it is free while the clip is short and the account has setup seconds left
@@ -28,7 +35,7 @@ import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
 import { priceSttSeconds } from '../pricing/meter.js';
-import { sttBilledSeconds } from '../pricing/providers.js';
+import { sttBilledSeconds, sttPromptIsBilled } from '../pricing/providers.js';
 import { serverIncidents } from '../credits/incidents.js';
 import { recordUsage } from '../credits/usage.js';
 import { chargeUpfront, gateUpfront } from './upfront-charge.js';
@@ -54,6 +61,32 @@ export const SETUP_MAX_CLIP_SECONDS = 15;
 
 /** deps.setupSttGlobalCap's one key: it counts every account together. */
 const ALL_ACCOUNTS = '*';
+
+/** The most of `x-stt-prior` forwarded, in characters, counted from the end
+ *  (the words nearest the clip matter most). Bounds what reaches the provider
+ *  whatever the client trims to. */
+export const MAX_STT_PRIOR_CHARS = 600;
+
+/**
+ * The `x-stt-prior` header as a transcription prompt: percent-decoded, control
+ * characters blanked, whitespace collapsed, and only the last
+ * MAX_STT_PRIOR_CHARS characters kept. Undefined when the header is absent,
+ * empty, or not valid percent-encoding: it is advisory and keys nothing, so a
+ * bad one is dropped, never a 400.
+ */
+export function sttPrior(raw: string | undefined): string | undefined {
+    if (!raw) return undefined;
+    let decoded: string;
+    try {
+        decoded = decodeURIComponent(raw);
+    } catch {
+        return undefined;
+    }
+    const cleaned = decoded.replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim();
+    // By code point, so the cut can't split a surrogate pair.
+    const tail = Array.from(cleaned).slice(-MAX_STT_PRIOR_CHARS).join('').trimStart();
+    return tail || undefined;
+}
 
 export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -134,10 +167,24 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // regional tag ('zh-CN') is trimmed to its base.
         const langMatch = /^([a-z]{2,3})(-|$)/i.exec(c.req.query('lang') ?? '');
         const language = langMatch ? langMatch[1]!.toLowerCase() : undefined;
-        // Built here from core, never taken from the request: a client prompt
-        // would be free-form text forwarded upstream on our key. The
-        // OpenRouter models take none (OPENROUTER_STT_MODELS).
-        const prompt = setup ? (setupVocabulary(language ?? 'en').prompt ?? undefined) : undefined;
+        // Setup listening is prompted with the vocabulary built here from core,
+        // and nothing from the request. Otherwise the one prompt a request can
+        // carry is x-stt-prior: the caller's own transcript of this turn so
+        // far, bounded and cleaned (sttPrior). Nothing checks that it is a
+        // transcript, so it is accepted only because it is the caller's text
+        // steering the caller's own result, on a clip billed by its audio
+        // length; it keys no billing and is never logged. A free-form
+        // `?prompt=` is still ignored. The OpenRouter models take no prompt
+        // (OPENROUTER_STT_MODELS), so there the header goes nowhere.
+        // A model that bills the prompt (sttPromptIsBilled) gets no prior: the
+        // meter counts audio only. If STT_MODEL rolls back to one, clients
+        // still send pieces, they just go unprompted. The setup vocabulary
+        // still reaches such a model, and is unmetered text there too.
+        const prompt = setup
+            ? (setupVocabulary(language ?? 'en').prompt ?? undefined)
+            : sttPromptIsBilled(model)
+              ? undefined
+              : sttPrior(c.req.header('x-stt-prior'));
 
         let text: string;
         try {

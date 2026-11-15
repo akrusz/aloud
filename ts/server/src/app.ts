@@ -67,10 +67,11 @@ export function createApp(deps: Deps): Hono {
             // the preflight, not the request - the client only ever sees an
             // opaque "Load failed" (meditation-pal-bozr).
             allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-            // Same failure mode for a request header missing here.
+            // Same failure mode for a request header missing here. x-stt-prior:
+            // incremental transcription's turn-so-far (routes/stt.ts).
             // x-provider-key: the BYOK key on the hosted app's live model-list
             // lookup (routes/app.ts), cross-origin like everything else.
-            allowHeaders: ['authorization', 'content-type', 'x-provider-key'],
+            allowHeaders: ['authorization', 'content-type', 'x-stt-prior', 'x-provider-key'],
             // So the browser can read per-request cost off the /cloud/v1/tts response.
             exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh'],
         })
