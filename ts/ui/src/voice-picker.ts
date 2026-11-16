@@ -157,6 +157,19 @@ export function stripVoicePrefix(voice: string | null): string | null {
     return m ? (m[2] ?? null) : voice;
 }
 
+/**
+ * A stored hosted pick the catalog no longer lists (a voice renamed or
+ * retired). The server speaks its default in that name's place, so the
+ * controls move to the default too. False while no hosted voice has loaded
+ * (cloud unreachable): the pick can't be judged then, and must not be lost.
+ */
+export function isOrphanedHostedVoice(voice: string | null | undefined, voices: readonly ScoredVoice[]): boolean {
+    const name = /^aloud:(.+)$/.exec(voice ?? '')?.[1];
+    if (!name) return false;
+    const hosted = voices.filter((v) => v.engine === 'aloud');
+    return hosted.length > 0 && !hosted.some((v) => v.name === name);
+}
+
 // Known high-quality macOS base voice names (without Premium/Enhanced suffix).
 const MACOS_QUALITY_VOICES =
     /^(Ava|Allison|Samantha|Susan|Tom|Zoe|Karen|Daniel|Moira|Fiona|Tessa|Lee|Majed|Luciana|Joana|Mónica)$/i;

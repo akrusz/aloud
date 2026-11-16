@@ -5,6 +5,7 @@ import {
     defaultVoicePick,
     downloadPercent,
     downloadVoiceModel,
+    isOrphanedHostedVoice,
     prefixedVoiceId,
     previewErrorMessage,
     type ScoredVoice,
@@ -503,5 +504,32 @@ describe('defaultVoicePick (a setup with no voice picked)', () => {
         vi.stubGlobal('speechSynthesis', { getVoices: () => googleVoices('Google UK English Female') });
         const scored = rankedFirst(buildScoredVoiceList(null, true, [{ name: 'Harper', gender: 'female' }]), 'Harper');
         expect(defaultVoicePick(scored)?.name).toBe('Harper');
+    });
+});
+
+describe('isOrphanedHostedVoice (a hosted pick the catalog dropped)', () => {
+    const hosted = (name: string): ScoredVoice => ({ name, lang: 'en-US', score: 3, engine: 'aloud' });
+    const local: ScoredVoice = { name: 'Samantha', lang: 'en-US', score: 1, engine: 'browser' };
+
+    it('is true for a hosted name the loaded catalog lacks', () => {
+        expect(isOrphanedHostedVoice('aloud:Pulcherrima', [hosted('Phoenix'), hosted('Harper'), local])).toBe(true);
+    });
+
+    it('is false for a listed hosted voice', () => {
+        expect(isOrphanedHostedVoice('aloud:Phoenix', [hosted('Phoenix'), local])).toBe(false);
+    });
+
+    it('is false while no hosted voice has loaded, so an offline launch keeps the pick', () => {
+        expect(isOrphanedHostedVoice('aloud:Phoenix', [local])).toBe(false);
+        expect(isOrphanedHostedVoice('aloud:Phoenix', [])).toBe(false);
+    });
+
+    it('leaves local picks and no pick alone', () => {
+        const voices = [hosted('Harper')];
+        expect(isOrphanedHostedVoice('browser:Samantha', voices)).toBe(false);
+        expect(isOrphanedHostedVoice('server:en_US-lessac-medium', voices)).toBe(false);
+        expect(isOrphanedHostedVoice(null, voices)).toBe(false);
+        // A browser voice that shares a retired hosted name is not hosted.
+        expect(isOrphanedHostedVoice('browser:Pulcherrima', voices)).toBe(false);
     });
 });
