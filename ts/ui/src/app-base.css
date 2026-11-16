@@ -6800,6 +6800,13 @@ body.keyboard-up .settings-footer {
         inset: min(0px, calc((100% - 44px) / 2));
     }
 
+    /* "Show all models" sits 0.4rem under its select: centered, its box
+       laps the select's lower edge and takes taps meant for it. Grow down. */
+    .credit-rate-legend .btn-link::after {
+        top: 0;
+        bottom: min(0px, calc(100% - 44px));
+    }
+
     /* Not the noting circle's rows: three or four controls share a line
        there, and at 44px the steppers push one onto a second line and the
        play buttons stand twice as tall as wide. Its buttons take the ring;
