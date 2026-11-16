@@ -15,6 +15,10 @@
     "soak": "npm --prefix ts run soak",
     "soak:web": "npm --prefix ts run soak:web",
     "soak:audio": "./scripts/blackhole-driver.sh",
-    "voices": "npm --prefix ts/server run voices --"
+    "voices": "npm --prefix ts/server run voices --",
+    "clips:render": "npm --prefix ts run clips:render --",
+    "clips:render:yes": "npm --prefix ts run clips:render:yes",
+    "clips:check": "npm --prefix ts run clips:check",
+    "voice:check": "npm --prefix ts run voice:check"
   }
 }

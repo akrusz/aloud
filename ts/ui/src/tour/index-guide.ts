@@ -366,7 +366,7 @@ function addSoundToggle(): void {
 function paintSoundToggle(): void {
     const btn = cardEl?.querySelector<HTMLButtonElement>('.tour-sound');
     if (!btn) return;
-    const label = quiet ? t('Read the tour aloud') : t('Stop reading aloud');
+    const label = quiet ? t('Read the tour out loud') : t('Stop reading out loud');
     btn.classList.toggle('quiet', quiet);
     btn.setAttribute('aria-pressed', String(!quiet));
     btn.setAttribute('aria-label', label);
@@ -587,7 +587,7 @@ function showWelcome(): void {
     let html = '<button type="button" class="tour-close" data-action="dismiss" aria-label="' + escapeHtml(t('Close')) + '">&times;</button>';
     html +=
         welcomeVariant === 'after-first-sit'
-            ? '<h3>' + t('Shape your next session') + '</h3><p>' + t('Set the vibe, attention focus, and more.') + '</p>'
+            ? '<h3>' + t('Set up your next session') + '</h3><p>' + t('Set the vibe, attention focus, and more.') + '</p>'
             : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
     html += '<div class="tour-choices">';
     if (offerQuickStart) {
@@ -598,7 +598,7 @@ function showWelcome(): void {
     }
     html += '<button class="tour-choice" data-action="start">';
     html += '<strong>' + t('Show me around') + '</strong>';
-    html += '<small>' + (tourVoice && !quiet ? t('A quick look at how it works, read aloud') : t('A quick look at how it works')) + '</small>';
+    html += '<small>' + (tourVoice && !quiet ? t('A quick look at how it works, spoken aloud') : t('A quick look at how it works')) + '</small>';
     html += '</button>';
     html += '</div>';
 
@@ -623,7 +623,7 @@ function showCentered(body: string, next = true): void {
 
 function showMicStep(): void {
     let html = '<h3>' + t('aloud listens, too') + '</h3>';
-    html += '<p>' + t('With the microphone on you can answer out loud: "next", "back", or the voice you like.') + '</p>';
+    html += '<p>' + t('With the microphone on you can say commands, like "next", "back", or other options on screen.') + '</p>';
     html += '<div class="tour-choices"><button class="tour-choice" data-action="mic">';
     html += '<strong>' + t('Turn on the microphone') + '</strong>';
     html += '<small>' + t('Tapping works the whole way, too.') + '</small>';
@@ -640,14 +640,14 @@ function turnMicOn(btn: HTMLElement): void {
     void tourVoice.enableMic().then((on) => {
         if (!guideActive || currentStep !== from) return;
         if (on) advanceStep();
-        else if (note) note.textContent = t("The microphone didn't come on. You can keep going by tapping.");
+        else if (note) note.textContent = t("The microphone didn't respond. You can still continue by tapping.");
     });
 }
 
 function showVoiceStep(): void {
     const offered = tourVoice?.voicesOnOffer() ?? [];
     let html = '<h3>' + t('Pick a voice') + '</h3>';
-    html += '<p>' + t('Two to start with. There are more in the voice picker, any time.') + '</p>';
+    html += '<p>' + t('Here are two to start with. There are more in the voice picker later.') + '</p>';
     html += '<div class="tour-choices tour-voices">';
     offered.forEach((voice, i) => {
         html += '<button class="tour-choice" data-action="voice" data-voice="' + i + '">';
@@ -659,7 +659,7 @@ function showVoiceStep(): void {
 
 function showSayIt(): void {
     let html = '<h3>' + t('Say it out loud') + '</h3>';
-    html += '<p>' + t('With the mic beside Begin lit, you can set all of this by voice: "twenty minutes", "add playful", "felt sense". Then say "begin".') + '</p>';
+    html += '<p>' + t('When the mic button beside Begin is on, you can set all of this by voice: "twenty minutes", "add playful", "felt sense". Then say "begin".') + '</p>';
     showCentered(html);
 }
 
@@ -700,7 +700,7 @@ function showSection(section: Section): void {
 
 function showDone(): void {
     let html = '<h3>' + t('You’re ready') + '</h3>';
-    html += '<p>' + t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to revisit these notes.') + '</p>';
+    html += '<p>' + t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.') + '</p>';
     showCentered(html, false);
 }
 

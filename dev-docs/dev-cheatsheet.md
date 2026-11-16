@@ -277,7 +277,7 @@ cd ts && npm run stt:replay -- <capture-dir> --models openai,azure       # then 
 # A sitting by voice (by hand, NOT in CI - the real web UI with a scripted
 # recognizer and a mocked model, no mic or keys; needs `npm run web:dev` up).
 # Rerun after touching the session listen loop or the judge-free commands.
-node ts/scripts/voice-loop-check.mjs
+npm run voice:check          # = node ts/scripts/voice-loop-check.mjs
 
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.

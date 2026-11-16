@@ -22,6 +22,26 @@
                     "file": "ethan/en/checkins-on.3b7991f5.mp3",
                     "text": "Check-ins are on."
                 },
+                "clock-elapsed": {
+                    "file": "ethan/en/clock-elapsed.a28f1a87.mp3",
+                    "text": "The clock will show time in session."
+                },
+                "clock-hidden": {
+                    "file": "ethan/en/clock-hidden.bfdaebdc.mp3",
+                    "text": "The clock is hidden."
+                },
+                "clock-off": {
+                    "file": "ethan/en/clock-off.ca5e066a.mp3",
+                    "text": "The clock is off."
+                },
+                "clock-shown": {
+                    "file": "ethan/en/clock-shown.c2027d0d.mp3",
+                    "text": "The clock is showing."
+                },
+                "clock-wall": {
+                    "file": "ethan/en/clock-wall.6ffd2fe8.mp3",
+                    "text": "The clock will show the time of day."
+                },
                 "focus-body-off": {
                     "file": "ethan/en/focus-body-off.c0ff0bca.mp3",
                     "text": "Body focus is off."
@@ -73,8 +93,12 @@
                 "help": {
                     "file": "ethan/en/help.8383c271.mp3",
                     "suspect": true,
-                    "suspectReason": "voiced 6.72s against 3.78s expected at this voice's pace: probable repeat",
+                    "suspectReason": "voiced 6.63s against 3.63s expected at this voice's pace: probable repeat",
                     "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
+                },
+                "intention-ask": {
+                    "file": "ethan/en/intention-ask.72675004.mp3",
+                    "text": "What is your intention?"
                 },
                 "intention-cleared": {
                     "file": "ethan/en/intention-cleared.8e0ccb95.mp3",
@@ -99,6 +123,14 @@
                 "mode-noting": {
                     "file": "ethan/en/mode-noting.79efe84e.mp3",
                     "text": "Okay, noting mode."
+                },
+                "model-set": {
+                    "file": "ethan/en/model-set.5efce88e.mp3",
+                    "text": "Okay, the model is set."
+                },
+                "never-mind": {
+                    "file": "ethan/en/never-mind.4053fc5b.mp3",
+                    "text": "Okay, not changing intention."
                 },
                 "not-in-mode": {
                     "file": "ethan/en/not-in-mode.fd8ce9c4.mp3",
@@ -153,32 +185,32 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "ethan/en/tour-done.e264c030.mp3",
-                    "text": "That's everything. Say begin when you're ready."
+                    "file": "ethan/en/tour-done.e86af6e8.mp3",
+                    "text": "That's the important stuff. Say begin when you're ready."
                 },
                 "tour-exploration": {
-                    "file": "ethan/en/tour-exploration.4e023869.mp3",
-                    "text": "Exploration is a conversation. You say what you notice, and I ask short questions to help you look closer."
+                    "file": "ethan/en/tour-exploration.aa7319cf.mp3",
+                    "text": "Exploration is a conversation. You say what you notice, and I ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
-                    "file": "ethan/en/tour-felt-sense.d2b5d48c.mp3",
-                    "text": "Felt sense follows six steps for getting to know one thing, slowly, in the body."
+                    "file": "ethan/en/tour-felt-sense.eba38f03.mp3",
+                    "text": "Felt sense follows a six step process for finding what's at the root of something that's on your mind."
                 },
                 "tour-focus": {
-                    "file": "ethan/en/tour-focus.ba92e82e.mp3",
-                    "text": "A focus tells me where your attention is going: the body, emotions, or parts of yourself."
+                    "file": "ethan/en/tour-focus.bc52d064.mp3",
+                    "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
-                    "file": "ethan/en/tour-hello.fdac6cc1.mp3",
-                    "text": "Welcome to aloud. I speak, and I listen. Turn on the microphone and you can answer me out loud."
+                    "file": "ethan/en/tour-hello.5e238307.mp3",
+                    "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
-                    "file": "ethan/en/tour-noting.4b22b994.mp3",
-                    "text": "Noting is quieter. You name what you notice in a word or two, and others can take turns with you."
+                    "file": "ethan/en/tour-noting.92cb2d15.mp3",
+                    "text": "Noting is simple. You name what you notice in a word or two, and can add sounds or virtual participants to keep the pace."
                 },
                 "tour-vibe": {
-                    "file": "ethan/en/tour-vibe.01af55e9.mp3",
-                    "text": "Vibes set my tone. Playful, spacious, loving, any mix you like."
+                    "file": "ethan/en/tour-vibe.fbd8e6a3.mp3",
+                    "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
                     "file": "ethan/en/tour-voice-control.28f76ffa.mp3",
@@ -249,8 +281,8 @@
                     "text": "Hi, I'm Ethan. This is how I sound."
                 },
                 "voice-intro-second": {
-                    "file": "ethan/en/voice-intro-second.b0844a41.mp3",
-                    "text": "And I'm Ethan. Say which of us you'd like, or tap one."
+                    "file": "ethan/en/voice-intro-second.d72fe351.mp3",
+                    "text": "And I'm Ethan. Say which of us you'd like, or tap our name."
                 }
             },
             "fixedPace": true,
@@ -278,6 +310,26 @@
                 "checkins-on": {
                     "file": "harper/en/checkins-on.2110b354.mp3",
                     "text": "Check-ins are on."
+                },
+                "clock-elapsed": {
+                    "file": "harper/en/clock-elapsed.0651192c.mp3",
+                    "text": "The clock will show time in session."
+                },
+                "clock-hidden": {
+                    "file": "harper/en/clock-hidden.1c9e65de.mp3",
+                    "text": "The clock is hidden."
+                },
+                "clock-off": {
+                    "file": "harper/en/clock-off.76a669a6.mp3",
+                    "text": "The clock is off."
+                },
+                "clock-shown": {
+                    "file": "harper/en/clock-shown.86d5a3e7.mp3",
+                    "text": "The clock is showing."
+                },
+                "clock-wall": {
+                    "file": "harper/en/clock-wall.7b46e953.mp3",
+                    "text": "The clock will show the time of day."
                 },
                 "focus-body-off": {
                     "file": "harper/en/focus-body-off.cfff9ee7.mp3",
@@ -331,6 +383,10 @@
                     "file": "harper/en/help.8a0353ea.mp3",
                     "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
                 },
+                "intention-ask": {
+                    "file": "harper/en/intention-ask.7fe0bb86.mp3",
+                    "text": "What is your intention?"
+                },
                 "intention-cleared": {
                     "file": "harper/en/intention-cleared.24fdff3e.mp3",
                     "text": "Your intention is cleared."
@@ -354,6 +410,14 @@
                 "mode-noting": {
                     "file": "harper/en/mode-noting.607852e3.mp3",
                     "text": "Okay, noting mode."
+                },
+                "model-set": {
+                    "file": "harper/en/model-set.fdcf4c15.mp3",
+                    "text": "Okay, the model is set."
+                },
+                "never-mind": {
+                    "file": "harper/en/never-mind.33a9373f.mp3",
+                    "text": "Okay, not changing intention."
                 },
                 "not-in-mode": {
                     "file": "harper/en/not-in-mode.75ca5b51.mp3",
@@ -408,32 +472,32 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "harper/en/tour-done.5be64d05.mp3",
-                    "text": "That's everything. Say begin when you're ready."
+                    "file": "harper/en/tour-done.62a57a20.mp3",
+                    "text": "That's the important stuff. Say begin when you're ready."
                 },
                 "tour-exploration": {
-                    "file": "harper/en/tour-exploration.25af55b8.mp3",
-                    "text": "Exploration is a conversation. You say what you notice, and I ask short questions to help you look closer."
+                    "file": "harper/en/tour-exploration.270c249e.mp3",
+                    "text": "Exploration is a conversation. You say what you notice, and I ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
-                    "file": "harper/en/tour-felt-sense.fa2f64a2.mp3",
-                    "text": "Felt sense follows six steps for getting to know one thing, slowly, in the body."
+                    "file": "harper/en/tour-felt-sense.1292d006.mp3",
+                    "text": "Felt sense follows a six step process for finding what's at the root of something that's on your mind."
                 },
                 "tour-focus": {
-                    "file": "harper/en/tour-focus.11a63db9.mp3",
-                    "text": "A focus tells me where your attention is going: the body, emotions, or parts of yourself."
+                    "file": "harper/en/tour-focus.1dbcf384.mp3",
+                    "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
-                    "file": "harper/en/tour-hello.7a9a9cbd.mp3",
-                    "text": "Welcome to aloud. I speak, and I listen. Turn on the microphone and you can answer me out loud."
+                    "file": "harper/en/tour-hello.512a7a7a.mp3",
+                    "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
-                    "file": "harper/en/tour-noting.11642402.mp3",
-                    "text": "Noting is quieter. You name what you notice in a word or two, and others can take turns with you."
+                    "file": "harper/en/tour-noting.42a62019.mp3",
+                    "text": "Noting is simple. You name what you notice in a word or two, and can add sounds or virtual participants to keep the pace."
                 },
                 "tour-vibe": {
-                    "file": "harper/en/tour-vibe.ce9efa45.mp3",
-                    "text": "Vibes set my tone. Playful, spacious, loving, any mix you like."
+                    "file": "harper/en/tour-vibe.0096737f.mp3",
+                    "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
                     "file": "harper/en/tour-voice-control.71e7f437.mp3",
@@ -504,8 +568,8 @@
                     "text": "Hi, I'm Harper. This is how I sound."
                 },
                 "voice-intro-second": {
-                    "file": "harper/en/voice-intro-second.cf2847a8.mp3",
-                    "text": "And I'm Harper. Say which of us you'd like, or tap one."
+                    "file": "harper/en/voice-intro-second.0e47fac9.mp3",
+                    "text": "And I'm Harper. Say which of us you'd like, or tap our name."
                 }
             },
             "fixedPace": true,
@@ -533,6 +597,26 @@
                 "checkins-on": {
                     "file": "serena/zh/checkins-on.69dd9f67.mp3",
                     "text": "安静时我会轻声问候。"
+                },
+                "clock-elapsed": {
+                    "file": "serena/zh/clock-elapsed.f2449a11.mp3",
+                    "text": "时钟会显示已用时间。"
+                },
+                "clock-hidden": {
+                    "file": "serena/zh/clock-hidden.aac2460b.mp3",
+                    "text": "时钟已隐藏。"
+                },
+                "clock-off": {
+                    "file": "serena/zh/clock-off.332e5f1f.mp3",
+                    "text": "时钟已关闭。"
+                },
+                "clock-shown": {
+                    "file": "serena/zh/clock-shown.34138742.mp3",
+                    "text": "时钟已显示。"
+                },
+                "clock-wall": {
+                    "file": "serena/zh/clock-wall.2b26a7e2.mp3",
+                    "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
                     "file": "serena/zh/focus-body-off.511ff24c.mp3",
@@ -586,6 +670,10 @@
                     "file": "serena/zh/help.14e7d30d.mp3",
                     "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
                 },
+                "intention-ask": {
+                    "file": "serena/zh/intention-ask.8b8403f2.mp3",
+                    "text": "你的意图是什么？"
+                },
                 "intention-cleared": {
                     "file": "serena/zh/intention-cleared.1095d617.mp3",
                     "text": "意图已清除。"
@@ -609,6 +697,14 @@
                 "mode-noting": {
                     "file": "serena/zh/mode-noting.1501d380.mp3",
                     "text": "好的，标记模式。"
+                },
+                "model-set": {
+                    "file": "serena/zh/model-set.79fdf5ed.mp3",
+                    "text": "好的，模型已设好。"
+                },
+                "never-mind": {
+                    "file": "serena/zh/never-mind.2b66dd2d.mp3",
+                    "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
                     "file": "serena/zh/not-in-mode.9b6949f9.mp3",
@@ -663,32 +759,32 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.43245005.mp3",
-                    "text": "就这些。想开始的时候，说“开始”就可以了。"
+                    "file": "serena/zh/tour-done.d0d5f6dd.mp3",
+                    "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "serena/zh/tour-exploration.035ef1f0.mp3",
-                    "text": "探索是一场对话。你说出此刻注意到的，我用简短的问题陪你看得更细。"
+                    "file": "serena/zh/tour-exploration.241658f7.mp3",
+                    "text": "探索是一场对话。你说出此刻注意到的，我用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "serena/zh/tour-felt-sense.da0a5527.mp3",
-                    "text": "体会分六步，在身体里慢慢了解一件事。"
+                    "file": "serena/zh/tour-felt-sense.022e6375.mp3",
+                    "text": "体会分六步，帮你找到心里那件事的根源。"
                 },
                 "tour-focus": {
-                    "file": "serena/zh/tour-focus.f39c0d4a.mp3",
-                    "text": "焦点告诉我你的注意力放在哪里：身体、情绪，或内在的各个部分。"
+                    "file": "serena/zh/tour-focus.0f4f77bd.mp3",
+                    "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "serena/zh/tour-hello.e6b4d95f.mp3",
-                    "text": "欢迎来到 aloud。我会说，也会听。打开麦克风，你就可以直接开口回答我。"
+                    "file": "serena/zh/tour-hello.d228eb8b.mp3",
+                    "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "serena/zh/tour-noting.b3fe9dca.mp3",
-                    "text": "标记更安静。你用一两个词说出注意到的，也可以和其他参与者轮流。"
+                    "file": "serena/zh/tour-noting.e17131c9.mp3",
+                    "text": "标记很简单。你用一两个词说出注意到的，还可以加入音效或虚拟参与者来带节奏。"
                 },
                 "tour-vibe": {
-                    "file": "serena/zh/tour-vibe.75ce8c71.mp3",
-                    "text": "氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。"
+                    "file": "serena/zh/tour-vibe.66faa2bb.mp3",
+                    "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
                     "file": "serena/zh/tour-voice-control.c44da71e.mp3",
@@ -759,8 +855,8 @@
                     "text": "你好，我是 Serena。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "serena/zh/voice-intro-second.c91b0e8b.mp3",
-                    "text": "我是 Serena。想听谁的声音？说出名字，或者点一下。"
+                    "file": "serena/zh/voice-intro-second.f02ebfbd.mp3",
+                    "text": "我是 Serena。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },
             "fixedPace": false,
@@ -788,6 +884,26 @@
                 "checkins-on": {
                     "file": "yunfan/zh/checkins-on.4f0222e5.mp3",
                     "text": "安静时我会轻声问候。"
+                },
+                "clock-elapsed": {
+                    "file": "yunfan/zh/clock-elapsed.feab5487.mp3",
+                    "text": "时钟会显示已用时间。"
+                },
+                "clock-hidden": {
+                    "file": "yunfan/zh/clock-hidden.9f5d60be.mp3",
+                    "text": "时钟已隐藏。"
+                },
+                "clock-off": {
+                    "file": "yunfan/zh/clock-off.40a65e96.mp3",
+                    "text": "时钟已关闭。"
+                },
+                "clock-shown": {
+                    "file": "yunfan/zh/clock-shown.ccfcc6da.mp3",
+                    "text": "时钟已显示。"
+                },
+                "clock-wall": {
+                    "file": "yunfan/zh/clock-wall.fbd5100e.mp3",
+                    "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
                     "file": "yunfan/zh/focus-body-off.3f2e0841.mp3",
@@ -841,6 +957,10 @@
                     "file": "yunfan/zh/help.ca1a8b32.mp3",
                     "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
                 },
+                "intention-ask": {
+                    "file": "yunfan/zh/intention-ask.fe0b0a9a.mp3",
+                    "text": "你的意图是什么？"
+                },
                 "intention-cleared": {
                     "file": "yunfan/zh/intention-cleared.db9d4857.mp3",
                     "text": "意图已清除。"
@@ -864,6 +984,14 @@
                 "mode-noting": {
                     "file": "yunfan/zh/mode-noting.b706920a.mp3",
                     "text": "好的，标记模式。"
+                },
+                "model-set": {
+                    "file": "yunfan/zh/model-set.eb9ac1a7.mp3",
+                    "text": "好的，模型已设好。"
+                },
+                "never-mind": {
+                    "file": "yunfan/zh/never-mind.4ef99b22.mp3",
+                    "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
                     "file": "yunfan/zh/not-in-mode.3347aa80.mp3",
@@ -918,32 +1046,32 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.3b659e20.mp3",
-                    "text": "就这些。想开始的时候，说“开始”就可以了。"
+                    "file": "yunfan/zh/tour-done.3d742d07.mp3",
+                    "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "yunfan/zh/tour-exploration.3cdbbbbd.mp3",
-                    "text": "探索是一场对话。你说出此刻注意到的，我用简短的问题陪你看得更细。"
+                    "file": "yunfan/zh/tour-exploration.ef4b6de0.mp3",
+                    "text": "探索是一场对话。你说出此刻注意到的，我用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "yunfan/zh/tour-felt-sense.96073c5b.mp3",
-                    "text": "体会分六步，在身体里慢慢了解一件事。"
+                    "file": "yunfan/zh/tour-felt-sense.3abe60c6.mp3",
+                    "text": "体会分六步，帮你找到心里那件事的根源。"
                 },
                 "tour-focus": {
-                    "file": "yunfan/zh/tour-focus.0e76c2f8.mp3",
-                    "text": "焦点告诉我你的注意力放在哪里：身体、情绪，或内在的各个部分。"
+                    "file": "yunfan/zh/tour-focus.c0f01da8.mp3",
+                    "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "yunfan/zh/tour-hello.4095814a.mp3",
-                    "text": "欢迎来到 aloud。我会说，也会听。打开麦克风，你就可以直接开口回答我。"
+                    "file": "yunfan/zh/tour-hello.0e140477.mp3",
+                    "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "yunfan/zh/tour-noting.8027f939.mp3",
-                    "text": "标记更安静。你用一两个词说出注意到的，也可以和其他参与者轮流。"
+                    "file": "yunfan/zh/tour-noting.22cb4ed7.mp3",
+                    "text": "标记很简单。你用一两个词说出注意到的，还可以加入音效或虚拟参与者来带节奏。"
                 },
                 "tour-vibe": {
-                    "file": "yunfan/zh/tour-vibe.95e78c8c.mp3",
-                    "text": "氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。"
+                    "file": "yunfan/zh/tour-vibe.0e3d6a3a.mp3",
+                    "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
                     "file": "yunfan/zh/tour-voice-control.947a7e5c.mp3",
@@ -1014,8 +1142,8 @@
                     "text": "你好，我是 Yunfan。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "yunfan/zh/voice-intro-second.dbde3995.mp3",
-                    "text": "我是 Yunfan。想听谁的声音？说出名字，或者点一下。"
+                    "file": "yunfan/zh/voice-intro-second.86d2ae97.mp3",
+                    "text": "我是 Yunfan。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },
             "fixedPace": false,
