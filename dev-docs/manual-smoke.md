@@ -123,7 +123,8 @@ meant to work.
 - [ ] **A television or a conversation in the room, five minutes.** Count
       settings changed and sessions begun. Sessions begun should be zero. On
       hosted recognition the mic should be closed by itself at two minutes if
-      nothing it understood was said. On local Whisper and in Chrome it has no
+      nothing it understood was said, or sooner on 20 things heard that were
+      not requests. On local Whisper and in Chrome it has no
       clock: it should close after about five minutes of unbroken talk (30
       things heard that were not requests), and stay open all afternoon in a
       quiet room.

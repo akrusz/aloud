@@ -19,6 +19,7 @@ import {
     micPermission,
     voiceStartBlocker,
     setupListeningLimits,
+    VOICE_START_CLOCKED_UNHEARD,
     SPEECH_TAIL_MS,
     VOICE_START_MAX_OPEN_MS,
     VOICE_START_WINDOW_MS,
@@ -270,8 +271,15 @@ describe('listenOnSetup', () => {
         expect(setupListeningLimits(false)).toEqual({
             windowMs: VOICE_START_WINDOW_MS,
             maxOpenMs: VOICE_START_MAX_OPEN_MS,
-            unheardLimit: Infinity,
+            unheardLimit: VOICE_START_CLOCKED_UNHEARD,
         });
+    });
+
+    it('closes there too on a room that keeps talking, well inside the window', async () => {
+        const room = Array.from({ length: VOICE_START_CLOCKED_UNHEARD }, (_, i) => `the weather on channel ${i}`);
+        const { ends } = run(scriptedEngine(room), () => true, () => false, setupListeningLimits(false));
+        await vi.advanceTimersByTimeAsync(VOICE_START_WINDOW_MS / 4);
+        expect(ends).toEqual(['window']);
     });
 
     it('closes the mic as soon as the setup screen is gone', async () => {
