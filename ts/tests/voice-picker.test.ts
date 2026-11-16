@@ -179,10 +179,10 @@ describe('Best tier is reserved for hosted + browser cloud (not macOS/Piper)', (
             false
         );
         const ava = scored.find((v) => v.name === 'Ava (Premium)')!;
-        expect(ava.score).toBe(4); // Very Good tier…
-        expect(ava.recommended).toBeFalsy(); // …but NOT Best
+        expect(ava.score).toBe(3); // Good tier…
+        expect(ava.recommended).toBeFalsy(); // …and NOT Best
         const piper = scored.find((v) => v.name.startsWith('Libritts'))!;
-        expect(piper.score).toBe(3); // Good tier (below Very Good)
+        expect(piper.score).toBe(3); // Good tier, alongside
         expect(piper.recommended).toBeFalsy();
     });
 
@@ -434,6 +434,17 @@ describe('bestFreeVoice (the start gate\'s way past a hosted voice)', () => {
         });
         const scored = rankedFirst(buildScoredVoiceList(null, true, hosted), 'Google US English');
         expect(bestFreeVoice(scored)?.name).toBe('Google UK English Female');
+    });
+
+    it("takes Chrome's Google voice over an installed Apple Premium one", () => {
+        vi.stubGlobal('navigator', { language: 'en-US', platform: 'MacIntel' });
+        vi.stubGlobal('speechSynthesis', {
+            getVoices: () => [
+                { name: 'Ava (Premium)', voiceURI: 'Ava (Premium)', lang: 'en-US', localService: true },
+                ...googleVoices('Google UK English Female'),
+            ],
+        });
+        expect(bestFreeVoice(buildScoredVoiceList(null, true, hosted))?.name).toBe('Google UK English Female');
     });
 });
 

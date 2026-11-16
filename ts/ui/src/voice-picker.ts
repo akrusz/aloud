@@ -3,9 +3,8 @@
  * (.voice-row, .voice-tier-label, …) come from the base CSS.
  *
  * Scoring tiers (descending):
- *   4  Very Good - "Premium" in the name (Apple Premium), hosted "value" voices,
- *                  Chrome's Google voices
- *   3  Good      - Piper (desktop)
+ *   4  Very Good - hosted "value" voices, Chrome's Google voices
+ *   3  Good      - "Premium" in the name (Apple Premium), Piper (desktop)
  *   2  Quality   - "Enhanced", "Online", "Natural"
  *   1  Standard  - Google, known-good macOS voices
  *   0  Other     - everything else
@@ -13,8 +12,9 @@
  * A "Best" group sits above the tiers, reserved for hosted "premium" voices
  * and the browser's other cloud voices (Edge's "Online (Natural)"). Per the
  * developer's preference cloud-neural beats local, and the hosted "value" tier
- * sits a notch below "premium", so it and Apple Premium drop into "Very Good"
- * and Piper into "Good".
+ * sits a notch below "premium", so it drops into "Very Good", and Apple Premium
+ * and Piper into "Good": Chrome's Google voices are much the better (dev call,
+ * 2026-11-16), and a free pick must not land on Ava (Premium) over them.
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';
@@ -191,10 +191,9 @@ function isFirefoxOnMac(): boolean {
 
 export function scoreVoice(name: string, engine?: string): number {
     const baseName = name.replace(/\s*\(.*\)$/, '');
-    // Apple "Premium" system voices: best local option, a rung below
-    // cloud-neural, so "Very Good" alongside hosted Neural2 (scored in
-    // buildScoredVoiceList).
-    if (/Premium/i.test(name)) return 4;
+    // Apple "Premium" system voices: "Good", a rung under Chrome's Google
+    // voices (scored in buildScoredVoiceList).
+    if (/Premium/i.test(name)) return 3;
     // ElevenLabs is premium cloud TTS - hold it in Quality even though its
     // voice names carry no quality keyword.
     if (engine === 'elevenlabs') return 2;
@@ -202,8 +201,8 @@ export function scoreVoice(name: string, engine?: string): number {
     if (/Online|Natural/i.test(name)) return 2;
     if (/^Google/i.test(name)) return 1;
     if (MACOS_QUALITY_VOICES.test(baseName)) return 1;
-    // Piper (the desktop's bundled neural voices): genuinely solid, one rung
-    // under Apple Premium.
+    // Piper (the desktop's bundled neural voices): genuinely solid, alongside
+    // Apple Premium.
     if (engine === 'piper') return 3;
     return 0;
 }
