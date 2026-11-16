@@ -3,7 +3,7 @@
  * no speaker and no network model: begin, speak, end, begin again.
  *
  *   npm run web:dev                          # must be up (Vite :4649 + Hono :8787)
- *   node ts/scripts/voice-loop-check.mjs
+ *   npm run voice:check                      # = node ts/scripts/voice-loop-check.mjs
  *   CHROME_PATH=/path/to/chrome node ts/scripts/voice-loop-check.mjs   # no system Chrome
  *
  * What stands in for what:
@@ -178,6 +178,14 @@ async function open(settings, setupPatch = {}) {
             await page.locator('#begin-btn').waitFor({ state: 'visible', timeout: 30_000 });
             await page.waitForFunction(() => !document.querySelector('#begin-btn')?.disabled, undefined, { timeout: 30_000 });
         },
+        /** Press Begin on a fresh profile. The welcome card goes up 250ms after
+         *  setup loads and holds the page inert, so an immediate click is a race
+         *  it sometimes loses: wait the card out and dismiss it first. */
+        async begin() {
+            await page.waitForTimeout(800);
+            if (await page.locator('[role="dialog"][aria-modal="true"]').count()) await page.mouse.click(5, 300);
+            await page.locator('#begin-btn').click();
+        },
         /** Wait for the app to be listening, then say it. */
         async say(text) {
             if (!(await until(recognizerOpen, 20_000))) throw new Error(`nothing was listening for: ${text}`);
@@ -214,7 +222,7 @@ try {
         const s = await open({ setupVoice: false });
         await s.setup();
         check('with voice start off, setup opens no recognizer', (await s.page.evaluate(() => window.__stt.started)) === 0);
-        await s.page.locator('#begin-btn').click();
+        await s.begin();
         check('session starts', await s.until(s.inSession));
 
         let calls = s.model.calls;
@@ -263,7 +271,7 @@ try {
     {
         const s = await open({ setupVoice: false });
         await s.setup();
-        await s.page.locator('#begin-btn').click();
+        await s.begin();
         await s.until(s.inSession);
         const noted = (request) => /sounds like they are frightened/.test(request ?? '');
 
@@ -509,7 +517,7 @@ try {
         await s.say('Set my intention.');
         await s.until(async () => /What is your intention/.test(await note()));
         await s.say('Never mind.');
-        check('"never mind" leaves it', await s.until(async () => /never mind/i.test(await note())), `(${await note()})`);
+        check('"never mind" leaves it', await s.until(async () => /not changing intention/i.test(await note())), `(${await note()})`);
         check('as it was', (await s.page.locator('#intention').inputValue()) === 'To be kind to myself');
         await s.say('Spacious.');
         check(
@@ -589,7 +597,7 @@ try {
     {
         const s = await open({ setupVoice: false }, { meditationType: 'noting' });
         await s.setup();
-        await s.page.locator('#begin-btn').click();
+        await s.begin();
         check('noting session starts', await s.until(s.inSession));
         await s.sayAfter(1700, 'thinking');
         check('a note is a note', await s.shown(/thinking/i));

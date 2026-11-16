@@ -5,8 +5,8 @@
  * ts/:
  *
  *   npm run clips:render -- --dry-run    # what would render and what it costs; no provider calls
- *   npm run clips:render -- --yes        # render what is missing or stale
- *   npm run clips:render -- --check      # exit 1 if any clip is missing or stale (pre-release)
+ *   npm run clips:render:yes             # render what is missing or stale (= clips:render -- --yes)
+ *   npm run clips:check                  # exit 1 if any clip is missing or stale (pre-release)
  *   npm run clips:render -- --voice Harper --only mode-noting,timer-off --force --yes
  *
  * Flags: --voice <name>[,<name>], --only <line-id>[,<line-id>], --force
@@ -359,7 +359,7 @@ async function main(): Promise<void> {
         for (const f of orphans) console.log(`  orphan  ${f}`);
         printSuspects(suspects, manifest);
         if (problems) {
-            console.log('\nFix with: npm run clips:render -- --yes');
+            console.log('\nFix with: npm run clips:render:yes');
             process.exit(1);
         }
         return;
@@ -401,7 +401,9 @@ async function main(): Promise<void> {
     if (jobs.length) {
         printEstimate(jobs);
         if (!args.yes) {
-            console.log('\nNothing spent. Add --yes to render.');
+            // `npm run clips:render --yes` hands --yes to npm, not to this script.
+            const eaten = process.env['npm_config_yes'] ? ' (npm kept your --yes for itself: it needs the bare -- first)' : '';
+            console.log(`\nNothing spent${eaten}. To render: npm run clips:render:yes`);
             return;
         }
     }
