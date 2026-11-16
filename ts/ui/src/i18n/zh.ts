@@ -795,7 +795,7 @@ export const ZH: Record<string, string> = {
     "Voice: {name}": "声音：{name}",
     "A quick look at how it works, spoken aloud": "快速了解它如何运作，并为你朗读",
     "aloud listens, too": "aloud 也会听",
-    "aloud speaks out loud, so be sure the volume is up.": "aloud 会开口说话，请先把音量调大。",
+    "aloud speaks out loud, so be sure sound is on.": "aloud 会开口说话，请确认声音已打开。",
     "With the microphone on you can say commands, like \"next\", \"back\", or other options on screen.": "打开麦克风后，你可以直接说出指令，比如“下一步”、“返回”，或屏幕上的其他选项。",
     "Turn on the microphone": "打开麦克风",
     "Tapping works the whole way, too.": "全程也都可以用点按来操作。",
