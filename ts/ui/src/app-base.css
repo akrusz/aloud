@@ -11,6 +11,17 @@ html { font-size: 16px; }
    by scripts/cloud-glyph-font.py (which says why it's a bitmap font first,
    with vector layers only for Firefox). vite.config.ts inlines it, so block costs no
    visible wait. */
+/* The wordmark's face, shipped with the app: no request leaves the device
+   for it, and it is there offline. block: the mark never shows in another
+   font. */
+@font-face {
+    font-family: 'Knewave';
+    font-style: normal;
+    font-weight: 400;
+    src: url('./assets/knewave-v15.woff2') format('woff2');
+    font-display: block;
+}
+
 @font-face {
     font-family: 'aloud-cloud';
     src: url('./assets/aloud-cloud.woff2') format('woff2');
