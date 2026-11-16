@@ -21,6 +21,7 @@ import { sharedKv } from '../state.js';
 import { t } from '../i18n.js';
 import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { escapeHtml } from '../escape-html.js';
+import { isTauri } from '../is-desktop.js';
 import { parseTourCommand, type OfferedVoice, type SetupLineId } from '../../../src/facilitation/index.js';
 import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
 
@@ -265,7 +266,12 @@ function holdPage(card: HTMLDivElement): void {
         intro.id = 'tour-card-intro';
         card.setAttribute('aria-describedby', intro.id);
     }
-    for (const el of document.body.children) {
+    // The desktop window is dragged by its top bar (tauri-chrome.ts), and an
+    // inert element takes no mousedown: there, hold what is in the bar and
+    // leave the bar itself live.
+    const dragBar = isTauri() ? document.querySelector('nav.nav') : null;
+    const page = [...document.body.children].flatMap((el) => (el === dragBar ? [...el.children] : [el]));
+    for (const el of page) {
         if (!(el instanceof HTMLElement) || el === card || el === overlayEl || el.inert) continue;
         el.inert = true;
         heldPage.push(el);
