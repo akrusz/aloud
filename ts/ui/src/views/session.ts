@@ -130,6 +130,7 @@ import { isCheckinDebugOn, getJevClassifierMode } from '../dev-mode.js';
 import { createTtsForVoice, createCloudAloudTts } from '../adapters/tts-picker.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { iosHeadphones, watchIosHeadphones } from '../audio-route.js';
+import { mountVolumeNotice } from '../output-volume.js';
 import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import {
     type SessionSetup,
@@ -1584,6 +1585,7 @@ export async function mountSessionView(
     // Headphones in or out mid-session (iOS app): switch between talking over
     // the facilitator and the mic closing while it speaks.
     let unwatchHeadphones = (): void => {};
+    let unmountVolumeNotice = (): void => {};
     void watchIosHeadphones((on) => {
         if (torn || on === iosHeadphonesOn) return;
         iosHeadphonesOn = on;
@@ -3057,6 +3059,9 @@ export async function mountSessionView(
     ttsToggle.addEventListener('click', () => {
         setTtsEnabled(!ttsEnabled);
     });
+    unmountVolumeNotice = mountVolumeNotice(root.querySelector<HTMLElement>('#volume-trouble'), {
+        wanted: () => ttsEnabled,
+    });
 
     // Manual silence-mode toggle. Exiting is immediate here; while held, the
     // resume-intent classifier decides when speech ends the hold.
@@ -3746,6 +3751,7 @@ export async function mountSessionView(
         if (torn) return;
         torn = true;
         unwatchHeadphones();
+        unmountVolumeNotice();
         downloadSttClips();
         tapFlags({ ended: true });
         tapEvent('note', `session-ended${skipSave ? ' (unsaved)' : ''}`);
@@ -3970,6 +3976,8 @@ function renderSessionHTML(): string {
                  Unlike the status line, it stays put so a user can't talk into
                  a dead mic for a whole session without noticing. -->
             <div class="stt-trouble hidden" id="stt-trouble" role="status"></div>
+            <!-- The phone's volume is off or nearly off (output-volume.ts). -->
+            <div class="stt-trouble hidden" id="volume-trouble" role="status"></div>
             <div class="input-row">
                 <div id="voice-status" class="voice-status">${t('Connecting…')}</div>
                 <span class="session-phase hidden" id="session-phase"></span>

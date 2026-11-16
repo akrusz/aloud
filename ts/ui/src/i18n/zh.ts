@@ -583,6 +583,8 @@ export const ZH: Record<string, string> = {
     "That voice isn't available right now. Try another voice.": "这个声音目前无法使用。请换一个声音试试。",
     "This voice isn't available right now. Pick another voice in Settings to hear the facilitator.": "这个声音目前无法使用。请在设置中换一个声音，才能听到引导。",
     "The voice service took too long to answer. Try again.": "语音服务响应超时。请重试。",
+    "The volume is off.": "音量已关闭。",
+    "The volume is very low.": "音量很低。",
     "Theme": "主题",
     "These let the facilitator know where you intend to place your attention.": "这些会让引导者知道你打算把注意力放在哪里。",
     "They'll be asked to accept the gift next time they sign in. If they decline or don't within 60 days, the clouds return to you.": "对方下次登录时会被询问是否接受礼物。若谢绝或 60 天内未接受，云朵会退回给你。",

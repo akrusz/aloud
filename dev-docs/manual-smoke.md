@@ -301,6 +301,15 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       that fix. **Listen to the reply's loudness too** (seen quiet after a lock on
       2026-09-04, `meditation-pal-wxj5`): if it's soft, press a volume key while
       it speaks - a slider labelled Call rather than Media is the diagnosis.
+- [ ] **The session says when the volume is off.** With the volume all the way
+      down, begin a session on the speaker: "The volume is off." sits above the
+      status line and goes within a couple of seconds of turning it up. Two
+      steps up from the bottom it reads "The volume is very low.", and not at
+      all in headphones. On Android try it on aloud cloud speech too, where the
+      slider that counts is Call. On iOS, check the reading follows the buttons
+      at all: the plugin reads the app's own audio session while the WebView's
+      audio runs outside it (`output-volume.ts`, `OutputVolumePlugin`). Never
+      run on a device as of 2026-11-16.
 - [ ] **A dropped connection doesn't eat a turn.** On aloud cloud, switch on
       airplane mode just as an utterance submits and off again within ~20s:
       the turn still lands and gets a reply (`[stt] final pass retry` in the

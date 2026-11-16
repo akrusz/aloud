@@ -70,6 +70,7 @@ import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../escape-html.js';
 import { playbackAudio, playbackAudioContext } from '../audio-unlock.js';
+import { mountVolumeNotice } from '../output-volume.js';
 
 export interface NotingSessionViewHandle {
     teardown(): void;
@@ -170,6 +171,8 @@ export async function mountNotingSessionView(
         <div class="session-container">
             <div class="conversation" id="conversation"></div>
             <div class="input-area">
+                <!-- The phone's volume is off or nearly off (output-volume.ts). -->
+                <div class="stt-trouble hidden" id="volume-trouble" role="status"></div>
                 <div class="input-row input-row-noting">
                     <div id="voice-status" class="voice-status">${t('Starting…')}</div>
                     <button type="button" class="session-timer" id="timer" title="${t('Session Clock')}">0:00</button>
@@ -346,6 +349,10 @@ export async function mountNotingSessionView(
         ttsEnabled = !ttsEnabled;
         ttsToggle.classList.toggle('active', ttsEnabled);
     });
+    viewCleanup.signal.addEventListener(
+        'abort',
+        mountVolumeNotice(root.querySelector<HTMLElement>('#volume-trouble'), { wanted: () => ttsEnabled })
+    );
     if (orbEl) {
         initKasinaMode({ orb: orbEl, root, toggle: kasinaToggle, signal: viewCleanup.signal });
     }

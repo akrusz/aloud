@@ -20,7 +20,7 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
         .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE, .usbAudio,
     ]
 
-    private static func connected() -> Bool {
+    static func connected() -> Bool {
         AVAudioSession.sharedInstance().currentRoute.outputs.contains {
             headphonePorts.contains($0.portType)
         }
