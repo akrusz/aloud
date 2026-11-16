@@ -15,6 +15,7 @@
 
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.js';
 import { audioContextCtor } from './audio-unlock.js';
+import { BrowserTtsEngine } from './adapters/browser-tts.js';
 
 const FRAME_SIZE = 4096;
 const BARGE_IN_THRESHOLD = 0.04;
@@ -145,6 +146,16 @@ export interface BargeInTtsOptions extends BargeInListenerOptions {
 }
 
 /**
+ * Whether the detector can run beside this engine. Echo cancellation only
+ * removes what the page itself plays: a speechSynthesis voice is played by the
+ * OS, so the detector's mic hears it at full level and cuts every sentence
+ * after its first word.
+ */
+export function bargeInDetectorFits(engine: TtsEngine): boolean {
+    return !(engine instanceof BrowserTtsEngine);
+}
+
+/**
  * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
  * listener fires, tts.cancel() resolves the in-flight speak(). Pure
  * pass-through otherwise.
@@ -153,7 +164,7 @@ export function wrapTtsWithBargeIn(
     inner: TtsEngine,
     options: BargeInTtsOptions = {}
 ): TtsEngine {
-    return {
+    const wrapped: TtsEngine = {
         async speak(text: string, speakOpts?: TtsOptions): Promise<void> {
             const listener = new BargeInListener(options);
             await listener.start(() => {
@@ -173,4 +184,10 @@ export function wrapTtsWithBargeIn(
             return inner.listVoices();
         },
     };
+    // Only when the inner engine has one: the streaming bridge reads its
+    // presence as "synthesis has a round-trip worth getting ahead of".
+    if (inner.prefetch) {
+        wrapped.prefetch = (text, prefetchOpts) => inner.prefetch!(text, prefetchOpts);
+    }
+    return wrapped;
 }

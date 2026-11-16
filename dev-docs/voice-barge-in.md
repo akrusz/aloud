@@ -22,7 +22,10 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    energy. It does **not** capture the triggering audio; once TTS is cancelled the
    normal listen loop wakes (busy → false as the `speak()` promise resolves) and
    captures the user's next words. In practice users pause ~300ms after
-   interrupting, which the listen loop more than makes up.
+   interrupting, which the listen loop more than makes up. Not beside a browser
+   (`speechSynthesis`) voice (`bargeInDetectorFits`): the OS plays it, so echo
+   cancellation has no reference for it and the detector cut every sentence
+   after its first word. Such a voice can't be interrupted.
 
 3. **None (phones)** - `session.ts` skips the wrapper entirely on the Capacitor
    plugin and on any single-owner-mic platform (`isSingleOwnerMicPlatform`). A

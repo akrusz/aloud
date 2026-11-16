@@ -77,7 +77,7 @@ import {
 import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
-import { wrapTtsWithBargeIn } from '../barge-in.js';
+import { bargeInDetectorFits, wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
 import {
     sessionModelLabel,
@@ -836,9 +836,12 @@ export async function mountSessionView(
         // facilitator's voice cancels its own TTS, and the extra stream starves
         // the platform's single recognizer (meditation-pal-x4h4, -oxmt). Phones
         // pause capture while busy anyway, so they skip it; server-whisper
-        // drives its own.
+        // drives its own. Nor beside a browser voice (bargeInDetectorFits).
         const wrapBargeIn =
-            !engineDrivenBargeIn && sttBackend !== 'capacitor' && !isSingleOwnerMicPlatform();
+            !engineDrivenBargeIn &&
+            sttBackend !== 'capacitor' &&
+            !isSingleOwnerMicPlatform() &&
+            bargeInDetectorFits(engine);
         return wrapBargeIn
             ? wrapTtsWithBargeIn(engine, { onBargeIn, micDeviceId: appSettings.micDeviceId })
             : engine;

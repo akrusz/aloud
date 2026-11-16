@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { wrapTtsWithBargeIn } from '../ui/src/barge-in.js';
+import { bargeInDetectorFits, wrapTtsWithBargeIn } from '../ui/src/barge-in.js';
+import { BrowserTtsEngine } from '../ui/src/adapters/browser-tts.js';
 import type { TtsEngine, TtsOptions, TtsVoice } from '../src/platform/index.js';
 
 class RecordingTts implements TtsEngine {
@@ -25,5 +26,26 @@ describe('wrapTtsWithBargeIn', () => {
         expect(inner.spoken).toEqual([
             { text: 'Hello there', options: { rate: 160 } },
         ]);
+    });
+
+    it('forwards prefetch() when the inner engine has one, and only then', () => {
+        const plain = wrapTtsWithBargeIn(new RecordingTts());
+        expect(plain.prefetch).toBeUndefined();
+
+        const inner = new RecordingTts() as RecordingTts & TtsEngine;
+        const prefetched: string[] = [];
+        inner.prefetch = (text) => void prefetched.push(text);
+        wrapTtsWithBargeIn(inner).prefetch?.('Next sentence.');
+        expect(prefetched).toEqual(['Next sentence.']);
+    });
+});
+
+describe('bargeInDetectorFits', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('keeps the detector away from a speechSynthesis voice', () => {
+        vi.stubGlobal('speechSynthesis', {});
+        expect(bargeInDetectorFits(new BrowserTtsEngine({ defaultVoice: 'Ava' }))).toBe(false);
+        expect(bargeInDetectorFits(new RecordingTts())).toBe(true);
     });
 });
