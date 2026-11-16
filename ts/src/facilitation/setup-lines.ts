@@ -82,7 +82,7 @@ export const SETUP_LINES = {
     'intention-cleared': { en: 'Your intention is cleared.', zh: '意图已清除。' },
     // Asked after "set my intention"; whatever is said next is the intention.
     'intention-ask': { en: 'What is your intention?', zh: '你的意图是什么？' },
-    'never-mind': { en: 'Okay, never mind.', zh: '好的，不改了。' },
+    'never-mind': { en: 'Okay, not changing intention.', zh: '好的，意图不改了。' },
 
     'model-set': { en: 'Okay, the model is set.', zh: '好的，模型已设好。' },
 
@@ -104,37 +104,37 @@ export const SETUP_LINES = {
 
     // ---- the tour (ui/src/tour/index-guide.ts) ----
     'tour-hello': {
-        en: 'Welcome to aloud. I speak, and I listen. Turn on the microphone and you can answer me out loud.',
-        zh: '欢迎来到 aloud。我会说，也会听。打开麦克风，你就可以直接开口回答我。',
+        en: 'Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud.',
+        zh: '欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。',
     },
     'voice-intro-first': { en: "Hi, I'm {name}. This is how I sound.", zh: '你好，我是 {name}。这是我的声音。' },
     'voice-intro-second': {
-        en: "And I'm {name}. Say which of us you'd like, or tap one.",
-        zh: '我是 {name}。想听谁的声音？说出名字，或者点一下。',
+        en: "And I'm {name}. Say which of us you'd like, or tap our name.",
+        zh: '我是 {name}。想听谁的声音？说出名字，或者点一下我们的名字。',
     },
     'tour-voice-picked': {
         en: 'Good. There are more voices in the voice picker whenever you like.',
         zh: '好的。以后随时可以在声音选择里换别的声音。',
     },
     'tour-exploration': {
-        en: 'Exploration is a conversation. You say what you notice, and I ask short questions to help you look closer.',
-        zh: '探索是一场对话。你说出此刻注意到的，我用简短的问题陪你看得更细。',
+        en: 'Exploration is a conversation. You say what you notice, and I ask short questions to help you explore.',
+        zh: '探索是一场对话。你说出此刻注意到的，我用简短的问题陪你探索。',
     },
     'tour-noting': {
-        en: 'Noting is quieter. You name what you notice in a word or two, and others can take turns with you.',
-        zh: '标记更安静。你用一两个词说出注意到的，也可以和其他参与者轮流。',
+        en: 'Noting is simple. You name what you notice in a word or two, and can add sounds or virtual participants to keep the pace.',
+        zh: '标记很简单。你用一两个词说出注意到的，还可以加入音效或虚拟参与者来带节奏。',
     },
     'tour-felt-sense': {
-        en: 'Felt sense follows six steps for getting to know one thing, slowly, in the body.',
-        zh: '体会分六步，在身体里慢慢了解一件事。',
+        en: "Felt sense follows a six step process for finding what's at the root of something that's on your mind.",
+        zh: '体会分六步，帮你找到心里那件事的根源。',
     },
     'tour-focus': {
-        en: 'A focus tells me where your attention is going: the body, emotions, or parts of yourself.',
-        zh: '焦点告诉我你的注意力放在哪里：身体、情绪，或内在的各个部分。',
+        en: 'A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank.',
+        zh: '焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。',
     },
     'tour-vibe': {
-        en: 'Vibes set my tone. Playful, spacious, loving, any mix you like.',
-        zh: '氛围决定我的语气。轻松、开阔、慈爱，可以随意搭配。',
+        en: 'Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like.',
+        zh: '氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。',
     },
     'tour-voice-control': {
         // Not ending on the request itself: the tail of a line is what the
@@ -143,8 +143,8 @@ export const SETUP_LINES = {
         zh: '这些都可以直接说出来改。说“二十分钟”，我就会设好计时。',
     },
     'tour-done': {
-        en: "That's everything. Say begin when you're ready.",
-        zh: '就这些。想开始的时候，说“开始”就可以了。',
+        en: "That's the important stuff. Say begin when you're ready.",
+        zh: '重要的就这些。想开始的时候，说“开始”就可以了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;
 
