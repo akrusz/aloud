@@ -174,7 +174,7 @@ meant to work.
       reads it; allow it. The voice card: both voices introduce themselves,
       say a name (or "the second one"), the pick confirms itself and becomes
       the Voice on the form. Then "next", "back", "repeat", "mute" by voice,
-      and the speaker on the card by hand. On "Say it out loud", say "twenty
+      and the speaker on the card by hand. On "Use voice controls", say "twenty
       minutes". Listen to the two voices' introductions and the picked line
       for a first word cut short or a line said twice.
 - [ ] **zh**: the same quick pass with the language set to 中文 (Serena and

@@ -139,8 +139,8 @@ export const SETUP_LINES = {
     'tour-voice-control': {
         // Not ending on the request itself: the tail of a line is what the
         // microphone could catch as it reopens (echo-guard.ts looksLikeSpokenTail).
-        en: "You can change all of this out loud. Say twenty minutes, and I'll set a timer.",
-        zh: '这些都可以直接说出来改。说“二十分钟”，我就会设好计时。',
+        en: "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer.",
+        zh: '你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。',
     },
     'tour-done': {
         en: "That's the important stuff. Say begin when you're ready.",

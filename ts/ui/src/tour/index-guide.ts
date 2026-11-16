@@ -660,7 +660,7 @@ function showVoiceStep(): void {
 }
 
 function showSayIt(): void {
-    let html = '<h3>' + t('Say it out loud') + '</h3>';
+    let html = '<h3>' + t('Use voice controls') + '</h3>';
     html += '<p>' + t('When the mic button beside Begin is on, you can set all of this by voice: "twenty minutes", "add playful", "felt sense". Then say "begin".') + '</p>';
     showCentered(html);
 }

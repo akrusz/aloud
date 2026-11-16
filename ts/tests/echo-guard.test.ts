@@ -117,7 +117,7 @@ describe('looksLikeSpokenTail', () => {
     });
     it('lets a request through that a line happened to mention', async () => {
         const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
-        const tour = "You can change all of this out loud. Say twenty minutes, and I'll set a timer.";
+        const tour = "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer.";
         expect(looksLikeSpokenTail('twenty minutes', tour)).toBe(false);
         expect(looksLikeSpokenTail('set a timer', tour)).toBe(true);
     });

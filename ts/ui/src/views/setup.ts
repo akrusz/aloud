@@ -2581,7 +2581,7 @@ function renderSetupHTML(
                         <label>${t('Attention Focus')} <button type="button" class="info-btn" data-info="focus" aria-label="${t('About attention focus')}">?</button></label>
                         <div class="info-panel hidden" id="info-focus">
                             <p>${t('These let the facilitator know where you intend to place your attention.')}</p>
-                            <p><strong>${t('Body &amp; sensations:')}</strong> ${t('Physical experience: texture, warmth, movement, pressure. Usually the easiest place to start.')}</p>
+                            <p><strong>${t('Body &amp; sensations:')}</strong> ${t('Physical experience: texture, warmth, movement, pressure. Usually a good starting place.')}</p>
                             <p><strong>${t('Emotions &amp; feeling tone:')}</strong> ${t('More complex collections of sensations and labels - joy, anger, something unnamed.')}</p>
                             <p><strong>${t('Parts &amp; inner world:')}</strong> ${t('Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.')}</p>
                             <p>${t('You can also select multiple, or leave all unchecked to keep things open.')}</p>

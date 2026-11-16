@@ -211,8 +211,8 @@
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "ethan/en/tour-voice-control.28f76ffa.mp3",
-                    "text": "You can change all of this out loud. Say twenty minutes, and I'll set a timer."
+                    "file": "ethan/en/tour-voice-control.29ed537b.mp3",
+                    "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "ethan/en/tour-voice-picked.cbfc69c6.mp3",
@@ -498,8 +498,8 @@
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "harper/en/tour-voice-control.71e7f437.mp3",
-                    "text": "You can change all of this out loud. Say twenty minutes, and I'll set a timer."
+                    "file": "harper/en/tour-voice-control.9193656c.mp3",
+                    "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "harper/en/tour-voice-picked.d225b060.mp3",
@@ -785,8 +785,8 @@
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "serena/zh/tour-voice-control.c44da71e.mp3",
-                    "text": "这些都可以直接说出来改。说“二十分钟”，我就会设好计时。"
+                    "file": "serena/zh/tour-voice-control.b1bc3363.mp3",
+                    "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "serena/zh/tour-voice-picked.44429823.mp3",
@@ -1072,8 +1072,8 @@
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "yunfan/zh/tour-voice-control.947a7e5c.mp3",
-                    "text": "这些都可以直接说出来改。说“二十分钟”，我就会设好计时。"
+                    "file": "yunfan/zh/tour-voice-control.7aca1b14.mp3",
+                    "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "yunfan/zh/tour-voice-picked.84eec0e6.mp3",
