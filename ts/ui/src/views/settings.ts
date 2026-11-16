@@ -93,6 +93,7 @@ import { routePath } from '../route-base.js';
 import { readNdjson } from '../ndjson.js';
 import { browserVoicesSettled } from '../voices.js';
 import { resetAndStart as resetSettingsTour } from '../tour/settings-tour.js';
+import { devQueueWelcome, type WelcomeVariant } from '../tour/index-guide.js';
 import { confirmDialog, alertDialog } from '../dialog.js';
 import {
     TYPESAFE_KEY_HINT,
@@ -1438,6 +1439,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         clips?.addEventListener('change', () => setSttClipsDebug(clips.checked));
         const jev = root.querySelector<HTMLSelectElement>('#s-dev-jev');
         jev?.addEventListener('change', () => setJevClassifierMode(jev.value as JevClassifierMode));
+        const welcome = root.querySelector<HTMLSelectElement>('#s-dev-welcome');
+        welcome?.addEventListener('change', () => {
+            if (!welcome.value) return;
+            devQueueWelcome(welcome.value as WelcomeVariant);
+            window.location.assign(routePath('/'));
+        });
         const preview = root.querySelector<HTMLInputElement>('#s-dev-preview-update');
         preview?.addEventListener('change', () => {
             try {
@@ -2416,6 +2423,14 @@ function renderDeveloperSection(): string {
                     `<input type="text" id="s-dev-preview-update" value="${escapeHtml(preview)}" placeholder="1 or a version">`
                 ),
                 `${devParam('?previewUpdate')} Fakes an available release (nothing installs). ${devParam('?previewUpdate=2.0.0')} names the version. Empty is off.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-welcome',
+                    'Setup welcome card',
+                    `<select id="s-dev-welcome"><option value="">show…</option><option value="first-run">first run</option><option value="after-first-sit">after a first session</option></select>`
+                ),
+                `Opens setup on that card and the tour behind it, as a new install or the visit after a first session would. Resets nothing. The tour alone: "Take the full tour" under the ? beside the methods.`
             )}
             ${devRow(
                 devCheck('s-dev-aec-off', 'Cloud mic without echo cancellation', isAecOffDebug()),

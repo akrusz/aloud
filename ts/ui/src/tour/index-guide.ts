@@ -121,7 +121,9 @@ export interface TourVoice {
 /** Which card opens the guide: the first-run welcome (offers a first sit), the
  *  one-time follow-up after that sit, or none ("Take the full tour" starts on
  *  the first step). */
-type WelcomeVariant = 'first-run' | 'after-first-sit';
+export type WelcomeVariant = 'first-run' | 'after-first-sit';
+/** A card the Developer section asked for (devQueueWelcome). */
+const DEV_WELCOME_KEY = 'aloud-dev-welcome';
 
 let welcomeVariant: WelcomeVariant | null = null;
 let quickStart: QuickStart | null = null;
@@ -813,9 +815,23 @@ export async function resetAndStart(): Promise<void> {
 // The auto-start's delayed timer, so leaving the setup view can cancel it.
 let pendingAutoStart: ReturnType<typeof setTimeout> | null = null;
 
+/**
+ * Settings → Developer: open the next visit to the setup page on this card,
+ * whatever this install has already seen. Nothing else is reset, so a card
+ * can be looked at without clearing app data.
+ */
+export function devQueueWelcome(variant: WelcomeVariant): void {
+    sessionStorage.setItem(DEV_WELCOME_KEY, variant);
+}
+
 /** Which card, if any, this visit to the setup page opens on. */
 async function pendingWelcome(): Promise<WelcomeVariant | null> {
     const session = typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+    const asked = session?.getItem(DEV_WELCOME_KEY);
+    if (asked === 'first-run' || asked === 'after-first-sit') {
+        session?.removeItem(DEV_WELCOME_KEY);
+        return asked;
+    }
     if (await sharedKv.get(FOLLOW_UP_KEY)) {
         // A History "Continue" or cold-boot resume owns this visit (the resume
         // offer is a modal of its own); the follow-up keeps for the next one.
