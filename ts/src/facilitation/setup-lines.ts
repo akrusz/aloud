@@ -117,16 +117,16 @@ export const SETUP_LINES = {
         zh: '好的。以后随时可以在声音选择里换别的声音。',
     },
     'tour-exploration': {
-        en: 'Exploration is a conversation. You say what you notice, and I ask short questions to help you explore.',
-        zh: '探索是一场对话。你说出此刻注意到的，我用简短的问题陪你探索。',
+        en: "Exploration is a conversation. Speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
+        zh: '探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
     },
     'tour-noting': {
-        en: 'Noting is simple. You name what you notice in a word or two, and can add sounds or virtual participants to keep the pace.',
-        zh: '标记很简单。你用一两个词说出注意到的，还可以加入音效或虚拟参与者来带节奏。',
+        en: "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns.",
+        zh: '标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',
     },
     'tour-felt-sense': {
-        en: "Felt sense follows a six step process for finding what's at the root of something that's on your mind.",
-        zh: '体会分六步，帮你找到心里那件事的根源。',
+        en: "Felt sense follows a six step process where you'll feel into your body's responses in order to investigate something that's on your mind, and get to the root of it.",
+        zh: '体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。',
     },
     'tour-focus': {
         en: 'A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank.',
