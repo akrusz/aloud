@@ -16,9 +16,9 @@
  *   the clock: VOICE_START_WINDOW_MS after the last request it understood,
  *   and VOICE_START_MAX_OPEN_MS after it opened, whatever was said. Local
  *   Whisper and the browser's recognizer cost nothing to leave open in a quiet
- *   room, so there it stays open and closes only on a run of things heard that
- *   were not requests: a room that is talking, and not to the app. The mic beside Begin shows which, and a
- *   tap opens it again.
+ *   room, so there it has no clock. Everywhere it closes on a run of things
+ *   heard that were not requests: a room that is talking, and not to the app.
+ *   The mic beside Begin shows which, and a tap opens it again.
  * - It is cheap. Whatever recognizer the session would use is the one that
  *   listens, hosted speech recognition included, but under LOBBY_STT: short
  *   utterances, one transcription each. "Begin" is matched locally and
@@ -60,6 +60,13 @@ export const VOICE_START_MAX_OPEN_MS = 600_000;
  */
 export const VOICE_START_LOCAL_UNHEARD = 30;
 
+/**
+ * The same count where the clock runs too (hosted recognition, a phone's own):
+ * a room that is talking closes the mic before the window does. Lower, since
+ * each thing heard there is a clip sent off the device.
+ */
+export const VOICE_START_CLOCKED_UNHEARD = 20;
+
 /** How the mic on the setup screen closes by itself, for a recognizer. */
 export interface SetupListeningLimits {
     windowMs: number;
@@ -71,13 +78,17 @@ export interface SetupListeningLimits {
 /**
  * `free`: listening costs nothing and the machine is a desktop: local Whisper,
  * or the browser's own recognizer (a browser is a desktop browser here; phones
- * use the app). The rest keep the clock: hosted recognition is paid for by the
- * second, and a phone's recognizer is not built to be left running.
+ * use the app). The rest keep the clock as well: hosted recognition is paid
+ * for by the second, and a phone's recognizer is not built to be left running.
  */
 export function setupListeningLimits(free: boolean): SetupListeningLimits {
     return free
         ? { windowMs: Infinity, maxOpenMs: Infinity, unheardLimit: VOICE_START_LOCAL_UNHEARD }
-        : { windowMs: VOICE_START_WINDOW_MS, maxOpenMs: VOICE_START_MAX_OPEN_MS, unheardLimit: Infinity };
+        : {
+              windowMs: VOICE_START_WINDOW_MS,
+              maxOpenMs: VOICE_START_MAX_OPEN_MS,
+              unheardLimit: VOICE_START_CLOCKED_UNHEARD,
+          };
 }
 
 /** After the app has finished speaking, before the recognizer listens again:

@@ -334,7 +334,9 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
     asked (`VOICE_START_WINDOW_MS`), then closed until tapped. Each request it
     understands starts the two minutes over, up to ten minutes since it opened
     (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
-    open past that.
+    open past that. A room that keeps talking closes it sooner:
+    `VOICE_START_CLOCKED_UNHEARD` things heard in a row that were not
+    requests.
   - Local Whisper and the browser's recognizer: no clock. (A browser is taken
     to be a desktop one; phones use the app.) A quiet room costs nothing
     there, so it stays open as long as the screen is up. What does cost is a room that
