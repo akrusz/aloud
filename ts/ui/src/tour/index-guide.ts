@@ -552,7 +552,7 @@ function ensureTab(tab: string): void {
 }
 
 function quickStartNote(): string {
-    return t('Takes {min} minutes, nothing to set up.', { min: FIRST_SIT_TIMER_MIN });
+    return t('Takes {min} minutes, nothing to configure.', { min: FIRST_SIT_TIMER_MIN });
 }
 
 /** Paint the "Try right now" choice from the setup view's gate: disabled,
@@ -588,7 +588,9 @@ function showWelcome(): void {
     html +=
         welcomeVariant === 'after-first-sit'
             ? '<h3>' + t('Set up your next session') + '</h3><p>' + t('Set the vibe, attention focus, and more.') + '</p>'
-            : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>';
+            : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>' +
+              // Written, never spoken, and ahead of the first sound either choice makes.
+              '<p>' + t('aloud speaks out loud, so be sure the volume is up.') + '</p>';
     html += '<div class="tour-choices">';
     if (offerQuickStart) {
         html += '<button class="tour-choice" data-action="quick-start">';
