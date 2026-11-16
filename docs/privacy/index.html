@@ -68,77 +68,47 @@
 
     <h2>The short version</h2>
     <ul>
-      <li>aloud uses functionality like LLMs, speech-to-text, and text-to-speech. If your device supports these functions locally, you may use it to keep that data <strong>fully on-device</strong>. If you bring your own API keys or subscription, your content goes only to the providers you choose. If you use aloud cloud, we list below which provider runs each option, along with the ones we use for background functionality. Regardless, aloud servers never retain your session content.</li>
-      <li>We <strong>don't sell your data</strong>; we <strong>don't use it for advertising</strong>; we <strong>don't use your conversations to train AI</strong>; and on aloud cloud, we <strong>don't retain your conversation data at all</strong>.</li>
+      <li>aloud uses functionality like LLMs, speech-to-text, and text-to-speech. If your device supports these functions locally, you may use it to keep that data <strong>fully on-device</strong>. If you bring your own API keys or subscription, your content goes only to the providers you choose. If you use aloud cloud, we list below which provider runs each option, along with the ones we use for background functionality.</li>
+      <li>We <strong>don't sell your data</strong>; we <strong>don't use it for advertising</strong>; we <strong>don't use your conversations to train AI</strong>. We <strong>don't retain your conversations at all</strong> when you do use aloud cloud.</li>
       <li>aloud cloud needs an <strong>account and credits</strong> because it costs us money to run; for that we process the minimum required: sign-in details, your credit balance and usage, and payments handled by our payment processor.</li>
+      <li>A conversation history <strong>stored only on your device</strong> is enabled by default, but you can turn it off in <strong>Settings</strong>.</li>
     </ul>
 
-    <h2>Two ways to use aloud</h2>
+    <h2>Where your data goes</h2>
+    <p>Sessions use three main capabilities: <strong>speech recognition</strong> turns your audio into text, the <strong>facilitator</strong> answers your words and the conversation so far, and a <strong>voice</strong> speaks its reply. Each part runs where you choose:</p>
     <ul>
-      <li><strong>Local / bring-your-own.</strong> On supported platforms (such as the desktop app), aloud runs on your device and connects directly to the providers you configure with your own credentials, or fully on-device. There is no aloud cloud in the middle, no account, and we receive nothing, unless you turn on the optional voice commands described below.</li>
-      <li><strong>aloud cloud.</strong> Our optional hosted service for platforms or situations where running your own isn't practical, such as the web app and the in-beta mobile apps. You sign in, optionally buy credits, and aloud cloud relays your audio and text to third-party AI and voice providers on your behalf, returning the result. We don't store your session content.</li>
+      <li><strong>On your device</strong> (Whisper, Ollama, Piper, your system's voices): nothing leaves it.</li>
+      <li><strong>A provider you connect</strong> (with your own API key, e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq, or your Claude subscription via the <code>claude</code> CLI): your content goes straight from your device to that provider. These don't require an aloud account, and we receive nothing unless you turn on Voice commands (below).</li>
+      <li><strong>Your platform or browser.</strong> The mobile apps can use your phone's built-in speech recognizer, and browsers may offer their own recognizer and online voices (Chrome's Google voices, for example). These abide by the platform's own privacy policy, and may use their servers. We never receive it.</li>
+      <li><strong>aloud cloud</strong>, our optional hosted service, which works "out of the box" on every platform regardless of device functionality. For devices without local functionality, it will be the only option. It relays your audio and text to the provider of the model you pick (see <a href="#who-runs-what">who runs each model</a>) and returns the result.</li>
     </ul>
+    <p><strong>aloud cloud never stores your session content.</strong> Your audio, your words and the AI's replies pass through only to reach the provider, and are discarded. We never record your audio.</p>
+    <p>The microphone also listens on the setup screen so you can say "begin" or change settings. The mic icon beside Begin shows when it's on; it stops after inactivity. It can be switched off in Settings (<strong>Voice control</strong> on the setup screen). What it hears takes the same path as speech recognition configured for sessions.</p>
 
-    <h2>What aloud processes, and where it goes</h2>
+    <h3>Voice commands and background functionality</h3>
+    <p>On aloud cloud, short things you say (sometimes with a few recent lines from you or the facilitator) also go to a small classification model, to recognize spoken commands ("set a timer for ten minutes"), tell when you're calling the facilitator back from a silence, and notice if you might be frightened or unwell so the facilitator can react appropriately. That last check sometimes runs on a language model instead. On the setup screen, when you're signed in, a short request the app can't match on your device is checked the same way.</p>
+    <p>Locally or with your own keys these checks are <strong>off by default</strong>. Turning on <strong>Voice commands</strong> in Settings (a free aloud account, no credits) sends them through aloud cloud to the same model, even with an on-device facilitator; your conversation still goes only where it did before, and your API keys are never part of it. In the desktop app you can instead add your own TypeSafe key, which sends them straight from your device to TypeSafe, with no aloud account.</p>
 
-    <h3>Your voice</h3>
-    <p>Your microphone audio is used to transcribe what you say into text. There are three paths, and the app tells you which one is selected:</p>
+    <h3>What stays on your device</h3>
+    <p>Saved transcripts and summaries, your settings, and any API keys you enter stay on your device however you use aloud, with no cloud sync; delete them whenever you like. Two requests leave it without session content: update checks, and, in the web and mobile apps, looking up a provider's model list - which is relayed through our server with your key, used only in memory, and not stored or logged. The desktop app makes that lookup directly.</p>
+
+    <h2>What aloud cloud keeps</h2>
+    <p>None of this includes anything you said or the AI replied. aloud uses no third-party analytics or behavioral tracking. We do have error logging and usage data that never carry user text or audio.</p>
     <ul>
-      <li><strong>On your device.</strong> Where supported (such as Whisper in the desktop app), transcription runs locally and the audio is not sent anywhere.</li>
-      <li><strong>Your platform's speech recognizer.</strong> The mobile apps offer the recognizer built into your phone, and browsers may offer their own. These are operated by the platform vendor, not by us: depending on the device and its settings, they may process your audio on the device or send it to the vendor's servers (Android's speech recognition, for example, commonly uses Google's). That processing is covered by your platform vendor's privacy policy. We never receive this audio.</li>
-      <li><strong>aloud cloud.</strong> Your audio is relayed through our service to the speech recognition model you pick (see <a href="#who-runs-what">who runs each model</a>), then discarded.</li>
+      <li><strong>Account.</strong> Your sign-in: Google or Apple (which share a basic identifier such as your email address), or an email address and password.</li>
+      <li><strong>Email updates</strong>, only if you tick the box at signup. Turn them off any time on the account page. We never share or sell your address.</li>
+      <li><strong>Credits and usage.</strong> Your balance and metered usage (audio and text processed, per-session totals such as turn count), for billing, our costs and abuse prevention. It isn't behavioral profiling.</li>
+      <li><strong>Payments.</strong> Card payments go through <strong>Stripe</strong>, and we never see your full card details. A stablecoin payment is recorded on a public blockchain by nature; we receive only what's needed to credit your account.</li>
+      <li><strong>Abuse prevention.</strong> The IP address you signed up from, deleted after 90 days or when you delete your account. Free credits are given once per person, so we keep a one-way hash of the email address (for some grants, the sign-in ID) that received them, never the address itself, including after you delete your account.</li>
+      <li><strong>Logs and error records.</strong> Short-lived technical logs for diagnostics and security, and, when a relayed call or a credit purchase fails, a record of what went wrong (error code, provider, model, token or byte counts), so we notice problems the app recovers from without showing you.</li>
     </ul>
-    <p>The microphone listens during a session. It can also listen on the setup screen before one, so that you can say "begin" or change a setting out loud. The microphone icon beside Begin shows when it is open; it closes by itself after two minutes with nothing asked of it, and it never opens where that would raise a permission prompt. What it hears there is transcribed by the same path as your session, above, and you can switch it off in Settings (<strong>Voice control on the setup screen</strong>).</p>
-    <p>We don't record your audio, and we don't store it.</p>
+    <p>Deleting your account removes your sign-in identities and email-list entry and scrubs your email address and IP from the record. What remains is an anonymous credit ledger and error records, kept for accounting, and the free-credit hashes.</p>
+    <p>aloud cloud runs on <strong>Fly.io</strong> in the <strong>United States</strong>, so your account information and the content we relay are processed there wherever you are, the EU and UK included; providers may process data in other regions. The account database is backed up to <strong>Cloudflare R2</strong>, and data removed from it ages out of the backup within about a day. Both serve us as infrastructure providers under data processing agreements.</p>
 
-    <h3>Your words and the AI facilitator</h3>
-    <p>To generate responses, aloud sends your transcribed messages and the conversation so far to a language-model provider:</p>
-    <ul>
-      <li><strong>Local / on-device providers</strong> (e.g. Ollama): your words never leave your device.</li>
-      <li><strong>Providers you connect yourself</strong> (e.g. Anthropic, OpenAI, OpenRouter, Venice, Groq - with your own API key, or your Claude subscription via the <code>claude</code> CLI): your text goes directly to that provider's API under their privacy policy and terms. aloud neither receives nor stores it.</li>
-      <li><strong>Via aloud cloud:</strong> your text is relayed through our service to the language-model provider and is not stored by us.</li>
-    </ul>
-    <p>On aloud cloud, short things you say are also checked by a small classification model, so the app can recognize a spoken command (like "set a timer for ten minutes"), tell whether you're calling the facilitator back from a silence, or notice if you might be frightened or unwell, so the facilitator can set the exercise aside. (Sometimes that last check runs on a language model instead; see <a href="#who-runs-what">who runs each model</a>.) That check includes what you just said, and in some cases also a few recent lines said by you or the facilitator. It's relayed the same way and is not stored by us. The same goes for the setup screen: when you are signed in and its microphone is open, a short thing it hears that the app can't match on your device is checked the same way, to see whether it was a request to change a setting.</p>
-    <p>In local or bring-your-own use this check is <strong>off by default</strong>. You can turn on <strong>Voice commands</strong> in Settings, which needs a free aloud account. While it's on, what you say in a session, and short things heard on the setup screen while its microphone is open, are sent through aloud cloud to the same classification model, including with an on-device model like Ollama; your conversation and the facilitator's replies still go only where they went before. We don't store or log it, it costs no credits, and turning the setting off stops it. In the desktop app you can instead add your own TypeSafe API key: then what you say goes straight from your device to TypeSafe under your own account, with no aloud account and nothing passing through aloud cloud.</p>
-
-    <h3>Spoken responses</h3>
-    <p>Facilitator responses are turned into speech. Depending on your setup this happens <strong>on your device</strong> (Piper, or your system's built-in voices), via a cloud voice service <strong>you connect</strong>, or <strong>via aloud cloud</strong>, which relays the response text to the provider of the voice you pick (see <a href="#who-runs-what">who runs each model</a>). We don't store the audio or text.</p>
-
-    <h3>Saved sessions</h3>
-    <p>aloud can save your session transcripts and a short summary <strong>locally on your device</strong> so you can revisit them. They stay on your device unless you choose to export or share them. There is no cloud sync, and <strong>aloud cloud does not store your transcripts or summaries</strong>.</p>
-
-    <h3>App updates</h3>
-    <p>aloud may check for new versions (a basic network request that does not include your session content).</p>
-
-    <h2>aloud cloud: accounts, credits, and what we keep</h2>
-    <p>If you use aloud cloud, we process a limited amount of information to run the service. None of it includes the content of your sessions.</p>
-    <ul>
-      <li><strong>Account.</strong> The sign-in details needed to give you an account. You can sign in with Google or Apple (which share a basic identifier such as your email address), or with an email address and password. We use this to identify your account and credit balance, so keep your sign-in secure.</li>
-      <li><strong>Email updates (optional).</strong> When you create an account you can tick a box to get occasional emails about aloud. It's <strong>off unless you turn it on</strong>, and you can turn it off any time on the account page. If you opt in, we hold your address for that purpose as well as for your account. We never share or sell it, and opting out or deleting your account removes it from the list.</li>
-      <li><strong>Credits and usage.</strong> Your credit balance and a metered record of usage (for example, the amount of audio or text processed, and aggregate per-session totals such as how many turns a session ran) so we can charge credits accurately, understand our costs, and prevent abuse. This is operational metering for billing and reliability, <em>not</em> behavioral profiling, and it does not include the content of your sessions.</li>
-      <li><strong>Payments.</strong> If you buy credits with a card, payment is handled by our payment processor, <strong>Stripe</strong>, and we don't receive or store your full card details. If you instead choose to pay on-chain with a stablecoin, that transaction is by its nature recorded on a public blockchain; we receive only what's needed to credit your account.</li>
-      <li><strong>Abuse prevention.</strong> When you create an account, we record the IP address you signed up from, used only to catch abusive signup patterns (like farming free credits). It's deleted automatically after 90 days, and right away if you delete your account. Free credits are given once per person, so when an account receives them we also keep a one-way hash of the email address, and for some grants the sign-in ID, that got them (never the address itself). Those hashes stay after you delete your account, so the same person can't claim the free credits again.</li>
-      <li><strong>Operational logs.</strong> We may keep minimal, short-lived technical logs (for diagnostics, security, and abuse prevention) that do not contain your session content.</li>
-      <li><strong>Error records.</strong> When a call we relay fails or is refused, or a credit purchase can't be started, we keep a short record of it - what went wrong (an error code or reason, the provider and model involved, token or byte counts), never anything you said or the AI replied. It's how we notice problems the app recovers from without showing you. These records sit with your account record and are anonymized when you delete your account, like the credit ledger.</li>
-    </ul>
-    <p><strong>We don't retain the content of your sessions on aloud cloud.</strong> Your audio, your words, and the AI's responses pass through only to reach the providers that fulfill them; nothing is stored on our side afterward.</p>
-
-    <h2>Your own API keys</h2>
-    <p>On some platforms you can supply your own provider API keys instead of using credits. Those keys are stored only on your device, and never on our servers. On the <strong>web app</strong> this is <strong>off by default</strong>; it applies only if you manually turn on bring-your-own-key. Your sessions then call each provider <strong>directly</strong> from the app, so your key and your words don't pass through aloud cloud at all. There are two exceptions. If you turn on Voice commands (see "Your words and the AI facilitator" above), what you say is checked through aloud cloud; your key is never part of that. The other is looking up a provider's list of available models: in the web and mobile apps that request is relayed through our server with your key, used only in memory, and neither stored nor logged. The desktop app makes it from your device.</p>
-
-    <h2>What we don't do</h2>
-    <ul>
-      <li>No advertising or ad networks.</li>
-      <li>No selling or sharing of your personal data.</li>
-      <li>No using your conversations to train AI models, and no retaining them on aloud cloud, at all.</li>
-      <li>No third-party analytics or behavioral tracking. (aloud cloud meters credit usage only as needed to run the service.)</li>
-      <li>No account needed to run aloud locally. You need one only for aloud cloud, which includes voice commands unless you add your own TypeSafe key in the desktop app.</li>
-    </ul>
-
-    <h2>Third-party services</h2>
-    <p>Whenever your content is processed by an AI or voice provider, whether you connect it yourself or aloud cloud relays to it, that provider handles your data under <strong>its own privacy policy and terms</strong>. Please review the policy of whichever provider applies; aloud is not responsible for how third parties handle data sent to them.</p>
+    <h2>Third-party providers</h2>
+    <p>Any AI or voice provider that processes your content, whether you connect it or aloud cloud relays to it, does so under <strong>its own privacy policy and terms</strong>, and some keep data for a limited time; aloud is not responsible for how they handle it.</p>
     <h3 id="who-runs-what">Who runs each aloud cloud model</h3>
-    <p>On aloud cloud you pick the model behind each part of a session in the app, and that model's provider receives what that part needs: your words for the facilitator, your audio for speech recognition, the facilitator's replies for its voice. Depending on language settings, you can choose from:</p>
+    <p>You pick the model behind each part of a session, and its provider receives what that part needs: your words for the facilitator, your audio for speech recognition, the facilitator's replies for its voice. Depending on language settings, you can choose from:</p>
     <table>
       <thead>
         <tr><th scope="col">Model</th><th scope="col">Run by</th></tr>
@@ -153,8 +123,8 @@
       <tbody>
         <tr><th scope="rowgroup" colspan="2">Speech recognition</th></tr>
         <tr><td>GPT</td><td>OpenAI</td></tr>
-        <tr><td>Parakeet, Moondream's model (not offered in Chinese)</td><td>Prime Intellect, via OpenRouter, under zero data retention</td></tr>
-        <tr><td>Grok (Chinese only)</td><td>xAI, via OpenRouter</td></tr>
+        <tr><td>Parakeet, Moondream's model (European languages)</td><td>Prime Intellect, via OpenRouter, under zero data retention</td></tr>
+        <tr><td>Grok (non-European languages)</td><td>xAI, via OpenRouter</td></tr>
       </tbody>
       <tbody>
         <tr><th scope="rowgroup" colspan="2">Voice</th></tr>
@@ -163,41 +133,18 @@
         <tr><td>Luna, Wren, Silas, Clive</td><td>Inworld</td></tr>
       </tbody>
     </table>
-    <p>Whichever facilitator you pick, aloud cloud also sends parts of the session to <strong>Claude Haiku</strong> (Anthropic) and <strong>GPT-5 nano</strong> (OpenAI) for background work: the end-of-session summary, the running notes it keeps during a session, and some of the checks described above. It sends short things you say to <strong>TypeSafe</strong> (US-hosted) for in-session decisions and voice controls.</p>
-    <p>Each provider handles what it receives under its own policy, and some keep it for a limited time. Through OpenRouter we allow only hosts that don't train on what they receive, and Parakeet only a host under zero data retention. Inworld's zero-data-retention setting is not yet turned on for our account (we have asked for it), so until it is, Inworld may keep the response text it receives for its four voices; if you'd rather avoid that, pick another voice.</p>
-    <p>Payments are handled by <strong>Stripe</strong> (and, for on-chain stablecoin payments, settled directly on a public blockchain). We'll keep this page current as our providers change.</p>
-    <p>Behind the service itself: aloud cloud runs on <strong>Fly.io</strong> in the United States, and our account database (sign-in details, credits, and usage metering, never your session content) is backed up to <strong>Cloudflare R2</strong>. Both handle data for us as infrastructure providers under data processing agreements.</p>
-    <p>On this website, the video on the home page is hosted by <strong>YouTube</strong>. The page asks YouTube for nothing until you press play; from then on, YouTube (Google) serves the video under its own privacy policy.</p>
-
-    <h2>Your control</h2>
-    <ul>
-      <li>Run aloud <strong>locally</strong> (where your platform allows) to keep everything on your device.</li>
-      <li>Choose on-device providers for maximum privacy if your hardware is capable.</li>
-      <li>Your settings, and any API keys you enter, are stored only on your device, however you use aloud. Clear them anytime.</li>
-      <li>Delete saved sessions from your device whenever you like.</li>
-      <li>For aloud cloud, delete your account anytime from the app's account screen, or email us at the address below. Details: <a href="../delete-account/">aloud.rest/delete-account</a>.</li>
-    </ul>
-
-    <h2>Where your data lives, and for how long</h2>
-    <p>aloud cloud is operated from the <strong>United States</strong>, so if you use it from somewhere else (including the EU or UK), your account information, and the session content we relay, are processed in the US. The providers we relay to may process data in other regions under their own terms.</p>
-    <ul>
-      <li><strong>Session content:</strong> never stored, so there is nothing to retain.</li>
-      <li><strong>Account and credit records:</strong> kept while your account exists. When you delete your account, we remove your sign-in identities and scrub the record of your email address and IP; what remains is an anonymous credit ledger we keep for accounting, and the one-way hashes that stop free credits being claimed twice (see "Abuse prevention" above).</li>
-      <li><strong>Signup IP address:</strong> deleted after 90 days at most.</li>
-      <li><strong>Backups:</strong> the account database backup is continuously replaced; data scrubbed from the live database ages out of it within about a day.</li>
-    </ul>
+    <p>Whichever facilitator you pick, aloud cloud also sends parts of the session to <strong>Claude Haiku</strong> (Anthropic) and <strong>GPT-5 nano</strong> (OpenAI) for summarization, and some of the checks above. Short text excerpts of your words are sent to <strong>TypeSafe</strong> (US-hosted) for in-session decisions and voice controls. To skip the summary and notes, turn off Save session logs (locally) in Settings; the checks are part of every aloud cloud session.</p>
+    <p>Through OpenRouter we allow only hosts that don't train on what they receive. Inworld's zero-data-retention setting isn't yet on for our account (we've asked), so until it is, Inworld may keep the reply text it voices; pick another voice to avoid that.</p>
+    <p>On this website, the home page video is hosted by <strong>YouTube</strong>, which receives nothing until you press play.</p>
 
     <h2>Your rights</h2>
-    <p>You can see, correct, export, or delete the account data we hold, and object to or restrict our use of it. Deleting your account from the app removes it immediately; for anything else, email us and we'll sort it out. If you're in the EU, UK, or another region with a data protection law, these are the rights that law gives you, and you can also complain to your local data protection authority. Where a legal basis is required, ours are: performing our contract with you (accounts, credits, relaying your sessions) and our legitimate interest in keeping the service secure and preventing abuse.</p>
+    <p>You can see, correct, export or delete the account data we hold, and object to or restrict our use of it. Deleting your account from the app's account screen takes effect at once (<a href="../delete-account/">details</a>); email us for anything else. In the EU, UK or another region with a data protection law, these are your rights under it, and you can also complain to your local data protection authority. Our legal bases are performing our contract with you (accounts, credits, relaying your sessions) and our legitimate interest in keeping the service secure and preventing abuse.</p>
 
-    <h2>Children's privacy</h2>
+    <h2>Children</h2>
     <p>aloud is not directed to children under 13 (or the minimum age in your jurisdiction), and we do not knowingly collect information from them.</p>
 
-    <h2>Changes to this policy</h2>
-    <p>We may update this policy from time to time; the "last updated" date above will change. Significant changes will be reflected here.</p>
-
-    <h2>Contact</h2>
-    <p>Questions about privacy, or want your account data deleted? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20privacy">lexkrusz@gmail.com</a>.</p>
+    <h2>Changes and contact</h2>
+    <p>We'll update this page as aloud and its providers change, and the date above with it. Questions, or want your account data deleted? Email <a href="mailto:lexkrusz@gmail.com?subject=aloud%20privacy">lexkrusz@gmail.com</a>.</p>
   </main>
 
   <script src="../js/theme.js" defer></script>
