@@ -91,10 +91,8 @@
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "ethan/en/help.8383c271.mp3",
-                    "suspect": true,
-                    "suspectReason": "voiced 6.63s against 3.63s expected at this voice's pace: probable repeat",
-                    "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
+                    "file": "ethan/en/help.9c7c5c6e.mp3",
+                    "text": "Say begin to start, or customize the session by naming a vibe, a focus, or a length of time."
                 },
                 "intention-ask": {
                     "file": "ethan/en/intention-ask.72675004.mp3",
@@ -380,8 +378,8 @@
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "harper/en/help.8a0353ea.mp3",
-                    "text": "Say begin to start, or name a mode, a length, a vibe or a focus."
+                    "file": "harper/en/help.9d6ef3f3.mp3",
+                    "text": "Say begin to start, or customize the session by naming a vibe, a focus, or a length of time."
                 },
                 "intention-ask": {
                     "file": "harper/en/intention-ask.7fe0bb86.mp3",
@@ -667,8 +665,8 @@
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "serena/zh/help.14e7d30d.mp3",
-                    "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
+                    "file": "serena/zh/help.e1c78540.mp3",
+                    "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
                     "file": "serena/zh/intention-ask.8b8403f2.mp3",
@@ -954,8 +952,8 @@
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "yunfan/zh/help.ca1a8b32.mp3",
-                    "text": "说“开始”就可以开始，也可以说模式、时长、氛围或焦点。"
+                    "file": "yunfan/zh/help.2261644a.mp3",
+                    "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
                     "file": "yunfan/zh/intention-ask.fe0b0a9a.mp3",

@@ -93,8 +93,8 @@ export const SETUP_LINES = {
     // No line ends on "begin": the tail of a line is what the microphone
     // could catch as it reopens, and that word starts a session.
     help: {
-        en: 'Say begin to start, or name a mode, a length, a vibe or a focus.',
-        zh: '说“开始”就可以开始，也可以说模式、时长、氛围或焦点。',
+        en: 'Say begin to start, or customize the session by naming a vibe, a focus, or a length of time.',
+        zh: '说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。',
     },
     'belongs-exploration': { en: "That's part of exploration.", zh: '这是探索模式的设置。' },
     'belongs-felt-sense': { en: "That's part of felt sense.", zh: '这是体会模式的设置。' },
