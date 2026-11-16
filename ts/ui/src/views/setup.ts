@@ -33,6 +33,7 @@ import type { SessionState } from '../../../src/facilitation/session.js';
 import type { SttEngine } from '../../../src/platform/index.js';
 import {
     defaultVoicePick,
+    isOrphanedHostedVoice,
     downloadVoiceFromRow,
     invalidateServerVoicesCache,
     loadScoredVoices,
@@ -638,14 +639,23 @@ export async function mountSetupView(
         // loadSetup) hides incompatible voices in the picker.
         scoredVoices = await loadScoredVoices(setup.language);
         voicesLoaded = true;
-        // Never leave the picker on a bare "Default".
-        if (!stripVoicePrefix(setup.voice)) {
+        // Never leave the picker on a bare "Default", or on a hosted voice
+        // that is gone.
+        if (!stripVoicePrefix(setup.voice) || isOrphanedHostedVoice(setup.voice, scoredVoices)) {
             const top = defaultVoicePick(scoredVoices, setup.language);
             if (top) {
                 setup.voice = prefixedVoiceId(top.engine, top.name);
                 void persistDefaultVoice(setup.voice, setup.ttsRate);
             }
         }
+        // A noting participant on one takes the session's voice.
+        let moved = false;
+        for (const p of setup.notingParticipants ?? []) {
+            if (p.type === 'sound' || !isOrphanedHostedVoice(p.voice, scoredVoices)) continue;
+            p.voice = setup.voice ?? p.voice;
+            moved = true;
+        }
+        if (moved) persist();
         updateVoiceButtonLabel();
         // Voices just arrived: repopulate participant voice dropdowns.
         renderParticipantList();
