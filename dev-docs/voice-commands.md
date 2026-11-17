@@ -126,8 +126,20 @@ lists are not known ahead, so the names come in with the utterance
 the model picker's options as shown) and nothing here goes to the judge, which
 scores fixed asks and extracts no names.
 
-- "Open the voice picker" opens it; "close" or "done" closes it, only while it
-  is up.
+- "Open the voice picker" opens it. While it is up, a whole utterance that
+  says leave closes it (`closesPicker`): "close" (it, this, the picker, the
+  voices, the window), "exit", "go out", "leave", "back", "never mind",
+  "cancel", and the "done" answers `leavesAsk` reads, with the same softeners
+  around them (`LEAVE_LEAD`, `LEAVE_TAIL`); in zh 关闭 / 关掉 / 关上 / 关了 (and
+  what is closed: 窗口, 声音选择), 退出, 出去, 离开, 返回, 回去, 不选了, 不用了,
+  算了, 取消, 好了, 完成, 可以了, 就这样, with 吧 / 了 after. Not a bare "no",
+  "stop" or "skip": over a playing sample those are about the sample, and
+  "skip" is the tour's. The zh close is matched before the rest of the zh
+  path trims 好 off the front and 了 off the end, which leaves 好了 as nothing.
+  With the picker up the close is read before the tour's words
+  (`heardOnSetup` in `views/setup.ts`): the picker sits over the tour card,
+  and the tour would take "close", "back", 关闭, 返回 and 退出 as its own,
+  ending the tour and leaving the picker open.
 - "Set the voice to Ethan" makes it the session's voice and plays its sample as
   the answer. "Preview Ethan" / "let me hear Ethan" plays the sample and
   changes nothing. With the picker up a name alone picks, the way a tap on its
@@ -197,6 +209,31 @@ him as 云帆 too, wherever a voice's name is shown (`displayVoiceName`,
 `voiceLabel` in `ui/src/voice-picker.ts`); the stored id, the server and the
 English UI keep "Yunfan". An English recognizer writing "yun fan" as two
 words now finds him too (`namedIn`).
+
+The spellings are measured, not guessed (2026-11-17): the names said the ways
+people pick at the voice step (云帆, 我选云帆, 云帆吧, 我要云帆的声音 ...;
+Serena in Latin letters and as 瑟琳娜), rendered by twelve Mandarin voices of
+the server's TTS and three macOS ones, clean and under room noise, and
+transcribed by the desktop's local Whisper as the setup screen runs it (base,
+zh, no prompt: `setupVocabulary('zh').prompt` is null, so `zhVoicePhrases`
+reaches only the phone recognizers' phrase lists, never Whisper). For yún
+Whisper also writes yuán (元, 援, 远, 圆, 缘), yín and yǒng, for fān it writes
+fēn, fāng and shān, often in traditional characters (`zh-script.ts` maps the
+ones the matchers read), and Serena comes back mostly in Latin letters (Sarina,
+Srina, Cirina, "就是Rina") or as 色林呢 / 色灵啊. Each name has three tiers in
+`ZH_NAMES`: `heard` anywhere in the utterance, `latin` for a run of Latin
+letters, and `loose` (缘分, 远方, 一番, 司霖) only as the whole answer, with
+nothing around it but the words of a pick (`PICK_WORDS`), since those are
+everyday words or barely the name. On that sample the tour's voice step picks
+Yunfan from 229 of 252 takes (53% before; 139 of 144 clean takes from the
+server's voices) and Serena from 82 of 168 (4% before). The rest of Serena's
+takes come back as other words (水呢, 要死了, 做好), which no spelling can
+recover, and a bare "Serena" is the worst of them. A Whisper prompt of the
+two names does not help: on 78 of the takes it wrote the prompt back
+("Serena，云帆。" for Serena吧), which names both and picks neither, and Serena
+fell from 20 of 32 to 16. 女声 / 男声 and 第一个 /
+第二个 came through in all 36 takes and pick at the voice step too
+(`pickedVoice` in `tour-command.ts`); 男的吧 comes back 难得吧.
 
 ### What happens to a request
 

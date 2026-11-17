@@ -14,8 +14,8 @@
  * picked ("voice", "model") or, for a voice, a word that asks to hear it.
  */
 
-import { editDistance, soundKey } from './setup-command.js';
-import { zhSaysName } from './voice-names.js';
+import { LEAVE_LEAD, LEAVE_TAIL, editDistance, leavesAsk, soundKey } from './setup-command.js';
+import { wordIsName, zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 export type SetupPick =
@@ -55,11 +55,46 @@ const OPEN_PICKER = new Set([
     'pick a new voice', 'choose a new voice', 'another voice', 'a different voice', 'different voice', 'other voices',
     'more voices', 'switch voice', 'switch voices', 'switch the voice', 'what voices are there', 'what voices do you have',
 ]);
-const CLOSE_PICKER = new Set([
-    'close', 'close it', 'close this', 'close the picker', 'close the voice picker', 'close voices', 'close the voices',
-    'done', "i'm done", 'im done', "that's all", 'thats all', "that's it", 'thats it', 'go back', 'back', 'cancel',
-    'never mind', 'nevermind', 'exit', 'keep it', 'keep this one', 'keep that one',
-]);
+/**
+ * What closes the picker while it is up, said whole, besides the "done"
+ * answers `leavesAsk` reads (done, that's it, all set, 好了, 完成, 关闭 ...).
+ * Not the rest of its "cancel" answers: a bare "no" or "stop" said over a
+ * playing sample is about the sample, and "skip" is the tour's.
+ */
+const CLOSE_PICKER_RE = new RegExp(
+    `^${LEAVE_LEAD}(?:` +
+        [
+            'close(?:\\s+(?:it|this|that|(?:the\\s+)?(?:voice\\s+)?(?:picker|list|window|menu)|(?:the\\s+)?voices))?',
+            'exit(?:\\s+(?:it|this|the\\s+(?:voice\\s+)?picker))?',
+            'go\\s+out', 'get\\s+out', 'leave(?:\\s+(?:it|this))?', '(?:go|take\\s+me)\\s+back', 'back',
+            'done', "i'?m\\s+done", "that'?s\\s+(?:all|it)", 'never\\s*mind', 'cancel(?:\\s+that)?', 'forget\\s+it',
+            'keep\\s+(?:it|this\\s+one|that\\s+one)',
+            // 关闭 / 关掉 as local Whisper in zh may write them, in pinyin.
+            '[gq]uan\\s*(?:bi|diao)',
+        ].join('|') +
+        `)${LEAVE_TAIL}`,
+    'i'
+);
+
+/**
+ * The same in Chinese, on the utterance without punctuation: a verb that
+ * closes or leaves (关掉, 退出, 返回, 不选了, 算了, 好了 ...), what it closes,
+ * and the particles around a request, with what local Whisper wrote for them
+ * (官调 for 关掉, 观伤 for 关上, 关闢, 串口, 放回, 散了). Matched before the
+ * trimming the rest of the zh path does, which takes 好 off the front and 了
+ * off the end and leaves 好了 as nothing.
+ */
+const ZH_CLOSE_PICKER =
+    /^(?:好的?|好了|嗯|那就?|请|麻烦|行)*(?:(?:把(?:它|这个|窗口|列表)?)?[关官观](?:(?:闭|闢|掉|调|上|伤)(?:窗口|串口|这个|它|声音选择|声音列表|语音选择|选择|列表|页面)?|(?=[了吧啦]))|退出(?:窗口|选择|声音选择|这个)?|出去|离开(?:这里|这个)?|[返放]回|回去|退回|不(?:选|换|用|要|改)了|[算散撒]了|取消|好了|好啦|行了|可以了|完成|完了|没了|就(?:这样|这个|它))(?:吧|了|啦|呀|啊|嘛)*$/u;
+
+const ZH_PUNCT = /[\s。，！？、．.…,!?~]+/gu;
+
+/** Whether an utterance, said with the picker up, closes it. */
+function closesPicker(utterance: string): boolean {
+    if (leavesAsk(utterance) === 'done') return true;
+    if (/[㐀-鿿]/.test(utterance)) return ZH_CLOSE_PICKER.test(toSimplified(trimHeardZh(utterance)).replace(ZH_PUNCT, ''));
+    return CLOSE_PICKER_RE.test(words(utterance).filter((w) => !POLITE.has(w)).join(' '));
+}
 
 function words(utterance: string): string[] {
     return utterance
@@ -72,7 +107,8 @@ function words(utterance: string): string[] {
 
 /**
  * Which of `names` the words `said` name, or null. In order: the whole name
- * (with or without the spaces between the words said);
+ * (with or without the spaces between the words said), or a zh house voice's
+ * Latin respelling (voice-names.ts `wordIsName`);
  * else the names that contain every word said ("opus" for "Claude Opus 5.5",
  * "amy" for "en_US-amy-medium"), the first listed winning, since both lists
  * come best first; else, for one word, a name that sounds like it ("Eason"
@@ -86,6 +122,9 @@ export function namedIn(said: readonly string[], names: readonly string[]): numb
     const run = said.join('');
     const whole = tokens.findIndex((name) => name.join(' ') === joined || name.join('') === run);
     if (whole >= 0) return whole;
+    // A zh house voice as a zh recognizer spells it ("Sarina" for Serena).
+    const respelled = names.findIndex((name) => wordIsName(run, name));
+    if (respelled >= 0) return respelled;
     const contains = tokens.findIndex((name) => said.every((word) => name.includes(word)));
     if (contains >= 0) return contains;
     if (said.length !== 1 || said[0]!.length < 4) return null;
@@ -100,11 +139,10 @@ export function namedIn(said: readonly string[], names: readonly string[]): numb
 }
 
 function parseZhPick(utterance: string, ctx: PickContext): SetupPick | null {
-    const said = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '').replace(/^(?:好的?|请|麻烦)+/u, '').replace(/(?:吧|了|一下)+$/u, '');
+    const said = toSimplified(trimHeardZh(utterance)).replace(ZH_PUNCT, '').replace(/^(?:好的?|请|麻烦)+/u, '').replace(/(?:吧|了|一下)+$/u, '');
     if (/^(?:打开|显示|看看)?(?:声音|语音|嗓音)(?:选择|列表|选项)$/.test(said) || /^(?:换|切换|选|选择|更换)(?:一个|个)?(?:声音|语音)$/.test(said)) {
         return { kind: 'voice-picker', open: true };
     }
-    if (ctx.pickerOpen && /^(?:关闭|关掉|完成|返回|好了|取消|就这个)$/.test(said)) return { kind: 'voice-picker', open: false };
     const preview = /试听|听听|预览|播放/.test(said);
     const asks = preview || /声音|语音/.test(said);
     if (!asks && !ctx.pickerOpen) return null;
@@ -118,11 +156,11 @@ function parseZhPick(utterance: string, ctx: PickContext): SetupPick | null {
  * voice or a model from the lists in `ctx`.
  */
 export function parseSetupPick(utterance: string, ctx: PickContext): SetupPick | null {
+    if (ctx.pickerOpen && closesPicker(utterance)) return { kind: 'voice-picker', open: false };
     if (/[㐀-鿿]/.test(utterance)) return parseZhPick(utterance, ctx);
     const said = words(utterance).filter((w) => !POLITE.has(w));
     if (said.length === 0 || said.length > 10) return null;
     const whole = said.join(' ');
-    if (ctx.pickerOpen && CLOSE_PICKER.has(whole)) return { kind: 'voice-picker', open: false };
     if (OPEN_PICKER.has(whole)) return { kind: 'voice-picker', open: true };
 
     const rest = said.filter((w) => !CHOOSING.has(w) && !HEARING.has(w) && !AROUND.has(w) && !VOICE_WORDS.has(w) && !MODEL_WORDS.has(w));

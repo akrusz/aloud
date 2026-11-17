@@ -9,7 +9,7 @@
  * only one.
  */
 
-import { zhSaysName } from './voice-names.js';
+import { wordIsName, zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 export type TourCommand =
@@ -97,14 +97,14 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
         });
         return picked.size === 1 ? [...picked][0]! : null;
     }
-    const said = words(utterance).filter((w) => !POLITE.has(w));
+    const said = joinSplitNames(words(utterance).filter((w) => !POLITE.has(w)), voices);
     if (said.length === 0 || said.length > 8) return null;
     // "Number one": the only way "one" is a pick and not "the first one".
     if (said.join(' ') === 'number one') return 0;
     // A word that picks has to be there; "the one" names neither.
-    if (!said.some((w) => w in PLACE || w in GENDER || voices.some((v) => v.name.toLowerCase() === w))) return null;
+    if (!said.some((w) => w in PLACE || w in GENDER || voices.some((v) => wordIsName(w, v.name)))) return null;
     for (const word of said) {
-        const named = voices.findIndex((voice) => voice.name.toLowerCase() === word);
+        const named = voices.findIndex((voice) => wordIsName(word, voice.name));
         if (named >= 0) picked.add(named);
         else if (word in PLACE) picked.add(PLACE[word]!);
         else if (word in GENDER) {
@@ -114,6 +114,20 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
         } else if (!PICK_FILLER.has(word)) return null;
     }
     return picked.size === 1 ? [...picked][0]! : null;
+}
+
+/** Two words a recognizer split one name into ("yun fan", "Yun-Fan") as the
+ *  one word. */
+function joinSplitNames(said: string[], voices: readonly OfferedVoice[]): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < said.length; i++) {
+        const pair = said[i]! + (said[i + 1] ?? '');
+        if (i + 1 < said.length && voices.some((voice) => wordIsName(pair, voice.name))) {
+            out.push(pair);
+            i++;
+        } else out.push(said[i]!);
+    }
+    return out;
 }
 
 /** A zh utterance without its punctuation and the softeners around a request

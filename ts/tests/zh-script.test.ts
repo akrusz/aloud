@@ -7,6 +7,8 @@ describe('toSimplified', () => {
         expect(toSimplified('切換到體會')).toBe('切换到体会');
         expect(toSimplified('輕鬆有玩心')).toBe('轻松有玩心');
         expect(toSimplified('設定45分鐘')).toBe('设定45分钟');
+        expect(toSimplified('勻飯 謝謝')).toBe('匀饭 谢谢');
+        expect(toSimplified('就這樣吧')).toBe('就这样吧');
     });
 
     it('keeps the length, so an index into one is an index into the other', () => {

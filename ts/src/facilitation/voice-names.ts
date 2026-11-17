@@ -22,9 +22,18 @@ interface ZhName {
     /** What a zh line says and the zh UI shows. Latin where the name is
      *  foreign to Chinese too. */
     said: string;
-    /** The characters a recognizer may write for it, by syllable: each class
-     *  is one syllable's homophones, tones and a soft n/ng aside. */
+    /** The characters a recognizer may write for it, anywhere in what was
+     *  said, by syllable: each class is one syllable's homophones (tones and a
+     *  soft n/ng aside) and what local Whisper was seen to write for it. */
     heard: RegExp;
+    /** Spellings that are everyday words too (缘分, 远方) or barely the name:
+     *  they count only as the whole answer, with nothing around them but the
+     *  words of a pick (`PICK_WORDS`), so a sentence that contains one picks
+     *  nothing. */
+    loose?: RegExp;
+    /** How a zh recognizer spells it in Latin letters, as one lowercase word
+     *  with hyphens taken out (regex source, matched whole). */
+    latin?: string;
 }
 
 const ZH_NAMES: Readonly<Record<string, ZhName>> = {
@@ -33,14 +42,29 @@ const ZH_NAMES: Readonly<Record<string, ZhName>> = {
     // name spelled yún fān, and the 云 matches Azure's other male voices.
     Yunfan: {
         said: '云帆',
-        heard: /[云允运韵芸匀耘昀晕蕴][帆凡翻番繁范饭烦泛樊藩反返]/u,
+        // Measured on local Whisper (base, zh, unprompted), 2026-11-17: for
+        // yún it also writes yuán (元, 原, 圆, 远, 缘, 援), yín (银) and yǒng
+        // (勇), most of all from male voices, and for fān it writes fēn (芬,
+        // 分, 粉, 氛), fāng (芳) and shān (山), seen after 云 only. Any other
+        // pairing of those is loose: 缘分, 远方 and 均匀分布 are everyday
+        // words.
+        heard: /[云允运韵芸匀耘昀晕蕴元原圆园员源远院愿缘援银勇][帆凡翻番繁范饭烦泛樊藩反返犯]|云[芬分粉氛纷方芳放山]/u,
+        loose: /[云允运韵芸匀耘昀晕蕴元原圆园员源远院愿缘援银音勇余于人一您][帆凡翻番繁范饭烦泛樊藩反返犯潘芬分粉氛纷方芳放山三酸]/u,
     },
     // An English name, which a Chinese sentence keeps as one (people with
     // English names are introduced that way), so the line says "Serena". Said
     // back it may still come out as a transliteration: 瑟琳娜, 塞雷娜, 赛琳娜.
     Serena: {
         said: 'Serena',
-        heard: /[瑟塞赛萨莎色思斯][琳雷瑞蕾丽莉锐林玲睿芮蕊][娜纳那拿]/u,
+        // Said in a Chinese sentence it mostly comes back in Latin letters
+        // (Sarina, Srina, Cirina, sureena, "就是Rina" with the s run into 是),
+        // and as characters with a particle for the last syllable (色林呢,
+        // 色灵啊).
+        heard: /[瑟塞赛萨莎色思斯司丝苏][琳雷瑞蕾丽莉锐林玲睿芮蕊霖灵凌铃领里][娜纳那拿呐哪呢啊]/u,
+        // Two syllables (司霖了吧), or a first one heard as another word (死淋了吧,
+        // 我选是林娜). Never 死 alone: 要死了 is something else.
+        loose: /[瑟塞赛萨莎色思斯司丝苏死撕是择][琳雷瑞蕾丽莉锐林玲睿芮蕊霖灵凌铃领里淋零](?:[娜纳那拿呐哪呢啊])?/u,
+        latin: '(?:s[aeiouy]{0,3}|c[eiy][aeiouy]{0,2})r[aeiouy]{1,3}n{1,2}a?|r[aeiouy]{1,3}n{1,2}a',
     },
 };
 
@@ -54,11 +78,41 @@ export function displayVoiceName(name: string, language: string): string {
     return spokenVoiceName(name, language);
 }
 
-/** Whether simplified zh text names the voice: its Latin name, or what a
- *  recognizer writes for it in characters. */
+const LATIN_GLUE = /[\-‐·・.]+/g;
+
+/** The words of a pick around a name, and punctuation: what a whole answer
+ *  may hold besides a loose spelling (我要缘分的声音, 选人翻吧). */
+const PICK_WORDS = /[\s。，！？、．.…,!?~]|我|想|要|选|用|就|是|吧|巴|八|的|声音|语音|这个|那个|喜欢|谢谢|好|请|嗯|啊|呀|了|呢|听听|试听|换成|一下|个/gu;
+
+/** Whether simplified zh text names the voice: its Latin name (spaced or
+ *  hyphenated as a recognizer may write it), what a recognizer writes for it
+ *  in characters, or its Latin respelling. */
 export function zhSaysName(text: string, name: string): boolean {
-    if (name && text.toLowerCase().includes(name.toLowerCase())) return true;
-    return ZH_NAMES[name]?.heard.test(text) ?? false;
+    if (!name) return false;
+    const flat = (s: string) => s.toLowerCase().replace(/\s+/g, '').replace(LATIN_GLUE, '');
+    if (flat(text).includes(flat(name))) return true;
+    const zh = ZH_NAMES[name];
+    if (!zh) return false;
+    if (zh.heard.test(text)) return true;
+    const loose = zh.loose?.exec(text);
+    if (loose && (text.slice(0, loose.index) + text.slice(loose.index + loose[0].length)).replace(PICK_WORDS, '') === '') return true;
+    return zh.latin !== undefined && (flat(text).match(/[a-z]+/g) ?? []).some((run) => latinIs(run, zh.latin!));
+}
+
+/** A run of Latin letters as the respelling, glue and all. */
+function latinIs(run: string, latin: string): boolean {
+    return new RegExp(`^(?:${latin})$`, 'i').test(run.replace(LATIN_GLUE, ''));
+}
+
+/**
+ * Whether one word an English-reading matcher split out (tour-command.ts on a
+ * transcript with no characters) is the voice's name or, for a zh house
+ * voice, a zh recognizer's Latin respelling of it ("Sarina", "Srina").
+ */
+export function wordIsName(word: string, name: string): boolean {
+    if (word === name.toLowerCase()) return true;
+    const latin = ZH_NAMES[name]?.latin;
+    return latin !== undefined && latinIs(word, latin);
 }
 
 /** The names, as said, for a zh recognizer's phrase list. */

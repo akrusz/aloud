@@ -864,8 +864,10 @@ function parseSpecialRequest(utterance: string): SetupAction | null {
     return { kind: 'special-request', text };
 }
 
-const LEAVE_LEAD = "(?:(?:ok|okay|oh|no|actually|um|alright|all\\s+right)[,\\s]+)*";
-const LEAVE_TAIL = '(?:[,\\s]+(?:thanks|thank\\s+you|please))?[.!。！，,]?$';
+/** The softeners around a leave, ahead and after (regex source; the picker's
+ *  close in setup-pick.ts uses them too). */
+export const LEAVE_LEAD = "(?:(?:ok|okay|oh|no|actually|um|alright|all\\s+right)[,\\s]+)*";
+export const LEAVE_TAIL = '(?:[,\\s]+(?:thanks|thank\\s+you|please))?[.!。！，,]?$';
 const CANCEL_ANSWER_RE = new RegExp(
     `^${LEAVE_LEAD}(?:never\\s*mind|cancel|cancel\\s+that|forget\\s+it|forget\\s+that|nothing|skip|skip\\s+it|no|none|stop)${LEAVE_TAIL}` +
         '|^(?:算了|不用了|取消|[没沒]有|不改了|不加了)[。！，,]?$',

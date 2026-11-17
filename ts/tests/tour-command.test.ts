@@ -93,6 +93,38 @@ describe('parseTourCommand', () => {
         expect(parseTourCommand('云帆和瑟琳娜', zh)).toBeNull();
     });
 
+    // What local Whisper (base, zh) wrote for synthetic Mandarin voices saying
+    // the names at the voice step, 2026-11-17.
+    it('takes the names as local Whisper writes them', () => {
+        for (const said of [
+            '云翻', '我選雲翻。', '元凡', '選元翻。', '救援翻吧!', '我要允翻的聲音', '暈翻的聲音。', '我想要云范', '用援翻',
+            '我喜歡雲飯。', '勻飯 謝謝', '云山。', '我選雲芳.', '我選銀番。', '勇番,謝謝!', '我喜歡暈分。',
+            // Loose: everyday words, or barely the name, taken only as the whole answer.
+            '要緣分', '遠方的聲音。', '元芬吧!', '我選人翻。', '就云三八。', '我選一番', '我想要您翻', '邀員犯',
+            // Latin, spaced or hyphenated.
+            'Yun Fan', 'yun-fan', '我选 Yun Fan',
+        ]) {
+            expect(parseTourCommand(said, zh), said).toEqual({ kind: 'voice', index: 1 });
+        }
+        for (const said of [
+            'Sarina', 'Srina.', 'Cirina', '我選Srina.', 'sureena吧!', 'Sorena吧!', '我要Seryna的聲音', '就是Rina吧!', 'se rena',
+            '色林纳。', '我選色靈娜。', '色林呢', '色灵啊!', '司雷娜', '蘇林娜。', '亞斯里娜',
+            // Loose.
+            '司霖了吧', '死淋了吧!', '我選是林娜', '我选择领纳', '我選色領納', '撕零了',
+        ]) {
+            expect(parseTourCommand(said, zh), said).toEqual({ kind: 'voice', index: 0 });
+        }
+    });
+
+    it('takes no name from a sentence that only contains a loose spelling', () => {
+        for (const said of [
+            '要死了', '就死人了吧', 'corona', '这是缘分', '我想去远方看看', '呼吸均匀分布', '这里呢?', '要做什么?', '穆斯林', '撕贫。',
+            '好好休息一番', '就是这里呢', '有緣分',
+        ]) {
+            expect(parseTourCommand(said, zh), said).toBeNull();
+        }
+    });
+
     it('takes no voice from an answer that names both or neither', () => {
         for (const text of [
             'Harper or Ethan',

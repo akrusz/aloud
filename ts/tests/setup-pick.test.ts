@@ -28,6 +28,33 @@ describe('the voice picker by voice', () => {
         expect(pick('Close.', { pickerOpen: true })).toEqual({ kind: 'voice-picker', open: false });
         expect(pick("okay, I'm done", { pickerOpen: true })).toEqual({ kind: 'voice-picker', open: false });
     });
+
+    it('closes on the ways people say leave, in both languages', () => {
+        const closes = [
+            'close', 'Close it.', 'close this', 'close the picker', 'close the voices', 'close the voice list', 'close the window',
+            'exit', 'go out', 'get out', 'leave', 'go back', 'Back.', 'done', 'never mind', 'cancel', "that's all",
+            'okay, close it', 'please close the picker', 'alright, never mind', 'all set', 'close it, thanks',
+            '关闭', '关掉', '关上', '关了', '关闭窗口', '关闭声音选择', '退出', '出去', '离开', '返回', '回去', '不选了',
+            '不换了', '不用了', '算了', '取消', '好了', '好了。', '完成', '可以了', '就这样', '关掉吧', '好了，关掉吧',
+            '把它关了', '關閉', '就這樣吧', '離開',
+            // What local Whisper (base, zh) wrote for some of them.
+            '官調。', '观伤.', '關闢聲音選擇', '关闭串口', '放回', '散了', 'Quan Bi', '好啦',
+        ];
+        for (const said of closes) {
+            expect(pick(said, { pickerOpen: true }), said).toEqual({ kind: 'voice-picker', open: false });
+            expect(pick(said), said).toBeNull();
+        }
+    });
+
+    it('never reads a name, a preview or a bare no as a close', () => {
+        const zh = { voices: ['Serena', 'Yunfan', 'Harper'], pickerOpen: true };
+        expect(pick('Harper.', zh)).toEqual({ kind: 'voice', name: 'Harper', preview: false });
+        expect(pick('云帆吧', zh)).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
+        expect(pick('preview Serena', zh)).toEqual({ kind: 'voice', name: 'Serena', preview: true });
+        for (const said of ['no', 'stop', 'skip', 'close the door', 'go back to sleep', '好的', '关闭声音', '我不想离开']) {
+            expect(pick(said, zh), said).toBeNull();
+        }
+    });
 });
 
 describe('a voice by name', () => {
@@ -73,6 +100,8 @@ describe('a voice by name', () => {
     it('reads Chinese requests for the same things', () => {
         expect(pick('打开声音选择')).toEqual({ kind: 'voice-picker', open: true });
         expect(pick('换个声音吧')).toEqual({ kind: 'voice-picker', open: true });
+        // As local Whisper writes it, in traditional characters.
+        expect(pick('打開聲音選擇')).toEqual({ kind: 'voice-picker', open: true });
         expect(pick('试听Ethan', { voices: ['Serena', 'Ethan'] })).toEqual({ kind: 'voice', name: 'Ethan', preview: true });
         expect(pick('声音换成Serena', { voices: ['Serena', 'Ethan'] })).toEqual({ kind: 'voice', name: 'Serena', preview: false });
     });
@@ -90,6 +119,14 @@ describe('a voice by name', () => {
         expect(pick('云帆', zh)).toBeNull();
         expect(pick('试听云帆和瑟琳娜', zh)).toBeNull();
         expect(pick('试听Harper', zh)).toMatchObject({ kind: 'voice', name: 'Harper' });
+    });
+
+    it('hears the zh house voices as local Whisper writes them, picker up', () => {
+        const zh = { voices: ['Serena', 'Yunfan', 'Harper'], pickerOpen: true };
+        for (const said of ['我選雲翻。', '元凡', '我选 Yun-Fan', '试听元番']) expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Yunfan' });
+        for (const said of ['Sarina', '我選Srina.', '色林呢', '司霖了吧']) expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Serena' });
+        expect(pick('要死了', zh)).toBeNull();
+        expect(pick('Sarina', { voices: ['Serena', 'Yunfan'] })).toBeNull();
     });
 
     it('takes a name an English recognizer wrote as two words', () => {

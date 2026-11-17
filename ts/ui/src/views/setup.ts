@@ -1510,6 +1510,14 @@ export async function mountSetupView(
     /** Something said on this screen that was not "begin". True when it was a
      *  request, which keeps the mic open for the next. */
     async function heardOnSetup(text: string): Promise<boolean> {
+        // The picker sits over the tour, so "close", "back" or 关闭 said while
+        // it is up close the picker. The tour reads them as its own close and
+        // back, and would end or step back with the picker still up.
+        const closing = openVoicePicker ? parseSetupPick(text, pickContext()) : null;
+        if (closing?.kind === 'voice-picker' && !closing.open) {
+            await applyPick(closing);
+            return true;
+        }
         // The tour's own words ("next", a voice's name) while it is up.
         if (tourHeard?.(text)) return true;
         const answering = awaiting && Date.now() < awaiting.until ? awaiting.field : null;
