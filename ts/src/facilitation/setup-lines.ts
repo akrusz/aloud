@@ -148,7 +148,7 @@ export const SETUP_LINES = {
         // Never ending on a request, "begin" least of all: the tail of a line
         // is what the microphone could catch as it reopens, and only a tail
         // is dropped as the app's own (echo-guard.ts looksLikeSpokenTail).
-        en: "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try.",
+        en: "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say 'begin' to start a session. Now you're ready to give it a try.",
         zh: '你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;

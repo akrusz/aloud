@@ -248,9 +248,9 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "ethan/en/tour-done.d1d627a0.mp3",
+                    "file": "ethan/en/tour-done.8846d210.mp3",
                     "gainDb": 3,
-                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try."
+                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say 'begin' to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
                     "file": "ethan/en/tour-exploration.74e88d4c.mp3",
@@ -620,9 +620,9 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "harper/en/tour-done.3357d974.mp3",
+                    "file": "harper/en/tour-done.9337303e.mp3",
                     "gainDb": -4.5,
-                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try."
+                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say 'begin' to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
                     "file": "harper/en/tour-exploration.27a0f0af.mp3",
