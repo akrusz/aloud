@@ -26,6 +26,7 @@ describe('voice catalog', () => {
             ...(d.style ? { style: d.style } : {}),
             ...(d.paceBias ? { paceBias: d.paceBias } : {}),
             ...(d.gainDb ? { gainDb: d.gainDb } : {}),
+            ...(d.lead ? { lead: d.lead } : {}),
         });
         expect(d.default).toBe(true);
     });

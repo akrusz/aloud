@@ -29,6 +29,7 @@ import {
 } from '../providers/tts.js';
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import { withGain } from '../providers/mp3-gain.js';
+import { trimLead, type LeadExpect } from '../providers/mp3-lead-trim.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
@@ -42,7 +43,39 @@ import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 import type { Context } from 'hono';
 
-type SynthFn = (text: string, rate: number) => Promise<Uint8Array>;
+/** MP3 bytes for `text`. `extraBilled` hears the billed characters of any
+ *  provider call beyond the one billedCharsFor priced (a led take rolled
+ *  again, or the text said without its lead), so a metered caller can bill
+ *  what the provider bills. */
+type SynthFn = (text: string, rate: number, extraBilled?: (chars: number) => void) => Promise<Uint8Array>;
+
+/** The lead a voice speaks ahead of `text` (CuratedVoice.lead), or null.
+ *  Only before a consonant-initial opening: a vowel-initial one was never
+ *  lost (0 of 48 on Harper, 2026-11-16), and the lead adds to the wait.
+ *  "One" and "once" open on a consonant sound. Text that does not open on a
+ *  Latin letter or a digit (Chinese) gets none. */
+export function leadFor(resolved: ResolvedVoice, text: string): string | null {
+    if (!resolved.lead || resolved.provider !== 'azure') return null;
+    const opening = /^[^\p{L}\p{N}]*([\p{L}\p{N}]+)/u.exec(text)?.[1];
+    if (!opening || !/^[A-Za-z0-9]/.test(opening)) return null;
+    if (/^[aeio]/i.test(opening) && !/^(one|once)$/i.test(opening)) return null;
+    return resolved.lead;
+}
+
+/** Below this length an input is short (the client's MIN_TTS_SENTENCE_CHARS,
+ *  ui/src/streaming-tts.ts): softvoice voices such an input, the lead
+ *  included, twice now and then (meditation-pal-1c9h). */
+const SHORT_INPUT_CHARS = 24;
+
+/** What the speech behind the lead should look like for `text`
+ *  (LeadExpect), or undefined when a mark in its first two words, short of
+ *  its last, gives a pause a reason to fall right after the opening. */
+export function leadExpect(text: string): LeadExpect | undefined {
+    if (text.length < SHORT_INPUT_CHARS) return 'one-burst';
+    const words = text.trim().split(/\s+/);
+    const early = words.slice(0, Math.min(2, words.length - 1)).some((w) => /[,.;:!?\u2026\u2013\u2014]$/.test(w));
+    return early ? undefined : 'long-opening';
+}
 
 /** The rate actually synthesized: the caller's request scaled by the curated
  *  voice's pace normalization, so the speed slider means about the same
@@ -80,19 +113,30 @@ export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | nu
     const level = (mp3: Uint8Array) => (resolved.gainDb ? withGain(mp3, resolved.gainDb) : mp3);
     if (resolved.provider === 'azure') {
         const key = config.azureSpeechKey;
-        return key
-            ? (text, rate) =>
-                  synthesizeWithAzure(
-                      text,
-                      resolved.voiceId,
-                      effectiveRate(resolved, rate),
-                      key,
-                      config.azureSpeechRegion,
-                      resolved.style
-                  )
-                      .then(withLeadSilence)
-                      .then(level)
-            : null;
+        if (!key) return null;
+        const azure = (text: string, rate: number) =>
+            synthesizeWithAzure(text, resolved.voiceId, effectiveRate(resolved, rate), key, config.azureSpeechRegion, resolved.style);
+        return async (text, rate, extraBilled) => {
+            const lead = leadFor(resolved, text);
+            if (lead) {
+                const led = `${lead} ${text}`;
+                // A take that doesn't look as expected is rolled again once,
+                // and the second is taken as it comes.
+                const expect = leadExpect(text);
+                for (let attempt = 0; attempt < (expect ? 2 : 1); attempt++) {
+                    if (attempt) extraBilled?.(azureBilledChars(led, effectiveRate(resolved, rate), resolved.style));
+                    // A trimmed clip starts in the voice's own silence, long
+                    // enough to stand in for the lead-silence pad (LEAD_TRIM.keepS).
+                    const trimmed = trimLead(await azure(led, rate), attempt ? undefined : expect);
+                    if (trimmed) return level(trimmed);
+                }
+                // No clean gap behind the lead: speak the text again without
+                // it, so the lead is never heard.
+                log.info('tts lead not trimmed, synthesizing without it', { voice: resolved.voiceId });
+                extraBilled?.(azureBilledChars(text, effectiveRate(resolved, rate), resolved.style));
+            }
+            return level(withLeadSilence(await azure(text, rate)));
+        };
     }
     if (resolved.provider === 'inworld') {
         const key = config.inworldApiKey;
@@ -119,9 +163,9 @@ export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: numb
     // Same effective rate as synthFor, or the billed SSML disagrees with the
     // SSML actually sent (a pace-biased voice carries a prosody wrapper even
     // at slider-neutral rate 1).
-    return resolved.provider === 'azure'
-        ? azureBilledChars(text, effectiveRate(resolved, rate), resolved.style)
-        : text.length;
+    if (resolved.provider !== 'azure') return text.length;
+    const lead = leadFor(resolved, text);
+    return azureBilledChars(lead ? `${lead} ${text}` : text, effectiveRate(resolved, rate), resolved.style);
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`.
@@ -317,16 +361,23 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         }
 
         let audio: Uint8Array;
+        let extraChars = 0;
         try {
-            audio = await synth(text, rate);
+            audio = await synth(text, rate, (chars) => {
+                extraChars += chars;
+            });
         } catch (err) {
             gate.release();
             log.error('tts forward failed', { err: String(err) });
             incident('tts_error', `${billedChars}c: ${String(err)}`);
             return synthFailure(c, err);
         }
+        const billed = billedChars + extraChars;
+        const finalCost = extraChars
+            ? priceTtsChars(billed, { provider: resolved.provider, voiceId: resolved.voiceId })
+            : cost;
 
-        const charged = await chargeUpfront(deps, gate, cost, `tts:${resolved.provider}:${billedChars}c`, {
+        const charged = await chargeUpfront(deps, gate, finalCost, `tts:${resolved.provider}:${billed}c`, {
             accountId: account.id,
             sessionId,
             kind: 'tts',
@@ -334,7 +385,7 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             model: resolved.voiceId,
             // Billed chars, not text.length, so reconciliation against the
             // provider invoice lines up (they differ on Azure).
-            chars: billedChars,
+            chars: billed,
         });
 
         c.header('content-type', 'audio/mpeg');

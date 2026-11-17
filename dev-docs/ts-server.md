@@ -243,6 +243,28 @@ as-shipped audition line (LUFS before → gainDb):
 Serena and Yunfan stop short (about -25 and -27): their peaks leave no
 room for another step.
 
+**Harper's lead word.** Harper's softvoice swallows a consonant-initial
+opening word on most takes ("Back to Exploration" lost "Back" 6 of 7, "That
+can't change" lost "That" 7 of 8), never a vowel-initial one, and never the
+sentence behind a short lead. So her entry carries `lead: 'Okay.'`:
+`routes/tts.ts` `synthFor` sends a consonant-initial input as `Okay. <text>`
+inside the style (`leadFor`), and `providers/mp3-lead-trim.ts` `trimLead`
+cuts everything before the sentence off again without decoding: Azure's MP3 is
+constant bitrate, so a frame's `global_gain` tracks its level, and the cut lands
+on a frame boundary in the silence, 0.15s ahead of the sentence's first sound,
+with the first kept frame emptied so it needs nothing from the bit reservoir
+cut away. A trimmed clip skips the lead-silence pad. A take that isn't what the
+text predicts (`leadExpect`: a short input in one burst, otherwise an opening
+burst longer than a lead) is the lead said twice or a stall and is rolled
+again once; with no gap at all after two takes the text is synthesized without
+the lead. Azure bills every call, so `billedCharsFor` counts the lead (6
+characters) and the metered route adds any further call (`extraBilled`).
+Measured 2026-11-16 through this path: 0 of 40 openings lost (16 of 23
+before), 0 of 40 short inputs voiced twice. It adds a median 23ms (p90 101ms)
+to the Azure call and about 0.1ms of CPU, and a roll costs one more call (6% of
+long sentences, 12% of short ones); only the first sentence of a reply waits
+on any of it, since the rest synthesize while earlier ones play.
+
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a
 sortable, filterable page with a player per voice, a shortlist that emits

@@ -82,6 +82,11 @@ export interface CuratedVoice {
      *  No limiter behind a boost: true peak plus gainDb stays under -2 dBTP.
      *  On a house voice, a change re-levels its setup clips (clips:render). */
     gainDb: number;
+    /** Azure only: a word spoken ahead of the text and cut off again
+     *  (providers/mp3-lead-trim.ts), for a voice that swallows the opening
+     *  word of its input. Sent only before a consonant-initial input
+     *  (routes/tts.ts leadFor). Azure bills it, so billedCharsFor counts it. */
+    lead?: string;
     /** A house voice for this language: it speaks the setup screen's fixed
      *  lines (core setup-lines.ts), pre-rendered to static clips by
      *  scripts/render-voice-clips.ts, which renders every voice carrying the
@@ -140,6 +145,10 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
         house: 'en',
         default: true,
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
+        // Softvoice swallows a consonant-initial opening word on most takes
+        // ("Back to Exploration" lost "Back" 6 of 7), never one behind a
+        // spoken lead (0 of 40 through synthFor, 2026-11-16).
+        lead: 'Okay.',
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
@@ -203,6 +212,8 @@ export interface ResolvedVoice {
     paceBias?: number;
     /** Per-voice level trim (CuratedVoice.gainDb); never on passthrough. */
     gainDb?: number;
+    /** Spoken lead to cut off again (CuratedVoice.lead); never on passthrough. */
+    lead?: string;
 }
 
 function resolvedFrom(v: CuratedVoice): ResolvedVoice {
@@ -212,6 +223,7 @@ function resolvedFrom(v: CuratedVoice): ResolvedVoice {
         ...(v.style ? { style: v.style } : {}),
         ...(v.paceBias ? { paceBias: v.paceBias } : {}),
         ...(v.gainDb ? { gainDb: v.gainDb } : {}),
+        ...(v.lead ? { lead: v.lead } : {}),
     };
 }
 

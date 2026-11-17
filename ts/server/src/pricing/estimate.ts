@@ -105,11 +105,14 @@ export function azureSsmlOverheadFactor(v: {
     provider: TtsProvider;
     style?: string;
     paceBias?: number;
+    lead?: string;
 }): number {
     if (v.provider !== 'azure') return 1;
-    if (v.style) return 1 + AZURE_STYLE_TAG_CHARS / AZURE_AVG_SENTENCE_CHARS;
-    if (v.paceBias) return 1 + AZURE_PROSODY_TAG_CHARS / AZURE_AVG_SENTENCE_CHARS;
-    return 1;
+    // A spoken lead (CuratedVoice.lead) bills on every sentence it goes ahead
+    // of; counted on all of them, which leans high, as above.
+    const lead = v.lead ? v.lead.length + 1 : 0;
+    const tags = v.style ? AZURE_STYLE_TAG_CHARS : v.paceBias ? AZURE_PROSODY_TAG_CHARS : 0;
+    return 1 + (tags + lead) / AZURE_AVG_SENTENCE_CHARS;
 }
 
 const PER_HOUR = 60 / TYPICAL_SESSION_MINUTES;
@@ -212,7 +215,7 @@ export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
 export function voiceCreditsPerHourTypical(
     provider: TtsProvider,
     voiceId: string,
-    treatment?: { style?: string; paceBias?: number }
+    treatment?: { style?: string; paceBias?: number; lead?: string }
 ): number {
     const overhead = azureSsmlOverheadFactor({ provider, ...treatment });
     const usdPerHour =

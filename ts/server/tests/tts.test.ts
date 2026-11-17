@@ -113,14 +113,35 @@ describe('POST /cloud/v1/tts', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'hi' }),
+            body: JSON.stringify({ text: 'Notice the breath moving in and out.' }),
         });
         expect(res.status).toBe(200);
-        expect(azureCalls).toHaveLength(1);
-        const body = azureCalls[0]!.body;
-        expect(body).toContain('en-US-Harper:MAI-Voice-2.1-Flash');
+        // Harper's lead goes first; this fake audio has no gap to cut at, so
+        // after a second led take the text is spoken without it
+        // (routes/tts.ts synthFor).
+        expect(azureCalls).toHaveLength(3);
+        const [led, again, plain] = azureCalls.map((call) => call.body);
+        expect(again).toBe(led);
+        expect(led).toContain('en-US-Harper:MAI-Voice-2.1-Flash');
         // The default path carries the curated voice's style, not a bare id.
-        expect(body).toContain('softvoice');
+        expect(led).toContain('<mstts:express-as style="softvoice">Okay. Notice the breath moving in and out.</mstts:express-as>');
+        expect(plain).toContain('<mstts:express-as style="softvoice">Notice the breath moving in and out.</mstts:express-as>');
+    });
+
+    it('bills both Azure calls when the lead could not be cut off', async () => {
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', AZURE_SPEECH_KEY: 'az-key', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const a = createApp(buildDeps(config));
+        const token = await devToken(a);
+        const res = await a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ text: 'Notice the breath moving in and out.', voice: 'Harper' }),
+        });
+        expect(res.status).toBe(200);
+        const text = 'Notice the breath moving in and out.';
+        const billed = 2 * azureBilledChars(`Okay. ${text}`, 1, 'softvoice') + azureBilledChars(text, 1, 'softvoice');
+        const expected = priceTtsChars(billed, { provider: 'azure', voiceId: 'en-US-Harper:MAI-Voice-2.1-Flash' }).credits;
+        expect(Number(res.headers.get('X-Credits-Charged'))).toBeCloseTo(expected, 10);
     });
 
     it('clamps an out-of-range speakingRate into Google\'s accepted band', async () => {
@@ -434,13 +455,15 @@ describe('POST /cloud/v1/tts — Azure voices', () => {
         const res = await a.request('/cloud/v1/tts', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ text: 'Breathe in.', voice: 'Harper', rate: 1.2 }),
+            body: JSON.stringify({ text: 'Notice the breath moving in and out.', voice: 'Harper', rate: 1.2 }),
         });
         expect(res.status).toBe(200);
-        expect(azureCalls).toHaveLength(1);
-        const body = azureCalls[0]!.body;
-        expect(body).toContain('<mstts:express-as style="softvoice">');
-        expect(body).not.toContain('<prosody');
+        // Two led takes, then the fallback without the lead (fake audio).
+        expect(azureCalls).toHaveLength(3);
+        for (const { body } of azureCalls) {
+            expect(body).toContain('<mstts:express-as style="softvoice">');
+            expect(body).not.toContain('<prosody');
+        }
     });
 
     it('speaks an Inworld voice on the model its catalog id names, billed per character at that rate', async () => {
