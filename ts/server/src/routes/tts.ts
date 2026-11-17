@@ -28,6 +28,7 @@ import {
     synthesizeWithInworld,
 } from '../providers/tts.js';
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
+import { withGain } from '../providers/mp3-gain.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
@@ -76,6 +77,7 @@ type TtsKeys = Pick<Config, 'googleTtsApiKey' | 'azureSpeechKey' | 'azureSpeechR
  *  is present. Exported for scripts/preview-voices.ts, whose "as shipped"
  *  clips have to be exactly what a session hears. */
 export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | null {
+    const level = (mp3: Uint8Array) => (resolved.gainDb ? withGain(mp3, resolved.gainDb) : mp3);
     if (resolved.provider === 'azure') {
         const key = config.azureSpeechKey;
         return key
@@ -87,21 +89,23 @@ export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | nu
                       key,
                       config.azureSpeechRegion,
                       resolved.style
-                  ).then(withLeadSilence)
+                  )
+                      .then(withLeadSilence)
+                      .then(level)
             : null;
     }
     if (resolved.provider === 'inworld') {
         const key = config.inworldApiKey;
         return key
             ? (text, rate) =>
-                  synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate), key).then(
-                      withLeadSilence
-                  )
+                  synthesizeWithInworld(text, resolved.voiceId, effectiveRate(resolved, rate), key)
+                      .then(withLeadSilence)
+                      .then(level)
             : null;
     }
     const key = config.googleTtsApiKey;
     return key
-        ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key)
+        ? (text, rate) => synthesizeWithGoogle(text, resolved.voiceId, effectiveRate(resolved, rate), key).then(level)
         : null;
 }
 

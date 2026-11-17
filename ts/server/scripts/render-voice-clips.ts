@@ -14,8 +14,8 @@
  * and stops before spending), --no-gate (skip the quality gate; no ffmpeg).
  *
  * Cheap to re-run: a clip whose manifest entry has the line's current text,
- * whose file name carries the current (text, voice id, style) hash and whose
- * file exists is skipped. Clips of removed lines and replaced renders are
+ * whose file name carries the current (text, voice id, style, gain) hash and
+ * whose file exists is skipped. Clips of removed lines and replaced renders are
  * deleted. Each clip is synthesized through the server's own path
  * (routes/tts.ts synthFor, lead silence included) at rate 1, so it is what a
  * session would hear; a styled voice ignores rate anyway.
@@ -327,6 +327,7 @@ async function main(): Promise<void> {
         gender: v.gender,
         providerVoiceId: v.providerVoiceId,
         ...(v.style ? { style: v.style } : {}),
+        ...(v.gainDb ? { gainDb: v.gainDb } : {}),
     }));
     if (!allVoices.length) fail('no curated voice carries `house` (server/src/providers/voice-catalog.ts)');
     const wanted = args.voices?.map((name) => {

@@ -73,6 +73,21 @@ export interface CuratedVoice {
      *  style is present - a paceBias on a styled voice would be dead config
      *  that reads as if it worked. */
     paceBias?: number;
+    /** A level trim in dB for a voice its provider renders quieter or louder
+     *  than the rest, applied to everything synthFor (routes/tts.ts) makes of
+     *  it: sessions, previews, canned lines and the setup clips. It moves the
+     *  MP3's own gain field (providers/mp3-gain.ts), so it is lossless, free
+     *  and the same on every provider, but it goes in steps of 1.5 dB: keep
+     *  values on a step. Azure's <prosody volume> kept Ethan's softvoice in
+     *  a probe (2026-11-16, unlike a prosody rate), but it bills its markup
+     *  on every reply.
+     *
+     *  A boost has no limiter behind it: before raising one, measure the
+     *  voice's true peak (ffmpeg -af ebur128=peak=true over its setup clips)
+     *  and keep the result under -1 dBTP with room for a line that peaks
+     *  higher. A house voice's clips re-render when this changes
+     *  (voice-clips/plan.ts clipHash). */
+    gainDb?: number;
     /** A house voice for this language: it speaks the setup screen's fixed
      *  lines (core setup-lines.ts), pre-rendered to static clips by
      *  scripts/render-voice-clips.ts, which renders every voice carrying the
@@ -106,7 +121,11 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Microsoft's docs cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value' },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', house: 'en' },
+    // Ethan comes out of Azure 7 LU under Harper (-25.3 vs -18.3 LUFS over
+    // the 70 setup clips they share, 2026-11-16), at every frequency, not
+    // just in the bass. His true peaks reach -5.4 dBTP, so +3 dB lands at
+    // about -2.4: the most that headroom allows with a margin.
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', gainDb: 3, house: 'en' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
@@ -191,6 +210,18 @@ export interface ResolvedVoice {
     style?: string;
     /** Per-voice pace normalization (CuratedVoice.paceBias); never on passthrough. */
     paceBias?: number;
+    /** Per-voice level trim (CuratedVoice.gainDb); never on passthrough. */
+    gainDb?: number;
+}
+
+function resolvedFrom(v: CuratedVoice): ResolvedVoice {
+    return {
+        provider: v.provider,
+        voiceId: v.providerVoiceId,
+        ...(v.style ? { style: v.style } : {}),
+        ...(v.paceBias ? { paceBias: v.paceBias } : {}),
+        ...(v.gainDb ? { gainDb: v.gainDb } : {}),
+    };
 }
 
 /**
@@ -204,23 +235,9 @@ export function resolveVoice(
     voice: string | undefined,
     available?: ReadonlySet<TtsProvider>
 ): ResolvedVoice {
-    if (!voice) {
-        const d = defaultVoice(available);
-        return {
-            provider: d.provider,
-            voiceId: d.providerVoiceId,
-            ...(d.style ? { style: d.style } : {}),
-            ...(d.paceBias ? { paceBias: d.paceBias } : {}),
-        };
-    }
+    if (!voice) return resolvedFrom(defaultVoice(available));
     const curated = CURATED_VOICES.find((v) => v.name === voice);
-    if (curated)
-        return {
-            provider: curated.provider,
-            voiceId: curated.providerVoiceId,
-            ...(curated.style ? { style: curated.style } : {}),
-            ...(curated.paceBias ? { paceBias: curated.paceBias } : {}),
-        };
+    if (curated) return resolvedFrom(curated);
     // A short name that is no longer curated (a removed voice, e.g. Mira,
     // 2026-09-01) falls back to the default rather than the passthrough below:
     // real Google/Azure ids always carry locale hyphens, so a bare word could

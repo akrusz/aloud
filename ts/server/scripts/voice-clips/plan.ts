@@ -39,6 +39,8 @@ export interface HouseVoice {
     gender: string;
     providerVoiceId: string;
     style?: string;
+    /** CuratedVoice.gainDb. */
+    gainDb?: number;
 }
 
 export function emptyManifest(): ClipManifest {
@@ -53,16 +55,18 @@ export function voiceSlug(name: string): string {
 }
 
 /** The clip's revision: anything that changes the audio changes the file
- *  name, so a re-rendered line is a new URL and no cache serves the old one. */
-export function clipHash(text: string, providerVoiceId: string, style: string | undefined): string {
+ *  name, so a re-rendered line is a new URL and no cache serves the old one.
+ *  The gain joins the hash only when set, so the clips of a voice without
+ *  one keep their names. */
+export function clipHash(text: string, providerVoiceId: string, style: string | undefined, gainDb?: number): string {
     return createHash('sha256')
-        .update(JSON.stringify([text, providerVoiceId, style ?? '']))
+        .update(JSON.stringify([text, providerVoiceId, style ?? '', ...(gainDb ? [gainDb] : [])]))
         .digest('hex')
         .slice(0, 8);
 }
 
 export function clipFile(voice: HouseVoice, lineId: string, text: string): string {
-    return `${voiceSlug(voice.name)}/${voice.language}/${lineId}.${clipHash(text, voice.providerVoiceId, voice.style)}.mp3`;
+    return `${voiceSlug(voice.name)}/${voice.language}/${lineId}.${clipHash(text, voice.providerVoiceId, voice.style, voice.gainDb)}.mp3`;
 }
 
 export type ClipStatus = 'current' | 'missing' | 'stale';
@@ -71,7 +75,7 @@ export interface ClipTarget {
     voice: HouseVoice;
     lineId: string;
     text: string;
-    /** Where the clip for this text, voice and style belongs. */
+    /** Where the clip for this text, voice, style and gain belongs. */
     file: string;
     status: ClipStatus;
     /** Why it is missing or stale. */
@@ -95,7 +99,7 @@ export function planClips(
             const target = { voice, lineId, text, file };
             if (!entry) targets.push({ ...target, status: 'missing', why: 'not rendered' });
             else if (entry.text !== text) targets.push({ ...target, status: 'stale', why: 'text changed' });
-            else if (entry.file !== file) targets.push({ ...target, status: 'stale', why: 'voice id or style changed' });
+            else if (entry.file !== file) targets.push({ ...target, status: 'stale', why: 'voice id, style or gain changed' });
             else if (!exists(entry.file)) targets.push({ ...target, status: 'missing', why: 'file missing' });
             else targets.push({ ...target, status: 'current' });
         }

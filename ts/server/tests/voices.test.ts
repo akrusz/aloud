@@ -25,6 +25,7 @@ describe('voice catalog', () => {
             voiceId: d.providerVoiceId,
             ...(d.style ? { style: d.style } : {}),
             ...(d.paceBias ? { paceBias: d.paceBias } : {}),
+            ...(d.gainDb ? { gainDb: d.gainDb } : {}),
         });
         expect(d.default).toBe(true);
     });

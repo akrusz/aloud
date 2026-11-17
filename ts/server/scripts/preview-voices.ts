@@ -103,7 +103,8 @@ const TIER_LABEL: Record<VoiceTier, string> = { premium: 'Best', value: 'Very Go
  *  shipped" clip carries the config it was rendered from, so one whose config
  *  has left the catalog can be dropped instead of passing for current. */
 function shippedConfig(v: CuratedVoice): string {
-    return [v.provider, v.providerVoiceId, v.style ?? '', v.paceBias ?? 1].join('|');
+    // The gain only when set, so a voice without one keeps its rendered clip.
+    return [v.provider, v.providerVoiceId, v.style ?? '', v.paceBias ?? 1, ...(v.gainDb ? [v.gainDb] : [])].join('|');
 }
 
 /** What an "as shipped" clip did, for the row. */

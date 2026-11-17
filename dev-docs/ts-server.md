@@ -223,6 +223,15 @@ The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-nam
 `premium` voice under "Best", a `value` one under "Very Good") and sends the
 short name back, which `/cloud/v1/tts` resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
 
+Providers render voices at very different levels: the as-shipped auditions
+spread from -17.5 to -29 LUFS (2026-11-16). A voice that sits too quiet or
+loud next to the others takes a `gainDb` trim, which `routes/tts.ts`
+`synthFor` applies to everything it makes of that voice (sessions, previews,
+canned lines, setup clips) by moving the MP3's own gain field
+(`providers/mp3-gain.ts` `withGain`): lossless, no billed characters, in
+1.5 dB steps, with no limiter behind it, so check the voice's true peak first
+(`ffmpeg -af ebur128=peak=true`). Ethan carries +3 dB.
+
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a
 sortable, filterable page with a player per voice, a shortlist that emits

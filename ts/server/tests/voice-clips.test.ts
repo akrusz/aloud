@@ -162,6 +162,13 @@ describe('clip plan', () => {
         expect(clipHash('Okay, noting mode!', harper.providerVoiceId, 'softvoice')).not.toBe(h);
         expect(clipHash('Okay, noting mode.', harper.providerVoiceId, undefined)).not.toBe(h);
         expect(clipHash('Okay, noting mode.', 'en-US-Harper:MAI-Voice-2-Flash', 'softvoice')).not.toBe(h);
+        // A gain renames the clip; no gain leaves the name it had before
+        // gains existed, so adding one to a voice re-renders only that voice.
+        expect(clipHash('Okay, noting mode.', harper.providerVoiceId, 'softvoice', 3)).not.toBe(h);
+        expect(clipHash('Okay, noting mode.', harper.providerVoiceId, 'softvoice', 0)).toBe(h);
+        expect(clipFile({ ...harper, gainDb: 3 }, 'mode-noting', 'Okay, noting mode.')).not.toBe(
+            clipFile(harper, 'mode-noting', 'Okay, noting mode.')
+        );
     });
 
     it('renders only what is missing or stale', () => {
@@ -186,7 +193,7 @@ describe('clip plan', () => {
             ['a', 'current', undefined],
             ['b', 'stale', 'text changed'],
             ['c', 'missing', 'file missing'],
-            ['d', 'stale', 'voice id or style changed'],
+            ['d', 'stale', 'voice id, style or gain changed'],
             ['e', 'missing', 'not rendered'],
         ]);
     });
