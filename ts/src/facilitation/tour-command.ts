@@ -115,6 +115,15 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
     return picked.size === 1 ? [...picked][0]! : null;
 }
 
+/** A zh utterance without its punctuation and the softeners around a request
+ *  (好的 and 请 ahead, 吧 and 了 after). */
+function bareZh(utterance: string): string {
+    return toSimplified(trimHeardZh(utterance))
+        .replace(/[\s。，！？、．.…,!?~]+/gu, '')
+        .replace(/^(?:好的?|请)+/u, '')
+        .replace(/(?:吧|了)+$/u, '');
+}
+
 /**
  * What a tour utterance asks for, or null when it is not (only) one of the
  * tour's words. `voices` are the two on offer while the voice step is up
@@ -125,10 +134,12 @@ export function parseTourCommand(utterance: string, voices?: readonly OfferedVoi
         const index = pickedVoice(utterance, voices);
         if (index !== null) return { kind: 'voice', index };
     }
-    const zh = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '').replace(/^(?:好的?|请)+/u, '').replace(/(?:吧|了)+$/u, '');
+    const zh = bareZh(utterance);
     if (/[㐀-鿿]/.test(zh)) {
+        // The phrases go through the same trimming: 知道了 is said, and
+        // matched, as 知道.
         for (const [kind, phrases] of SAID_ZH) {
-            if (phrases.includes(zh)) return { kind } as TourCommand;
+            if (phrases.some((phrase) => bareZh(phrase) === zh)) return { kind } as TourCommand;
         }
         return null;
     }

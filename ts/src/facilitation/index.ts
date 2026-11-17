@@ -73,7 +73,7 @@ export { isMuteCommand } from './mute-command.js';
 export { isEndCommand, endConfirmReply } from './end-command.js';
 export { isBeginCommand, parseBeginRequest } from './begin-command.js';
 export type { BeginRequest, BeginMode } from './begin-command.js';
-export { parseSetupCommand, isSetupCommand, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
+export { parseSetupCommand, isSetupCommand, leavesAsk, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
 export type { SetupAction, SetupFocus } from './setup-command.js';
 export { parseSetupPick, namedIn } from './setup-pick.js';
 export type { SetupPick, PickContext } from './setup-pick.js';

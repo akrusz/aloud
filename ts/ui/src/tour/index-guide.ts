@@ -98,16 +98,31 @@ export interface TourVoice {
      *  house voice to say it in (the two introductions); otherwise whoever
      *  speaks the setup screen. Resolves when it has finished or been cut. */
     say(id: SetupLineId, as?: string): Promise<void>;
-    /** Cut off the line being spoken. */
+    /** Cut off the line being spoken, and any asked for that has not begun. */
     stop(): void;
+    /** Whether the tour is spoken at all: not with voice mode switched off,
+     *  where the cards are the whole of it. */
+    speaks(): boolean;
     /** The two house voices the voice step offers, or none where it doesn't
      *  apply (no clips in this language, or a session voice that is local). */
     voicesOnOffer(): OfferedVoice[];
     /** Make this the voice everywhere, the session's included. */
     pickVoice(name: string): void;
-    /** The microphone on this screen: open, openable with a tap (`ask`), or
-     *  not on offer at all (switched off in Settings, or blocked). */
-    mic(): 'listening' | 'ask' | 'off';
+    /**
+     * The microphone on this screen, as the tour needs it:
+     * - `on`: listening, opening, or asleep (closed by itself for the rest of
+     *   the visit: its window, a room that kept talking, a recognizer error,
+     *   "stop listening"). The tour speaks as it would with the mic open.
+     * - `ask`: a tap is what turns it on: voice mode switched off (by hand,
+     *   in Settings, or a phone's default), the permission not yet given, or
+     *   a page not yet touched.
+     * - `off`: not on offer at all (blocked, Begin can't run, hosted
+     *   recognition with nobody signed in).
+     */
+    mic(): 'on' | 'ask' | 'off';
+    /** A tour is starting: a mic that is asleep wakes, where nothing else
+     *  keeps it closed. One switched off stays off. */
+    reopen(): void;
     /** Ask for the microphone. Called from the click itself, since that is the
      *  one place a permission prompt belongs. Resolves true once it listens. */
     enableMic(): Promise<boolean>;
@@ -190,21 +205,28 @@ type Step =
     /** Choose between the two house voices. */
     | { kind: 'voice' }
     | { kind: 'section'; section: Section }
-    /** The setup can be changed out loud. */
-    | { kind: 'say-it' }
+    /** The close, and that the setup can be changed out loud where the mic
+     *  is on offer. */
     | { kind: 'done' };
 
 /** This run's steps, settled when the guide starts so the dots hold still. */
 let steps: Step[] = [];
 
+/** Whether the tour reads itself out right now. */
+function speaking(): boolean {
+    return tourVoice !== null && !quiet && tourVoice.speaks();
+}
+
 function buildSteps(): Step[] {
     const mic = tourVoice?.mic() ?? 'off';
+    // The voices introduce themselves, so their step is for a tour that is
+    // spoken, or that can be once the mic step has turned voice mode on.
+    const audible = speaking() || (mic === 'ask' && tourVoice !== null && !quiet);
     return [
         ...(welcomeVariant ? [{ kind: 'welcome' } as const] : []),
         ...(mic === 'ask' ? [{ kind: 'mic' } as const] : []),
-        ...(tourVoice && !quiet && tourVoice.voicesOnOffer().length === 2 ? [{ kind: 'voice' } as const] : []),
+        ...(audible && tourVoice?.voicesOnOffer().length === 2 ? [{ kind: 'voice' } as const] : []),
         ...SECTIONS.map((section) => ({ kind: 'section', section }) as const),
-        ...(mic !== 'off' ? [{ kind: 'say-it' } as const] : []),
         { kind: 'done' },
     ];
 }
@@ -272,12 +294,23 @@ function holdPage(card: HTMLDivElement): void {
     // inert element takes no mousedown: there, hold what is in the bar and
     // leave the bar itself live.
     const dragBar = isTauri() ? document.querySelector('nav.nav') : null;
-    const page = [...document.body.children].flatMap((el) => (el === dragBar ? [...el.children] : [el]));
-    for (const el of page) {
-        if (!(el instanceof HTMLElement) || el === card || el === overlayEl || el.inert) continue;
-        el.inert = true;
-        heldPage.push(el);
-    }
+    // A control marked data-tour-live works under the card too (the mic
+    // beside Begin). Held, a tap on it would fall through to the overlay
+    // under it and close the tour.
+    const live = [...document.querySelectorAll('[data-tour-live]')];
+    const hold = (parent: Element): void => {
+        for (const el of parent.children) {
+            if (!(el instanceof HTMLElement) || el === card || el === overlayEl || el.inert || live.includes(el)) continue;
+            // On the way to a live control, or the drag bar: live itself, its
+            // other contents held.
+            if (el === dragBar || live.some((keep) => el.contains(keep))) hold(el);
+            else {
+                el.inert = true;
+                heldPage.push(el);
+            }
+        }
+    };
+    hold(document.body);
     // The card itself, not its first choice: the dialog gets announced with
     // its text, and a stray Enter on a page that has only just loaded can't
     // start a first session (that choice asks for the mic).
@@ -341,10 +374,11 @@ const SPEAKER_ICON =
     '<path class="tour-sound-off" d="m16 9 6 6M22 9l-6 6"></path></svg>';
 
 /** The speaker beside Skip on every step past the welcome: whether the tour
- *  reads itself out. Only where there is a voice to read it. */
+ *  reads itself out. Only where there is a voice to read it, and not with
+ *  voice mode off, where the tour is silent whatever it says. */
 function addSoundToggle(): void {
     const footer = cardEl?.querySelector<HTMLElement>('.tour-footer');
-    if (!footer || !tourVoice || steps[currentStep]?.kind === 'welcome') return;
+    if (!footer || !tourVoice?.speaks() || steps[currentStep]?.kind === 'welcome') return;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tour-sound';
@@ -388,33 +422,32 @@ function setQuiet(next: boolean): void {
     paintSoundToggle();
 }
 
-/** Say `id` unless the step has moved on or the reading is off. */
+/** Say `id` unless the reading is off. False when the step moved on while it
+ *  was said. */
 async function sayLine(id: SetupLineId, as?: string): Promise<boolean> {
-    if (!tourVoice || quiet) return false;
     const turn = speechTurn;
-    await tourVoice.say(id, as);
+    if (tourVoice && speaking()) await tourVoice.say(id, as);
     return turn === speechTurn;
 }
 
 /** Read the step on screen out, once per arrival (`again`: on request). */
 function speakStep(again = false): void {
     const step = steps[currentStep];
-    if (!step || !tourVoice || quiet || (!again && spokenStep === currentStep)) return;
+    if (!step || !tourVoice || !speaking() || (!again && spokenStep === currentStep)) return;
     spokenStep = currentStep;
     speechTurn++;
     tourVoice.stop();
     tourVoice.keepOpen();
-    const listening = tourVoice.mic() === 'listening';
+    const micOn = tourVoice.mic() === 'on';
     if (step.kind === 'mic') void sayLine('tour-hello');
     else if (step.kind === 'voice') void introduceVoices();
     else if (step.kind === 'section') {
         const line = SECTION_LINES[step.section.id];
         if (line) void sayLine(line);
     }
-    // Both tell the listener what to say next, which only means something
-    // with the microphone open.
-    else if (step.kind === 'say-it' && listening) void sayLine('tour-voice-control');
-    else if (step.kind === 'done' && listening) void sayLine('tour-done');
+    // It tells the listener what to say: not said where the mic is yet to be
+    // turned on. One asleep is still on (TourVoice.mic).
+    else if (step.kind === 'done' && micOn) void sayLine('tour-done');
 }
 
 /** The voice step: each of the two says who it is, lit while it speaks. */
@@ -444,7 +477,7 @@ function chooseVoice(index: number): void {
     const from = currentStep;
     void sayLine('tour-voice-picked', voice.name).then((still) => {
         // Not if they have already moved on by hand, or left.
-        if (guideActive && currentStep === from && (still || quiet)) advanceStep();
+        if (guideActive && currentStep === from && still) advanceStep();
     });
 }
 
@@ -454,7 +487,8 @@ function onTourHeard(text: string): boolean {
     if (!guideActive || !step || step.kind === 'welcome') return false;
     const command = parseTourCommand(text, step.kind === 'voice' ? tourVoice?.voicesOnOffer() : undefined);
     if (!command) return false;
-    if (command.kind === 'next') advanceStep();
+    // On the last card, "next" is its "Got it".
+    if (command.kind === 'next') step.kind === 'done' ? completeGuide() : advanceStep();
     // Not back onto the welcome card, which answers to no words.
     else if (command.kind === 'back') currentStep > firstTourStep() && goBack();
     else if (command.kind === 'repeat') speakStep(true);
@@ -602,7 +636,7 @@ function showWelcome(): void {
     }
     html += '<button class="tour-choice" data-action="start">';
     html += '<strong>' + t('Show me around') + '</strong>';
-    html += '<small>' + (tourVoice && !quiet ? t('A quick look at how it works, spoken aloud') : t('A quick look at how it works')) + '</small>';
+    html += '<small>' + (speaking() ? t('A quick look at how it works, spoken aloud') : t('A quick look at how it works')) + '</small>';
     html += '</button>';
     html += '</div>';
 
@@ -641,6 +675,10 @@ function turnMicOn(btn: HTMLElement): void {
     if (!tourVoice) return;
     const from = currentStep;
     const note = btn.querySelector('small');
+    // The mic only opens once the app has stopped speaking: cut the line, or
+    // the tap would wait it out.
+    speechTurn++;
+    tourVoice.stop();
     void tourVoice.enableMic().then((on) => {
         if (!guideActive || currentStep !== from) return;
         if (on) advanceStep();
@@ -658,12 +696,6 @@ function showVoiceStep(): void {
         html += '<strong>' + escapeHtml(voice.name) + '</strong></button>';
     });
     html += '</div>';
-    showCentered(html);
-}
-
-function showSayIt(): void {
-    let html = '<h3>' + t('Use voice controls') + '</h3>';
-    html += '<p>' + t('When the mic button beside Begin is on, you can set all of this by voice: "twenty minutes", "add playful", "felt sense". Then say "begin".') + '</p>';
     showCentered(html);
 }
 
@@ -702,9 +734,16 @@ function showSection(section: Section): void {
     });
 }
 
+/** The last card: the close, and where the mic is on offer, that all of it
+ *  can be said. A request said here is taken like anywhere on the screen. */
 function showDone(): void {
     let html = '<h3>' + t('You’re ready') + '</h3>';
-    html += '<p>' + t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.') + '</p>';
+    html +=
+        '<p>' +
+        (tourVoice && tourVoice.mic() !== 'off'
+            ? t('Pick what you like and begin. With the mic on, say it: "twenty minutes", "add playful", "begin". Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')
+            : t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')) +
+        '</p>';
     showCentered(html, false);
 }
 
@@ -716,12 +755,18 @@ function goToStep(index: number): void {
         speechTurn++;
         tourVoice?.stop();
     }
+    // The voices introduce themselves: with voice mode off (left off at the
+    // mic step, or switched off since) their step is passed by, either way.
+    if (step.kind === 'voice' && tourVoice && !tourVoice.speaks()) {
+        const onward = index > currentStep || index === 0;
+        currentStep = index;
+        return onward ? advanceStep() : goBack();
+    }
     currentStep = index;
     if (step.kind === 'welcome') showWelcome();
     else if (step.kind === 'mic') showMicStep();
     else if (step.kind === 'voice') showVoiceStep();
     else if (step.kind === 'section') showSection(step.section);
-    else if (step.kind === 'say-it') showSayIt();
     else showDone();
 }
 
@@ -786,6 +831,8 @@ function startGuide(): void {
     installInfoBtnHandler();
     guideActive = true;
     document.body.classList.add('guide-running');
+    // Ahead of the steps: a mic reopening is `on`, and gets no card offering it.
+    tourVoice?.reopen();
     steps = buildSteps();
     currentStep = -1;
     spokenStep = -1;

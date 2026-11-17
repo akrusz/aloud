@@ -1400,7 +1400,7 @@ input[type="range"].slider-stops {
 .advanced-settings {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    /* Raise the "Additional instructions" box onto the note surface so it reads
+    /* Raise the "Special requests" box onto the note surface so it reads
        as a panel, not a bordered patch of the page. The textarea inside keeps
        its lighter --bg-input, nesting cleanly. */
     background: var(--bg-note);
@@ -1825,7 +1825,7 @@ body:has(.session-container) {
 }
 
 /* Setup: a two-up row pairing a wide unlabelled control with a normal field -
-   "Additional instructions" beside Guidance Level under Exploration, the
+   "Special requests" beside Guidance Level under Exploration, the
    turn-cue options beside the Session clock under Noting.
 
    Bottom-aligned: the field carries a label above its control and its wide
@@ -4735,6 +4735,13 @@ input[type="range"].preview-range {
     .settings-section .form-row > .form-group:not(:first-child) > label {
         margin-top: 0;
     }
+    /* The same for the column beside Speech Recognition, whose fields sit
+       one level down (settings.ts renderLanguageSection): the first one
+       showing, the Whisper model or else the setup voice control. */
+    #s-stt-side > #s-whisper-model-group > label,
+    #s-stt-side > #s-whisper-model-group.hidden + #s-setup-voice-group > label {
+        margin-top: 0;
+    }
 }
 
 .settings-section .stepper {
@@ -5152,6 +5159,21 @@ input[type="range"].preview-range {
 .voice-start-mic:disabled {
     color: var(--text-muted);
     cursor: not-allowed;
+}
+
+/* Voice mode (views/setup.ts paintVoiceMic): lit is on, slashed is off, and
+   asleep (closed by itself, the setting still on) is the glyph at rest, with
+   no slash. The gap is drawn in the button's own colour under the slash, so
+   the slash cuts the glyph instead of lying on it. */
+.voice-start-mic .mute-gap {
+    stroke: var(--bg-input);
+    stroke-width: 6;
+    transition: opacity var(--transition);
+}
+.voice-start-mic.active .mute-gap,
+.voice-start-mic.sleeping .mute-gap,
+.voice-start-mic.sleeping .mute-line {
+    opacity: 0;
 }
 
 .voice-start-mic.hidden {

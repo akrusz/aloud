@@ -117,9 +117,12 @@ describe('looksLikeSpokenTail', () => {
     });
     it('lets a request through that a line happened to mention', async () => {
         const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');
-        const tour = "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer.";
+        const tour = "You can also set things up by talking: say 'twenty minutes' and I'll set a timer. That's the basics. Say begin when you're ready.";
         expect(looksLikeSpokenTail('twenty minutes', tour)).toBe(false);
-        expect(looksLikeSpokenTail('set a timer', tour)).toBe(true);
+        expect(looksLikeSpokenTail("when you're ready", tour)).toBe(true);
+        // The tour's last line asks for "begin" short of its end: what a
+        // reopening mic catches of it is dropped, and never starts a session.
+        expect(looksLikeSpokenTail("Begin when you're ready.", tour)).toBe(true);
     });
     it('takes more than the last few words as the person', async () => {
         const { looksLikeSpokenTail } = await import('../src/facilitation/echo-guard.js');

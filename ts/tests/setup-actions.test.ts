@@ -15,6 +15,7 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
         guidance: 2,
         verbosity: 'medium' as Verbosity,
         intention: '',
+        requests: '',
         checkins: true,
     };
     const f: SetupForm = {
@@ -40,6 +41,8 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
         verbosity: () => state.verbosity,
         setVerbosity: (value) => void (state.verbosity = value),
         setIntention: (text) => void (state.intention = text),
+        specialRequests: () => state.requests,
+        setSpecialRequests: (text) => void (state.requests = text),
         setCheckins: (on) => void (state.checkins = on),
     };
     return { f, state };
@@ -73,6 +76,31 @@ describe('applySetupAction', () => {
         expect(state.focuses).toEqual(['emotions']);
         expect(applySetupAction(f, { kind: 'clear', group: 'focus' })).toEqual({ kind: 'cleared', group: 'focus' });
         expect(state.focuses).toEqual([]);
+    });
+
+    it('flips a toggle by what the form holds, and says which way it went', () => {
+        const { f, state } = form();
+        expect(applySetupAction(f, { kind: 'quality', quality: 'playful', on: 'toggle' })).toEqual({
+            kind: 'quality',
+            quality: 'playful',
+            on: true,
+        });
+        expect(applySetupAction(f, { kind: 'quality', quality: 'playful', on: 'toggle' })).toEqual({
+            kind: 'quality',
+            quality: 'playful',
+            on: false,
+        });
+        expect(state.qualities).toEqual([]);
+        expect(applySetupAction(f, { kind: 'focus', focus: 'emotions', on: 'toggle' })).toEqual({
+            kind: 'focus',
+            focus: 'emotions',
+            on: false,
+        });
+        expect(state.focuses).toEqual(['body_sensations']);
+        expect(applySetupAction(form({ mode: 'noting' }).f, { kind: 'focus', focus: 'emotions', on: 'toggle' })).toEqual({
+            kind: 'elsewhere',
+            mode: 'exploration',
+        });
     });
 
     it('steps the guidance and stops at the ends', () => {
@@ -134,6 +162,32 @@ describe('applySetupAction', () => {
         expect(applySetupAction(form({ mode: 'noting' }).f, { kind: 'intention-ask' })).toEqual({ kind: 'elsewhere', mode: null });
     });
 
+    it('adds a special request on a line of its own, keeps what was there, and clears', () => {
+        const { f, state } = form();
+        state.requests = 'No bells.\n';
+        expect(applySetupAction(f, { kind: 'special-request', text: 'keep it slow' })).toEqual({
+            kind: 'special-request',
+            added: true,
+        });
+        expect(state.requests).toBe('No bells.\nkeep it slow');
+        applySetupAction(f, { kind: 'special-request', text: 'Keep it slow' });
+        expect(state.requests).toBe('No bells.\nkeep it slow');
+        expect(applySetupAction(f, { kind: 'special-request-ask' })).toEqual({ kind: 'special-request-ask' });
+        expect(applySetupAction(f, { kind: 'special-request', text: '' })).toEqual({ kind: 'special-request', added: false });
+        expect(state.requests).toBe('');
+        applySetupAction(f, { kind: 'special-request', text: 'keep it slow' });
+        expect(state.requests).toBe('keep it slow');
+    });
+
+    it('takes special requests under Exploration only, where the field is', () => {
+        for (const mode of ['noting', 'felt_sense'] as const) {
+            const { f, state } = form({ mode });
+            expect(applySetupAction(f, { kind: 'special-request', text: 'slow' })).toEqual({ kind: 'elsewhere', mode: 'exploration' });
+            expect(applySetupAction(f, { kind: 'special-request-ask' })).toEqual({ kind: 'elsewhere', mode: 'exploration' });
+            expect(state.requests).toBe('');
+        }
+    });
+
     it('hands the mic requests back untouched', () => {
         const { f } = form();
         expect(applySetupAction(f, { kind: 'stop-listening' })).toEqual({ kind: 'stop-listening' });
@@ -162,6 +216,26 @@ describe('a request, start to finish', () => {
         const { f, state } = form({ mode: 'noting' });
         expect(said('playful exploration', f)).toEqual(['Okay, exploration mode.', 'Playful is on.']);
         expect(state.qualities).toEqual(['playful']);
+    });
+
+    it('flips a vibe or a focus said by its name alone, and says which way', () => {
+        const { f, state } = form();
+        expect(said('Playful.', f)).toEqual(['Playful is on.']);
+        expect(said('Playful.', f)).toEqual(['Playful is off.']);
+        expect(said('Body.', f)).toEqual(['Body focus is off.']);
+        expect(said('add playful', f)).toEqual(['Playful is on.']);
+        expect(said('add playful', f)).toEqual(['Playful is on.']);
+        expect(said('remove emotions', f)).toEqual(['Emotions focus is off.']);
+        expect(said('remove emotions', f)).toEqual(['Emotions focus is off.']);
+        expect(state).toMatchObject({ qualities: ['playful'], focuses: [] });
+    });
+
+    it('asks for a special request, and says when one is added or cleared', () => {
+        const { f, state } = form();
+        expect(said('special requests', f)).toEqual(["What's your request?"]);
+        expect(said('special request: keep it slow', f)).toEqual(['Added your request.']);
+        expect(said('clear my special requests', f)).toEqual(['Special requests are cleared.']);
+        expect(state.requests).toBe('');
     });
 
     it('says an odd length exactly, for a voice that can', () => {

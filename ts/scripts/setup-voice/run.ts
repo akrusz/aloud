@@ -1048,6 +1048,16 @@ async function main(): Promise<void> {
     if (SUMMARY_ONLY) {
         const files = configs.map(resultsPath).filter(existsSync).map((p) => JSON.parse(readFileSync(p, 'utf8')) as ResultsFile);
         if (files.length === 0) throw new Error(`no results for size ${SIZE} in ${RESULTS}`);
+        // A saved row carries the label it was transcribed under; score it
+        // against the label phrases.ts gives the phrase now.
+        const labels = new Map(PHRASES.map((p) => [`${p.lang}:${p.text}`, p]));
+        for (const row of files.flatMap((f) => f.rows)) {
+            const now = labels.get(`${row.lang}:${row.text}`);
+            if (!now) continue;
+            row.expect = now.expect;
+            if (now.begin) row.begin = now.begin;
+            else delete row.begin;
+        }
         await summarize(files);
         return;
     }

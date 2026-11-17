@@ -38,8 +38,10 @@ export type SetupAction =
     /** The session timer, in whole minutes. */
     | { kind: 'length'; minutes: number }
     | { kind: 'no-timer' }
-    | { kind: 'focus'; focus: SetupFocus; on: boolean }
-    | { kind: 'quality'; quality: Quality; on: boolean }
+    /** `toggle`: the name said by itself, which flips it (setup-actions.ts
+     *  reads the form to say which way it went). */
+    | { kind: 'focus'; focus: SetupFocus; on: boolean | 'toggle' }
+    | { kind: 'quality'; quality: Quality; on: boolean | 'toggle' }
     /** Uncheck every focus, or every vibe. */
     | { kind: 'clear'; group: 'focus' | 'quality' }
     /** One stop along the guidance slider, or straight to a stop. */
@@ -50,6 +52,11 @@ export type SetupAction =
     /** "Set my intention", with nothing after it: the app asks, and the next
      *  thing said is the intention (views/setup.ts). */
     | { kind: 'intention-ask' }
+    /** One more line in Exploration's special requests field; '' empties it. */
+    | { kind: 'special-request'; text: string }
+    /** "Special requests", with nothing after it: the app asks, and the next
+     *  thing said is the request (views/setup.ts). */
+    | { kind: 'special-request-ask' }
     /** The clock readout during a session. `timerOff` also drops the countdown
      *  ("turn off the clock"); "hide the clock" leaves a timer running. */
     | { kind: 'clock'; show: boolean; timerOff?: boolean }
@@ -808,6 +815,80 @@ function parseIntention(utterance: string): SetupAction | null {
     return { kind: 'intention', text };
 }
 
+/** The special requests field by its label, or by the label it had before. */
+const REQUEST_NAME = '(?:special\\s+requests?|additional\\s+instructions?)';
+const REQUEST_NOUN = `(?:(?:my|the|a|an|our|some|another|one\\s+more)\\s+)?(?:new\\s+)?${REQUEST_NAME}`;
+const REQUEST_WANT = "(?:(?:i\\s+want|i'd\\s+like|i\\s+would\\s+like|let\\s+me|can\\s+i|could\\s+i|may\\s+i|let's|lets)\\s+(?:to\\s+)?)?";
+const REQUEST_HAVE = "(?:i\\s+have|i've\\s+got|i\\s+got|here's|here\\s+is)\\s+";
+const REQUEST_FOR = '(?:\\s+for\\s+(?:this|today|the)(?:\\s+(?:session|meditation))?)?';
+/** "Special requests", "add a special request", "I have a special request":
+ *  the request still to come. A trailing "is" is a sentence cut at a pause. */
+const ASK_REQUEST_RE = new RegExp(
+    `^${INTENTION_LEAD}(?:${REQUEST_WANT}(?:add|set|make|give|enter|edit|change|update|dictate|open|show|say|put\\s+in)\\s+(?:(?:you|it)\\s+)?|${REQUEST_HAVE})?` +
+        `${REQUEST_NOUN}${REQUEST_FOR}(?:\\s+(?:is|are|to))?(?:[\\s,]+please)?$`,
+    'i'
+);
+/** "Special request: keep it slow", "I have a special request, keep it slow". */
+const REQUEST_COLON_RE = new RegExp(`^${INTENTION_LEAD}(?:${REQUEST_HAVE})?${REQUEST_NOUN}${REQUEST_FOR}\\s*[:,]\\s*(.+)$`, 'i');
+/** "My special request is to keep it slow". Only with the "my": "special
+ *  requests are welcome" is a hotel's. */
+const REQUEST_IS_RE = new RegExp(`^${INTENTION_LEAD}(?:my|our)\\s+${REQUEST_NAME}${REQUEST_FOR}[\\s,]+(?:is|are)\\b[\\s:,]*(.+)$`, 'i');
+/** "Add a special request to keep it slow": the "to" is the request's. */
+const REQUEST_ADD_RE = new RegExp(
+    `^${INTENTION_LEAD}${REQUEST_WANT}(?:add|set|make|give|enter|put\\s+in)\\s+${REQUEST_NOUN}[\\s:,]+(?:(?:to\\s+be|that|as|is|to)\\b[\\s:,]*)?(.+)$`,
+    'i'
+);
+const CLEAR_REQUESTS_RE = new RegExp(
+    `^(?:(?:ok|okay|please)[,\\s]+)*(?:clear|remove|drop|delete|erase|empty|no|cancel|forget)\\s+(?:all\\s+)?(?:(?:my|the)\\s+)?${REQUEST_NAME}(?:\\s+please)?$`,
+    'i'
+);
+/** What may trail the label without being a request ("special requests, okay"). */
+const REQUEST_FILLER_RE = /^(?:now|too|please|then|here|again|ok|okay|thanks|thank\s+you|yes|yeah)$/i;
+
+/**
+ * Exploration's special requests field, said like the intention. Each request
+ * is one more line in the field (setup-actions.ts), so a second one said later
+ * does not lose the first, or what was typed there.
+ */
+function parseSpecialRequest(utterance: string): SetupAction | null {
+    const said = utterance.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim().replace(/[.!?。,]+$/u, '');
+    if (CLEAR_REQUESTS_RE.test(said)) return { kind: 'special-request', text: '' };
+    if (ASK_REQUEST_RE.test(said)) return { kind: 'special-request-ask' };
+    const match = REQUEST_ADD_RE.exec(said) ?? REQUEST_IS_RE.exec(said) ?? REQUEST_COLON_RE.exec(said);
+    if (!match) return null;
+    const text = match[1]!.trim();
+    if (!text || text.split(' ').length > INTENTION_MAX_WORDS) return null;
+    if (REQUEST_FILLER_RE.test(text)) return { kind: 'special-request-ask' };
+    if (/^(?:off|clear|cleared|none|nothing|blank|empty)$/i.test(text)) return { kind: 'special-request', text: '' };
+    return { kind: 'special-request', text };
+}
+
+const LEAVE_LEAD = "(?:(?:ok|okay|oh|no|actually|um|alright|all\\s+right)[,\\s]+)*";
+const LEAVE_TAIL = '(?:[,\\s]+(?:thanks|thank\\s+you|please))?[.!。！，,]?$';
+const CANCEL_ANSWER_RE = new RegExp(
+    `^${LEAVE_LEAD}(?:never\\s*mind|cancel|cancel\\s+that|forget\\s+it|forget\\s+that|nothing|skip|skip\\s+it|no|none|stop)${LEAVE_TAIL}` +
+        '|^(?:算了|不用了|取消|[没沒]有|不改了|不加了)[。！，,]?$',
+    'i'
+);
+const DONE_ANSWER_RE = new RegExp(
+    `^${LEAVE_LEAD}(?:done|all\\s+done|i'?m\\s+done|i\\s+am\\s+done|that'?s\\s+it|that'?s\\s+all|finished|i'?m\\s+finished|all\\s+set|close|close\\s+it|leave\\s+it)${LEAVE_TAIL}` +
+        '|^(?:好了|好了好了|完成|完成了|完了|就[这這][样樣]吧?|[没沒]了|[关關][闭閉掉])[。！，,]?$',
+    'i'
+);
+
+/**
+ * Said in answer to "What is your intention?" or "What's your request?" to
+ * leave the question without answering it: `cancel` ("never mind", 取消) or
+ * `done` ("done", "that's it", 好了). Either way nothing is written, and the
+ * words are not the answer.
+ */
+export function leavesAsk(answer: string): 'cancel' | 'done' | null {
+    const said = toSimplified(answer.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim());
+    if (CANCEL_ANSWER_RE.test(said)) return 'cancel';
+    if (DONE_ANSWER_RE.test(said)) return 'done';
+    return null;
+}
+
 // ---- zh ---------------------------------------------------------------------
 
 const ZH_LENGTH = '(?:[\\d零一二两三四五六七八九十]+分钟|[\\d零一二两三四五六七八九十]+个?半?小时|半个?小时)';
@@ -851,6 +932,12 @@ const ZH_STEPS: ReadonlyArray<[RegExp, SetupAction]> = [
     [/^(?:帮助|我可以说什么|我能说什么|可以说什么|有哪些选项)$/, { kind: 'help' }],
     [/^(?:清除|清空|删除|去掉|取消)(?:我的)?意图$/, { kind: 'intention', text: '' }],
     [/^(?:设置|设定|添加|修改|更改|写下?|说)(?:一个|一下)?(?:我的)?意图$/, { kind: 'intention-ask' }],
+    // 补充指引: the field's label before it was 特别要求.
+    [/^(?:清除|清空|删除|去掉|取消)(?:我的)?(?:所有的?|全部的?)?(?:特别要求|补充指引)$/, { kind: 'special-request', text: '' }],
+    [
+        /^(?:我有|我还有)?(?:设置|设定|添加|加上?|提出?|写下?|说|修改|打开)?(?:一个|一下|一些|一条|个|几个|条)?(?:我的)?(?:特别要求|补充指引)$/,
+        { kind: 'special-request-ask' },
+    ],
     [/^(?:隐藏|不显示|藏起)(?:时钟|时间|计时器?)$/, { kind: 'clock', show: false }],
     [/^(?:显示|打开)(?:时钟|时间)$/, { kind: 'clock', show: true }],
     [/^(?:关掉|关闭|不要)时钟$/, { kind: 'clock', show: false, timerOff: true }],
@@ -859,7 +946,13 @@ const ZH_STEPS: ReadonlyArray<[RegExp, SetupAction]> = [
 ];
 
 const ZH_INTENTION_RE = /^(?:请|把)?(?:我的|这次的?)?意图(?:是|设为|设成|改成|为)/u;
+/** "特别要求：慢一点", "我有个特别要求，慢一点": the bare label needs the
+ *  separator, since a sentence can open on 特别要求 ("specially asked"). */
+const ZH_REQUEST_RE = /^(?:请|把)?(?:我有|我还有|我的)?(?:一个|个)?(?:特别要求|补充指引)(?:是|为|：|:|，|,)/u;
+const ZH_ADD_REQUEST_RE = /^(?:请|把)?(?:添加|加上?|提出?)(?:一个|个|一条|条)?(?:特别要求|补充指引)(?:是|为|：|:|，|,)?/u;
 const ZH_MODE_THEN_LENGTH_RE = new RegExp(`(探索|标记|体会)(?:模式)?(?=${ZH_LENGTH})`, 'gu');
+/** Said around a lone name without asking for anything; 我要 and 加上 ask. */
+const ZH_POLITE_RE = /^(?:好的?|请|麻烦)+|(?:吧|了|一下|好吗|可以吗|谢谢)+$/gu;
 
 function parseZh(utterance: string): SetupAction[] | null {
     // Matched in simplified characters; an intention keeps the ones it was
@@ -871,9 +964,20 @@ function parseZh(utterance: string): SetupAction[] | null {
         const text = trimHeardZh(heard.slice(intention[0].length).replace(/[。！？.!?，,]+$/u, ''));
         if (text && text.length <= 120) return [{ kind: 'intention', text }];
     }
+    const request = ZH_REQUEST_RE.exec(flat) ?? ZH_ADD_REQUEST_RE.exec(flat);
+    if (request) {
+        const text = trimHeardZh(heard.slice(request[0].length).replace(/[。！？.!?，,]+$/u, ''));
+        if (text && text.length <= 120 && !/^(?:吧|了|一下|好吗|可以吗|谢谢)+$/u.test(text)) {
+            return [{ kind: 'special-request', text }];
+        }
+    }
 
     const said = flat.replace(/[。！？．.…!?~]+/gu, '');
     if (!said || said.length > 40) return null;
+    // A focus or a vibe by its name alone flips it, as in English.
+    const alone = said.replace(/^[，,、；;:：]+|[，,、；;:：]+$/gu, '').replace(ZH_POLITE_RE, '');
+    const named = ZH_VALUES.find(([re]) => re.test(alone))?.[1](true);
+    if (named?.kind === 'focus' || named?.kind === 'quality') return [{ ...named, on: 'toggle' }];
     const actions: SetupAction[] = [];
     // 、 and 和 join values; 然后 / 还有 join requests. A mode and a length
     // need nothing between them ("标记十分钟").
@@ -931,6 +1035,24 @@ function parseZh(utterance: string): SetupAction[] | null {
 const IF_QUIET_RE = /(?<=\bcheck.*)\b(?:if|when|whenever)\s+(?:i['’]?m|i\s+am|i\s+go|i\s+get|i['’]?ve\s+gone)\s+(?:quiet|silent)\b/i;
 
 /**
+ * A focus or a vibe by its own name and nothing else ("Playful.", "Body,
+ * please."), which flips it. Any other word makes it an ordinary request:
+ * "add playful" and "a playful vibe" add, "remove playful" removes, and two
+ * names ("playful and spacious") add both. `alone` is the words with the
+ * polite ones taken out; an article ahead of the name ("the body") is still
+ * the name alone.
+ */
+function toggleByName(alone: string): SetupAction | null {
+    const name = alone.replace(/^(?:the|a|an) /, '');
+    const entry = PHRASES[HEARD_AS[name] ?? name];
+    if (!entry?.bare) return null;
+    const { meaning } = entry;
+    if (meaning.t === 'focus') return { kind: 'focus', focus: meaning.focus, on: 'toggle' };
+    if (meaning.t === 'quality') return { kind: 'quality', quality: meaning.quality, on: 'toggle' };
+    return null;
+}
+
+/**
  * The changes an utterance asks for, in the order said, or null when it is not
  * (only) a request to change the setup. Never a request to begin.
  */
@@ -942,14 +1064,17 @@ export function parseSetupCommand(utterance: string): SetupAction[] | null {
     const bare = exact.filter((w) => !POLITE.has(w)).join(' ');
     if (STOP_LISTENING.has(bare)) return [{ kind: 'stop-listening' }];
     if (HELP.has(bare)) return [{ kind: 'help' }];
-    // Before the guard below: an intention is the meditator's own words, and
-    // "my intention is to start fresh" is one. (The listener has already
-    // tried the utterance as a request to begin, which it is not.)
-    const intention = parseIntention(utterance);
-    if (intention) return [intention];
+    // Before the guard below: an intention or a special request is the
+    // meditator's own words, and "my intention is to start fresh" is one.
+    // (The listener has already tried the utterance as a request to begin,
+    // which it is not.)
+    const ownWords = parseIntention(utterance) ?? parseSpecialRequest(utterance);
+    if (ownWords) return [ownWords];
     // A request to begin is begin-command's, with its strict match.
     if (exact.includes('begin') || exact.includes('start')) return null;
     if (exact.length > SETUP_MAX_WORDS) return null;
+    const toggled = toggleByName(bare);
+    if (toggled) return [toggled];
 
     // Numbers are read exactly, so the length comes out first. A comma or a
     // full stop parts a request as "and" does: "spacious and effortless, no

@@ -83,6 +83,7 @@ import {
     type VoiceStartHandle,
 } from '../voice-start.js';
 import {
+    leavesAsk,
     parseSetupCommand,
     parseSetupPick,
     looksLikeSpokenTail,
@@ -206,6 +207,9 @@ export interface SetupViewHandle {
     /** Current setup snapshot. */
     getSetup(): SessionSetup;
 }
+
+/** What the mic beside Begin shows (paintVoiceMic in mountSetupView). */
+type VoiceMicLook = 'hidden' | 'listening' | 'sleeping' | 'off' | 'ask' | 'blocked';
 
 /** Human mode name for the resume modal ("Felt sense", "Exploration", ...). */
 function resumeModeLabel(state: SessionState): string {
@@ -541,6 +545,33 @@ export async function mountSetupView(
         autosizeIntention(el);
     }
 
+    /** The special requests field from anywhere but its own typing, left open
+     *  so what was said shows. */
+    function setSpecialRequests(text: string): void {
+        setup.customInstructions = text;
+        persist();
+        const el = root.querySelector<HTMLTextAreaElement>('#custom-instructions');
+        if (el) el.value = text;
+        openSpecialRequests();
+    }
+
+    /** True when the field was shut and this opened it. */
+    function openSpecialRequests(): boolean {
+        const details = root.querySelector('#custom-instructions')?.closest('details');
+        if (!details || details.open) return false;
+        details.open = true;
+        return true;
+    }
+
+    // "Special requests" opened the field to ask; left without an answer, an
+    // empty field folds shut again.
+    let requestsOpenedToAsk = false;
+    function foldUnansweredRequests(): void {
+        const details = root.querySelector('#custom-instructions')?.closest('details');
+        if (requestsOpenedToAsk && details && !setup.customInstructions.trim()) details.open = false;
+        requestsOpenedToAsk = false;
+    }
+
     function paintCheckins(): void {
         const on = setup.feltSenseCheckins;
         const toggle = root.querySelector<HTMLInputElement>('#checkin-enabled');
@@ -612,6 +643,8 @@ export async function mountSetupView(
         verbosity: () => setup.verbosity,
         setVerbosity,
         setIntention: (text) => setIntention(setup.meditationType, text),
+        specialRequests: () => setup.customInstructions,
+        setSpecialRequests,
         setCheckins,
     };
 
@@ -1036,11 +1069,12 @@ export async function mountSetupView(
         // runs through the modal, so pendingContinue here is only ever a History
         // "Continue" (or null).
         root.querySelector('#voice-start-mic')?.addEventListener('click', () => {
-            // A toggle, like the session's mic: lit is listening, and a tap
-            // on a lit one closes it until it is tapped again.
-            // The tap is also the setting: off stays off on the next visit,
-            // and on stays on (the same switch as Settings has).
-            if (voiceStart) {
+            // Voice mode: on (lit), asleep (closed by itself) or off
+            // (slashed). A tap wakes one asleep; otherwise it is the toggle,
+            // and the setting with it (the same switch as Settings has): off
+            // stays off on the next visit, and on stays on.
+            // Lit with no listener yet is on too: it waits out a line first.
+            if (voiceStart || micShows === 'listening') {
                 speaker.stop();
                 setSetupVoice(false);
                 return closeVoiceStart();
@@ -1054,7 +1088,7 @@ export async function mountSetupView(
             void acquireMicOnce().then((status) => {
                 if (status === 'ok') mic = 'granted';
                 else if (status === 'denied') mic = 'denied';
-                else return paintVoiceMic('off', describeMicProblem(status) ?? undefined);
+                else return paintVoiceMic('ask', describeMicProblem(status) ?? undefined);
                 void syncVoiceStart();
             });
         });
@@ -1161,7 +1195,9 @@ export async function mountSetupView(
     // Whether a session begun now could be heard. A webview can play sound
     // untouched and a browser tab can't; only the platform knows which this is.
     let canSound = pageTouched();
-    // The window ran out (or the recognizer failed): stay closed until asked.
+    // Closed until asked: asleep when the setting is still on (its window ran
+    // out, a room kept talking, the recognizer failed, "stop listening"),
+    // which a tap or a tour starting wakes; with it off, off.
     let voiceStartClosed = false;
     // Begin has been pressed (or said) and the session is on its way up. The
     // screen is still here for a moment, and its probes are still landing;
@@ -1170,6 +1206,13 @@ export async function mountSetupView(
     // The recognizer this mode would use is the hosted one and nobody is
     // signed in (runVoiceSync).
     let sttNeedsAccount = false;
+    // A recognizer that can't be built here (createSttForChoice gave none for
+    // it): with it picked, nothing listens.
+    let noRecognizer: SttEngineChoice | null = null;
+    // What the mic beside Begin shows (paintVoiceMic). Lit can come before
+    // the listener does: a mic switched on while the app speaks shows on at
+    // once and starts listening when the line is over.
+    let micShows: VoiceMicLook = 'hidden';
     // Read whether the setting is on or off: with it off the mic still shows,
     // slashed, and a tap switches it on. Neither probe prompts or listens.
     void micPermission().then((permission) => {
@@ -1204,25 +1247,48 @@ export async function mountSetupView(
     // or it would open on the app's own voice.
     let speaking: Promise<void> = Promise.resolve();
 
-    /** The mic beside Begin. `listening`: lit, and it hears requests.
-     *  `off`: slashed, a tap opens it. `blocked`: slashed and inert.
-     *  `hidden`: nothing to offer (setting off, or Begin itself can't run). */
-    function paintVoiceMic(state: 'hidden' | 'listening' | 'off' | 'blocked', why?: string): void {
+    /**
+     * The mic beside Begin, which stands for voice mode on this screen:
+     * - `listening`: on. Lit, with the level ring; it hears requests.
+     * - `sleeping`: closed by itself for the visit, the setting still on.
+     *   Unlit and not slashed; the tour still speaks; a tap wakes it.
+     * - `off`: voice mode switched off. Slashed; nothing listens or speaks.
+     * - `ask`: on, but held back by something a tap clears (the permission
+     *   not yet given, a page not yet touched). Slashed, as before.
+     * - `blocked`: slashed and inert (the permission denied).
+     * - `hidden`: nothing to offer (Begin itself can't run, hosted
+     *   recognition with nobody signed in).
+     */
+    function paintVoiceMic(state: VoiceMicLook, why?: string): void {
         const el = root.querySelector<HTMLButtonElement>('#voice-start-mic');
+        micShows = state;
         if (!el) return;
         const label =
             why ??
             (state === 'listening'
-                ? t('Listening. Say "begin", or what to change. Tap to stop.')
-                : state === 'blocked'
-                  ? t("The microphone is blocked for aloud, so it can't listen here.")
-                  : t('Tap to listen'));
+                ? t('Listening. Say "begin", or what to change. Tap to turn off.')
+                : state === 'sleeping'
+                  ? t('Sleeping. Tap to listen.')
+                  : state === 'off'
+                    ? t('Voice off. Tap to turn on.')
+                    : state === 'blocked'
+                      ? t("The microphone is blocked for aloud, so it can't listen here.")
+                      : t('Tap to listen'));
         el.classList.toggle('hidden', state === 'hidden');
         el.classList.toggle('active', state === 'listening');
+        el.classList.toggle('sleeping', state === 'sleeping');
         el.disabled = state === 'blocked';
         el.title = label;
         el.setAttribute('aria-label', label);
         el.setAttribute('aria-pressed', String(state === 'listening'));
+    }
+
+    /** How the mic rests once a listener has ended: asleep if it closed by
+     *  itself, slashed if switched off, and otherwise until the next sync
+     *  says. */
+    function restingLook(): VoiceMicLook {
+        if (!appSettings.setupVoice) return 'off';
+        return voiceStartClosed ? 'sleeping' : 'ask';
     }
 
     // The words of the line just spoken, above Begin: the answer for anyone
@@ -1340,28 +1406,34 @@ export async function mountSetupView(
         return sayLines(setupOutcomeLines(outcomes, appSettings.language));
     }
 
-    // "Set my intention" was said with nothing after it and the app has asked:
-    // until this passes, the next thing heard is the intention.
-    let intentionAskedUntil = 0;
+    // "Set my intention" or "special requests" was said with nothing after it
+    // and the app has asked: until `until`, the next thing heard is the answer.
+    let awaiting: { field: AskedField; until: number } | null = null;
 
-    /** An intention is a sentence, with the pauses of one; a request is a
-     *  breath. While the answer is awaited the turn waits longer to end, on
-     *  the recognizers that take the hint. */
-    function awaitIntention(on: boolean): void {
-        intentionAskedUntil = on ? Date.now() + INTENTION_ANSWER_MS : 0;
-        const [base, max] = on ? INTENTION_PAUSE_MS : [LOBBY_STT.silenceBaseMs, LOBBY_STT.silenceMaxMs];
+    /** An intention or a special request is a sentence, with the pauses of
+     *  one; a change to the setup is a breath. While the answer is awaited the
+     *  turn waits longer to end, on the recognizers that take the hint. */
+    function awaitAnswer(field: AskedField | null): void {
+        awaiting = field ? { field, until: Date.now() + INTENTION_ANSWER_MS } : null;
+        const [base, max] = field ? INTENTION_PAUSE_MS : [LOBBY_STT.silenceBaseMs, LOBBY_STT.silenceMaxMs];
         voiceStart?.engine.setPauseWindow?.(base, max);
     }
 
-    /** What was said after "What is your intention?", as the actions it makes. */
-    function intentionAnswer(text: string): SetupAction[] | null {
+    /** What was said after "What is your intention?" or "What's your
+     *  request?", as the actions it makes, or how the question was left
+     *  unanswered (core leavesAsk). */
+    function askedAnswer(field: AskedField, text: string): SetupAction[] | 'cancel' | 'done' {
         const said = text.trim();
-        if (NEVER_MIND_RE.test(said)) return null;
+        const left = leavesAsk(said);
+        if (left) return left;
         // "My intention is to rest" is still the intention "to rest", and
         // "clear it" by its own words still clears.
         const own = parseSetupCommand(said);
-        if (own?.length === 1 && (own[0]!.kind === 'intention' || own[0]!.kind === 'intention-ask')) return own;
-        return [{ kind: 'intention', text: said.replace(/[.。]+$/u, '') }];
+        const kinds: readonly SetupAction['kind'][] =
+            field === 'intention' ? ['intention', 'intention-ask'] : ['special-request', 'special-request-ask'];
+        if (own?.length === 1 && kinds.includes(own[0]!.kind)) return own;
+        const answer = said.replace(/[.。]+$/u, '');
+        return [field === 'intention' ? { kind: 'intention', text: answer } : { kind: 'special-request', text: answer }];
     }
 
     /** What the voice and model lists hold right now, for a pick by name. */
@@ -1439,12 +1511,16 @@ export async function mountSetupView(
     async function heardOnSetup(text: string): Promise<boolean> {
         // The tour's own words ("next", a voice's name) while it is up.
         if (tourHeard?.(text)) return true;
-        const answering = Date.now() < intentionAskedUntil;
-        if (intentionAskedUntil) awaitIntention(false);
+        const answering = awaiting && Date.now() < awaiting.until ? awaiting.field : null;
+        if (awaiting) awaitAnswer(null);
         if (answering) {
-            const answered = intentionAnswer(text);
-            if (!answered) {
-                await sayLines([{ id: 'never-mind', text: setupLineText('never-mind', appSettings.language) }]);
+            const answered = askedAnswer(answering, text);
+            if (typeof answered !== 'string') requestsOpenedToAsk = false;
+            else {
+                if (answering === 'special-request') foldUnansweredRequests();
+                const id: SetupLineId =
+                    answered === 'done' ? 'all-set' : answering === 'intention' ? 'never-mind' : 'special-request-never-mind';
+                await sayLines([{ id, text: setupLineText(id, appSettings.language) }]);
                 return true;
             }
             return act(answered);
@@ -1476,9 +1552,13 @@ export async function mountSetupView(
         if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
         // The judge's reading of "could I pick a different voice?".
         if (outcomes.some((outcome) => outcome.kind === 'voice-picker')) await applyPick({ kind: 'voice-picker', open: true });
+        if (outcomes.some((outcome) => outcome.kind === 'special-request-ask')) {
+            requestsOpenedToAsk = openSpecialRequests() || requestsOpenedToAsk;
+        }
         await answer(outcomes);
         // After the question, so the wait for an answer starts when it ends.
-        if (outcomes.some((outcome) => outcome.kind === 'intention-ask')) awaitIntention(true);
+        const ask = outcomes.find((outcome) => outcome.kind === 'intention-ask' || outcome.kind === 'special-request-ask');
+        if (ask) awaitAnswer(ask.kind === 'intention-ask' ? 'intention' : 'special-request');
         return true;
     }
 
@@ -1553,7 +1633,7 @@ export async function mountSetupView(
             // A page nobody has touched can't play sound, so a session begun
             // now would be silent. Any touch lifts it. On pointerup: a finger
             // only counts as a touch once it lifts.
-            paintVoiceMic('off');
+            paintVoiceMic('ask');
             document.addEventListener(
                 'pointerup',
                 (event) => {
@@ -1566,11 +1646,16 @@ export async function mountSetupView(
             );
             return;
         }
-        if (blocker === 'mic-ask' || blocker === 'off') return paintVoiceMic('off');
+        if (blocker === 'off') return paintVoiceMic('off');
+        if (blocker === 'mic-ask') return paintVoiceMic('ask');
         if (blocker === 'mic-denied') return paintVoiceMic('blocked');
         if (blocker) return paintVoiceMic('hidden');
         if (voiceStart) return;
-        if (voiceStartClosed) return paintVoiceMic('off');
+        // Closed by itself, with the setting on (off returned above).
+        if (voiceStartClosed) return paintVoiceMic('sleeping');
+        // On from here, though it hears nothing until the app has stopped
+        // speaking: a mic switched on under a line shows so at once.
+        if (noRecognizer !== choice) paintVoiceMic('listening');
         await speechSettled();
         if (gen !== voiceStartGen) return;
         // The session's own recognizer, mic and language (and, for local
@@ -1586,11 +1671,11 @@ export async function mountSetupView(
         // A line that began while the engine was being built (a step of the
         // tour) is not to be heard by it.
         await speechSettled();
-        // Something changed while the engine was being built, or it isn't
-        // usable here: leave it to the sync that change triggered.
-        if (gen !== voiceStartGen || voiceStart || beginning || !engine || !beginBtn.isConnected || !isLiveMount()) {
-            return;
-        }
+        // Something changed while the engine was being built: leave it to the
+        // sync that change triggered.
+        if (gen !== voiceStartGen || voiceStart || beginning || !beginBtn.isConnected || !isLiveMount()) return;
+        noRecognizer = engine ? null : choice;
+        if (!engine) return paintVoiceMic('ask');
         // The mic of the listener this one replaces goes once this one's own
         // capture delivers audio. A recognizer with no stream of ours (the
         // browser's, a phone's) has nothing to wait for.
@@ -1616,10 +1701,10 @@ export async function mountSetupView(
                 // The screen went away under a line: nobody is there to hear
                 // the rest of it, and the next screen's mic would.
                 if (why === 'stopped' && (!isLiveMount() || !beginBtn.isConnected)) speaker.stop();
-                // The window ran out or the recognizer failed: closed until
+                // The window ran out or the recognizer failed: asleep until
                 // tapped. (A tap on the lit mic has already said so itself.)
                 if (why === 'window' || why === 'error') voiceStartClosed = true;
-                paintVoiceMic(why === 'begin' ? 'hidden' : 'off');
+                paintVoiceMic(why === 'begin' ? 'hidden' : restingLook());
             },
         });
         const meter = meterVoiceMic(engine, choice);
@@ -1771,9 +1856,22 @@ export async function mountSetupView(
         return speaking;
     }
 
+    // Bumped by the tour's stop(). A held line starts only once the recognizer
+    // has stopped, and a stop() that lands in between must still stop it:
+    // the speaker had nothing playing yet to cut.
+    let tourLines = 0;
     const tourVoice: TourVoice = {
-        say: (id, as) => sayHeld(() => speaker.sayLine(id, as ? { voice: as } : {})),
-        stop: () => speaker.stop(),
+        say: (id, as) => {
+            const asked = tourLines;
+            // Voice mode off: captions only, whatever the tour asks.
+            if (!appSettings.setupVoice) return Promise.resolve();
+            return sayHeld(() => (asked === tourLines ? speaker.sayLine(id, as ? { voice: as } : {}) : Promise.resolve()));
+        },
+        stop: () => {
+            tourLines++;
+            speaker.stop();
+        },
+        speaks: () => appSettings.setupVoice,
         voicesOnOffer: () => {
             const offered = houseVoices(appSettings.language);
             // Someone who chose a local voice keeps it: the pick is between
@@ -1797,7 +1895,23 @@ export async function mountSetupView(
         mic: () => {
             const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
             if (mic === 'denied' || sttNeedsAccount || !beginBtn || beginBtn.disabled) return 'off';
-            return voiceStart ? 'listening' : 'ask';
+            if (voiceStart) return 'on';
+            if (noRecognizer === sttSetupChoice()) return 'ask';
+            // Opening, or asleep (voiceStartClosed with the setting still
+            // on): on either way. Switched off is the setting.
+            const blocker = voiceStartBlocker({
+                enabled: appSettings.setupVoice,
+                mic: mic ?? 'ask',
+                canBegin: true,
+                touched: canSound || pageTouched(),
+            });
+            return blocker === null ? 'on' : 'ask';
+        },
+        reopen: () => {
+            // Asleep wakes; off (the setting) stays off.
+            if (!voiceStartClosed || !appSettings.setupVoice) return;
+            voiceStartClosed = false;
+            void syncVoiceStart();
         },
         enableMic: () => {
             voiceStartClosed = false;
@@ -2457,14 +2571,14 @@ const VOICE_NOTE_MIN_ROOM_PX = 150;
 /** Something heard and not understood is shown back only this short. */
 const UNMATCHED_NOTE_MAX_WORDS = 6;
 
-/** After "What is your intention?", how long the next thing heard is taken as
- *  the answer, and how long a pause ends that answer (base, max). */
+/** The fields the app asks for out loud, the next thing said being the answer. */
+type AskedField = 'intention' | 'special-request';
+
+/** After "What is your intention?" (and "What's your request?"), how long the
+ *  next thing heard is taken as the answer, and how long a pause ends that
+ *  answer (base, max). */
 const INTENTION_ANSWER_MS = 30_000;
 const INTENTION_PAUSE_MS = [2000, 3500] as const;
-
-/** Said in answer to the question to leave the intention as it was. */
-const NEVER_MIND_RE =
-    /^(?:(?:ok|okay|oh|no|actually|um)[,\s]+)*(?:never\s*mind|cancel|forget it|forget that|nothing|skip|skip it|no|none|stop)[.!]?$|^(?:算了|不用了|取消|没有|不改了)[。！]?$/i;
 
 /** How many times the mic opening on this screen says what it is for. */
 const VOICE_HINT_KEY = 'aloud-setup-voice-hints';
@@ -2645,10 +2759,10 @@ function renderSetupHTML(
 
             <div class="setup-extras-row setup-extras-row-top">
                 <details class="advanced-settings">
-                    <summary>${t('Additional instructions')}</summary>
+                    <summary>${t('Special requests')}</summary>
                     <div class="form-group">
                         <textarea id="custom-instructions" rows="3"
-                            placeholder="${escapeHtml(t('Any specific guidance for the facilitator…'))}"></textarea>
+                            placeholder="${escapeHtml(t("e.g. keep it slow, don't mention breathing"))}"></textarea>
                     </div>
                 </details>
                 <div class="form-group setup-guidance-group">
@@ -2812,17 +2926,19 @@ function renderSetupHTML(
                  Begin so the mic that listens on this screen
                  (voice-start.ts) can hang off its left edge without taking
                  a place in the row: Begin stays centered and the bar keeps
-                 its height. Lit while it listens, slashed when it doesn't,
-                 a tap switches; hidden unless that setting is on. The
-                 session's mic icon (views/session.ts). -->
+                 its height. Lit while it listens, unlit while asleep,
+                 slashed when voice mode is off (paintVoiceMic). -->
             <p id="voice-start-note" class="voice-start-note hidden" role="status" aria-live="polite"></p>
             <div class="begin-wrap">
-                <button id="voice-start-mic" type="button" class="btn btn-voice voice-start-mic hidden">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                <!-- Voice mode: a mic that also speaks (it listens, and the
+                     setup screen talks back). The gap under the slash is
+                     drawn in the button's own colour, to cut the glyph. -->
+                <button id="voice-start-mic" type="button" class="btn btn-voice voice-start-mic hidden" data-tour-live>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 2a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                        <path d="M2 10v1a6 6 0 0 0 12 0v-1M8 17v4M5 21h6"></path>
+                        <path d="M17 5.5a4.5 4.5 0 0 1 0 6.5M20 2.5a8.6 8.6 0 0 1 0 12.5"></path>
+                        <line class="mute-gap" x1="3" y1="3" x2="21" y2="21"></line>
                         <line class="mute-line" x1="3" y1="3" x2="21" y2="21"></line>
                     </svg>
                 </button>

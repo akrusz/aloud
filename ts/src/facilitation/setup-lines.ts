@@ -84,6 +84,12 @@ export const SETUP_LINES = {
     'intention-ask': { en: 'What is your intention?', zh: '你的意图是什么？' },
     'never-mind': { en: 'Okay, not changing intention.', zh: '好的，意图不改了。' },
 
+    'special-request-added': { en: 'Added your request.', zh: '特别要求已记下。' },
+    'special-requests-cleared': { en: 'Special requests are cleared.', zh: '特别要求已清除。' },
+    // Asked after "special requests"; whatever is said next is the request.
+    'special-request-ask': { en: "What's your request?", zh: '你的特别要求是什么？' },
+    'special-request-never-mind': { en: 'Okay, not adding a request.', zh: '好的，不加特别要求了。' },
+
     'model-set': { en: 'Okay, the model is set.', zh: '好的，模型已设好。' },
 
     'checkins-on': { en: 'Check-ins are on.', zh: '安静时我会轻声问候。' },
@@ -129,22 +135,19 @@ export const SETUP_LINES = {
         zh: '体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。',
     },
     'tour-focus': {
-        en: 'Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank.',
+        en: "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank if you aren't sure.",
         zh: '回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。',
     },
     'tour-vibe': {
         en: 'Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like.',
         zh: '氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。',
     },
-    'tour-voice-control': {
-        // Not ending on the request itself: the tail of a line is what the
-        // microphone could catch as it reopens (echo-guard.ts looksLikeSpokenTail).
-        en: "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer.",
-        zh: '你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。',
-    },
     'tour-done': {
-        en: "OK, that's the basics. Say begin when you're ready.",
-        zh: '好，基本的就这些。想开始的时候，说“开始”就可以了。',
+        // Never ending on a request, "begin" least of all: the tail of a line
+        // is what the microphone could catch as it reopens, and only a tail
+        // is dropped as the app's own (echo-guard.ts looksLikeSpokenTail).
+        en: "You can also set things up by talking: say 'twenty minutes' and I'll set a timer. That's the basics. Say begin when you're ready.",
+        zh: '你也可以用说话来设置：说“计时二十分钟”，我就会设好计时。基本的就这些。想开始的时候，说“开始”就可以了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;
 
@@ -179,6 +182,9 @@ export type SetupOutcome =
     | { kind: 'intention'; set: boolean }
     /** Nothing changed yet: the app asks, and the next thing said is it. */
     | { kind: 'intention-ask' }
+    /** `added` false: the field was emptied. */
+    | { kind: 'special-request'; added: boolean }
+    | { kind: 'special-request-ask' }
     /** The readout as it now stands; `off` when the countdown went with it. */
     | { kind: 'clock'; show: boolean; off?: boolean }
     | { kind: 'clock-mode'; mode: 'elapsed' | 'wall' }
@@ -202,6 +208,8 @@ export function setupActionModes(action: SetupAction): readonly BeginMode[] | nu
         case 'clear':
         case 'guidance':
         case 'verbosity':
+        case 'special-request':
+        case 'special-request-ask':
             return ['exploration'];
         case 'checkins':
             return ['felt_sense'];
@@ -266,6 +274,10 @@ function lineFor(outcome: Exclude<SetupOutcome, { kind: 'voice-picker' }>, langu
             return fixed(outcome.set ? 'intention-set' : 'intention-cleared');
         case 'intention-ask':
             return fixed('intention-ask');
+        case 'special-request':
+            return fixed(outcome.added ? 'special-request-added' : 'special-requests-cleared');
+        case 'special-request-ask':
+            return fixed('special-request-ask');
         case 'clock':
             return fixed(outcome.show ? 'clock-shown' : outcome.off ? 'clock-off' : 'clock-hidden');
         case 'clock-mode':

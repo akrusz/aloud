@@ -585,11 +585,11 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         hintEl.textContent = t(hints[resolveSttChoice(settings.sttEngine, isWebMode())]);
     }
 
-    /** Model size only matters for on-device Whisper; hide its column for
-     *  browser/hosted STT (slot kept, see renderLanguageSection). */
+    /** Model size only matters for on-device Whisper; hide it for
+     *  browser/hosted STT (the setup voice control below it moves up). */
     function updateWhisperVisibility(): void {
         root.querySelector<HTMLElement>('#s-whisper-model-group')?.classList.toggle(
-            'slot-hidden',
+            'hidden',
             resolveSttChoice(settings.sttEngine, isWebMode()) !== 'whisper'
         );
     }
@@ -1802,10 +1802,12 @@ function renderLanguageSection(s: AppSettings): string {
     );
 
     // Two half-width rows: Language | Microphone, then Speech Recognition |
-    // Whisper Model. The conditional columns (mic: only when the STT source
-    // captures through us; whisper model: only for local Whisper) start/toggle
+    // Whisper Model over the setup screen's voice control. The mic column
+    // (only when the STT source captures through us) starts/toggles
     // slot-hidden - the empty slot keeps its row-mate at half width on wide
-    // layouts, and collapses once the row stacks (narrow/mobile).
+    // layouts, and collapses once the row stacks (narrow/mobile). The Whisper
+    // model (local Whisper only) just hides: its column always has the voice
+    // control in it.
     return `
     <section class="settings-section">
         <h2>${escapeHtml(t('Language & Speech Recognition'))}</h2>
@@ -1832,29 +1834,32 @@ function renderLanguageSection(s: AppSettings): string {
                 <select id="s-stt-engine" name="stt_engine">${sttOptions}</select>
                 <span class="form-hint" id="s-stt-engine-hint"></span>
             </div>
-            <div class="form-group${sttSelected === 'whisper' ? '' : ' slot-hidden'}" id="s-whisper-model-group">
-                <label for="s-whisper-model">${t('Whisper Model')}</label>
-                <select id="s-whisper-model" name="whisper_model">
-                    <option value="tiny">${t('Tiny (fastest)')}</option>
-                    <option value="base">${t('Base (recommended)')}</option>
-                    <option value="small">${t('Small')}</option>
-                    <option value="medium">${t('Medium')}</option>
-                    <option value="large">${t('Large (most accurate)')}</option>
-                </select>
-                <span class="form-hint">${t('Larger = more accurate but slower. Downloads on use.')}</span>
-                <div class="whisper-model-actions">
-                    <button type="button" class="btn btn-small btn-secondary hidden" id="s-whisper-model-action"></button>
-                    <span class="form-hint hidden" id="s-whisper-model-status"></span>
+            <!-- The column beside it: the Whisper model (local Whisper only),
+                 then the setup screen's voice control, which moves up into
+                 the model's place when it is hidden. -->
+            <div class="form-group" id="s-stt-side">
+                <div class="form-group${sttSelected === 'whisper' ? '' : ' hidden'}" id="s-whisper-model-group">
+                    <label for="s-whisper-model">${t('Whisper Model')}</label>
+                    <select id="s-whisper-model" name="whisper_model">
+                        <option value="tiny">${t('Tiny (fastest)')}</option>
+                        <option value="base">${t('Base (recommended)')}</option>
+                        <option value="small">${t('Small')}</option>
+                        <option value="medium">${t('Medium')}</option>
+                        <option value="large">${t('Large (most accurate)')}</option>
+                    </select>
+                    <span class="form-hint">${t('Larger = more accurate but slower. Downloads on use.')}</span>
+                    <div class="whisper-model-actions">
+                        <button type="button" class="btn btn-small btn-secondary hidden" id="s-whisper-model-action"></button>
+                        <span class="form-hint hidden" id="s-whisper-model-status"></span>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="s-setup-voice"${s.setupVoice ? ' checked' : ''}>
-                    <span>${t('Voice control on the setup screen')}</span>
-                </label>
-                <span class="form-hint">${t('Say "begin", or change the mode, length, vibes and more first. The mic listens for two minutes at a time.')}</span>
+                <div class="form-group" id="s-setup-voice-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="s-setup-voice"${s.setupVoice ? ' checked' : ''}>
+                        <span>${t('Voice control on the setup screen')}</span>
+                    </label>
+                    <span class="form-hint">${t('Say "begin", or change the mode, length, vibes and more first. The mic listens for two minutes at a time.')}</span>
+                </div>
             </div>
         </div>
     </section>`;

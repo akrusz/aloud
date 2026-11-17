@@ -92,7 +92,8 @@ Failure states, in a dev build, via `?nomic=` (see `ui/src/mic-check.ts`):
       the session", answer "yes", and it is lit again on setup. Talk about
       something else on setup and nothing starts. Tap the mic and it goes
       slashed and stops hearing; tap again and it is back. Leave it two
-      minutes with nothing asked and the mic closes. On **desktop** it should
+      minutes with nothing asked and the mic falls asleep (unlit, not
+      slashed). On **desktop** it should
       be lit from launch with no click (the shell reads the macOS grant), so
       check that the first session speaks, watch CPU while it listens (local
       Whisper), and try it once on aloud cloud speech recognition; on
@@ -128,15 +129,21 @@ meant to work.
       clock: it should close after about five minutes of unbroken talk (30
       things heard that were not requests), and stay open all afternoon in a
       quiet room.
-- [ ] **The mic is the setting.** Tap the lit mic: it closes, and it is still
-      slashed after leaving the screen and coming back, and after a relaunch.
-      Tap it again: listening, and it is listening on the next visit. On a
-      phone a fresh install starts slashed, and other apps' audio is untouched
-      until it is tapped.
-- [ ] **The ring around the mic** on the setup screen swells as you speak, as
-      it does in a session, and is still while the app answers and between
+- [ ] **Voice mode: on, asleep, off.** Tap the lit button: slashed (off), and
+      still slashed after leaving the screen and coming back, and after a
+      relaunch; the Settings toggle reads off too. Off, start "Take the full
+      tour": nothing is spoken and nothing listens until "Turn on the
+      microphone". Tap the slashed button: lit, listening, and lit on the next
+      visit. Say "stop listening": unlit with no slash (asleep), and Settings
+      still reads on; a tap wakes it. The three looks should read apart at a
+      glance on the real button, light theme and dark, and the permission not
+      yet given should look slashed, never asleep. On a phone a fresh install
+      starts slashed, and other apps' audio is untouched until it is tapped.
+- [ ] **The ring around the button** on the setup screen swells as you speak,
+      as it does in a session, and is still while the app answers and between
       turns (on local Whisper the engine stops then; the ring must not stay
-      where it last was). Scripted only against the browser's recognizer.
+      where it last was). Lit only, never on an asleep or slashed button.
+      Scripted only against the browser's recognizer.
 - [ ] **The pill** with what was heard or changed sits in the bar to the left
       of the mic on a wide window, floats above the bar on a narrow one or for
       a long line, holds for six seconds and fades. With the voice picker open
@@ -149,6 +156,15 @@ meant to work.
       the field (local Whisper waits longer for this one answer; the browser's
       and a phone's recognizer end the turn when they like). Again, and answer
       "never mind": the field is as it was.
+- [ ] **"Special requests."** On the Exploration tab with the field closed:
+      it opens and asks "What's your request?". Answer "keep it slow": the
+      line lands in the field. "Special request: no bells" puts a second line
+      under it, "clear my special requests" empties it. Ask again and answer
+      "done": "Okay, all set.", nothing added, and the empty field folds shut.
+      "Cancel" likewise, answered "Okay, not adding a request."
+- [ ] **A name alone flips it.** "Playful." twice: on, then off, and each
+      answer says which. "Add playful" twice stays on. On speakers, a name
+      that flips back by itself is the app hearing its own line.
 - [ ] **Voices, by voice.** "Open the voice picker", then a voice's name: its
       row is picked and its sample plays, and the mic does not hear the
       sample. "Preview" and another name plays that one and picks nothing.
@@ -174,9 +190,23 @@ meant to work.
       reads it; allow it. The voice card: both voices introduce themselves,
       say a name (or "the second one"), the pick confirms itself and becomes
       the Voice on the form. Then "next", "back", "repeat", "mute" by voice,
-      and the speaker on the card by hand. On "Use voice controls", say "twenty
-      minutes". Listen to the two voices' introductions and the picked line
-      for a first word cut short or a line said twice.
+      and the speaker on the card by hand. The last card ("You're ready")
+      carries the voice tip and is read as one line; say "twenty minutes" there
+      (the timer is set and the card stays), then "next": the tour closes as
+      "Got it" would.
+      Listen to the two voices' introductions and the picked line for a first
+      word cut short or a line said twice.
+- [ ] **The tour, by tap, mid-line.** Tap "Turn on the microphone" while the
+      first line plays: the line stops and the next card is up within about a
+      second, not when the line would have ended. Tap Next, Back and a voice
+      partway through a line: each acts at once. Tap the mic beside Begin on a
+      centered card and on a section card: it switches, and the tour stays
+      where it was. Switched on under a line, it lights at once.
+- [ ] **The tour and a mic asleep.** On hosted recognition, let the setup mic
+      fall asleep by itself (two minutes with nothing asked), or say "stop
+      listening". Start "Take the full tour": the mic lights again and the
+      tour goes straight to the first card. Say "stop listening" on a card and
+      go on by tap: every card is still read out, "You're ready" included.
 - [ ] **No hole in a line** (desktop app, mic lit). Wait on the welcome card a
       few seconds before "Show me around", and on each card let the line end
       and wait two seconds before Next, the noting and felt sense cards
@@ -205,12 +235,14 @@ Modes and lengths:
     No timer.
     Felt sense and twenty minutes.
 
-Vibes and focuses (on the Exploration tab):
+Vibes and focuses (on the Exploration tab). A name alone flips it:
 
-    Playful.
+    Playful.                                 → on
+    Playful.                                 → off
     Add spacious.
     Feeling good.
     Loving and kind.
+    Add playful.
     Remove playful.
     No loving.
     Change the vibe to spacious.
@@ -239,6 +271,10 @@ Intention, check-ins, the mic:
     My intention is to rest.
     Set my intention to letting go of the day.
     Clear my intention.
+    Special requests.                        → "What's your request?"
+    Special request: keep it slow.
+    Add a special request to go gently.
+    Clear my special requests.
     (felt sense tab) I want to sit with the job decision.
     (felt sense tab) Check-ins off.
     (felt sense tab) Add playful.            → "That's part of exploration."
@@ -272,6 +308,9 @@ Must do nothing (✗):
     多一点引导。
     回应简短。
     我的意图是好好休息。
+    开阔。                                   → off (added above)
+    特别要求。                               → "你的特别要求是什么？"
+    特别要求：慢一点。
     停止聆听。
     开始。
     ✗ 今天天气不错。
@@ -347,8 +386,8 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       (`meditation-pal-7n22`).
 - [ ] **Begin stays above the keyboard.** On setup, tap the intention box and
       type a line. Begin must sit on top of the keys with the bottom nav gone,
-      the box must sit between it and the wordmark and orb (Additional
-      instructions too, which starts lower down), and scrolling the page with
+      the box must sit between it and the wordmark and orb (Special
+      requests too, which starts lower down), and scrolling the page with
       the keys up must not snap back. Put the keyboard away: the nav returns
       and Begin drops back onto it. Then pinch-zoom the page with a field
       focused: nothing moves. Check the iOS app, the Android app and a phone

@@ -24,12 +24,14 @@ export interface Phrase {
 const mode = (m: 'exploration' | 'noting' | 'felt_sense'): SetupAction => ({ kind: 'mode', mode: m });
 const len = (minutes: number): SetupAction => ({ kind: 'length', minutes });
 const noTimer: SetupAction = { kind: 'no-timer' };
-const focus = (f: SetupFocus, on = true): SetupAction => ({ kind: 'focus', focus: f, on });
-const vibe = (q: Quality, on = true): SetupAction => ({ kind: 'quality', quality: q, on });
+const focus = (f: SetupFocus, on: boolean | 'toggle' = true): SetupAction => ({ kind: 'focus', focus: f, on });
+const vibe = (q: Quality, on: boolean | 'toggle' = true): SetupAction => ({ kind: 'quality', quality: q, on });
 const clear = (group: 'focus' | 'quality'): SetupAction => ({ kind: 'clear', group });
 const guide = (to: 'up' | 'down' | number): SetupAction => ({ kind: 'guidance', to });
 const words = (to: 'up' | 'down' | 'low' | 'medium' | 'high'): SetupAction => ({ kind: 'verbosity', to });
 const intention = (text: string): SetupAction => ({ kind: 'intention', text });
+const request = (text: string): SetupAction => ({ kind: 'special-request', text });
+const requestAsk: SetupAction = { kind: 'special-request-ask' };
 const checkins = (on: boolean): SetupAction => ({ kind: 'checkins', on });
 const stopListening: SetupAction = { kind: 'stop-listening' };
 const help: SetupAction = { kind: 'help' };
@@ -80,14 +82,14 @@ export const PHRASES: Phrase[] = [
         ['no time limit', [noTimer]],
     ]),
     ...rows('en', 'focus', [
-        ['body', [focus(BODY)]],
+        ['body', [focus(BODY, 'toggle')]],
         ['focus on the body', [focus(BODY)]],
-        ['body and sensations', [focus(BODY)]],
-        ['emotions', [focus(EMOTIONS)]],
+        ['body and sensations', [focus(BODY, 'toggle')]],
+        ['emotions', [focus(EMOTIONS, 'toggle')]],
         ['add emotions', [focus(EMOTIONS)]],
-        ['parts', [focus(PARTS)]],
+        ['parts', [focus(PARTS, 'toggle')]],
         ['add parts work', [focus(PARTS)]],
-        ['inner parts', [focus(PARTS)]],
+        ['inner parts', [focus(PARTS, 'toggle')]],
         ['remove the body focus', [focus(BODY, false)]],
         ['drop emotions', [focus(EMOTIONS, false)]],
         ['uncheck parts', [focus(PARTS, false)]],
@@ -100,21 +102,21 @@ export const PHRASES: Phrase[] = [
         ['no focus', [clear('focus')]],
     ]),
     ...rows('en', 'vibe', [
-        ['playful', [vibe('playful')]],
+        ['playful', [vibe('playful', 'toggle')]],
         ['add playful', [vibe('playful')]],
         ['make it more playful', [vibe('playful')]],
         ['more lighthearted', [vibe('playful')]],
         ['less playful', [vibe('playful', false)]],
         ['no playful', [vibe('playful', false)]],
         ['remove playful and loving', [vibe('playful', false), vibe('loving', false)]],
-        ['compassionate', [vibe('compassionate')]],
+        ['compassionate', [vibe('compassionate', 'toggle')]],
         ['add compassion', [vibe('compassionate')]],
-        ['loving', [vibe('loving')]],
-        ['loving kindness', [vibe('loving')]],
-        ['spacious', [vibe('spacious')]],
+        ['loving', [vibe('loving', 'toggle')]],
+        ['loving kindness', [vibe('loving', 'toggle')]],
+        ['spacious', [vibe('spacious', 'toggle')]],
         ['a spacious vibe', [vibe('spacious')]],
-        ['effortless', [vibe('effortless')]],
-        ['feeling good', [vibe('feeling_good')]],
+        ['effortless', [vibe('effortless', 'toggle')]],
+        ['feeling good', [vibe('feeling_good', 'toggle')]],
         ['turn off effortless', [vibe('effortless', false)]],
         ['without feeling good', [vibe('feeling_good', false)]],
         ['drop the spacious vibe', [vibe('spacious', false)]],
@@ -165,6 +167,14 @@ export const PHRASES: Phrase[] = [
         ['I want to sit with this restless feeling', [intention('this restless feeling')]],
         ['clear my intention', [intention('')]],
         ['no intention', [intention('')]],
+    ]),
+    ...rows('en', 'special-requests', [
+        ['special requests', [requestAsk]],
+        ['add a special request', [requestAsk]],
+        ['I have a special request', [requestAsk]],
+        ['special request: keep it slow', [request('keep it slow')]],
+        ['my special request is to go gently', [request('to go gently')]],
+        ['clear my special requests', [request('')]],
     ]),
     ...rows('en', 'checkins', [
         ['check-ins off', [checkins(false)]],
@@ -228,18 +238,18 @@ export const PHRASES: Phrase[] = [
         ['不要计时器', [noTimer]],
     ]),
     ...rows('zh', 'focus', [
-        ['身体', [focus(BODY)]],
+        ['身体', [focus(BODY, 'toggle')]],
         ['加上情绪', [focus(EMOTIONS)]],
         ['去掉内在部分', [focus(PARTS, false)]],
         ['只要身体', [clear('focus'), focus(BODY)]],
     ]),
     ...rows('zh', 'vibe', [
-        ['轻松', [vibe('playful')]],
-        ['慈悲', [vibe('compassionate')]],
+        ['轻松', [vibe('playful', 'toggle')]],
+        ['慈悲', [vibe('compassionate', 'toggle')]],
         ['加上慈爱', [vibe('loving')]],
-        ['开阔', [vibe('spacious')]],
-        ['不费力', [vibe('effortless')]],
-        ['感觉不错', [vibe('feeling_good')]],
+        ['开阔', [vibe('spacious', 'toggle')]],
+        ['不费力', [vibe('effortless', 'toggle')]],
+        ['感觉不错', [vibe('feeling_good', 'toggle')]],
         ['不要轻松', [vibe('playful', false)]],
         ['去掉所有氛围', [clear('quality')]],
     ]),
@@ -258,6 +268,12 @@ export const PHRASES: Phrase[] = [
     ...rows('zh', 'intention', [
         ['我的意图是放松', [intention('放松')]],
         ['清除意图', [intention('')]],
+    ]),
+    ...rows('zh', 'special-requests', [
+        ['特别要求', [requestAsk]],
+        ['我有一个特别要求', [requestAsk]],
+        ['我的特别要求是慢一点', [request('慢一点')]],
+        ['清除特别要求', [request('')]],
     ]),
     ...rows('zh', 'checkins', [
         ['不要问候我', [checkins(false)]],

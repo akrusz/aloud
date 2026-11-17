@@ -351,12 +351,12 @@
 }
 
 /* Conditional settings columns (Microphone: only when the STT source
-   captures through us; Whisper model: only for local Whisper). When hidden
-   at widths where the row shows both columns, keep the empty slot so the
-   row-mate stays at half width (stretching it to full as you switch STT is
-   jarring). Once the row stacks, drop the slot so there's no dead vertical
-   space. Paired with updateMicDeviceVisibility()/updateWhisperVisibility()
-   in settings.ts. */
+   captures through us) and the empty slots that keep a lone field at half
+   width. When hidden at widths where the row shows both columns, keep the
+   empty slot so the row-mate stays at half width (stretching it to full as
+   you switch STT is jarring). Once the row stacks, drop the slot so there's
+   no dead vertical space. Paired with updateMicDeviceVisibility() in
+   settings.ts. */
 .form-row > .form-group.slot-hidden {
     visibility: hidden;
 }

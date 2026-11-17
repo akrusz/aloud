@@ -58,10 +58,10 @@ Settings → Language & Speech Recognition → **Voice control on the setup
 screen** (`AppSettings.setupVoice`). On by default at a desk and off on a
 phone (`loadAppSettings`): an open mic there puts Android into call audio,
 which drops Bluetooth to call quality and reaches other apps' sound, before
-anyone has asked for anything. The mic beside Begin is the same switch: a tap
-on the lit mic turns the setting off, a tap on the slashed one turns it on,
-and either is how the next visit starts. The mic on the setup screen hears two
-kinds of request, and they are held to different standards.
+anyone has asked for anything. The button beside Begin is the same switch,
+and off means the setup screen neither listens nor speaks ("The mic", below).
+The mic on the setup screen hears two kinds of request, and they are held to
+different standards.
 
 **"Begin"** starts the session the Begin button would (`parseBeginRequest`,
 `begin-command.ts`: begin or start, optionally the session, and the words
@@ -78,8 +78,11 @@ into a list of `SetupAction`s:
   leaves a countdown running, "show the clock" brings it back, "turn off the
   clock" is the readout hidden and the timer off, and "show the time of day" /
   "time in session" pick what it counts;
-- focuses and vibes: a name adds it, "no" / "remove" / "off" takes it away,
-  "change the vibe to" / "only" replaces the set, "clear the vibes" empties it;
+- focuses and vibes: a name said by itself flips it, on to off and off to on
+  ("Playful.", "the body, please"; `toggleByName`, and the answer says which
+  way it went), "add" / "more" adds it and "no" / "remove" / "off" takes it
+  away whatever it was, two names ("playful and spacious") add both, "change
+  the vibe to" / "only" replaces the set, "clear the vibes" empties it;
 - guidance, by step ("more guidance", "guide me less"), by stop
   ("balanced", "somewhat directing") or by level ("set the guidance level to
   medium": minimum, low, medium, high and maximum are the five stops);
@@ -88,12 +91,27 @@ into a list of `SetupAction`s:
 - the intention ("my intention is to rest", "clear my intention"), kept in the
   meditator's own words and case. "Set my intention" with nothing after it is
   answered "What is your intention?", and whatever is said in the next thirty
-  seconds is the intention, word for word ("never mind" leaves it); the turn
-  waits out a longer pause for that answer on the recognizers that can
-  (`awaitIntention` in `views/setup.ts`);
+  seconds is the intention, word for word. "Never mind" / "cancel" / 取消
+  leaves it, answered "Okay, not changing intention.", and "done" / "that's
+  it" / 好了 leaves it with "Okay, all set." (`leavesAsk`); neither is taken as
+  the answer. The turn waits out a longer pause for that answer on the
+  recognizers that can (`awaitAnswer` in `views/setup.ts`);
+- special requests (Exploration's field, `parseSpecialRequest`), the same way:
+  "special requests", "add a special request" or "I have a special request"
+  opens the field and asks "What's your request?"; "special request: keep it
+  slow", "add a special request to keep it slow" or "my special request is
+  ..." says it outright; "clear my special requests" empties the field. Each
+  request goes on a line of its own after what the field already holds, typed
+  or said, so a second one keeps the first. Its old label, "additional
+  instructions", still opens it. "Cancel" or "done" as the answer leaves the
+  ask as they do the intention's ("Okay, not adding a request." / "Okay, all
+  set."), and folds the field shut again if the ask opened it and it is still
+  empty. A bare label with words after it and no
+  colon or comma ("special request keep it slow") is not read: a sentence can
+  open on those words;
 - check-ins on or off (felt sense);
-- "stop listening" / "mute" (closes the mic until tapped), and "what can I
-  say?".
+- "stop listening" / "mute" (puts the mic to sleep until tapped), and "what
+  can I say?".
 
 Several can ride one utterance ("felt sense and twenty minutes"). A comma or a
 full stop parts a request as "and" does, and so does a "no" between two things
@@ -156,7 +174,11 @@ breath ("don't check in on me"), and an intention needs its "is".
 zh is exact-match, in simplified characters, with the handful of sound-alikes
 local Whisper was seen to write for its own words (记时器 for 计时器, 此爱 for
 慈爱). Traditional characters are converted first (`zh-script.ts`); an
-intention keeps the script it was said in.
+intention keeps the script it was said in. A name alone flips it there too
+(身体, 请开阔吧), 加上 / 我要 / 去掉 add and remove, and 开阔的氛围 adds, as "a
+spacious vibe" does. Special requests are 特别要求 (or 补充指引, the old
+label): 特别要求 / 我有一个特别要求 asks, 特别要求：慢一点 / 我的特别要求是慢一点
+says it, 清除特别要求 empties it.
 
 ### What happens to a request
 
@@ -205,8 +227,13 @@ Two ids in `setup-command-specs.ts` (`judgeSetupCommand`):
 
 Jev answers one ask at a time and returns a probability and nothing else, so
 nothing that has to be read out of the words goes through it: a voice's or a
-model's name, the intention's text, a guidance stop by name. Those are the
-parser's alone.
+model's name, the intention's text, a special request, a guidance stop by
+name. Those are the parser's alone. Special requests have no ask: a request
+the parser misses ("how do I add a special request?") can still come back as
+help, since the `help` ask is the nearest it has. An ask for them would cost
+about 190 tokens on every `setup-command` call, and on aloud cloud the server
+would have to go first: the server builds the asks from its own copy of the
+specs, and `resolveSetupAnswers` reads a missing answer as a failed call.
 
 **The scores wobble.** The same request asked twice comes back up to about
 0.05 apart, so a line within that of a bar goes either way from call to call:
@@ -299,17 +326,45 @@ styled voice, which ignores the speed setting in a session too.
 
 ### The mic
 
-The mic beside the Begin button is the indicator and the switch
-(`#voice-start-mic`, the session's mic icon): lit while it listens, slashed
-when it doesn't, a tap toggles. While it listens it wears the ring a session's
-mic does, swelling with the voice (`meterVoiceMic`): from the Whisper engine's
-own level on desktop, from a small meter stream beside the browser's
-recognizer, and not on phones. The ring is held still while the app speaks. It hangs off Begin's left edge out of flow, so
-the bar keeps its height. With the setting off it still shows, slashed, and a
-tap switches it on. "Stop listening" said aloud, and the mic closing by
-itself, last for the visit and leave the setting alone: a television should
-not be able to switch the feature off for good. Hidden only when Begin itself
-can't run.
+The button beside Begin (`#voice-start-mic`) stands for **voice mode** on this
+screen: the app listening and the app talking back, the tour included. Its
+glyph is a mic with sound going out of it (candidate A of three; the session
+keeps its plain mic). It hangs off Begin's left edge out of flow, so the bar
+keeps its height. Voice mode is in one of three states (`paintVoiceMic` in
+`views/setup.ts`):
+
+| State | Looks | Listens | The tour and spoken answers |
+|---|---|---|---|
+| On | lit, with the level ring | yes | spoken |
+| Asleep | unlit, not slashed | no | the tour still spoken |
+| Off | slashed | never | silent: captions only |
+
+- **On and off are the one switch**, `AppSettings.setupVoice`, the same one
+  Settings has: a tap on a lit mic turns it off, a tap on a slashed one turns
+  it on, and either is how the next visit starts.
+- **Asleep is never chosen, only fallen into**: the listening window lapsing,
+  the unheard limit, a recognizer error, "stop listening" said aloud. It lasts
+  for the visit and leaves the setting alone (a television should not be able
+  to switch the feature off for good). A tap wakes it, and so does a tour
+  starting (`TourVoice.reopen`); nothing else does.
+- **What blocks it keeps its own look.** The permission not yet given and a
+  browser tab not yet touched show slashed, titled "Tap to listen" (`ask`),
+  with the setting on: a tap clears either and it listens. The permission
+  denied shows slashed and inert (`blocked`). Begin unable to run, or hosted
+  recognition with nobody signed in, hide it. None of these reads as asleep.
+
+While it listens it wears the ring a session's mic does, swelling with the
+voice (`meterVoiceMic`): from the Whisper engine's own level on desktop, from
+a small meter stream beside the browser's recognizer, and not on phones. The
+ring is held still while the app speaks. Switched on while the app is
+speaking, it lights at once and starts hearing when the line is over
+(`runVoiceSync` paints it before it waits; `micShows` is what a second tap
+reads).
+
+It works under the tour's cards too (`data-tour-live`, kept live by
+`holdPage` in `tour/index-guide.ts`): a tap switches it and leaves the tour
+where it is. Held with the rest of the page, the tap fell through to the
+overlay and closed the tour.
 
 A mic open before a session exists is held to narrower rules than one inside
 it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
@@ -328,10 +383,11 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
     System Settings says (measured 2026-11-13; it does flip to `granted`
     after a capture);
   - the browser's Permissions API. Safari throwing on the descriptor is `ask`.
-- **It closes by itself, by what listening costs** (`setupListeningLimits`).
-  It also closes the moment the setup screen goes away.
+- **It falls asleep by itself, by what listening costs**
+  (`setupListeningLimits`). It also closes the moment the setup screen goes
+  away.
   - Hosted recognition and a phone's own: two minutes with nothing
-    asked (`VOICE_START_WINDOW_MS`), then closed until tapped. Each request it
+    asked (`VOICE_START_WINDOW_MS`), then asleep until tapped. Each request it
     understands starts the two minutes over, up to ten minutes since it opened
     (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
     open past that. A room that keeps talking closes it sooner:
@@ -404,8 +460,8 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
 
 ### Measured on synthetic speech
 
-`scripts/setup-voice/run.ts` says every phrase in `phrases.ts` (143 English
-and 46 Chinese requests, 52 things a room says, 8 paragraphs of prose) with
+`scripts/setup-voice/run.ts` says every phrase in `phrases.ts` (149 English
+and 50 Chinese requests, 52 things a room says, 8 paragraphs of prose) with
 macOS voices, in three rooms (clean, noise at 12 dB, a far microphone), and
 puts each clip through the shell's own Whisper settings
 (`src-tauri/examples/whisper_batch.rs` mirrors `transcribe` in `server.rs`)
@@ -467,9 +523,39 @@ becomes the voice everywhere, the session's included), a step offers to turn
 the microphone on where a tap could, and with it on the tour answers to
 "next", "back", "repeat", "skip", "mute" and a voice's name or place
 (`parseTourCommand`, `tour-command.ts`, the same whole-utterance rule). Every
-one of those is also a button. The speaker on each card stops the reading and
-is remembered. The voice step is skipped for someone whose session voice is a
-local one: the pick is between hosted voices and would move them off it.
+one of those is also a button. The last card is the close and, where the mic
+is on offer, the tip that all of this can be said ("twenty minutes", "add
+playful", "begin"); a request said there is taken as anywhere on the screen,
+and "next" is its "Got it" (知道了 in zh, matched after the same trimming of
+了 the utterance gets). Its line (`tour-done`) ends on "when you're ready",
+not on the "begin" it asks for: a reopening mic can catch a line's tail, and
+only a tail is dropped as the app's own (`looksLikeSpokenTail`). The speaker
+on each card stops the reading and is remembered. The voice step is skipped
+for someone whose session voice is a local one: the pick is between hosted
+voices and would move them off it.
+
+- **A tap acts at once.** Next, Back, a voice, "Turn on the microphone", Got
+  it and closing all cut the line playing. "Turn on the microphone" has to: the
+  mic only opens once the app has stopped speaking (`turnMicOn`). A stop that
+  lands before a held line has begun still stops it (`tourLines` in
+  `views/setup.ts`): the line waits for the recognizer to stop first.
+- **A word waits for the line.** The recognizer is stopped while a line plays,
+  so a word said over it is not heard at all. It listens again
+  `SPEECH_TAIL_MS` after the line, and a word said then is acted on when the
+  recognizer ends the turn (`LOBBY_STT`'s 0.7 to 1.5s pause) and has written
+  it down.
+- **It speaks by voice mode, not by the listener.** On or asleep, every card
+  is read (`TourVoice.mic()` is `on` for both). Off, the tour is silent
+  (`TourVoice.speaks`): no lines, no speaker on the cards, and the voice step
+  is passed by, since its voices would introduce themselves to nobody. The
+  mic step ("Turn on the microphone") is the way in, and turns voice mode on
+  for the rest of the tour. The last card's line, which says what to say, is
+  read only where the mic is on (with the permission still to be asked, the
+  other cards are read and that one is not).
+- **A tour starting wakes a mic that is asleep** (`TourVoice.reopen`), where
+  nothing else keeps it shut (permission, a page not yet touched, hosted
+  recognition signed out), and then offers no card to turn it on. With voice
+  mode off it stays off, and the tour offers it.
 
 ### Not verified on a device
 

@@ -182,6 +182,26 @@
                     "gainDb": 3,
                     "text": "Responses will be medium length."
                 },
+                "special-request-added": {
+                    "file": "ethan/en/special-request-added.34768877.mp3",
+                    "gainDb": 3,
+                    "text": "Added your request."
+                },
+                "special-request-ask": {
+                    "file": "ethan/en/special-request-ask.1c3047f2.mp3",
+                    "gainDb": 3,
+                    "text": "What's your request?"
+                },
+                "special-request-never-mind": {
+                    "file": "ethan/en/special-request-never-mind.a737064f.mp3",
+                    "gainDb": 3,
+                    "text": "Okay, not adding a request."
+                },
+                "special-requests-cleared": {
+                    "file": "ethan/en/special-requests-cleared.f416b581.mp3",
+                    "gainDb": 3,
+                    "text": "Special requests are cleared."
+                },
                 "timer-10": {
                     "file": "ethan/en/timer-10.123fdb76.mp3",
                     "gainDb": 3,
@@ -243,9 +263,9 @@
                     "text": "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it."
                 },
                 "tour-focus": {
-                    "file": "ethan/en/tour-focus.0b52c834.mp3",
+                    "file": "ethan/en/tour-focus.a4e95ede.mp3",
                     "gainDb": 3,
-                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
+                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank if you aren't sure."
                 },
                 "tour-hello": {
                     "file": "ethan/en/tour-hello.e7ba181c.mp3",
@@ -261,11 +281,6 @@
                     "file": "ethan/en/tour-vibe.fed76407.mp3",
                     "gainDb": 3,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
-                },
-                "tour-voice-control": {
-                    "file": "ethan/en/tour-voice-control.147f215b.mp3",
-                    "gainDb": 3,
-                    "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "ethan/en/tour-voice-picked.d68d13dd.mp3",
@@ -539,6 +554,26 @@
                     "gainDb": -4.5,
                     "text": "Responses will be medium length."
                 },
+                "special-request-added": {
+                    "file": "harper/en/special-request-added.1f9624a9.mp3",
+                    "gainDb": -4.5,
+                    "text": "Added your request."
+                },
+                "special-request-ask": {
+                    "file": "harper/en/special-request-ask.4feb1c79.mp3",
+                    "gainDb": -4.5,
+                    "text": "What's your request?"
+                },
+                "special-request-never-mind": {
+                    "file": "harper/en/special-request-never-mind.b705e55c.mp3",
+                    "gainDb": -4.5,
+                    "text": "Okay, not adding a request."
+                },
+                "special-requests-cleared": {
+                    "file": "harper/en/special-requests-cleared.7e9a4ba4.mp3",
+                    "gainDb": -4.5,
+                    "text": "Special requests are cleared."
+                },
                 "timer-10": {
                     "file": "harper/en/timer-10.badf61d3.mp3",
                     "gainDb": -4.5,
@@ -600,9 +635,9 @@
                     "text": "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it."
                 },
                 "tour-focus": {
-                    "file": "harper/en/tour-focus.f8fa9c8b.mp3",
+                    "file": "harper/en/tour-focus.85087988.mp3",
                     "gainDb": -4.5,
-                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
+                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank if you aren't sure."
                 },
                 "tour-hello": {
                     "file": "harper/en/tour-hello.64853d9f.mp3",
@@ -618,11 +653,6 @@
                     "file": "harper/en/tour-vibe.bb6041ad.mp3",
                     "gainDb": -4.5,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
-                },
-                "tour-voice-control": {
-                    "file": "harper/en/tour-voice-control.5c6614e2.mp3",
-                    "gainDb": -4.5,
-                    "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
                     "file": "harper/en/tour-voice-picked.560a97b6.mp3",
@@ -896,6 +926,26 @@
                     "gainDb": 1.5,
                     "text": "回应长度适中。"
                 },
+                "special-request-added": {
+                    "file": "serena/zh/special-request-added.f42419e2.mp3",
+                    "gainDb": 1.5,
+                    "text": "特别要求已记下。"
+                },
+                "special-request-ask": {
+                    "file": "serena/zh/special-request-ask.51943b48.mp3",
+                    "gainDb": 1.5,
+                    "text": "你的特别要求是什么？"
+                },
+                "special-request-never-mind": {
+                    "file": "serena/zh/special-request-never-mind.0f9d0c9d.mp3",
+                    "gainDb": 1.5,
+                    "text": "好的，不加特别要求了。"
+                },
+                "special-requests-cleared": {
+                    "file": "serena/zh/special-requests-cleared.4305375d.mp3",
+                    "gainDb": 1.5,
+                    "text": "特别要求已清除。"
+                },
                 "timer-10": {
                     "file": "serena/zh/timer-10.d9026f97.mp3",
                     "gainDb": 1.5,
@@ -975,11 +1025,6 @@
                     "file": "serena/zh/tour-vibe.cdb68da2.mp3",
                     "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
-                },
-                "tour-voice-control": {
-                    "file": "serena/zh/tour-voice-control.402a17ca.mp3",
-                    "gainDb": 1.5,
-                    "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "serena/zh/tour-voice-picked.fd447f86.mp3",
@@ -1253,6 +1298,26 @@
                     "gainDb": 1.5,
                     "text": "回应长度适中。"
                 },
+                "special-request-added": {
+                    "file": "yunfan/zh/special-request-added.3174509d.mp3",
+                    "gainDb": 1.5,
+                    "text": "特别要求已记下。"
+                },
+                "special-request-ask": {
+                    "file": "yunfan/zh/special-request-ask.4d3b23cd.mp3",
+                    "gainDb": 1.5,
+                    "text": "你的特别要求是什么？"
+                },
+                "special-request-never-mind": {
+                    "file": "yunfan/zh/special-request-never-mind.1faa7ff1.mp3",
+                    "gainDb": 1.5,
+                    "text": "好的，不加特别要求了。"
+                },
+                "special-requests-cleared": {
+                    "file": "yunfan/zh/special-requests-cleared.2ac70ace.mp3",
+                    "gainDb": 1.5,
+                    "text": "特别要求已清除。"
+                },
                 "timer-10": {
                     "file": "yunfan/zh/timer-10.8f93793e.mp3",
                     "gainDb": 1.5,
@@ -1332,11 +1397,6 @@
                     "file": "yunfan/zh/tour-vibe.0593ff62.mp3",
                     "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
-                },
-                "tour-voice-control": {
-                    "file": "yunfan/zh/tour-voice-control.7cac5c34.mp3",
-                    "gainDb": 1.5,
-                    "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
                     "file": "yunfan/zh/tour-voice-picked.969de9e6.mp3",

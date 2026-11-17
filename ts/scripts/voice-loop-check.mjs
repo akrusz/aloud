@@ -47,8 +47,12 @@ function check(name, ok, detail = '') {
     if (!ok) failures.push(name);
 }
 
-/** A fresh browser context seeded with a BYOK session and the given settings. */
-async function open(settings, setupPatch = {}) {
+/** A fresh browser context seeded with a BYOK session and the given settings.
+ *  `speechCapMs`: the longest a stood-in utterance "plays" (window.__speechCapMs
+ *  changes it later). `micUnasked`: the page is told the permission is still
+ *  to be asked (a context without the grant reads as denied), and the capture
+ *  it then asks for is granted. */
+async function open(settings, setupPatch = {}, { speechCapMs = 2500, micUnasked = false } = {}) {
     const context = await browser.newContext({ permissions: ['microphone'], viewport: { width: 1100, height: 900 } });
     await context.addInitScript({
         content: `(() => {
@@ -67,19 +71,36 @@ async function open(settings, setupPatch = {}) {
         silenceModeEnabled: true, sessionClockMode: 'elapsed', saveSessionLogs: false, autoQuitAfterSilence: false,
         showAllModels: true, enableByok: true, voiceCommandsViaCloud: false }, ${JSON.stringify(settings)}));
     localStorage.setItem(P + 'apikey:openai', 'sk-test-not-real');
+    if (${Boolean(micUnasked)} && navigator.permissions) {
+        const query = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = (d) =>
+            d && d.name === 'microphone' ? Promise.resolve({ state: 'prompt', onchange: null }) : query(d);
+    }
 
     // speechSynthesis speaks through the system, past --mute-audio, so it is
     // stood in for: each utterance "plays" for about as long as it would take
-    // to say, in silence.
+    // to say, in silence. What was said is kept (__spoken), and how many were
+    // cut off (__speechCut).
     if (window.speechSynthesis) {
         window.__quietSpeech = true;
+        window.__speechCapMs = ${Number(speechCapMs)};
+        window.__spoken = [];
+        window.__speechCut = 0;
         let current = null;
         speechSynthesis.speak = (u) => {
             const mine = (current = {});
+            window.__spoken.push(u.text);
             setTimeout(() => mine === current && u.onstart && u.onstart(new Event('start')), 30);
-            setTimeout(() => mine === current && u.onend && u.onend(new Event('end')), 30 + Math.min(2500, u.text.length * 55));
+            setTimeout(() => {
+                if (mine !== current) return;
+                current = null;
+                u.onend && u.onend(new Event('end'));
+            }, 30 + Math.min(window.__speechCapMs, u.text.length * 55));
         };
-        speechSynthesis.cancel = () => { current = null; };
+        speechSynthesis.cancel = () => {
+            if (current) window.__speechCut++;
+            current = null;
+        };
     }
 
     // The scripted recognizer. One instance is "listening" at a time; say()
@@ -213,6 +234,34 @@ async function open(settings, setupPatch = {}) {
             }),
         /** The soak tap's events as JSON, or null when the tap isn't armed. */
         taps: () => page.evaluate(() => (window.__aloudSoak ? JSON.stringify(window.__aloudSoak.events) : null)),
+        /** Click it, or report false where it takes no click (inert, covered). */
+        async tap(selector) {
+            try {
+                await page.locator(selector).click({ timeout: 3_000 });
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        /** Voice mode as the mic beside Begin shows it: 'on' (lit), 'sleeping'
+         *  (unlit, no slash), 'off' (slashed), or '' while it is hidden. */
+        look: () =>
+            page.evaluate(() => {
+                const el = document.querySelector('#voice-start-mic');
+                if (!el || el.classList.contains('hidden')) return '';
+                if (el.classList.contains('active')) return 'on';
+                return getComputedStyle(el.querySelector('.mute-line')).opacity === '0' ? 'sleeping' : 'off';
+            }),
+        /** Everything the stood-in voice was given to say, in order. */
+        spoken: () => page.evaluate(() => window.__spoken.slice()),
+        /** The tour card up now: its heading, or the tooltip of a section
+         *  step ("section"), or '' with none up. */
+        card: () =>
+            page.evaluate(() => {
+                const card = document.querySelector('.tour-welcome, .tour-tooltip');
+                if (!card) return '';
+                return card.querySelector('h3')?.textContent ?? (card.classList.contains('tour-tooltip') ? 'section' : 'welcome');
+            }),
     };
 }
 
@@ -337,7 +386,10 @@ try {
         await s.page.waitForTimeout(800);
         await s.page.mouse.click(5, 300);
         const setting = () => s.page.evaluate(() => JSON.parse(localStorage.getItem('aloud:app:settings') || '{}').setupVoice);
-        check('switched off, the mic still shows, slashed', await s.until(async () => (await s.status()) === 'Tap to listen'));
+        check(
+            'switched off, the mic still shows, slashed',
+            await s.until(async () => (await s.look()) === 'off' && (await s.status()) === 'Voice off. Tap to turn on.')
+        );
         check('and nothing is listening', !(await s.recognizerOpen()));
         await s.page.locator('#voice-start-mic').click();
         check('a tap opens it', await s.until(async () => /^Listening\./.test(await s.status())));
@@ -348,7 +400,7 @@ try {
         await s.page.reload({ waitUntil: 'domcontentloaded' });
         await s.page.locator('#begin-btn').waitFor({ state: 'visible', timeout: 30_000 });
         await s.page.waitForTimeout(1500);
-        check('so the next visit opens no recognizer', !(await s.recognizerOpen()) && (await s.status()) === 'Tap to listen', `(${await s.status()})`);
+        check('so the next visit opens no recognizer', !(await s.recognizerOpen()) && (await s.look()) === 'off', `(${await s.status()})`);
         await s.context.close();
     }
 
@@ -524,8 +576,22 @@ try {
             'and after that a vibe is a vibe again',
             await s.until(async () => ((await stored()).setup.qualities ?? []).includes('spacious'))
         );
-        await s.say('Remove spacious.');
-        await s.until(async () => !((await stored()).setup.qualities ?? []).includes('spacious'));
+        await s.say('Spacious.');
+        check(
+            'and the name alone again flips it off',
+            await s.until(async () => !((await stored()).setup.qualities ?? []).includes('spacious'))
+        );
+
+        const requests = () => s.page.locator('#custom-instructions');
+        await s.say('Special requests.');
+        check('"special requests" asks for one', await s.until(async () => /What's your request/.test(await note())), `(${await note()})`);
+        check('and opens the field', await requests().isVisible());
+        await s.say('Keep it slow.');
+        check('and the next thing said is the request', await s.until(async () => (await requests().inputValue()) === 'Keep it slow'));
+        await s.say('Special request: no bells.');
+        check('a second goes on its own line', await s.until(async () => (await requests().inputValue()) === 'Keep it slow\nno bells'));
+        await s.say('Clear my special requests.');
+        check('"clear my special requests" empties it', await s.until(async () => (await stored()).setup.customInstructions === ''));
 
         const pickerUp = () => s.page.evaluate(() => !document.querySelector('#setup-voice-modal')?.classList.contains('hidden'));
         await s.say('Open the voice picker.');
@@ -579,17 +645,154 @@ try {
 
         await s.say('Stop listening.');
         check('"stop listening" closes the mic', await s.until(async () => !(await s.recognizerOpen()), 8_000));
-        check('and says it is closed', (await s.status()) === 'Tap to listen', `(${await s.status()})`);
+        check('and shows it asleep, not slashed', (await s.look()) === 'sleeping' && (await s.status()) === 'Sleeping. Tap to listen.', `(${await s.status()})`);
         check(
             'with no ring left on it',
             await s.until(() => s.page.evaluate(() => document.querySelector('#voice-start-mic').style.getPropertyValue('--mic-level') === ''), 3_000)
         );
         await s.page.waitForTimeout(4000);
-        check('and it stays closed until tapped', (await s.status()) === 'Tap to listen' && !(await s.recognizerOpen()));
+        check('and it stays closed until tapped', (await s.look()) === 'sleeping' && !(await s.recognizerOpen()));
         await s.page.locator('#voice-start-mic').click();
         check('a tap opens it again', await s.until(async () => /^Listening\./.test(await s.status())));
         await s.say('Begin.');
         check('and "begin" still begins', await s.until(s.inSession));
+        await s.context.close();
+    }
+
+    // ---- the tour with voice mode off: the mic under its cards, captions only ----
+    {
+        const s = await open({ setupVoice: false });
+        await s.setup();
+        const setting = () => s.page.evaluate(() => JSON.parse(localStorage.getItem('aloud:app:settings') || '{}').setupVoice);
+        const said = (re) => s.until(async () => (await s.spoken()).some((line) => re.test(line)), 5_000);
+
+        check('a fresh profile opens on the welcome card', await s.until(async () => (await s.card()) === 'welcome', 5_000));
+        await s.until(async () => (await s.look()) === 'off', 5_000);
+        check(
+            'the mic beside Begin takes a tap under a centered card',
+            (await s.tap('#voice-start-mic')) && (await s.until(async () => (await s.look()) === 'on', 5_000))
+        );
+        check('and the card stays up', (await s.card()) === 'welcome');
+        check(
+            'a second tap switches voice mode off, the setting with it',
+            (await s.tap('#voice-start-mic')) && (await s.until(async () => (await s.look()) === 'off' && (await setting()) === false, 5_000))
+        );
+        check('and the card is still up', (await s.card()) === 'welcome');
+
+        await s.page.locator('[data-action="start"]').click();
+        check('with voice mode off, the tour offers to turn it on', await s.until(async () => (await s.card()) === 'aloud listens, too', 5_000));
+        await s.page.waitForTimeout(1_000);
+        check('and says nothing: captions only', (await s.spoken()).length === 0, JSON.stringify(await s.spoken()));
+        check('with no speaker on the card to switch', (await s.page.locator('.tour-sound').count()) === 0);
+        await s.page.locator('[data-action="mic"]').click();
+        check('"Turn on the microphone" turns voice mode on', await s.until(async () => (await s.look()) === 'on' && (await setting()) === true, 5_000));
+        check('and the tour speaks from the next card', await said(/^Exploration is a conversation/));
+        await s.context.close();
+    }
+
+    // ---- the tour: a tap acts at once, a word once the line is over -----------------
+    {
+        // On, with the permission still to be asked: the tour speaks and
+        // offers the mic. Lines long enough that a tap waiting one out would
+        // show.
+        const s = await open({ setupVoice: true }, {}, { speechCapMs: 9_000, micUnasked: true });
+        await s.setup();
+        const step = () =>
+            s.page.evaluate(() => [...document.querySelectorAll('.tour-dot')].findIndex((d) => d.classList.contains('active')));
+        const said = (re) => s.until(async () => (await s.spoken()).some((line) => re.test(line)), 5_000);
+        const settings = () => s.page.evaluate(() => JSON.parse(localStorage.getItem('aloud:app:settings') || '{}'));
+
+        await s.until(async () => (await s.card()) === 'welcome', 5_000);
+        await s.page.locator('[data-action="start"]').click();
+        check('with the permission not yet given, the tour offers the mic', await s.until(async () => (await s.card()) === 'aloud listens, too', 5_000));
+        check('and reads the card out', await said(/^Welcome to aloud/));
+        await s.page.waitForTimeout(300);
+        const t0 = Date.now();
+        await s.page.locator('[data-action="mic"]').click();
+        const moved = await s.until(async () => !['aloud listens, too', ''].includes(await s.card()), 8_000);
+        const took = Date.now() - t0;
+        check('"Turn on the microphone" acts without waiting out the line', moved && took < 2_500, `(${took} ms; the line runs about 6 s)`);
+        check('and cuts it off', (await s.page.evaluate(() => window.__speechCut)) > 0);
+        check('and the mic is on', (await s.look()) === 'on');
+
+        // From here what is under test is that a word is taken once the line
+        // and its tail are over; the lines can be short.
+        await s.page.evaluate(() => {
+            window.__speechCapMs = 1_500;
+        });
+        let at = await step();
+        for (let guard = 0; guard < 8 && !/ready/.test(await s.card()); guard++) {
+            await s.say('Next.');
+            await s.until(async () => (await step()) !== at, 5_000);
+            at = await step();
+        }
+        check('"next", said once each line is over, walks the tour to its last card', /ready/.test(await s.card()), `(${await s.card()})`);
+        check('one card fewer than before: the voice tip is on the last', (await s.page.locator('.tour-dot').count()) === 8, `(${await s.page.locator('.tour-dot').count()} dots)`);
+        check('which is read out, the tip and the close in one line', await said(/set things up by talking.*That's the basics/));
+        await s.say('Twenty minutes.');
+        check('a request said to it is taken', await s.until(async () => (await settings()).sessionTimerMin === 20, 5_000));
+        check('with the tour still on it', /ready/.test(await s.card()));
+        await s.say('Next.');
+        check('"next" on the last card is its Got it', await s.until(async () => (await s.card()) === '', 5_000));
+        const ended = await s.page.evaluate(() => ({
+            done: Object.keys(localStorage).some((k) => k.includes('index-guide-done') && localStorage.getItem(k)),
+            later: sessionStorage.getItem('aloud-index-guide-remind'),
+        }));
+        check('and finishes the tour, not puts it off', ended.done && ended.later === null, JSON.stringify(ended));
+        await s.context.close();
+    }
+
+    // ---- the tour and a mic asleep ------------------------------------------------
+    {
+        const s = await open({ setupVoice: true });
+        await s.setup();
+        await s.page.waitForTimeout(800);
+        await s.page.mouse.click(5, 300);
+        await s.until(async () => (await s.look()) === 'on');
+        const setting = () => s.page.evaluate(() => JSON.parse(localStorage.getItem('aloud:app:settings') || '{}').setupVoice);
+        const asleep = async () => (await s.look()) === 'sleeping' && !(await s.recognizerOpen());
+        const said = (re) => s.until(async () => (await s.spoken()).some((line) => re.test(line)), 5_000);
+        const startTour = async () => {
+            await s.page.locator('.info-btn[data-info="methods"]').click();
+            await s.page.locator('#start-guide-link').click();
+        };
+
+        await s.say('Stop listening.');
+        check('"stop listening" puts the mic to sleep', await s.until(asleep, 8_000));
+        await startTour();
+        check('a tour wakes it', await s.until(async () => (await s.look()) === 'on', 5_000));
+        check('and goes straight to the tour, no card offering the mic', await s.until(async () => (await s.card()) === 'section', 5_000), `(${await s.card()})`);
+
+        check(
+            'a tap on the mic during a step switches voice mode off',
+            (await s.tap('#voice-start-mic')) && (await s.until(async () => (await s.look()) === 'off' && (await setting()) === false, 5_000))
+        );
+        check('and leaves the tour up', (await s.card()) === 'section');
+        check(
+            'a second tap turns it on',
+            (await s.tap('#voice-start-mic')) && (await s.until(async () => (await s.look()) === 'on', 5_000))
+        );
+
+        await s.say('Stop listening.');
+        check('"stop listening" in the tour puts it to sleep', await s.until(asleep, 8_000));
+        for (let guard = 0; guard < 8 && !/ready/.test(await s.card()); guard++) {
+            await s.tap('[data-action="next"]');
+            await s.page.waitForTimeout(600);
+        }
+        check('the tour goes on talking to the end, the last card read out', await said(/set things up by talking/));
+        check('with the mic still asleep', await asleep());
+        await s.page.locator('[data-action="done"]').click();
+
+        check('a tap wakes a sleeping mic', (await s.tap('#voice-start-mic')) && (await s.until(async () => (await s.look()) === 'on', 5_000)));
+        check('and the setting is still on', (await setting()) === true);
+        await s.tap('#voice-start-mic');
+        await s.until(async () => (await s.look()) === 'off', 5_000);
+        const before = (await s.spoken()).length;
+        await startTour();
+        await s.page.waitForTimeout(1_500);
+        check('with voice mode off a tour leaves the mic off', (await s.look()) === 'off' && !(await s.recognizerOpen()));
+        check('offers to turn it on', (await s.card()) === 'aloud listens, too', `(${await s.card()})`);
+        check('and says nothing', (await s.spoken()).length === before);
         await s.context.close();
     }
 

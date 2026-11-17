@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseBeginRequest } from '../src/facilitation/begin-command.js';
 import {
     editDistance,
+    leavesAsk,
     nearestWord,
     parseSetupCommand,
     setupVocabulary,
@@ -77,27 +78,56 @@ describe('parseSetupCommand: length', () => {
 });
 
 describe('parseSetupCommand: focuses and vibes', () => {
-    it('adds one by naming it', () => {
+    it('flips one said by its name alone', () => {
         expectAll([
-            ['Playful.', [{ kind: 'quality', quality: 'playful', on: true }]],
+            ['Playful.', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['playful, please', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['Okay, spacious.', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+            ['feeling good', [{ kind: 'quality', quality: 'feeling_good', on: 'toggle' }]],
+            ['loving kindness', [{ kind: 'quality', quality: 'loving', on: 'toggle' }]],
+            ['compassion', [{ kind: 'quality', quality: 'compassionate', on: 'toggle' }]],
+            ['body', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['The body.', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['sensations', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['inner parts', [{ kind: 'focus', focus: 'inner_parts', on: 'toggle' }]],
+            // The names on the setup screen's own cards.
+            ['body and sensations', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['emotions and feeling tone', [{ kind: 'focus', focus: 'emotions', on: 'toggle' }]],
+            ['parts and inner world', [{ kind: 'focus', focus: 'inner_parts', on: 'toggle' }]],
+            ['playful and light', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['loving and kind', [{ kind: 'quality', quality: 'loving', on: 'toggle' }]],
+            // What a recognizer has been seen to write for one.
+            ['Light-hearted.', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['Spaces.', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+        ]);
+    });
+
+    it('adds one when asked to, whatever it was', () => {
+        expectAll([
             ['add playful', [{ kind: 'quality', quality: 'playful', on: true }]],
             ['add spacious please', [{ kind: 'quality', quality: 'spacious', on: true }]],
-            ['feeling good', [{ kind: 'quality', quality: 'feeling_good', on: true }]],
             ['turn on compassionate', [{ kind: 'quality', quality: 'compassionate', on: true }]],
-            ['loving kindness', [{ kind: 'quality', quality: 'loving', on: true }]],
             ['more playful', [{ kind: 'quality', quality: 'playful', on: true }]],
             ['a playful vibe', [{ kind: 'quality', quality: 'playful', on: true }]],
-            ['body', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
             ['focus on the body', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
             ['focus on emotions', [{ kind: 'focus', focus: 'emotions', on: true }]],
+            ['the body focus', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
             ['add parts', [{ kind: 'focus', focus: 'inner_parts', on: true }]],
-            ['inner parts', [{ kind: 'focus', focus: 'inner_parts', on: true }]],
-            ['body and sensations', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
-            ['emotions and feeling tone', [{ kind: 'focus', focus: 'emotions', on: true }]],
-            ['parts and inner world', [{ kind: 'focus', focus: 'inner_parts', on: true }]],
-            ['playful and light', [{ kind: 'quality', quality: 'playful', on: true }]],
-            ['loving and kind', [{ kind: 'quality', quality: 'loving', on: true }]],
             ['add playfulness', [{ kind: 'quality', quality: 'playful', on: true }]],
+        ]);
+    });
+
+    it('does not flip what needs a word that asks, or a name inside something else', () => {
+        expectAll([
+            ['playfulness', null],
+            ['emotional', null],
+            ['body parts', null],
+            ['my body', null],
+            ['living', null],
+            ['the focus', null],
+            ['Noting.', [{ kind: 'mode', mode: 'noting' }]],
+            ['following', [{ kind: 'guidance', to: 0 }]],
+            ['Hell.', [{ kind: 'help' }]],
         ]);
     });
 
@@ -291,6 +321,46 @@ describe('parseSetupCommand: intention, check-ins, the mic', () => {
             ['check in if I am quiet', null],
             ["check in on me if I'm quiet", [{ kind: 'checkins', on: true }]],
             ["don't check in on me when I'm quiet", [{ kind: 'checkins', on: false }]],
+        ]);
+    });
+
+    it('takes the special requests field by its label, said like the intention', () => {
+        const ask: SetupAction[] = [{ kind: 'special-request-ask' }];
+        expectAll([
+            ['Special requests.', ask],
+            ['special requests, please', ask],
+            ['add a special request', ask],
+            ["I'd like to add a special request", ask],
+            ['I have a special request', ask],
+            ['open special requests', ask],
+            ['my special request is', ask],
+            ['special requests for this session', ask],
+            // The label it had before.
+            ['Additional instructions.', ask],
+            ['Special request: keep it slow.', [{ kind: 'special-request', text: 'keep it slow' }]],
+            ['Special request, keep it slow.', [{ kind: 'special-request', text: 'keep it slow' }]],
+            ['add a special request to keep it slow', [{ kind: 'special-request', text: 'keep it slow' }]],
+            ['add a special request keep it slow', [{ kind: 'special-request', text: 'keep it slow' }]],
+            ['my special request is to go gently', [{ kind: 'special-request', text: 'to go gently' }]],
+            ['I have a special request, could you speak softly', [{ kind: 'special-request', text: 'could you speak softly' }]],
+            // Its own words, so begin and start are the meditator's.
+            ['Special request: start slowly.', [{ kind: 'special-request', text: 'start slowly' }]],
+            ['Special request: No talk of breathing', [{ kind: 'special-request', text: 'No talk of breathing' }]],
+            ['clear my special requests', [{ kind: 'special-request', text: '' }]],
+            ['no special requests', [{ kind: 'special-request', text: '' }]],
+            ['special request: none', [{ kind: 'special-request', text: '' }]],
+            ['add a special request now', ask],
+        ]);
+    });
+
+    it('leaves alone special requests said to someone else', () => {
+        expectAll([
+            ['Any special requests?', null],
+            ['do you take special requests', null],
+            ['special requests are welcome at the front desk', null],
+            ['how do I get to additional instructions', null],
+            ['special requests', [{ kind: 'special-request-ask' }]],
+            ['my intention is to make a special request', [{ kind: 'intention', text: 'to make a special request' }]],
         ]);
     });
 
@@ -573,7 +643,8 @@ describe('parseSetupCommand: mishearings', () => {
 
     it('takes the mishearings it has been shown as the phrase itself', () => {
         expectAll([
-            ['spaces', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['spaces', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+            ['add spaces', [{ kind: 'quality', quality: 'spacious', on: true }]],
             ['felt cents', [{ kind: 'mode', mode: 'felt_sense' }]],
             ['check ends off', [{ kind: 'checkins', on: false }]],
             ['compassion it', [{ kind: 'quality', quality: 'compassionate', on: true }]],
@@ -631,8 +702,9 @@ describe('parseSetupCommand: zh', () => {
             ['不要计时', [{ kind: 'no-timer' }]],
             ['加上开阔', [{ kind: 'quality', quality: 'spacious', on: true }]],
             ['去掉慈悲', [{ kind: 'quality', quality: 'compassionate', on: false }]],
-            ['轻松有玩心', [{ kind: 'quality', quality: 'playful', on: true }]],
-            ['身体', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
+            ['轻松有玩心', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['身体', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['加上身体', [{ kind: 'focus', focus: 'body_sensations', on: true }]],
             ['不要情绪', [{ kind: 'focus', focus: 'emotions', on: false }]],
             ['多一点引导', [{ kind: 'guidance', to: 'up' }]],
             ['少一点引导', [{ kind: 'guidance', to: 'down' }]],
@@ -689,6 +761,39 @@ describe('parseSetupCommand: zh', () => {
         ]);
     });
 
+    it('flips a lone name, polite words around it allowed; asking adds or removes', () => {
+        expectAll([
+            ['开阔', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+            ['请开阔吧', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+            ['身體，', [{ kind: 'focus', focus: 'body_sensations', on: 'toggle' }]],
+            ['加上开阔', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['我要开阔', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['开阔的氛围', [{ kind: 'quality', quality: 'spacious', on: true }]],
+            ['去掉开阔', [{ kind: 'quality', quality: 'spacious', on: false }]],
+            ['轻松和开阔', [
+                { kind: 'quality', quality: 'playful', on: true },
+                { kind: 'quality', quality: 'spacious', on: true },
+            ]],
+            ['标记', [{ kind: 'mode', mode: 'noting' }]],
+        ]);
+    });
+
+    it('takes the special requests field like the intention', () => {
+        expectAll([
+            ['特别要求', [{ kind: 'special-request-ask' }]],
+            ['我有一个特别要求', [{ kind: 'special-request-ask' }]],
+            ['我想提一个特别要求', [{ kind: 'special-request-ask' }]],
+            ['加一个特别要求', [{ kind: 'special-request-ask' }]],
+            ['补充指引', [{ kind: 'special-request-ask' }]],
+            ['特别要求：慢一点', [{ kind: 'special-request', text: '慢一点' }]],
+            ['我的特别要求是慢一点', [{ kind: 'special-request', text: '慢一点' }]],
+            ['添加特别要求慢一点', [{ kind: 'special-request', text: '慢一点' }]],
+            ['特別要求：說話慢一點', [{ kind: 'special-request', text: '說話慢一點' }]],
+            ['清除特别要求', [{ kind: 'special-request', text: '' }]],
+            ['特别要求大家注意安全', null],
+        ]);
+    });
+
     it('takes the sound-alikes Whisper writes for its own words', () => {
         expectAll([
             ['不要记时器。', [{ kind: 'no-timer' }]],
@@ -702,6 +807,20 @@ describe('parseSetupCommand: zh', () => {
     it('ignores the rest, and never begins', () => {
         for (const text of ['今天天气不错', '开始', '開始', '开始冥想', '我二十分钟前到的', '他很慈悲', '身体不舒服']) {
             expect(parseSetupCommand(text), text).toBeNull();
+        }
+    });
+});
+
+describe('leavesAsk', () => {
+    it('tells leaving the question from answering it', () => {
+        for (const said of ['Never mind.', 'cancel', 'Cancel that.', 'no', 'okay, forget it', '取消', '算了。', '不加了']) {
+            expect(leavesAsk(said), said).toBe('cancel');
+        }
+        for (const said of ['Done.', "I'm done", "That's it.", 'all done, thanks', 'Close.', '好了', '完成。', '就這樣']) {
+            expect(leavesAsk(said), said).toBe('done');
+        }
+        for (const said of ['keep it slow', 'done with breathing cues', 'to rest', 'not too fast', '慢一点', '完成这个项目']) {
+            expect(leavesAsk(said), said).toBeNull();
         }
     });
 });

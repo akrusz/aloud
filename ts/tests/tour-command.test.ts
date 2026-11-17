@@ -32,6 +32,10 @@ describe('parseTourCommand', () => {
             ['下一個', 'next'],
             ['繼續', 'next'],
             ['好的，继续吧', 'next'],
+            // The last card's button, 知道了, said as it reads.
+            ['知道了', 'next'],
+            ['好的，明白了。', 'next'],
+            ['别说了', 'quiet'],
             ['返回', 'back'],
             ['再说一遍', 'repeat'],
             ['跳过', 'close'],
