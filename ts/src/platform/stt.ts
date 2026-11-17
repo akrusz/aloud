@@ -37,10 +37,12 @@ export type SttEvent =
 export interface SttStopOptions {
     /**
      * Stop listening now, but keep the engine's own mic stream open until this
-     * settles. For sound that plays as a session ends: on macOS, closing an
+     * settles. For sound that plays as listening stops: on macOS, closing an
      * echo-cancelled mic makes the OS rebuild its audio output a couple of
-     * seconds later, and whatever is playing then drops out. Only engines that
-     * hold a stream of their own honor it.
+     * seconds later, and whatever is playing then drops out. A start() before
+     * it settles takes the same stream back instead of opening another, which
+     * is how the setup screen stops between turns without letting the mic go.
+     * Only engines that hold a stream of their own honor it.
      */
     keepMicUntil?: Promise<unknown>;
 }

@@ -8,12 +8,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SttEngine, SttEvent } from '../src/platform/index.js';
+import type { SttStopOptions } from '../src/platform/stt.js';
 import type { BeginRequest } from '../src/facilitation/index.js';
 import { defaultPacingConfig } from '../src/facilitation/pacing.js';
 const micCheck = vi.hoisted(() => ({ opened: false }));
 vi.mock('../ui/src/mic-check.js', () => ({ micOpenedThisPage: () => micCheck.opened }));
 
 import {
+    createMicHandover,
     listenOnSetup,
     LOBBY_STT,
     micPermission,
@@ -25,6 +27,7 @@ import {
     VOICE_START_WINDOW_MS,
     type SetupListeningLimits,
     type VoiceStartEnd,
+    type VoiceStartHandle,
 } from '../ui/src/voice-start.js';
 
 const ready = { enabled: true, mic: 'granted', canBegin: true, touched: true } as const;
@@ -391,6 +394,76 @@ describe('listenOnSetup', () => {
         expect(ends).toEqual([]);
     });
 
+    it('keeps the mic stream through a line and between turns, and lets it go when listening ends', async () => {
+        // On macOS a mic let go as a line starts cuts half a second out of it.
+        const engine = scriptedEngine(['add playful']);
+        const keeps: Array<Promise<unknown> | undefined> = [];
+        const stop = engine.stop.bind(engine);
+        engine.stop = (options?: SttStopOptions) => {
+            keeps.push(options?.keepMicUntil);
+            return stop();
+        };
+        const { handle } = run(engine, () => true, () => true);
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 100);
+        const line = handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)));
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 100);
+        await line;
+        let letGo = false;
+        expect(keeps.length).toBeGreaterThanOrEqual(2);
+        for (const keep of keeps) {
+            expect(keep).toBeInstanceOf(Promise);
+            void keep!.then(() => (letGo = true));
+        }
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(letGo).toBe(false);
+        await handle.stop();
+        expect(letGo).toBe(true);
+        // The last stop, the one that ends it, keeps nothing.
+        expect(keeps.at(-1)).toBeUndefined();
+    });
+
+    it('stop({ keepMicUntil }) keeps the mic stream until that settles, and plain stop() lets it go first', async () => {
+        const keepsOf = (engine: ReturnType<typeof scriptedEngine>) => {
+            const keeps: Array<Promise<unknown> | undefined> = [];
+            const stop = engine.stop.bind(engine);
+            engine.stop = (options?: SttStopOptions) => {
+                keeps.push(options?.keepMicUntil);
+                return stop();
+            };
+            return keeps;
+        };
+        const settledFlag = (promise: Promise<unknown> | undefined) => {
+            const state = { settled: false };
+            void promise?.then(() => (state.settled = true));
+            return state;
+        };
+
+        // Handed over: stopped, ended, the stream still held.
+        const handed = scriptedEngine([]);
+        const handedKeeps = keepsOf(handed);
+        const first = run(handed);
+        await vi.advanceTimersByTimeAsync(100);
+        let nextIsLive = (): void => {};
+        await first.handle.stop({ keepMicUntil: new Promise<void>((r) => (nextIsLive = r)) });
+        expect(first.ends).toEqual(['stopped']);
+        const held = settledFlag(handedKeeps.at(-1));
+        expect(handedKeeps.at(-1)).toBeInstanceOf(Promise);
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(held.settled).toBe(false);
+        nextIsLive();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.settled).toBe(true);
+
+        // Plain: nothing kept, and let go before onEnd runs.
+        const plain = scriptedEngine([]);
+        const plainKeeps = keepsOf(plain);
+        const second = run(plain);
+        await vi.advanceTimersByTimeAsync(100);
+        await second.handle.stop();
+        expect(plainKeeps).toEqual([undefined]);
+        expect(second.ends).toEqual(['stopped']);
+    });
+
     it('a hold over a recognizer that errors when stopped is not a failure', async () => {
         // Browser recognition reports its own abort as an error.
         let release: (() => void) | null = null;
@@ -429,5 +502,56 @@ describe('listenOnSetup', () => {
         expect(ends).toEqual([]);
         await vi.advanceTimersByTimeAsync(1_000);
         expect(ends).toEqual(['begin']);
+    });
+});
+
+describe('createMicHandover', () => {
+    /** A handle that says what its stop kept the mic for. */
+    function handle(): VoiceStartHandle & { kept: Array<Promise<unknown> | undefined> } {
+        const kept: Array<Promise<unknown> | undefined> = [];
+        return {
+            kept,
+            stop: async (options) => void kept.push(options?.keepMicUntil),
+            hold: (during) => during(),
+            keepOpen: () => undefined,
+        };
+    }
+    const settledFlag = (promise: Promise<unknown> | undefined) => {
+        const state = { settled: false };
+        void promise?.then(() => (state.settled = true));
+        return state;
+    };
+
+    it('holds a replaced mic until whoever took it lets it go', async () => {
+        const handover = createMicHandover();
+        const old = handle();
+        await handover.stop(old);
+        const held = settledFlag(old.kept[0]);
+        const letGo = handover.take();
+        // Taken: a release by anyone else no longer reaches it.
+        handover.release();
+        await Promise.resolve();
+        expect(held.settled).toBe(false);
+        letGo?.();
+        await Promise.resolve();
+        expect(held.settled).toBe(true);
+        expect(handover.take()).toBeNull();
+    });
+
+    it('holds a second replaced mic along with the first, and lets both go together', async () => {
+        // b replaced a before going live, so it was still holding a's mic.
+        const handover = createMicHandover();
+        const a = handle();
+        const b = handle();
+        await handover.stop(a);
+        const owedByB = handover.take();
+        await handover.stop(b, owedByB);
+        const heldA = settledFlag(a.kept[0]);
+        const heldB = settledFlag(b.kept[0]);
+        await Promise.resolve();
+        expect([heldA.settled, heldB.settled]).toEqual([false, false]);
+        handover.take()?.();
+        await Promise.resolve();
+        expect([heldA.settled, heldB.settled]).toEqual([true, true]);
     });
 });

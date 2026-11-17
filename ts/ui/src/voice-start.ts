@@ -210,8 +210,10 @@ export type VoiceStartEnd =
     | 'error';
 
 export interface VoiceStartHandle {
-    /** Stop listening and close the mic. Safe to call twice. */
-    stop(): Promise<void>;
+    /** Stop listening and close the mic. Safe to call twice. With
+     *  `keepMicUntil` the engine's own mic stream stays open until that
+     *  settles (createMicHandover). */
+    stop(options?: { keepMicUntil?: Promise<unknown> }): Promise<void>;
     /**
      * Stop the recognizer while `during` runs (the app is speaking a line
      * nobody asked for, like a step of the tour), and listen again a moment
@@ -268,19 +270,33 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     // Settles when nothing is holding the recognizer stopped.
     let held: Promise<void> | null = null;
     let holds = 0;
+    // Between turns and under a line the recognizer stops but keeps its mic
+    // stream, until listening is over. On macOS, letting an echo-cancelled
+    // mic go rebuilds the audio output a second or two later, and a line
+    // playing then loses half a second (SttStopOptions.keepMicUntil).
+    let letMicGo!: () => void;
+    const listeningOver = new Promise<void>((resolve) => (letMicGo = resolve));
+    const stopBetweenTurns = (): Promise<void> => opts.engine.stop({ keepMicUntil: listeningOver });
 
     const keepOpen = (): void => {
         deadline = Math.min(now() + windowMs, ceiling);
         unheard = 0;
     };
 
-    const end = async (why: VoiceStartEnd, request?: BeginRequest): Promise<void> => {
+    const end = async (why: VoiceStartEnd, request?: BeginRequest, keepMicUntil?: Promise<unknown>): Promise<void> => {
         if (ended) return;
         ended = true;
         clearInterval(watchdog);
-        // Release the mic before anything else happens: on "begin" the session
-        // is about to open its own.
-        await opts.engine.stop().catch(() => undefined);
+        if (keepMicUntil) {
+            await stopBetweenTurns().catch(() => undefined);
+            void keepMicUntil.then(letMicGo, letMicGo);
+        } else {
+            // Release the mic before anything else happens: on "begin" the
+            // session is about to open its own.
+            await opts.engine.stop().catch(() => undefined);
+            letMicGo();
+            await listeningOver;
+        }
         opts.onEnd(why);
         if (request) opts.onBegin(request);
     };
@@ -298,7 +314,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         held = (before ?? Promise.resolve()).then(() => mine);
         const chained = held;
         holds++;
-        await opts.engine.stop().catch(() => undefined);
+        await stopBetweenTurns().catch(() => undefined);
         try {
             return await during();
         } finally {
@@ -327,7 +343,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                         // is closed, and stop() after that reaches nothing,
                         // leaving a mic open that no one is reading.
                         heard = event.text;
-                        await opts.engine.stop().catch(() => undefined);
+                        await stopBetweenTurns().catch(() => undefined);
                         break;
                     }
                 }
@@ -366,5 +382,47 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         }
     })();
 
-    return { stop: () => end('stopped'), hold, keepOpen };
+    return { stop: (options) => end('stopped', undefined, options?.keepMicUntil), hold, keepOpen };
+}
+
+/**
+ * The mics of listeners stopped for a recognizer change (a mode with its own
+ * pick), each held until the listener replacing them is live. The last
+ * echo-cancelled capture closing on macOS rebuilds the audio output a second
+ * or two later, under the line the new card is saying; with the new mic open
+ * first, the old one going is never the last.
+ */
+export interface MicHandover {
+    /** Stop `handle`, its mic held until the handover settles, along with any
+     *  held already and `owed`: what `handle`'s own listener had taken and was
+     *  holding until it went live, which it never will now. */
+    stop(handle: VoiceStartHandle, owed?: (() => void) | null): Promise<void>;
+    /** Every mic being held, now the caller's to let go. Null when none is. */
+    take(): (() => void) | null;
+    /** Let every mic being held go. */
+    release(): void;
+}
+
+export function createMicHandover(): MicHandover {
+    let held: (() => void) | null = null;
+    const take = (): (() => void) | null => {
+        const letGo = held;
+        held = null;
+        return letGo;
+    };
+    return {
+        stop: (handle, owed) => {
+            const before = held;
+            let letGo!: () => void;
+            const over = new Promise<void>((resolve) => (letGo = resolve));
+            held = () => {
+                before?.();
+                owed?.();
+                letGo();
+            };
+            return handle.stop({ keepMicUntil: over });
+        },
+        take,
+        release: () => take()?.(),
+    };
 }

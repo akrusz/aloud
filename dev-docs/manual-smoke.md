@@ -177,6 +177,16 @@ meant to work.
       and the speaker on the card by hand. On "Use voice controls", say "twenty
       minutes". Listen to the two voices' introductions and the picked line
       for a first word cut short or a line said twice.
+- [ ] **No hole in a line** (desktop app, mic lit). Wait on the welcome card a
+      few seconds before "Show me around", and on each card let the line end
+      and wait two seconds before Next, the noting and felt sense cards
+      included. Do it once with noting on a different speech recognizer from
+      the other modes (its own pick, on the setup screen under the Noting
+      tab), which replaces the listener at those two tab switches. No line may lose half a second
+      partway through: Harper's introduction, the picked line and the
+      attention-focus card did, a second or two in, while the setup mic let
+      go of its stream as each line began (voice-commands.md, "Stopped is not
+      let go").
 - [ ] **zh**: the same quick pass with the language set to 中文 (Serena and
       Yunfan; the lines are an unreviewed draft).
 

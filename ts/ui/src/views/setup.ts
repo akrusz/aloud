@@ -71,6 +71,7 @@ import {
     createSttForChoice,
 } from '../adapters/stt-picker.js';
 import {
+    createMicHandover,
     listenOnSetup,
     LOBBY_STT,
     SPEECH_TAIL_MS,
@@ -1142,8 +1143,19 @@ export async function mountSetupView(
     // mic is known to be granted and on a tap where it isn't; closes itself
     // after VOICE_START_WINDOW_MS with nothing asked and when the screen goes
     // away.
-    let voiceStart: { handle: VoiceStartHandle; choice: SttEngineChoice; engine: SttEngine } | null = null;
+    let voiceStart: {
+        handle: VoiceStartHandle;
+        choice: SttEngineChoice;
+        engine: SttEngine;
+        /** The mics this listener holds until it is live, handed to whoever
+         *  replaces it first (micHandover). */
+        passOn: () => (() => void) | null;
+    } | null = null;
     let voiceStartGen = 0;
+    // A listener stopped because the mode switched recognizer keeps its mic
+    // until the next listener's is live (runVoiceSync), else the card's line
+    // loses half a second on macOS (voice-start.ts createMicHandover).
+    const micHandover = createMicHandover();
     // Null until the first reading lands: nothing is offered on a guess.
     let mic: MicPermission | null = null;
     // Whether a session begun now could be heard. A webview can play sound
@@ -1483,8 +1495,15 @@ export async function mountSetupView(
     // stale, so what the screen needs is only known once this stops changing.
     let lastSync: Promise<void> = Promise.resolve();
     function syncVoiceStart(): Promise<void> {
-        lastSync = runVoiceSync();
-        return lastSync;
+        const sync = runVoiceSync();
+        lastSync = sync;
+        // A mic held for a listener that this sync did not build: a newer
+        // sync under way takes it over; with none, nothing will, so it goes.
+        const settled = (): void => {
+            if (lastSync === sync) micHandover.release();
+        };
+        void sync.then(settled, settled);
+        return sync;
     }
     async function voiceSyncSettled(): Promise<void> {
         for (let sync = lastSync; ; sync = lastSync) {
@@ -1524,9 +1543,11 @@ export async function mountSetupView(
                   touched: canSound || pageTouched(),
               });
         if (voiceStart && (blocker || voiceStart.choice !== choice)) {
-            const { handle } = voiceStart;
+            const { handle, passOn } = voiceStart;
             voiceStart = null;
-            await handle.stop();
+            // Closed by a blocker, the mic goes now. Replaced, it is held
+            // through the card's line until the new listener's is live.
+            await (blocker ? handle.stop() : micHandover.stop(handle, passOn()));
         }
         if (blocker === 'no-touch-yet') {
             // A page nobody has touched can't play sound, so a session begun
@@ -1570,6 +1591,15 @@ export async function mountSetupView(
         if (gen !== voiceStartGen || voiceStart || beginning || !engine || !beginBtn.isConnected || !isLiveMount()) {
             return;
         }
+        // The mic of the listener this one replaces goes once this one's own
+        // capture delivers audio. A recognizer with no stream of ours (the
+        // browser's, a phone's) has nothing to wait for.
+        let owed = micHandover.take();
+        const settleOwed = (): void => {
+            owed?.();
+            owed = null;
+        };
+        if (owed) void (engine instanceof WhisperPcmSttEngine ? engine.whenLive() : Promise.resolve()).then(settleOwed);
         const handle = listenOnSetup({
             engine,
             alive: () =>
@@ -1580,6 +1610,7 @@ export async function mountSetupView(
             // Free to leave open on a desktop; the rest close by the clock.
             ...setupListeningLimits(choice === 'whisper' || choice === 'web-speech'),
             onEnd: (why) => {
+                settleOwed();
                 meter.stop();
                 if (voiceStart?.handle === handle) voiceStart = null;
                 // The screen went away under a line: nobody is there to hear
@@ -1592,7 +1623,16 @@ export async function mountSetupView(
             },
         });
         const meter = meterVoiceMic(engine, choice);
-        voiceStart = { handle, choice, engine };
+        voiceStart = {
+            handle,
+            choice,
+            engine,
+            passOn: () => {
+                const passed = owed;
+                owed = null;
+                return passed;
+            },
+        };
         paintVoiceMic('listening');
         void hintAtVoice();
     }
@@ -1674,6 +1714,7 @@ export async function mountSetupView(
         const listening = voiceStart;
         voiceStart = null;
         void listening?.handle.stop();
+        micHandover.release();
         speaker.stop();
         // And none may open while the session comes up: not one still being
         // built, not one a late probe asks for.

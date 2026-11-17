@@ -89,9 +89,10 @@ const PRE_BUFFER_MS = 2000;
 // voice. Echo here measures ~0.005 RMS, real speech ~0.04+, so 0.03 separates
 // them cleanly. (d35)
 const BARGE_IN_THRESHOLD = 0.03;
-// The longest stop() keeps the mic for a caller's sound (keepMicUntil), should
-// its promise never settle.
-const KEEP_MIC_CAP_MS = 15_000;
+// The longest stop() keeps the mic for a caller (keepMicUntil), should its
+// promise never settle. Longer than any line the setup screen speaks with the
+// mic kept (voice-start.ts hold): released under one, the line has a hole.
+const KEEP_MIC_CAP_MS = 60_000;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
 
 // Per-device echo calibration. Continuous capture leaves the mic armed while
@@ -287,6 +288,11 @@ export class WhisperPcmSttEngine implements SttEngine {
     };
     private context: AudioContext | null = null;
     private stream: MediaStream | null = null;
+    /** The stream a stop() was asked to keep (keepMicUntil): let go once every
+     *  promise it was kept for has settled, unless the next open takes it back. */
+    private kept: { stream: MediaStream; waiting: number; cap?: ReturnType<typeof setTimeout> } | null = null;
+    /** Waiting for the next frame the capture delivers (whenLive). */
+    private liveWaiters: Array<() => void> = [];
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
@@ -611,6 +617,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     /** Continuous audio callback - runs for the engine's whole lifetime. */
     private handleAudio = (e: AudioProcessingEvent): void => {
         if (this.stopRequested) return;
+        for (const resolve of this.liveWaiters.splice(0)) resolve();
         const data = e.inputBuffer.getChannelData(0);
         const frame = new Float32Array(data);
         const energy = frameRms(frame);
@@ -854,6 +861,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         // nothing will release. Bail instead; start() ends the turn quietly.
         const seq = this.stopSeq;
         const stopped = (): boolean => seq !== this.stopSeq;
+        this.reuseKept();
         if (streamNeedsRefresh(this.stream)) {
             // Says WHY we re-acquired, which is the whole signal when verifying
             // the backgrounding fix on a device (meditation-pal-wudm): a
@@ -1017,6 +1025,12 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.acquireSilero().finally(took('silero')),
             this.ensureCaptureGraph().finally(took('capture graph')),
         ]);
+    }
+
+    /** Settles at the next frame the capture delivers, while not stopped: the
+     *  mic stream is open and audio is reaching the engine. */
+    whenLive(): Promise<void> {
+        return new Promise((resolve) => this.liveWaiters.push(resolve));
     }
 
     /**
@@ -1478,19 +1492,54 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.stopRequested = true;
         this.stopSeq++;
         this.capturing = false;
-        // Taken out of releaseAll's reach: everything else is torn down now,
-        // and nothing reads this stream again.
-        const kept = options?.keepMicUntil ? this.stream : null;
-        if (kept) this.stream = null;
+        if (options?.keepMicUntil) this.keepStream(options.keepMicUntil);
         this.releaseAll();
-        if (kept) {
-            const release = (): void => {
-                clearTimeout(cap);
-                for (const track of kept.getTracks()) track.stop();
-            };
-            const cap = setTimeout(release, KEEP_MIC_CAP_MS);
-            void options!.keepMicUntil!.then(release, release);
+    }
+
+    /**
+     * Take the capture stream out of releaseAll's reach until `until` settles.
+     * Everything else is torn down, and nothing reads the stream meanwhile.
+     * A stop with no stream of its own extends the hold on one already kept:
+     * two lines back to back must not let it go between them.
+     */
+    private keepStream(until: Promise<unknown>): void {
+        if (this.stream) {
+            this.releaseKept();
+            this.kept = { stream: this.stream, waiting: 0 };
+            this.stream = null;
         }
+        const kept = this.kept;
+        if (!kept) return;
+        kept.waiting++;
+        clearTimeout(kept.cap);
+        kept.cap = setTimeout(() => {
+            if (this.kept === kept) this.releaseKept();
+        }, KEEP_MIC_CAP_MS);
+        const settle = (): void => {
+            // Taken back by an open since, or already let go.
+            if (this.kept !== kept) return;
+            if (--kept.waiting === 0) this.releaseKept();
+        };
+        void until.then(settle, settle);
+    }
+
+    private releaseKept(): void {
+        const kept = this.kept;
+        if (!kept) return;
+        this.kept = null;
+        clearTimeout(kept.cap);
+        for (const track of kept.stream.getTracks()) track.stop();
+    }
+
+    /** The next open takes a kept stream back while it is still good, so the
+     *  mic is never let go between turns that keep it (voice-start.ts). */
+    private reuseKept(): void {
+        const kept = this.kept;
+        if (!kept || this.stream) return;
+        if (streamNeedsRefresh(kept.stream)) return this.releaseKept();
+        this.kept = null;
+        clearTimeout(kept.cap);
+        this.stream = kept.stream;
     }
 
     /** Tear down the audio graph nodes; leaves the stream + context. */

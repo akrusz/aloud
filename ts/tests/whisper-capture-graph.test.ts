@@ -33,8 +33,15 @@ class FakeContext {
         return { connect(): void {}, disconnect(): void {} };
     }
     createScriptProcessor() {
-        return { connect(): void {}, disconnect(): void {}, onaudioprocess: null };
+        const processor = { connect(): void {}, disconnect(): void {}, onaudioprocess: null };
+        lastProcessor = processor;
+        return processor;
     }
+}
+let lastProcessor: { onaudioprocess: ((e: unknown) => void) | null } | null = null;
+/** One frame of silence through the capture graph, as the audio thread delivers it. */
+function deliverFrame(): void {
+    lastProcessor?.onaudioprocess?.({ inputBuffer: { getChannelData: () => new Float32Array(4096) } });
 }
 
 beforeEach(() => {
@@ -92,6 +99,98 @@ describe('the capture graph', () => {
         soundOver();
         await new Promise((r) => setTimeout(r, 0));
         expect(opened[0]!.stopped).toBe(true);
+    });
+
+    describe('a kept mic, started again', () => {
+        // The setup screen stops between turns and under each line it speaks,
+        // keeping the stream (voice-start.ts). Let go and opened again, the
+        // mic made macOS rebuild its output a second or two into the line.
+        async function listenThenStop(keep: Promise<unknown>) {
+            const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+            const engine = new WhisperPcmSttEngine();
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            await engine.stop({ keepMicUntil: keep });
+            await turn;
+            return engine;
+        }
+
+        it('takes the same stream back instead of opening another', async () => {
+            const engine = await listenThenStop(new Promise(() => undefined));
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            expect(opened).toHaveLength(1);
+            expect(opened[0]!.stopped).toBe(false);
+            await engine.stop();
+            await turn;
+            expect(opened[0]!.stopped).toBe(true);
+        });
+
+        it('is not let go by the promise it was kept for once it is back in use', async () => {
+            let over = (): void => {};
+            const engine = await listenThenStop(new Promise<void>((r) => (over = r)));
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            over();
+            await new Promise((r) => setTimeout(r, 0));
+            expect(opened[0]!.stopped).toBe(false);
+            await engine.stop();
+            await turn;
+        });
+
+        it('stays kept through a second stop until both have settled', async () => {
+            let first = (): void => {};
+            let second = (): void => {};
+            const engine = await listenThenStop(new Promise<void>((r) => (first = r)));
+            await engine.stop({ keepMicUntil: new Promise<void>((r) => (second = r)) });
+            first();
+            await new Promise((r) => setTimeout(r, 0));
+            expect(opened[0]!.stopped).toBe(false);
+            second();
+            await new Promise((r) => setTimeout(r, 0));
+            expect(opened[0]!.stopped).toBe(true);
+        });
+
+        it('says when its capture is live: the first frame it delivers', async () => {
+            // The setup screen lets a replaced listener's mic go on this
+            // (views/setup.ts runVoiceSync), so the OS never sees the last
+            // echo-cancelled capture close.
+            const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+            const engine = new WhisperPcmSttEngine();
+            let live = false;
+            void engine.whenLive().then(() => (live = true));
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            expect(live).toBe(false);
+            deliverFrame();
+            await Promise.resolve();
+            expect(live).toBe(true);
+            await engine.stop();
+            await turn;
+        });
+
+        it('opens a new stream where the kept one has died', async () => {
+            const engine = await listenThenStop(new Promise(() => undefined));
+            // A device pulled while it was kept: the track has ended.
+            const stream = (engine as unknown as { kept: { stream: MediaStream } }).kept.stream;
+            (stream.getAudioTracks()[0] as unknown as { readyState: string }).readyState = 'ended';
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 60));
+            expect(opened).toHaveLength(2);
+            expect(opened[0]!.stopped).toBe(true);
+            await engine.stop();
+            await turn;
+        });
     });
 
     describe('stopped while it is still opening', () => {

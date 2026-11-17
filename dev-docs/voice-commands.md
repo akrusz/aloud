@@ -354,6 +354,24 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   (`looksLikeSpokenTail`, asked through `isEcho` before anything else, "begin"
   included). No spoken line ends on a request, "begin" least of all
   (`setup-lines.ts`): a tail is what a slow speaker leaves in the room.
+- **Stopped is not let go.** An engine with its own capture stream (local
+  Whisper, hosted recognition) keeps it while the recognizer is stopped,
+  until listening is over (`stopBetweenTurns` in `listenOnSetup`,
+  `keepMicUntil`), and takes the same stream back at the next turn. On macOS,
+  letting an echo-cancelled mic go rebuilds the audio output a second or two
+  later, as at a session's close ([voice-barge-in.md](voice-barge-in.md)):
+  released as a line began, it cut half a second out of Harper's
+  introduction, the picked line and the attention-focus card, a second or two
+  in (desktop app, 2026-11-16; the fix has not been heard yet,
+  manual-smoke.md). Chrome played the same lines whole: its echo canceller is
+  its own, not the OS's. A listener replaced because the mode has another
+  recognizer (noting keeps its own pick) is stopped the same way and holds its
+  stream through the card's line until the new listener's capture delivers
+  its first frame (`createMicHandover`, `whenLive`), so the last
+  echo-cancelled capture never closes under a line. One tab switch sets off
+  several syncs, and the newest takes the handover over; one that builds
+  nothing with no newer sync behind it lets the mic go, as do Begin and the
+  mic being closed.
 - **Not where the recognizer would need a sign-in.** A hosted speech
   recognition pick with nobody signed in would refuse the first thing heard,
   and nothing on this screen may raise a sign-in, so there is no mic then
