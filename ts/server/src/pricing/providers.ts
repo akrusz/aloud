@@ -190,13 +190,14 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 12.5 / M, // 5m write, 1.25x input
         cacheCreation1h: 20 / M, // 1h write, 2x input
     },
-    // Opus 5, expanded-tier: ear-tested in production, and a sitter who picked
-    // it keeps it. Thinking is ON by default and disabled per request
-    // (thinkingPolicy 'opt-out').
+    // Opus 5, off the picker (2026-11): a good coder but a low point for
+    // prose. Picks on it move to Opus 5.5. Still priced as the refusal
+    // fallback's other target (see Opus 4.8). Thinking is ON by default and
+    // disabled per request (thinkingPolicy 'opt-out').
     'anthropic:claude-opus-5': {
         provider: 'anthropic',
         model: 'claude-opus-5',
-        expanded: true,
+        unlisted: true,
         input: 5 / M,
         output: 25 / M,
         cacheRead: 0.5 / M,

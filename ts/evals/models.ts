@@ -57,8 +57,8 @@ export const ROSTER: EvalModel[] = [
         id: 'opus-5',
         model: 'claude-opus-5',
         provider: 'anthropic',
-        shipped: true,
-        note: 'Released 2026-07-24. Expected default for exploration. Known bias: longer replies + scope expansion, both anti-facilitation. Steerable - see rubric note on conciseness.',
+        shipped: false,
+        note: 'Released 2026-07-24. Off the picker (Nov 2026): a good coder but a low point for prose. Known bias: longer replies + scope expansion, both anti-facilitation. Steerable - see rubric note on conciseness.',
     },
     {
         id: 'sonnet-5.5',

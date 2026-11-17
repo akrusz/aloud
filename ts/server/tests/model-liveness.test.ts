@@ -81,7 +81,7 @@ describe('GET /cloud/v1/me/models with liveness', () => {
         const body = (await res.json()) as { models: Array<{ model: string }> };
         const ids = body.models.map((m) => m.model);
         expect(ids).not.toContain('claude-3-opus-20240229');
-        expect(ids).toContain('claude-opus-5');
+        expect(ids).toContain('claude-opus-5-5');
         expect(body.models).toHaveLength(allowedModels().filter((m) => !m.unlisted).length - 1);
     });
 
