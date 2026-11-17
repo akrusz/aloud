@@ -73,21 +73,15 @@ export interface CuratedVoice {
      *  style is present - a paceBias on a styled voice would be dead config
      *  that reads as if it worked. */
     paceBias?: number;
-    /** A level trim in dB for a voice its provider renders quieter or louder
-     *  than the rest, applied to everything synthFor (routes/tts.ts) makes of
-     *  it: sessions, previews, canned lines and the setup clips. It moves the
-     *  MP3's own gain field (providers/mp3-gain.ts), so it is lossless, free
-     *  and the same on every provider, but it goes in steps of 1.5 dB: keep
-     *  values on a step. Azure's <prosody volume> kept Ethan's softvoice in
-     *  a probe (2026-11-16, unlike a prosody rate), but it bills its markup
-     *  on every reply.
-     *
-     *  A boost has no limiter behind it: before raising one, measure the
-     *  voice's true peak (ffmpeg -af ebur128=peak=true over its setup clips)
-     *  and keep the result under -1 dBTP with room for a line that peaks
-     *  higher. A house voice's clips re-render when this changes
-     *  (voice-clips/plan.ts clipHash). */
-    gainDb?: number;
+    /** Level trim in dB, so every voice plays about as loud as the rest.
+     *  For a new voice: render its as-shipped clip with gainDb 0
+     *  (`npm run voices -- curated --only=<name>`), measure it
+     *  (`ffmpeg -i <clip> -af ebur128=peak=true -f null -`), and take the
+     *  1.5 dB step nearest to -22.4 LUFS minus its loudness (the catalog
+     *  average, dev-docs/ts-server.md). Whole steps only (providers/mp3-gain.ts).
+     *  No limiter behind a boost: true peak plus gainDb stays under -2 dBTP.
+     *  On a house voice, a change re-levels its setup clips (clips:render). */
+    gainDb: number;
     /** A house voice for this language: it speaks the setup screen's fixed
      *  lines (core setup-lines.ts), pre-rendered to static clips by
      *  scripts/render-voice-clips.ts, which renders every voice carrying the
@@ -103,13 +97,13 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // voice picks by spoken name, and "Pulcherrima" and "Sadachbia" (Google's
     // names) seldom came back right (2026-11-15). Phoenix reads androgynous
     // despite Google's "female" label.
-    { name: 'Phoenix', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium' },
-    { name: 'Orion', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium' },
-    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium' },
+    { name: 'Phoenix', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Pulcherrima', gender: 'androgynous', tier: 'premium', gainDb: 0 },
+    { name: 'Orion', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Sadachbia', gender: 'male', tier: 'premium', gainDb: 0 },
+    { name: 'Leda', provider: 'google', providerVoiceId: 'en-US-Chirp3-HD-Leda', gender: 'female', tier: 'premium', gainDb: 0 },
     // Value tier: Google Neural2 (~$16/1M, about half), still natural and calm.
     // Unauditioned picks, refine after listening (meditation-pal-b7i).
-    { name: 'Vega', provider: 'google', providerVoiceId: 'en-US-Neural2-F', gender: 'female', tier: 'value' },
-    { name: 'Rigel', provider: 'google', providerVoiceId: 'en-US-Neural2-J', gender: 'male', tier: 'value' },
+    { name: 'Vega', provider: 'google', providerVoiceId: 'en-US-Neural2-F', gender: 'female', tier: 'value', gainDb: -3 },
+    { name: 'Rigel', provider: 'google', providerVoiceId: 'en-US-Neural2-J', gender: 'male', tier: 'value', gainDb: -3 },
     // Azure AI Speech: auditioned picks (2026-08-30). The MAI-Voice-2 voices
     // are naturally unhurried and the `style` ones bake in the calmest
     // express-as register the voice supports; multilingual entries (Ada, Davis)
@@ -119,12 +113,8 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // only, and the picker's credits/hr badge shows the lower real cost.
     // MAI-Voice-2.1-Flash rather than 2-Flash: same price and styles, and
     // Microsoft's docs cover only 2.1.
-    { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value' },
-    { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic' },
-    // Ethan comes out of Azure 7 LU under Harper (-25.3 vs -18.3 LUFS over
-    // the 70 setup clips they share, 2026-11-16), at every frequency, not
-    // just in the bass. His true peaks reach -5.4 dBTP, so +3 dB lands at
-    // about -2.4: the most that headroom allows with a margin.
+    { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value', gainDb: -4.5 },
+    { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic', gainDb: -1.5 },
     { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', gainDb: 3, house: 'en' },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
@@ -146,27 +136,28 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
         gender: 'female',
         tier: 'premium',
         style: 'softvoice',
+        gainDb: -4.5,
         house: 'en',
         default: true,
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
     },
-    { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1 },
+    { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
     // heard it as a bit fast in both languages (2026-11-14).
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh' },
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: 1.5 },
     // Serena's model with a Mandarin persona; the dev heard it in both
     // languages (2026-11-14). No zhNative until a native speaker has listened.
-    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh' },
+    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 1.5 },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,
     // from the "soft breathy" and "warm low" descriptions): they exist only in
     // the Inworld workspace behind INWORLD_API_KEY, so a key from any other
     // account 404s them. Wren was picked on Flash; the rest on TTS-2.
-    { name: 'Luna', provider: 'inworld', providerVoiceId: 'Luna:inworld-tts-2', gender: 'female', tier: 'premium' },
-    { name: 'Wren', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-22273db5:inworld-tts-2-flash', gender: 'female', tier: 'value' },
-    { name: 'Silas', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-446019ec:inworld-tts-2', gender: 'male', tier: 'premium' },
-    { name: 'Clive (GB)', provider: 'inworld', providerVoiceId: 'Clive:inworld-tts-2', gender: 'male', tier: 'premium' },
+    { name: 'Luna', provider: 'inworld', providerVoiceId: 'Luna:inworld-tts-2', gender: 'female', tier: 'premium', gainDb: 0 },
+    { name: 'Wren', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-22273db5:inworld-tts-2-flash', gender: 'female', tier: 'value', gainDb: 3 },
+    { name: 'Silas', provider: 'inworld', providerVoiceId: 'keen-banjo-6800__design-voice-446019ec:inworld-tts-2', gender: 'male', tier: 'premium', gainDb: 3 },
+    { name: 'Clive (GB)', provider: 'inworld', providerVoiceId: 'Clive:inworld-tts-2', gender: 'male', tier: 'premium', gainDb: 1.5 },
 ];
 
 /** Default-voice preference order behind the `default: true` pick, one voice

@@ -193,9 +193,45 @@ describe('clip plan', () => {
             ['a', 'current', undefined],
             ['b', 'stale', 'text changed'],
             ['c', 'missing', 'file missing'],
-            ['d', 'stale', 'voice id, style or gain changed'],
+            ['d', 'stale', 'voice id or style changed'],
             ['e', 'missing', 'not rendered'],
         ]);
+    });
+
+    it('re-levels a clip whose only change is the gain, from the file it has', () => {
+        const louder = { ...harper, gainDb: -3 };
+        const manifest: ClipManifest = {
+            voices: {
+                Harper: {
+                    language: 'en',
+                    gender: 'female',
+                    fixedPace: true,
+                    clips: {
+                        // Rendered before gains: no gainDb in the entry, none in the name.
+                        a: { file: clipFile(harper, 'a', 'Line a.'), text: 'Line a.', suspect: true },
+                        b: { file: clipFile({ ...harper, gainDb: 1.5 }, 'b', 'Line b.'), text: 'Line b.', gainDb: 1.5 },
+                        // Gain and text both changed: a new take.
+                        c: { file: clipFile(harper, 'c', 'Old c.'), text: 'Old c.' },
+                        // The file to move is gone.
+                        d: { file: clipFile(harper, 'd', 'Line d.'), text: 'Line d.' },
+                        // Gain and style both changed.
+                        e: { file: clipFile({ ...harper, style: 'whisper' }, 'e', 'Line e.'), text: 'Line e.' },
+                    },
+                },
+            },
+        };
+        const entries = manifest.voices['Harper']!.clips;
+        const present = new Set(['a', 'b', 'c', 'e'].map((id) => entries[id]!.file));
+        const plan = planClips([louder], ['a', 'b', 'c', 'd', 'e'], text, manifest, (f) => present.has(f));
+        expect(plan.map((t) => [t.lineId, t.status, t.from?.deltaDb])).toEqual([
+            ['a', 'relevel', -3],
+            ['b', 'relevel', -4.5],
+            ['c', 'stale', undefined],
+            ['d', 'missing', undefined],
+            ['e', 'stale', undefined],
+        ]);
+        expect(plan[0]!.from!.file).toBe(entries['a']!.file);
+        expect(plan[0]!.file).toBe(clipFile(louder, 'a', 'Line a.'));
     });
 
     it('prunes removed lines and voices, and finds the files nothing names', () => {

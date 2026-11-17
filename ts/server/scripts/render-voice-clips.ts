@@ -15,10 +15,12 @@
  *
  * Cheap to re-run: a clip whose manifest entry has the line's current text,
  * whose file name carries the current (text, voice id, style, gain) hash and
- * whose file exists is skipped. Clips of removed lines and replaced renders are
- * deleted. Each clip is synthesized through the server's own path
- * (routes/tts.ts synthFor, lead silence included) at rate 1, so it is what a
- * session would hear; a styled voice ignores rate anyway.
+ * whose file exists is skipped. A clip whose only change is the voice's gainDb
+ * is moved by the difference from its own file (mp3-gain.ts), with no
+ * synthesis. Clips of removed lines and replaced renders are deleted. Each
+ * clip is synthesized through the server's own path (routes/tts.ts synthFor,
+ * lead silence included) at rate 1, so it is what a session would hear; a
+ * styled voice ignores rate anyway.
  *
  * THE GATE (voice-clips/analysis.ts). Every clip is decoded with ffmpeg and
  * checked for a repeated utterance (more bursts than its phrases) and a
@@ -40,6 +42,7 @@ import { loadServerEnv } from '../../soak/env.js';
 import { SETUP_LINE_IDS, setupLineText, type SetupLineId } from '../../src/facilitation/setup-lines.js';
 import { loadConfig } from '../src/config.js';
 import { ttsRateFor } from '../src/pricing/providers.js';
+import { withGain } from '../src/providers/mp3-gain.js';
 import { TtsUpstreamError, isProviderAccountFailure } from '../src/providers/tts.js';
 import { CURATED_VOICES, resolveVoice, type ResolvedVoice } from '../src/providers/voice-catalog.js';
 import { billedCharsFor, synthFor } from '../src/routes/tts.js';
@@ -51,6 +54,7 @@ import {
     pruneManifest,
     serializeManifest,
     voiceDetails,
+    type ClipEntry,
     type ClipManifest,
     type ClipTarget,
     type HouseVoice,
@@ -219,6 +223,14 @@ function shrinkMp3(ffmpeg: string, mp3: Uint8Array): Uint8Array {
     );
 }
 
+/** The clip at `from` moved by its gain change, or null when withGain can't
+ *  walk it (the line is synthesized again instead). */
+function relevelled(from: { file: string; deltaDb: number }): Uint8Array | null {
+    const bytes = new Uint8Array(readFileSync(clipPath(from.file)));
+    const moved = withGain(bytes, from.deltaDb);
+    return moved === bytes ? null : moved;
+}
+
 /** A burst limit or a network blip, worth another go; an account refusal
  *  (bad key, spent quota) or a bad request is not. */
 function isTransient(err: unknown): boolean {
@@ -367,10 +379,19 @@ async function main(): Promise<void> {
     }
 
     const toRender = args.force ? targets : pending;
+    // A clip whose only change is the voice's gain is moved from its own file:
+    // the same take, no synthesis. --force asks for new takes instead.
+    const relevels: { target: ClipTarget; bytes: Uint8Array }[] = [];
+    const toSynth: ClipTarget[] = [];
+    for (const target of toRender) {
+        const bytes = !args.force && target.from ? relevelled(target.from) : null;
+        if (bytes) relevels.push({ target, bytes });
+        else toSynth.push(target);
+    }
     loadServerEnv();
     const config = loadConfig();
     const jobs: Job[] = [];
-    for (const target of toRender) {
+    for (const target of toSynth) {
         const resolved = resolveVoice(target.voice.name);
         const synth = synthFor(config, resolved);
         if (!synth && !args.dryRun) fail(`no ${resolved.provider} key for ${target.voice.name} (ts/server/.env)`);
@@ -384,7 +405,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-        `Setup clips (${scope}): ${toRender.length} to render, ${targets.length - pending.length} current` +
+        `Setup clips (${scope}): ${jobs.length} to render, ${relevels.length} to re-level, ${targets.length - pending.length} current` +
             (args.force ? ' (forced)' : '') +
             '.'
     );
@@ -392,6 +413,7 @@ async function main(): Promise<void> {
     if (args.dryRun) {
         for (const j of jobs)
             console.log(`  ${label(j.target).padEnd(32)} ${(args.force && j.target.status === 'current' ? 'forced' : `${j.target.status}: ${j.target.why}`).padEnd(36)} ${String(j.billedChars).padStart(4)}c  ${JSON.stringify(j.target.text)}`);
+        for (const { target } of relevels) console.log(`  ${label(target).padEnd(32)} relevel: ${target.why} (from its file, free)`);
         for (const r of pruned.removed) console.log(`  would drop ${r}`);
         for (const f of orphanFiles(manifest, clipsOnDisk())) console.log(`  would delete ${f}`);
         if (jobs.length) printEstimate(jobs);
@@ -399,14 +421,13 @@ async function main(): Promise<void> {
         return;
     }
 
-    if (jobs.length) {
-        printEstimate(jobs);
-        if (!args.yes) {
-            // `npm run clips:render --yes` hands --yes to npm, not to this script.
-            const eaten = process.env['npm_config_yes'] ? ' (npm kept your --yes for itself: it needs the bare -- first)' : '';
-            console.log(`\nNothing spent${eaten}. To render: npm run clips:render:yes`);
-            return;
-        }
+    if (jobs.length) printEstimate(jobs);
+    if (relevels.length) console.log(`\n${relevels.length} clip${relevels.length === 1 ? '' : 's'} to re-level from the file: no synthesis, no cost.`);
+    if ((jobs.length || relevels.length) && !args.yes) {
+        // `npm run clips:render --yes` hands --yes to npm, not to this script.
+        const eaten = process.env['npm_config_yes'] ? ' (npm kept your --yes for itself: it needs the bare -- first)' : '';
+        console.log(`\nNothing ${jobs.length ? 'spent' : 'changed'}${eaten}. To render: npm run clips:render:yes`);
+        return;
     }
 
     const ffmpeg = jobs.length && args.gate ? findFfmpeg() : null;
@@ -415,6 +436,20 @@ async function main(): Promise<void> {
 
     const billed = new Map<string, { chars: number; usd: number }>();
     const save = () => writeFileSync(MANIFEST_PATH, serializeManifest(manifest));
+
+    if (relevels.length) {
+        console.log('\nRe-levelling:');
+        for (const { target, bytes } of relevels) {
+            mkdirSync(dirname(clipPath(target.file)), { recursive: true });
+            writeFileSync(clipPath(target.file), bytes);
+            const entry: ClipEntry = { ...manifest.voices[target.voice.name]!.clips[target.lineId]!, file: target.file };
+            delete entry.gainDb;
+            if (target.voice.gainDb) entry.gainDb = target.voice.gainDb;
+            manifest.voices[target.voice.name]!.clips[target.lineId] = entry;
+            console.log(`  ${label(target).padEnd(32)} ${target.why}`);
+        }
+        save();
+    }
 
     const run = async (job: Job, norm: number | null) => {
         const { target } = job;
@@ -464,6 +499,7 @@ async function main(): Promise<void> {
         manifest.voices[target.voice.name]!.clips[target.lineId] = {
             file: target.file,
             text: target.text,
+            ...(target.voice.gainDb ? { gainDb: target.voice.gainDb } : {}),
             ...(faults.length ? { suspect: true as const, suspectReason: faults.join('; ') } : {}),
         };
         save();

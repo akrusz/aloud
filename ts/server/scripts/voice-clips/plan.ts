@@ -18,6 +18,8 @@ export interface ClipEntry {
     /** Failed the quality gate on every attempt: a human should listen. */
     suspect?: true;
     suspectReason?: string;
+    /** The level trim the file carries (CuratedVoice.gainDb); absent is 0. */
+    gainDb?: number;
 }
 
 export interface VoiceEntry {
@@ -69,7 +71,9 @@ export function clipFile(voice: HouseVoice, lineId: string, text: string): strin
     return `${voiceSlug(voice.name)}/${voice.language}/${lineId}.${clipHash(text, voice.providerVoiceId, voice.style, voice.gainDb)}.mp3`;
 }
 
-export type ClipStatus = 'current' | 'missing' | 'stale';
+/** `relevel`: only the voice's gain changed, so the clip on disk is moved by
+ *  the difference (mp3-gain.ts) instead of synthesized again. */
+export type ClipStatus = 'current' | 'missing' | 'stale' | 'relevel';
 
 export interface ClipTarget {
     voice: HouseVoice;
@@ -80,6 +84,8 @@ export interface ClipTarget {
     status: ClipStatus;
     /** Why it is missing or stale. */
     why?: string;
+    /** On `relevel`: the clip to move, and by how much. */
+    from?: { file: string; deltaDb: number };
 }
 
 export function planClips(
@@ -99,8 +105,20 @@ export function planClips(
             const target = { voice, lineId, text, file };
             if (!entry) targets.push({ ...target, status: 'missing', why: 'not rendered' });
             else if (entry.text !== text) targets.push({ ...target, status: 'stale', why: 'text changed' });
-            else if (entry.file !== file) targets.push({ ...target, status: 'stale', why: 'voice id, style or gain changed' });
-            else if (!exists(entry.file)) targets.push({ ...target, status: 'missing', why: 'file missing' });
+            else if (entry.file !== file) {
+                const was = entry.gainDb ?? 0;
+                const now = voice.gainDb ?? 0;
+                const gainOnly = entry.file === clipFile({ ...voice, gainDb: was }, lineId, text);
+                if (!gainOnly) targets.push({ ...target, status: 'stale', why: 'voice id or style changed' });
+                else if (!exists(entry.file)) targets.push({ ...target, status: 'missing', why: 'file missing' });
+                else
+                    targets.push({
+                        ...target,
+                        status: 'relevel',
+                        why: `gain ${was} -> ${now} dB`,
+                        from: { file: entry.file, deltaDb: now - was },
+                    });
+            } else if (!exists(entry.file)) targets.push({ ...target, status: 'missing', why: 'file missing' });
             else targets.push({ ...target, status: 'current' });
         }
     }

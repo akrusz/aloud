@@ -184,8 +184,9 @@ check each of these still reflects reality:
   listen to anything it lists as suspect, commit the new clips with the
   manifest, and `npm run clips:render -- --check` before a release. The same
   after changing which voices are flagged `house` in `voice-catalog.ts`, or a
-  house voice's `gainDb` (until the clips re-render and the server deploys,
-  the setup screen and the session play that voice at different levels).
+  house voice's `gainDb` (the render re-levels its clips from their files,
+  free; until it runs and the server deploys, the setup screen and the
+  session play that voice at different levels).
 - **Changed when the mic listens** (e.g. voice control opening it on setup,
   before a session) → the iOS mic purpose string in `ios/App/App/Info.plist`
   (`NSMicrophoneUsageDescription`, today "to hear what you say", with no

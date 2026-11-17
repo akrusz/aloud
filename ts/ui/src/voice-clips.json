@@ -3,183 +3,228 @@
         "Ethan": {
             "clips": {
                 "all-set": {
-                    "file": "ethan/en/all-set.42d45175.mp3",
+                    "file": "ethan/en/all-set.651df733.mp3",
+                    "gainDb": 3,
                     "text": "Okay, all set."
                 },
                 "belongs-exploration": {
-                    "file": "ethan/en/belongs-exploration.d7a0523b.mp3",
+                    "file": "ethan/en/belongs-exploration.da818c3d.mp3",
+                    "gainDb": 3,
                     "text": "That's part of exploration."
                 },
                 "belongs-felt-sense": {
-                    "file": "ethan/en/belongs-felt-sense.756d143f.mp3",
+                    "file": "ethan/en/belongs-felt-sense.ee0d87d6.mp3",
+                    "gainDb": 3,
                     "text": "That's part of felt sense."
                 },
                 "checkins-off": {
-                    "file": "ethan/en/checkins-off.49f3daa5.mp3",
+                    "file": "ethan/en/checkins-off.5b01a895.mp3",
+                    "gainDb": 3,
                     "text": "Check-ins are off."
                 },
                 "checkins-on": {
-                    "file": "ethan/en/checkins-on.3b7991f5.mp3",
+                    "file": "ethan/en/checkins-on.9401fede.mp3",
+                    "gainDb": 3,
                     "text": "Check-ins are on."
                 },
                 "clock-elapsed": {
-                    "file": "ethan/en/clock-elapsed.a28f1a87.mp3",
+                    "file": "ethan/en/clock-elapsed.d17a41bf.mp3",
+                    "gainDb": 3,
                     "text": "The clock will show time in session."
                 },
                 "clock-hidden": {
-                    "file": "ethan/en/clock-hidden.bfdaebdc.mp3",
+                    "file": "ethan/en/clock-hidden.813bdc94.mp3",
+                    "gainDb": 3,
                     "text": "The clock is hidden."
                 },
                 "clock-off": {
-                    "file": "ethan/en/clock-off.ca5e066a.mp3",
+                    "file": "ethan/en/clock-off.10d9c347.mp3",
+                    "gainDb": 3,
                     "text": "The clock is off."
                 },
                 "clock-shown": {
-                    "file": "ethan/en/clock-shown.c2027d0d.mp3",
+                    "file": "ethan/en/clock-shown.c56037a2.mp3",
+                    "gainDb": 3,
                     "text": "The clock is showing."
                 },
                 "clock-wall": {
-                    "file": "ethan/en/clock-wall.6ffd2fe8.mp3",
+                    "file": "ethan/en/clock-wall.21b1ee76.mp3",
+                    "gainDb": 3,
                     "text": "The clock will show the time of day."
                 },
                 "focus-body-off": {
-                    "file": "ethan/en/focus-body-off.c0ff0bca.mp3",
+                    "file": "ethan/en/focus-body-off.424eb773.mp3",
+                    "gainDb": 3,
                     "text": "Body focus is off."
                 },
                 "focus-body-on": {
-                    "file": "ethan/en/focus-body-on.2a48a44b.mp3",
+                    "file": "ethan/en/focus-body-on.7444f77f.mp3",
+                    "gainDb": 3,
                     "text": "Body focus is on."
                 },
                 "focus-cleared": {
-                    "file": "ethan/en/focus-cleared.978c5ff2.mp3",
+                    "file": "ethan/en/focus-cleared.ba9c28ee.mp3",
+                    "gainDb": 3,
                     "text": "All focuses are off."
                 },
                 "focus-emotions-off": {
-                    "file": "ethan/en/focus-emotions-off.2a3cff61.mp3",
+                    "file": "ethan/en/focus-emotions-off.ecb29f1b.mp3",
+                    "gainDb": 3,
                     "text": "Emotions focus is off."
                 },
                 "focus-emotions-on": {
-                    "file": "ethan/en/focus-emotions-on.ef68d150.mp3",
+                    "file": "ethan/en/focus-emotions-on.bfd26b32.mp3",
+                    "gainDb": 3,
                     "text": "Emotions focus is on."
                 },
                 "focus-parts-off": {
-                    "file": "ethan/en/focus-parts-off.3fb9523c.mp3",
+                    "file": "ethan/en/focus-parts-off.f291e2fc.mp3",
+                    "gainDb": 3,
                     "text": "Parts focus is off."
                 },
                 "focus-parts-on": {
-                    "file": "ethan/en/focus-parts-on.1c8cf488.mp3",
+                    "file": "ethan/en/focus-parts-on.609b3581.mp3",
+                    "gainDb": 3,
                     "text": "Parts focus is on."
                 },
                 "guidance-0": {
-                    "file": "ethan/en/guidance-0.cedb6939.mp3",
+                    "file": "ethan/en/guidance-0.5c54077e.mp3",
+                    "gainDb": 3,
                     "text": "Guidance set to following."
                 },
                 "guidance-1": {
-                    "file": "ethan/en/guidance-1.17a150cf.mp3",
+                    "file": "ethan/en/guidance-1.d355af06.mp3",
+                    "gainDb": 3,
                     "text": "Guidance set to somewhat following."
                 },
                 "guidance-2": {
-                    "file": "ethan/en/guidance-2.cb6e6867.mp3",
+                    "file": "ethan/en/guidance-2.75cca576.mp3",
+                    "gainDb": 3,
                     "text": "Guidance set to balanced."
                 },
                 "guidance-3": {
-                    "file": "ethan/en/guidance-3.ab72d875.mp3",
+                    "file": "ethan/en/guidance-3.626158c2.mp3",
+                    "gainDb": 3,
                     "text": "Guidance set to somewhat directing."
                 },
                 "guidance-4": {
-                    "file": "ethan/en/guidance-4.c9e14736.mp3",
+                    "file": "ethan/en/guidance-4.8dfb649c.mp3",
+                    "gainDb": 3,
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "ethan/en/help.9c7c5c6e.mp3",
+                    "file": "ethan/en/help.ac498283.mp3",
+                    "gainDb": 3,
                     "text": "Say begin to start, or customize the session by naming a vibe, a focus, or a length of time."
                 },
                 "intention-ask": {
-                    "file": "ethan/en/intention-ask.72675004.mp3",
+                    "file": "ethan/en/intention-ask.8610574c.mp3",
+                    "gainDb": 3,
                     "text": "What is your intention?"
                 },
                 "intention-cleared": {
-                    "file": "ethan/en/intention-cleared.8e0ccb95.mp3",
+                    "file": "ethan/en/intention-cleared.50c64cff.mp3",
+                    "gainDb": 3,
                     "text": "Your intention is cleared."
                 },
                 "intention-set": {
-                    "file": "ethan/en/intention-set.b72dd0c0.mp3",
+                    "file": "ethan/en/intention-set.4d6f2370.mp3",
+                    "gainDb": 3,
                     "text": "Your intention is set."
                 },
                 "mic-off": {
-                    "file": "ethan/en/mic-off.a9629e5c.mp3",
+                    "file": "ethan/en/mic-off.dd776464.mp3",
+                    "gainDb": 3,
                     "text": "Okay, the mic is off."
                 },
                 "mode-exploration": {
-                    "file": "ethan/en/mode-exploration.63239da0.mp3",
+                    "file": "ethan/en/mode-exploration.9cf271cb.mp3",
+                    "gainDb": 3,
                     "text": "Okay, exploration mode."
                 },
                 "mode-felt-sense": {
-                    "file": "ethan/en/mode-felt-sense.d7de7acb.mp3",
+                    "file": "ethan/en/mode-felt-sense.917393ce.mp3",
+                    "gainDb": 3,
                     "text": "Okay, felt sense mode."
                 },
                 "mode-noting": {
-                    "file": "ethan/en/mode-noting.79efe84e.mp3",
+                    "file": "ethan/en/mode-noting.e899e17b.mp3",
+                    "gainDb": 3,
                     "text": "Okay, noting mode."
                 },
                 "model-set": {
-                    "file": "ethan/en/model-set.5efce88e.mp3",
+                    "file": "ethan/en/model-set.3ebb5ef3.mp3",
+                    "gainDb": 3,
                     "text": "Okay, the model is set."
                 },
                 "never-mind": {
-                    "file": "ethan/en/never-mind.4053fc5b.mp3",
+                    "file": "ethan/en/never-mind.f24fbca9.mp3",
+                    "gainDb": 3,
                     "text": "Okay, not changing intention."
                 },
                 "not-in-mode": {
-                    "file": "ethan/en/not-in-mode.fd8ce9c4.mp3",
+                    "file": "ethan/en/not-in-mode.866e9f70.mp3",
+                    "gainDb": 3,
                     "text": "This mode doesn't use that."
                 },
                 "responses-high": {
-                    "file": "ethan/en/responses-high.bab8c178.mp3",
+                    "file": "ethan/en/responses-high.5517f2d3.mp3",
+                    "gainDb": 3,
                     "text": "Responses will be longer."
                 },
                 "responses-low": {
-                    "file": "ethan/en/responses-low.2f04f485.mp3",
+                    "file": "ethan/en/responses-low.8e2d3953.mp3",
+                    "gainDb": 3,
                     "text": "Responses will be brief."
                 },
                 "responses-medium": {
-                    "file": "ethan/en/responses-medium.9b07df78.mp3",
+                    "file": "ethan/en/responses-medium.e8dfa772.mp3",
+                    "gainDb": 3,
                     "text": "Responses will be medium length."
                 },
                 "timer-10": {
-                    "file": "ethan/en/timer-10.e6835851.mp3",
+                    "file": "ethan/en/timer-10.123fdb76.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for ten minutes."
                 },
                 "timer-15": {
-                    "file": "ethan/en/timer-15.b7404345.mp3",
+                    "file": "ethan/en/timer-15.f95f60e9.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for fifteen minutes."
                 },
                 "timer-20": {
-                    "file": "ethan/en/timer-20.b328407e.mp3",
+                    "file": "ethan/en/timer-20.4146c4dd.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for twenty minutes."
                 },
                 "timer-30": {
-                    "file": "ethan/en/timer-30.f0eaf9a5.mp3",
+                    "file": "ethan/en/timer-30.6f5a4e49.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for thirty minutes."
                 },
                 "timer-45": {
-                    "file": "ethan/en/timer-45.fd2e3d4b.mp3",
+                    "file": "ethan/en/timer-45.e1c065c6.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for forty-five minutes."
                 },
                 "timer-5": {
-                    "file": "ethan/en/timer-5.45fd1374.mp3",
+                    "file": "ethan/en/timer-5.82bb44ae.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for five minutes."
                 },
                 "timer-60": {
-                    "file": "ethan/en/timer-60.1391d83e.mp3",
+                    "file": "ethan/en/timer-60.f7ebb3dc.mp3",
+                    "gainDb": 3,
                     "text": "Timer set for an hour."
                 },
                 "timer-off": {
-                    "file": "ethan/en/timer-off.4bb48b97.mp3",
+                    "file": "ethan/en/timer-off.ddf22ffa.mp3",
+                    "gainDb": 3,
                     "text": "The timer is off."
                 },
                 "timer-set": {
-                    "file": "ethan/en/timer-set.217ec664.mp3",
+                    "file": "ethan/en/timer-set.52211ee6.mp3",
+                    "gainDb": 3,
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
@@ -199,7 +244,8 @@
                     "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
-                    "file": "ethan/en/tour-hello.5e238307.mp3",
+                    "file": "ethan/en/tour-hello.e7ba181c.mp3",
+                    "gainDb": 3,
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
@@ -207,79 +253,98 @@
                     "text": "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
-                    "file": "ethan/en/tour-vibe.fbd8e6a3.mp3",
+                    "file": "ethan/en/tour-vibe.fed76407.mp3",
+                    "gainDb": 3,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "ethan/en/tour-voice-control.29ed537b.mp3",
+                    "file": "ethan/en/tour-voice-control.147f215b.mp3",
+                    "gainDb": 3,
                     "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
-                    "file": "ethan/en/tour-voice-picked.cbfc69c6.mp3",
+                    "file": "ethan/en/tour-voice-picked.d68d13dd.mp3",
+                    "gainDb": 3,
                     "text": "Good. There are more voices in the voice picker whenever you like."
                 },
                 "unavailable": {
-                    "file": "ethan/en/unavailable.4d6f698b.mp3",
+                    "file": "ethan/en/unavailable.12d79173.mp3",
+                    "gainDb": 3,
                     "text": "That can't change right now."
                 },
                 "vibe-cleared": {
-                    "file": "ethan/en/vibe-cleared.cad7f286.mp3",
+                    "file": "ethan/en/vibe-cleared.d30313e8.mp3",
+                    "gainDb": 3,
                     "text": "All vibes are off."
                 },
                 "vibe-compassionate-off": {
-                    "file": "ethan/en/vibe-compassionate-off.0bde062a.mp3",
+                    "file": "ethan/en/vibe-compassionate-off.cce5449a.mp3",
+                    "gainDb": 3,
                     "text": "Compassionate is off."
                 },
                 "vibe-compassionate-on": {
-                    "file": "ethan/en/vibe-compassionate-on.0e77c88f.mp3",
+                    "file": "ethan/en/vibe-compassionate-on.daff720f.mp3",
+                    "gainDb": 3,
                     "text": "Compassionate is on."
                 },
                 "vibe-effortless-off": {
-                    "file": "ethan/en/vibe-effortless-off.42053387.mp3",
+                    "file": "ethan/en/vibe-effortless-off.27c03bee.mp3",
+                    "gainDb": 3,
                     "text": "Effortless is off."
                 },
                 "vibe-effortless-on": {
-                    "file": "ethan/en/vibe-effortless-on.91afa5a8.mp3",
+                    "file": "ethan/en/vibe-effortless-on.0c16064b.mp3",
+                    "gainDb": 3,
                     "text": "Effortless is on."
                 },
                 "vibe-feeling-good-off": {
-                    "file": "ethan/en/vibe-feeling-good-off.90b08852.mp3",
+                    "file": "ethan/en/vibe-feeling-good-off.01da6e38.mp3",
+                    "gainDb": 3,
                     "text": "Feeling good is off."
                 },
                 "vibe-feeling-good-on": {
-                    "file": "ethan/en/vibe-feeling-good-on.0b13fd63.mp3",
+                    "file": "ethan/en/vibe-feeling-good-on.32897124.mp3",
+                    "gainDb": 3,
                     "text": "Feeling good is on."
                 },
                 "vibe-loving-off": {
-                    "file": "ethan/en/vibe-loving-off.61d32ea2.mp3",
+                    "file": "ethan/en/vibe-loving-off.bcf9b0c4.mp3",
+                    "gainDb": 3,
                     "text": "Loving is off."
                 },
                 "vibe-loving-on": {
-                    "file": "ethan/en/vibe-loving-on.6ae91f9a.mp3",
+                    "file": "ethan/en/vibe-loving-on.bf4f1b2b.mp3",
+                    "gainDb": 3,
                     "text": "Loving is on."
                 },
                 "vibe-playful-off": {
-                    "file": "ethan/en/vibe-playful-off.37804953.mp3",
+                    "file": "ethan/en/vibe-playful-off.f4d0c87b.mp3",
+                    "gainDb": 3,
                     "text": "Playful is off."
                 },
                 "vibe-playful-on": {
-                    "file": "ethan/en/vibe-playful-on.452a1cea.mp3",
+                    "file": "ethan/en/vibe-playful-on.57eff45b.mp3",
+                    "gainDb": 3,
                     "text": "Playful is on."
                 },
                 "vibe-spacious-off": {
-                    "file": "ethan/en/vibe-spacious-off.c6ac41d5.mp3",
+                    "file": "ethan/en/vibe-spacious-off.841c6ea6.mp3",
+                    "gainDb": 3,
                     "text": "Spacious is off."
                 },
                 "vibe-spacious-on": {
-                    "file": "ethan/en/vibe-spacious-on.8126d0c8.mp3",
+                    "file": "ethan/en/vibe-spacious-on.e3f7e72b.mp3",
+                    "gainDb": 3,
                     "text": "Spacious is on."
                 },
                 "voice-intro-first": {
-                    "file": "ethan/en/voice-intro-first.ed894915.mp3",
+                    "file": "ethan/en/voice-intro-first.fba27af4.mp3",
+                    "gainDb": 3,
                     "text": "Hi, I'm Ethan. This is how I sound."
                 },
                 "voice-intro-second": {
-                    "file": "ethan/en/voice-intro-second.d72fe351.mp3",
+                    "file": "ethan/en/voice-intro-second.116057fb.mp3",
+                    "gainDb": 3,
                     "text": "And I'm Ethan. Say which of us you'd like, or tap our name."
                 }
             },
@@ -290,183 +355,228 @@
         "Harper": {
             "clips": {
                 "all-set": {
-                    "file": "harper/en/all-set.072a5b48.mp3",
+                    "file": "harper/en/all-set.4e289363.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, all set."
                 },
                 "belongs-exploration": {
-                    "file": "harper/en/belongs-exploration.519aa27c.mp3",
+                    "file": "harper/en/belongs-exploration.75ea4ade.mp3",
+                    "gainDb": -4.5,
                     "text": "That's part of exploration."
                 },
                 "belongs-felt-sense": {
-                    "file": "harper/en/belongs-felt-sense.3fdbadb1.mp3",
+                    "file": "harper/en/belongs-felt-sense.224f10e6.mp3",
+                    "gainDb": -4.5,
                     "text": "That's part of felt sense."
                 },
                 "checkins-off": {
-                    "file": "harper/en/checkins-off.a33dc379.mp3",
+                    "file": "harper/en/checkins-off.45203cb1.mp3",
+                    "gainDb": -4.5,
                     "text": "Check-ins are off."
                 },
                 "checkins-on": {
-                    "file": "harper/en/checkins-on.2110b354.mp3",
+                    "file": "harper/en/checkins-on.e948c624.mp3",
+                    "gainDb": -4.5,
                     "text": "Check-ins are on."
                 },
                 "clock-elapsed": {
-                    "file": "harper/en/clock-elapsed.0651192c.mp3",
+                    "file": "harper/en/clock-elapsed.695aceb2.mp3",
+                    "gainDb": -4.5,
                     "text": "The clock will show time in session."
                 },
                 "clock-hidden": {
-                    "file": "harper/en/clock-hidden.1c9e65de.mp3",
+                    "file": "harper/en/clock-hidden.7dea0fa6.mp3",
+                    "gainDb": -4.5,
                     "text": "The clock is hidden."
                 },
                 "clock-off": {
-                    "file": "harper/en/clock-off.76a669a6.mp3",
+                    "file": "harper/en/clock-off.6521c6da.mp3",
+                    "gainDb": -4.5,
                     "text": "The clock is off."
                 },
                 "clock-shown": {
-                    "file": "harper/en/clock-shown.86d5a3e7.mp3",
+                    "file": "harper/en/clock-shown.df76887e.mp3",
+                    "gainDb": -4.5,
                     "text": "The clock is showing."
                 },
                 "clock-wall": {
-                    "file": "harper/en/clock-wall.7b46e953.mp3",
+                    "file": "harper/en/clock-wall.8145b0de.mp3",
+                    "gainDb": -4.5,
                     "text": "The clock will show the time of day."
                 },
                 "focus-body-off": {
-                    "file": "harper/en/focus-body-off.cfff9ee7.mp3",
+                    "file": "harper/en/focus-body-off.1debc1ee.mp3",
+                    "gainDb": -4.5,
                     "text": "Body focus is off."
                 },
                 "focus-body-on": {
-                    "file": "harper/en/focus-body-on.aac631d4.mp3",
+                    "file": "harper/en/focus-body-on.2135567a.mp3",
+                    "gainDb": -4.5,
                     "text": "Body focus is on."
                 },
                 "focus-cleared": {
-                    "file": "harper/en/focus-cleared.35507183.mp3",
+                    "file": "harper/en/focus-cleared.a0e49e74.mp3",
+                    "gainDb": -4.5,
                     "text": "All focuses are off."
                 },
                 "focus-emotions-off": {
-                    "file": "harper/en/focus-emotions-off.ee76e86f.mp3",
+                    "file": "harper/en/focus-emotions-off.c0c489ac.mp3",
+                    "gainDb": -4.5,
                     "text": "Emotions focus is off."
                 },
                 "focus-emotions-on": {
-                    "file": "harper/en/focus-emotions-on.c4595426.mp3",
+                    "file": "harper/en/focus-emotions-on.df385def.mp3",
+                    "gainDb": -4.5,
                     "text": "Emotions focus is on."
                 },
                 "focus-parts-off": {
-                    "file": "harper/en/focus-parts-off.06921b18.mp3",
+                    "file": "harper/en/focus-parts-off.b73500b9.mp3",
+                    "gainDb": -4.5,
                     "text": "Parts focus is off."
                 },
                 "focus-parts-on": {
-                    "file": "harper/en/focus-parts-on.73d823df.mp3",
+                    "file": "harper/en/focus-parts-on.1358a67a.mp3",
+                    "gainDb": -4.5,
                     "text": "Parts focus is on."
                 },
                 "guidance-0": {
-                    "file": "harper/en/guidance-0.d25053c5.mp3",
+                    "file": "harper/en/guidance-0.18c0e05b.mp3",
+                    "gainDb": -4.5,
                     "text": "Guidance set to following."
                 },
                 "guidance-1": {
-                    "file": "harper/en/guidance-1.ad3db5b8.mp3",
+                    "file": "harper/en/guidance-1.9c937329.mp3",
+                    "gainDb": -4.5,
                     "text": "Guidance set to somewhat following."
                 },
                 "guidance-2": {
-                    "file": "harper/en/guidance-2.1bf88715.mp3",
+                    "file": "harper/en/guidance-2.a173e27b.mp3",
+                    "gainDb": -4.5,
                     "text": "Guidance set to balanced."
                 },
                 "guidance-3": {
-                    "file": "harper/en/guidance-3.98d8aa97.mp3",
+                    "file": "harper/en/guidance-3.77c2bb9f.mp3",
+                    "gainDb": -4.5,
                     "text": "Guidance set to somewhat directing."
                 },
                 "guidance-4": {
-                    "file": "harper/en/guidance-4.bff4a94f.mp3",
+                    "file": "harper/en/guidance-4.b635b739.mp3",
+                    "gainDb": -4.5,
                     "text": "Guidance set to directing."
                 },
                 "help": {
-                    "file": "harper/en/help.9d6ef3f3.mp3",
+                    "file": "harper/en/help.c7008913.mp3",
+                    "gainDb": -4.5,
                     "text": "Say begin to start, or customize the session by naming a vibe, a focus, or a length of time."
                 },
                 "intention-ask": {
-                    "file": "harper/en/intention-ask.7fe0bb86.mp3",
+                    "file": "harper/en/intention-ask.65e7e193.mp3",
+                    "gainDb": -4.5,
                     "text": "What is your intention?"
                 },
                 "intention-cleared": {
-                    "file": "harper/en/intention-cleared.24fdff3e.mp3",
+                    "file": "harper/en/intention-cleared.5b61e81f.mp3",
+                    "gainDb": -4.5,
                     "text": "Your intention is cleared."
                 },
                 "intention-set": {
-                    "file": "harper/en/intention-set.cee1f86a.mp3",
+                    "file": "harper/en/intention-set.8b5aee0a.mp3",
+                    "gainDb": -4.5,
                     "text": "Your intention is set."
                 },
                 "mic-off": {
-                    "file": "harper/en/mic-off.3ab1ebbd.mp3",
+                    "file": "harper/en/mic-off.204a719c.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, the mic is off."
                 },
                 "mode-exploration": {
-                    "file": "harper/en/mode-exploration.03aeb30a.mp3",
+                    "file": "harper/en/mode-exploration.2f8ae2cc.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, exploration mode."
                 },
                 "mode-felt-sense": {
-                    "file": "harper/en/mode-felt-sense.06022ad1.mp3",
+                    "file": "harper/en/mode-felt-sense.5903da43.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, felt sense mode."
                 },
                 "mode-noting": {
-                    "file": "harper/en/mode-noting.607852e3.mp3",
+                    "file": "harper/en/mode-noting.133deb4b.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, noting mode."
                 },
                 "model-set": {
-                    "file": "harper/en/model-set.fdcf4c15.mp3",
+                    "file": "harper/en/model-set.7d4d3ff2.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, the model is set."
                 },
                 "never-mind": {
-                    "file": "harper/en/never-mind.33a9373f.mp3",
+                    "file": "harper/en/never-mind.81cf3a0c.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, not changing intention."
                 },
                 "not-in-mode": {
-                    "file": "harper/en/not-in-mode.75ca5b51.mp3",
+                    "file": "harper/en/not-in-mode.1eb9a0b6.mp3",
+                    "gainDb": -4.5,
                     "text": "This mode doesn't use that."
                 },
                 "responses-high": {
-                    "file": "harper/en/responses-high.eb0b60a1.mp3",
+                    "file": "harper/en/responses-high.07703f3b.mp3",
+                    "gainDb": -4.5,
                     "text": "Responses will be longer."
                 },
                 "responses-low": {
-                    "file": "harper/en/responses-low.4ac3e765.mp3",
+                    "file": "harper/en/responses-low.345e2845.mp3",
+                    "gainDb": -4.5,
                     "text": "Responses will be brief."
                 },
                 "responses-medium": {
-                    "file": "harper/en/responses-medium.dc6cfd1f.mp3",
+                    "file": "harper/en/responses-medium.4ae90fc1.mp3",
+                    "gainDb": -4.5,
                     "text": "Responses will be medium length."
                 },
                 "timer-10": {
-                    "file": "harper/en/timer-10.549e08e9.mp3",
+                    "file": "harper/en/timer-10.badf61d3.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for ten minutes."
                 },
                 "timer-15": {
-                    "file": "harper/en/timer-15.34b35a58.mp3",
+                    "file": "harper/en/timer-15.3b268efa.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for fifteen minutes."
                 },
                 "timer-20": {
-                    "file": "harper/en/timer-20.48aa9ce9.mp3",
+                    "file": "harper/en/timer-20.bceff6f9.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for twenty minutes."
                 },
                 "timer-30": {
-                    "file": "harper/en/timer-30.49a04c82.mp3",
+                    "file": "harper/en/timer-30.20d24df4.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for thirty minutes."
                 },
                 "timer-45": {
-                    "file": "harper/en/timer-45.fad83a41.mp3",
+                    "file": "harper/en/timer-45.649cff06.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for forty-five minutes."
                 },
                 "timer-5": {
-                    "file": "harper/en/timer-5.b943f954.mp3",
+                    "file": "harper/en/timer-5.a69890bc.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for five minutes."
                 },
                 "timer-60": {
-                    "file": "harper/en/timer-60.f5c847e2.mp3",
+                    "file": "harper/en/timer-60.9880e6fa.mp3",
+                    "gainDb": -4.5,
                     "text": "Timer set for an hour."
                 },
                 "timer-off": {
-                    "file": "harper/en/timer-off.8b423458.mp3",
+                    "file": "harper/en/timer-off.52ef06ab.mp3",
+                    "gainDb": -4.5,
                     "text": "The timer is off."
                 },
                 "timer-set": {
-                    "file": "harper/en/timer-set.8f52df2e.mp3",
+                    "file": "harper/en/timer-set.5736b93d.mp3",
+                    "gainDb": -4.5,
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
@@ -486,7 +596,8 @@
                     "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
-                    "file": "harper/en/tour-hello.512a7a7a.mp3",
+                    "file": "harper/en/tour-hello.64853d9f.mp3",
+                    "gainDb": -4.5,
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
@@ -494,79 +605,98 @@
                     "text": "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
-                    "file": "harper/en/tour-vibe.0096737f.mp3",
+                    "file": "harper/en/tour-vibe.bb6041ad.mp3",
+                    "gainDb": -4.5,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
                 "tour-voice-control": {
-                    "file": "harper/en/tour-voice-control.9193656c.mp3",
+                    "file": "harper/en/tour-voice-control.5c6614e2.mp3",
+                    "gainDb": -4.5,
                     "text": "You can configure a session by talking. For example, say 'set timer to twenty minutes', and I'll set a timer."
                 },
                 "tour-voice-picked": {
-                    "file": "harper/en/tour-voice-picked.d225b060.mp3",
+                    "file": "harper/en/tour-voice-picked.560a97b6.mp3",
+                    "gainDb": -4.5,
                     "text": "Good. There are more voices in the voice picker whenever you like."
                 },
                 "unavailable": {
-                    "file": "harper/en/unavailable.9b5d64ec.mp3",
+                    "file": "harper/en/unavailable.60efabb2.mp3",
+                    "gainDb": -4.5,
                     "text": "That can't change right now."
                 },
                 "vibe-cleared": {
-                    "file": "harper/en/vibe-cleared.ca61b69a.mp3",
+                    "file": "harper/en/vibe-cleared.3562ec60.mp3",
+                    "gainDb": -4.5,
                     "text": "All vibes are off."
                 },
                 "vibe-compassionate-off": {
-                    "file": "harper/en/vibe-compassionate-off.9b2b38ad.mp3",
+                    "file": "harper/en/vibe-compassionate-off.bd5805e8.mp3",
+                    "gainDb": -4.5,
                     "text": "Compassionate is off."
                 },
                 "vibe-compassionate-on": {
-                    "file": "harper/en/vibe-compassionate-on.a9aee815.mp3",
+                    "file": "harper/en/vibe-compassionate-on.06be1271.mp3",
+                    "gainDb": -4.5,
                     "text": "Compassionate is on."
                 },
                 "vibe-effortless-off": {
-                    "file": "harper/en/vibe-effortless-off.9b1153a9.mp3",
+                    "file": "harper/en/vibe-effortless-off.78534134.mp3",
+                    "gainDb": -4.5,
                     "text": "Effortless is off."
                 },
                 "vibe-effortless-on": {
-                    "file": "harper/en/vibe-effortless-on.f6a6b8b5.mp3",
+                    "file": "harper/en/vibe-effortless-on.27ae6a1a.mp3",
+                    "gainDb": -4.5,
                     "text": "Effortless is on."
                 },
                 "vibe-feeling-good-off": {
-                    "file": "harper/en/vibe-feeling-good-off.af34333e.mp3",
+                    "file": "harper/en/vibe-feeling-good-off.ae41d93c.mp3",
+                    "gainDb": -4.5,
                     "text": "Feeling good is off."
                 },
                 "vibe-feeling-good-on": {
-                    "file": "harper/en/vibe-feeling-good-on.14f88ae0.mp3",
+                    "file": "harper/en/vibe-feeling-good-on.ee1abe08.mp3",
+                    "gainDb": -4.5,
                     "text": "Feeling good is on."
                 },
                 "vibe-loving-off": {
-                    "file": "harper/en/vibe-loving-off.46e2a842.mp3",
+                    "file": "harper/en/vibe-loving-off.d79ee61c.mp3",
+                    "gainDb": -4.5,
                     "text": "Loving is off."
                 },
                 "vibe-loving-on": {
-                    "file": "harper/en/vibe-loving-on.80bccad5.mp3",
+                    "file": "harper/en/vibe-loving-on.bc87579d.mp3",
+                    "gainDb": -4.5,
                     "text": "Loving is on."
                 },
                 "vibe-playful-off": {
-                    "file": "harper/en/vibe-playful-off.ef48c4f6.mp3",
+                    "file": "harper/en/vibe-playful-off.c43747dd.mp3",
+                    "gainDb": -4.5,
                     "text": "Playful is off."
                 },
                 "vibe-playful-on": {
-                    "file": "harper/en/vibe-playful-on.762ee653.mp3",
+                    "file": "harper/en/vibe-playful-on.9045e588.mp3",
+                    "gainDb": -4.5,
                     "text": "Playful is on."
                 },
                 "vibe-spacious-off": {
-                    "file": "harper/en/vibe-spacious-off.2bf22a59.mp3",
+                    "file": "harper/en/vibe-spacious-off.c0c6a272.mp3",
+                    "gainDb": -4.5,
                     "text": "Spacious is off."
                 },
                 "vibe-spacious-on": {
-                    "file": "harper/en/vibe-spacious-on.bea2fbe6.mp3",
+                    "file": "harper/en/vibe-spacious-on.162e3df4.mp3",
+                    "gainDb": -4.5,
                     "text": "Spacious is on."
                 },
                 "voice-intro-first": {
-                    "file": "harper/en/voice-intro-first.1f2caed8.mp3",
+                    "file": "harper/en/voice-intro-first.2c201bfb.mp3",
+                    "gainDb": -4.5,
                     "text": "Hi, I'm Harper. This is how I sound."
                 },
                 "voice-intro-second": {
-                    "file": "harper/en/voice-intro-second.0e47fac9.mp3",
+                    "file": "harper/en/voice-intro-second.fd9b88b8.mp3",
+                    "gainDb": -4.5,
                     "text": "And I'm Harper. Say which of us you'd like, or tap our name."
                 }
             },
@@ -577,283 +707,353 @@
         "Serena": {
             "clips": {
                 "all-set": {
-                    "file": "serena/zh/all-set.e949b887.mp3",
+                    "file": "serena/zh/all-set.a996d599.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，都设好了。"
                 },
                 "belongs-exploration": {
-                    "file": "serena/zh/belongs-exploration.655c4882.mp3",
+                    "file": "serena/zh/belongs-exploration.007d887a.mp3",
+                    "gainDb": 1.5,
                     "text": "这是探索模式的设置。"
                 },
                 "belongs-felt-sense": {
-                    "file": "serena/zh/belongs-felt-sense.a075edf6.mp3",
+                    "file": "serena/zh/belongs-felt-sense.47e436ef.mp3",
+                    "gainDb": 1.5,
                     "text": "这是体会模式的设置。"
                 },
                 "checkins-off": {
-                    "file": "serena/zh/checkins-off.3492dec4.mp3",
+                    "file": "serena/zh/checkins-off.847f6b27.mp3",
+                    "gainDb": 1.5,
                     "text": "安静时我不会打扰。"
                 },
                 "checkins-on": {
-                    "file": "serena/zh/checkins-on.69dd9f67.mp3",
+                    "file": "serena/zh/checkins-on.454cb271.mp3",
+                    "gainDb": 1.5,
                     "text": "安静时我会轻声问候。"
                 },
                 "clock-elapsed": {
-                    "file": "serena/zh/clock-elapsed.f2449a11.mp3",
+                    "file": "serena/zh/clock-elapsed.c8f3fce0.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟会显示已用时间。"
                 },
                 "clock-hidden": {
-                    "file": "serena/zh/clock-hidden.aac2460b.mp3",
+                    "file": "serena/zh/clock-hidden.86a8f1a1.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已隐藏。"
                 },
                 "clock-off": {
-                    "file": "serena/zh/clock-off.332e5f1f.mp3",
+                    "file": "serena/zh/clock-off.8b58fed2.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已关闭。"
                 },
                 "clock-shown": {
-                    "file": "serena/zh/clock-shown.34138742.mp3",
+                    "file": "serena/zh/clock-shown.60a97890.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已显示。"
                 },
                 "clock-wall": {
-                    "file": "serena/zh/clock-wall.2b26a7e2.mp3",
+                    "file": "serena/zh/clock-wall.0c1ac5ad.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
-                    "file": "serena/zh/focus-body-off.511ff24c.mp3",
+                    "file": "serena/zh/focus-body-off.661fb944.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉身体与感受。"
                 },
                 "focus-body-on": {
-                    "file": "serena/zh/focus-body-on.6b4f9ba6.mp3",
+                    "file": "serena/zh/focus-body-on.86a4fd89.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上身体与感受。"
                 },
                 "focus-cleared": {
-                    "file": "serena/zh/focus-cleared.4b6f3d35.mp3",
+                    "file": "serena/zh/focus-cleared.24b4d195.mp3",
+                    "gainDb": 1.5,
                     "text": "焦点已全部去掉。"
                 },
                 "focus-emotions-off": {
-                    "file": "serena/zh/focus-emotions-off.6bee574c.mp3",
+                    "file": "serena/zh/focus-emotions-off.e242ce30.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉情绪。"
                 },
                 "focus-emotions-on": {
-                    "file": "serena/zh/focus-emotions-on.32aa4ed5.mp3",
+                    "file": "serena/zh/focus-emotions-on.7fa428e9.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上情绪。"
                 },
                 "focus-parts-off": {
-                    "file": "serena/zh/focus-parts-off.b2b32640.mp3",
+                    "file": "serena/zh/focus-parts-off.b2540ab4.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉内在部分。"
                 },
                 "focus-parts-on": {
-                    "file": "serena/zh/focus-parts-on.8c2b817f.mp3",
+                    "file": "serena/zh/focus-parts-on.36041c23.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上内在部分。"
                 },
                 "guidance-0": {
-                    "file": "serena/zh/guidance-0.beb29696.mp3",
+                    "file": "serena/zh/guidance-0.a5698906.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为跟随。"
                 },
                 "guidance-1": {
-                    "file": "serena/zh/guidance-1.3350625f.mp3",
+                    "file": "serena/zh/guidance-1.eef58636.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为略偏跟随。"
                 },
                 "guidance-2": {
-                    "file": "serena/zh/guidance-2.74993438.mp3",
+                    "file": "serena/zh/guidance-2.7d9a446e.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为均衡。"
                 },
                 "guidance-3": {
-                    "file": "serena/zh/guidance-3.1cad05f8.mp3",
+                    "file": "serena/zh/guidance-3.7d226c5d.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为略偏主导。"
                 },
                 "guidance-4": {
-                    "file": "serena/zh/guidance-4.a17a3d91.mp3",
+                    "file": "serena/zh/guidance-4.71187f2b.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "serena/zh/help.e1c78540.mp3",
+                    "file": "serena/zh/help.a0134a89.mp3",
+                    "gainDb": 1.5,
                     "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
-                    "file": "serena/zh/intention-ask.8b8403f2.mp3",
+                    "file": "serena/zh/intention-ask.befeab70.mp3",
+                    "gainDb": 1.5,
                     "text": "你的意图是什么？"
                 },
                 "intention-cleared": {
-                    "file": "serena/zh/intention-cleared.1095d617.mp3",
+                    "file": "serena/zh/intention-cleared.09225457.mp3",
+                    "gainDb": 1.5,
                     "text": "意图已清除。"
                 },
                 "intention-set": {
-                    "file": "serena/zh/intention-set.c4734a75.mp3",
+                    "file": "serena/zh/intention-set.3cfc8dc6.mp3",
+                    "gainDb": 1.5,
                     "text": "意图已记下。"
                 },
                 "mic-off": {
-                    "file": "serena/zh/mic-off.50037408.mp3",
+                    "file": "serena/zh/mic-off.08f88907.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，麦克风已关闭。"
                 },
                 "mode-exploration": {
-                    "file": "serena/zh/mode-exploration.8ed5679d.mp3",
+                    "file": "serena/zh/mode-exploration.0d6ce9b7.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，探索模式。"
                 },
                 "mode-felt-sense": {
-                    "file": "serena/zh/mode-felt-sense.27416a2b.mp3",
+                    "file": "serena/zh/mode-felt-sense.93f8fbe2.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，体会模式。"
                 },
                 "mode-noting": {
-                    "file": "serena/zh/mode-noting.1501d380.mp3",
+                    "file": "serena/zh/mode-noting.3f898116.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，标记模式。"
                 },
                 "model-set": {
-                    "file": "serena/zh/model-set.79fdf5ed.mp3",
+                    "file": "serena/zh/model-set.8679df63.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，模型已设好。"
                 },
                 "never-mind": {
-                    "file": "serena/zh/never-mind.2b66dd2d.mp3",
+                    "file": "serena/zh/never-mind.9fb92a19.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
-                    "file": "serena/zh/not-in-mode.9b6949f9.mp3",
+                    "file": "serena/zh/not-in-mode.31a4d907.mp3",
+                    "gainDb": 1.5,
                     "text": "这个模式没有这一项。"
                 },
                 "responses-high": {
-                    "file": "serena/zh/responses-high.909ed1a2.mp3",
+                    "file": "serena/zh/responses-high.5c811584.mp3",
+                    "gainDb": 1.5,
                     "text": "回应会更长一些。"
                 },
                 "responses-low": {
-                    "file": "serena/zh/responses-low.1818a483.mp3",
+                    "file": "serena/zh/responses-low.9484b9b4.mp3",
+                    "gainDb": 1.5,
                     "text": "回应会简短一些。"
                 },
                 "responses-medium": {
-                    "file": "serena/zh/responses-medium.6dcaf293.mp3",
+                    "file": "serena/zh/responses-medium.8dcccb7e.mp3",
+                    "gainDb": 1.5,
                     "text": "回应长度适中。"
                 },
                 "timer-10": {
-                    "file": "serena/zh/timer-10.90b91ccb.mp3",
+                    "file": "serena/zh/timer-10.d9026f97.mp3",
+                    "gainDb": 1.5,
                     "text": "计时十分钟。"
                 },
                 "timer-15": {
-                    "file": "serena/zh/timer-15.78b326a5.mp3",
+                    "file": "serena/zh/timer-15.9011e438.mp3",
+                    "gainDb": 1.5,
                     "text": "计时十五分钟。"
                 },
                 "timer-20": {
-                    "file": "serena/zh/timer-20.14579ffb.mp3",
+                    "file": "serena/zh/timer-20.677e7cc2.mp3",
+                    "gainDb": 1.5,
                     "text": "计时二十分钟。"
                 },
                 "timer-30": {
-                    "file": "serena/zh/timer-30.1ba98d30.mp3",
+                    "file": "serena/zh/timer-30.6b2a53cd.mp3",
+                    "gainDb": 1.5,
                     "text": "计时三十分钟。"
                 },
                 "timer-45": {
-                    "file": "serena/zh/timer-45.3f28057e.mp3",
+                    "file": "serena/zh/timer-45.995046a5.mp3",
+                    "gainDb": 1.5,
                     "text": "计时四十五分钟。"
                 },
                 "timer-5": {
-                    "file": "serena/zh/timer-5.1bd3c81f.mp3",
+                    "file": "serena/zh/timer-5.4e6bf98d.mp3",
+                    "gainDb": 1.5,
                     "text": "计时五分钟。"
                 },
                 "timer-60": {
-                    "file": "serena/zh/timer-60.34db7706.mp3",
+                    "file": "serena/zh/timer-60.35a7a287.mp3",
+                    "gainDb": 1.5,
                     "text": "计时一小时。"
                 },
                 "timer-off": {
-                    "file": "serena/zh/timer-off.3c7d7934.mp3",
+                    "file": "serena/zh/timer-off.97bf6346.mp3",
+                    "gainDb": 1.5,
                     "text": "计时已关闭。"
                 },
                 "timer-set": {
-                    "file": "serena/zh/timer-set.35cf96ec.mp3",
+                    "file": "serena/zh/timer-set.b219ca6a.mp3",
+                    "gainDb": 1.5,
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.d0d5f6dd.mp3",
+                    "file": "serena/zh/tour-done.fdc509e4.mp3",
+                    "gainDb": 1.5,
                     "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "serena/zh/tour-exploration.615efda7.mp3",
+                    "file": "serena/zh/tour-exploration.12f5a823.mp3",
+                    "gainDb": 1.5,
                     "text": "探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "serena/zh/tour-felt-sense.f209630c.mp3",
+                    "file": "serena/zh/tour-felt-sense.123fea04.mp3",
+                    "gainDb": 1.5,
                     "text": "体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "serena/zh/tour-focus.0f4f77bd.mp3",
+                    "file": "serena/zh/tour-focus.e4f8e204.mp3",
+                    "gainDb": 1.5,
                     "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "serena/zh/tour-hello.d228eb8b.mp3",
+                    "file": "serena/zh/tour-hello.98bc40ba.mp3",
+                    "gainDb": 1.5,
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "serena/zh/tour-noting.3286ee26.mp3",
+                    "file": "serena/zh/tour-noting.615244ae.mp3",
+                    "gainDb": 1.5,
                     "text": "标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
-                    "file": "serena/zh/tour-vibe.66faa2bb.mp3",
+                    "file": "serena/zh/tour-vibe.cdb68da2.mp3",
+                    "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "serena/zh/tour-voice-control.b1bc3363.mp3",
+                    "file": "serena/zh/tour-voice-control.402a17ca.mp3",
+                    "gainDb": 1.5,
                     "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
-                    "file": "serena/zh/tour-voice-picked.44429823.mp3",
+                    "file": "serena/zh/tour-voice-picked.fd447f86.mp3",
+                    "gainDb": 1.5,
                     "text": "好的。以后随时可以在声音选择里换别的声音。"
                 },
                 "unavailable": {
-                    "file": "serena/zh/unavailable.813ad55e.mp3",
+                    "file": "serena/zh/unavailable.8e4c5c0d.mp3",
+                    "gainDb": 1.5,
                     "text": "现在改不了这一项。"
                 },
                 "vibe-cleared": {
-                    "file": "serena/zh/vibe-cleared.acc63099.mp3",
+                    "file": "serena/zh/vibe-cleared.d5c70735.mp3",
+                    "gainDb": 1.5,
                     "text": "氛围已全部去掉。"
                 },
                 "vibe-compassionate-off": {
-                    "file": "serena/zh/vibe-compassionate-off.b98721b1.mp3",
+                    "file": "serena/zh/vibe-compassionate-off.4ab465ea.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉慈悲。"
                 },
                 "vibe-compassionate-on": {
-                    "file": "serena/zh/vibe-compassionate-on.a9c2a4ac.mp3",
+                    "file": "serena/zh/vibe-compassionate-on.235b5bc4.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上慈悲。"
                 },
                 "vibe-effortless-off": {
-                    "file": "serena/zh/vibe-effortless-off.2039ab30.mp3",
+                    "file": "serena/zh/vibe-effortless-off.74ee64e3.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉不费力。"
                 },
                 "vibe-effortless-on": {
-                    "file": "serena/zh/vibe-effortless-on.2806cf7d.mp3",
+                    "file": "serena/zh/vibe-effortless-on.e6b48399.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上不费力。"
                 },
                 "vibe-feeling-good-off": {
-                    "file": "serena/zh/vibe-feeling-good-off.c4497da5.mp3",
+                    "file": "serena/zh/vibe-feeling-good-off.47ece4df.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉感觉不错。"
                 },
                 "vibe-feeling-good-on": {
-                    "file": "serena/zh/vibe-feeling-good-on.6e958f08.mp3",
+                    "file": "serena/zh/vibe-feeling-good-on.e040c143.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上感觉不错。"
                 },
                 "vibe-loving-off": {
-                    "file": "serena/zh/vibe-loving-off.162c7579.mp3",
+                    "file": "serena/zh/vibe-loving-off.d39101f5.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉慈爱。"
                 },
                 "vibe-loving-on": {
-                    "file": "serena/zh/vibe-loving-on.4897c2e7.mp3",
+                    "file": "serena/zh/vibe-loving-on.df668e35.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上慈爱。"
                 },
                 "vibe-playful-off": {
-                    "file": "serena/zh/vibe-playful-off.3cba03e8.mp3",
+                    "file": "serena/zh/vibe-playful-off.6787b252.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉轻松有玩心。"
                 },
                 "vibe-playful-on": {
-                    "file": "serena/zh/vibe-playful-on.16a11f9a.mp3",
+                    "file": "serena/zh/vibe-playful-on.f11dfe6a.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上轻松有玩心。"
                 },
                 "vibe-spacious-off": {
-                    "file": "serena/zh/vibe-spacious-off.fb45d51f.mp3",
+                    "file": "serena/zh/vibe-spacious-off.e7b0e511.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉开阔。"
                 },
                 "vibe-spacious-on": {
-                    "file": "serena/zh/vibe-spacious-on.9e4ad669.mp3",
+                    "file": "serena/zh/vibe-spacious-on.961b2930.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上开阔。"
                 },
                 "voice-intro-first": {
-                    "file": "serena/zh/voice-intro-first.56266eee.mp3",
+                    "file": "serena/zh/voice-intro-first.94d02499.mp3",
+                    "gainDb": 1.5,
                     "text": "你好，我是 Serena。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "serena/zh/voice-intro-second.f02ebfbd.mp3",
+                    "file": "serena/zh/voice-intro-second.508bd4cb.mp3",
+                    "gainDb": 1.5,
                     "text": "我是 Serena。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },
@@ -864,283 +1064,353 @@
         "Yunfan": {
             "clips": {
                 "all-set": {
-                    "file": "yunfan/zh/all-set.d76fad8d.mp3",
+                    "file": "yunfan/zh/all-set.0a558596.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，都设好了。"
                 },
                 "belongs-exploration": {
-                    "file": "yunfan/zh/belongs-exploration.b7133760.mp3",
+                    "file": "yunfan/zh/belongs-exploration.11aeb6e6.mp3",
+                    "gainDb": 1.5,
                     "text": "这是探索模式的设置。"
                 },
                 "belongs-felt-sense": {
-                    "file": "yunfan/zh/belongs-felt-sense.73536741.mp3",
+                    "file": "yunfan/zh/belongs-felt-sense.9a1d3c25.mp3",
+                    "gainDb": 1.5,
                     "text": "这是体会模式的设置。"
                 },
                 "checkins-off": {
-                    "file": "yunfan/zh/checkins-off.a16526bb.mp3",
+                    "file": "yunfan/zh/checkins-off.4bb63bc0.mp3",
+                    "gainDb": 1.5,
                     "text": "安静时我不会打扰。"
                 },
                 "checkins-on": {
-                    "file": "yunfan/zh/checkins-on.4f0222e5.mp3",
+                    "file": "yunfan/zh/checkins-on.d486b56d.mp3",
+                    "gainDb": 1.5,
                     "text": "安静时我会轻声问候。"
                 },
                 "clock-elapsed": {
-                    "file": "yunfan/zh/clock-elapsed.feab5487.mp3",
+                    "file": "yunfan/zh/clock-elapsed.6d6e1381.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟会显示已用时间。"
                 },
                 "clock-hidden": {
-                    "file": "yunfan/zh/clock-hidden.9f5d60be.mp3",
+                    "file": "yunfan/zh/clock-hidden.f878ddaf.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已隐藏。"
                 },
                 "clock-off": {
-                    "file": "yunfan/zh/clock-off.40a65e96.mp3",
+                    "file": "yunfan/zh/clock-off.96656de9.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已关闭。"
                 },
                 "clock-shown": {
-                    "file": "yunfan/zh/clock-shown.ccfcc6da.mp3",
+                    "file": "yunfan/zh/clock-shown.7b7e9570.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟已显示。"
                 },
                 "clock-wall": {
-                    "file": "yunfan/zh/clock-wall.fbd5100e.mp3",
+                    "file": "yunfan/zh/clock-wall.4cfbfc39.mp3",
+                    "gainDb": 1.5,
                     "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
-                    "file": "yunfan/zh/focus-body-off.3f2e0841.mp3",
+                    "file": "yunfan/zh/focus-body-off.e47601b5.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉身体与感受。"
                 },
                 "focus-body-on": {
-                    "file": "yunfan/zh/focus-body-on.6136cd5a.mp3",
+                    "file": "yunfan/zh/focus-body-on.3d213f58.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上身体与感受。"
                 },
                 "focus-cleared": {
-                    "file": "yunfan/zh/focus-cleared.5dbf7adf.mp3",
+                    "file": "yunfan/zh/focus-cleared.7203d3fb.mp3",
+                    "gainDb": 1.5,
                     "text": "焦点已全部去掉。"
                 },
                 "focus-emotions-off": {
-                    "file": "yunfan/zh/focus-emotions-off.43fac4c7.mp3",
+                    "file": "yunfan/zh/focus-emotions-off.2b6ee471.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉情绪。"
                 },
                 "focus-emotions-on": {
-                    "file": "yunfan/zh/focus-emotions-on.8726de8c.mp3",
+                    "file": "yunfan/zh/focus-emotions-on.ceb784aa.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上情绪。"
                 },
                 "focus-parts-off": {
-                    "file": "yunfan/zh/focus-parts-off.06f87fe6.mp3",
+                    "file": "yunfan/zh/focus-parts-off.7061e373.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉内在部分。"
                 },
                 "focus-parts-on": {
-                    "file": "yunfan/zh/focus-parts-on.19d4d73d.mp3",
+                    "file": "yunfan/zh/focus-parts-on.f7c406d5.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上内在部分。"
                 },
                 "guidance-0": {
-                    "file": "yunfan/zh/guidance-0.0b020ed5.mp3",
+                    "file": "yunfan/zh/guidance-0.99e343e3.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为跟随。"
                 },
                 "guidance-1": {
-                    "file": "yunfan/zh/guidance-1.ae1b1252.mp3",
+                    "file": "yunfan/zh/guidance-1.6a96385d.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为略偏跟随。"
                 },
                 "guidance-2": {
-                    "file": "yunfan/zh/guidance-2.834f5f56.mp3",
+                    "file": "yunfan/zh/guidance-2.d20806a3.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为均衡。"
                 },
                 "guidance-3": {
-                    "file": "yunfan/zh/guidance-3.c04cf9bc.mp3",
+                    "file": "yunfan/zh/guidance-3.63f5dde3.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为略偏主导。"
                 },
                 "guidance-4": {
-                    "file": "yunfan/zh/guidance-4.8824c8cc.mp3",
+                    "file": "yunfan/zh/guidance-4.47296acc.mp3",
+                    "gainDb": 1.5,
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "yunfan/zh/help.2261644a.mp3",
+                    "file": "yunfan/zh/help.fabf3ffc.mp3",
+                    "gainDb": 1.5,
                     "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
-                    "file": "yunfan/zh/intention-ask.fe0b0a9a.mp3",
+                    "file": "yunfan/zh/intention-ask.4a132e85.mp3",
+                    "gainDb": 1.5,
                     "text": "你的意图是什么？"
                 },
                 "intention-cleared": {
-                    "file": "yunfan/zh/intention-cleared.db9d4857.mp3",
+                    "file": "yunfan/zh/intention-cleared.210e9798.mp3",
+                    "gainDb": 1.5,
                     "text": "意图已清除。"
                 },
                 "intention-set": {
-                    "file": "yunfan/zh/intention-set.ec4a04ed.mp3",
+                    "file": "yunfan/zh/intention-set.a1975259.mp3",
+                    "gainDb": 1.5,
                     "text": "意图已记下。"
                 },
                 "mic-off": {
-                    "file": "yunfan/zh/mic-off.124fd881.mp3",
+                    "file": "yunfan/zh/mic-off.135054f1.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，麦克风已关闭。"
                 },
                 "mode-exploration": {
-                    "file": "yunfan/zh/mode-exploration.b199a5fc.mp3",
+                    "file": "yunfan/zh/mode-exploration.6fd3fdbd.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，探索模式。"
                 },
                 "mode-felt-sense": {
-                    "file": "yunfan/zh/mode-felt-sense.6a852cc4.mp3",
+                    "file": "yunfan/zh/mode-felt-sense.fe25bf4f.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，体会模式。"
                 },
                 "mode-noting": {
-                    "file": "yunfan/zh/mode-noting.b706920a.mp3",
+                    "file": "yunfan/zh/mode-noting.5cd6e60b.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，标记模式。"
                 },
                 "model-set": {
-                    "file": "yunfan/zh/model-set.eb9ac1a7.mp3",
+                    "file": "yunfan/zh/model-set.a7fbd85e.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，模型已设好。"
                 },
                 "never-mind": {
-                    "file": "yunfan/zh/never-mind.4ef99b22.mp3",
+                    "file": "yunfan/zh/never-mind.432d0d28.mp3",
+                    "gainDb": 1.5,
                     "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
-                    "file": "yunfan/zh/not-in-mode.3347aa80.mp3",
+                    "file": "yunfan/zh/not-in-mode.cd789e73.mp3",
+                    "gainDb": 1.5,
                     "text": "这个模式没有这一项。"
                 },
                 "responses-high": {
-                    "file": "yunfan/zh/responses-high.e6db8f2e.mp3",
+                    "file": "yunfan/zh/responses-high.d0bf8011.mp3",
+                    "gainDb": 1.5,
                     "text": "回应会更长一些。"
                 },
                 "responses-low": {
-                    "file": "yunfan/zh/responses-low.98496210.mp3",
+                    "file": "yunfan/zh/responses-low.6009337a.mp3",
+                    "gainDb": 1.5,
                     "text": "回应会简短一些。"
                 },
                 "responses-medium": {
-                    "file": "yunfan/zh/responses-medium.f06d7aea.mp3",
+                    "file": "yunfan/zh/responses-medium.68f4e595.mp3",
+                    "gainDb": 1.5,
                     "text": "回应长度适中。"
                 },
                 "timer-10": {
-                    "file": "yunfan/zh/timer-10.de64f0d4.mp3",
+                    "file": "yunfan/zh/timer-10.8f93793e.mp3",
+                    "gainDb": 1.5,
                     "text": "计时十分钟。"
                 },
                 "timer-15": {
-                    "file": "yunfan/zh/timer-15.c57fc069.mp3",
+                    "file": "yunfan/zh/timer-15.7f731cb0.mp3",
+                    "gainDb": 1.5,
                     "text": "计时十五分钟。"
                 },
                 "timer-20": {
-                    "file": "yunfan/zh/timer-20.e1821754.mp3",
+                    "file": "yunfan/zh/timer-20.1e471c92.mp3",
+                    "gainDb": 1.5,
                     "text": "计时二十分钟。"
                 },
                 "timer-30": {
-                    "file": "yunfan/zh/timer-30.5d30224f.mp3",
+                    "file": "yunfan/zh/timer-30.a3344336.mp3",
+                    "gainDb": 1.5,
                     "text": "计时三十分钟。"
                 },
                 "timer-45": {
-                    "file": "yunfan/zh/timer-45.005e2756.mp3",
+                    "file": "yunfan/zh/timer-45.79b2a200.mp3",
+                    "gainDb": 1.5,
                     "text": "计时四十五分钟。"
                 },
                 "timer-5": {
-                    "file": "yunfan/zh/timer-5.5df3b6ad.mp3",
+                    "file": "yunfan/zh/timer-5.8da0794c.mp3",
+                    "gainDb": 1.5,
                     "text": "计时五分钟。"
                 },
                 "timer-60": {
-                    "file": "yunfan/zh/timer-60.3ce4b709.mp3",
+                    "file": "yunfan/zh/timer-60.37d2ae57.mp3",
+                    "gainDb": 1.5,
                     "text": "计时一小时。"
                 },
                 "timer-off": {
-                    "file": "yunfan/zh/timer-off.c28ddaf9.mp3",
+                    "file": "yunfan/zh/timer-off.be29a5d0.mp3",
+                    "gainDb": 1.5,
                     "text": "计时已关闭。"
                 },
                 "timer-set": {
-                    "file": "yunfan/zh/timer-set.5d0e2425.mp3",
+                    "file": "yunfan/zh/timer-set.4a9fd36a.mp3",
+                    "gainDb": 1.5,
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.3d742d07.mp3",
+                    "file": "yunfan/zh/tour-done.5e2d793f.mp3",
+                    "gainDb": 1.5,
                     "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "yunfan/zh/tour-exploration.62515c79.mp3",
+                    "file": "yunfan/zh/tour-exploration.2b366973.mp3",
+                    "gainDb": 1.5,
                     "text": "探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "yunfan/zh/tour-felt-sense.effb3951.mp3",
+                    "file": "yunfan/zh/tour-felt-sense.0324899f.mp3",
+                    "gainDb": 1.5,
                     "text": "体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "yunfan/zh/tour-focus.c0f01da8.mp3",
+                    "file": "yunfan/zh/tour-focus.c3304a82.mp3",
+                    "gainDb": 1.5,
                     "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "yunfan/zh/tour-hello.0e140477.mp3",
+                    "file": "yunfan/zh/tour-hello.e8ac4d5f.mp3",
+                    "gainDb": 1.5,
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "yunfan/zh/tour-noting.8292eff1.mp3",
+                    "file": "yunfan/zh/tour-noting.70528e58.mp3",
+                    "gainDb": 1.5,
                     "text": "标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
-                    "file": "yunfan/zh/tour-vibe.0e3d6a3a.mp3",
+                    "file": "yunfan/zh/tour-vibe.0593ff62.mp3",
+                    "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "yunfan/zh/tour-voice-control.7aca1b14.mp3",
+                    "file": "yunfan/zh/tour-voice-control.7cac5c34.mp3",
+                    "gainDb": 1.5,
                     "text": "你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。"
                 },
                 "tour-voice-picked": {
-                    "file": "yunfan/zh/tour-voice-picked.84eec0e6.mp3",
+                    "file": "yunfan/zh/tour-voice-picked.969de9e6.mp3",
+                    "gainDb": 1.5,
                     "text": "好的。以后随时可以在声音选择里换别的声音。"
                 },
                 "unavailable": {
-                    "file": "yunfan/zh/unavailable.4ed7634f.mp3",
+                    "file": "yunfan/zh/unavailable.b36fe336.mp3",
+                    "gainDb": 1.5,
                     "text": "现在改不了这一项。"
                 },
                 "vibe-cleared": {
-                    "file": "yunfan/zh/vibe-cleared.7f7d6093.mp3",
+                    "file": "yunfan/zh/vibe-cleared.ba81c250.mp3",
+                    "gainDb": 1.5,
                     "text": "氛围已全部去掉。"
                 },
                 "vibe-compassionate-off": {
-                    "file": "yunfan/zh/vibe-compassionate-off.ce8917de.mp3",
+                    "file": "yunfan/zh/vibe-compassionate-off.31101714.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉慈悲。"
                 },
                 "vibe-compassionate-on": {
-                    "file": "yunfan/zh/vibe-compassionate-on.ee9103cf.mp3",
+                    "file": "yunfan/zh/vibe-compassionate-on.dabd9f4d.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上慈悲。"
                 },
                 "vibe-effortless-off": {
-                    "file": "yunfan/zh/vibe-effortless-off.d0eabb19.mp3",
+                    "file": "yunfan/zh/vibe-effortless-off.4205b344.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉不费力。"
                 },
                 "vibe-effortless-on": {
-                    "file": "yunfan/zh/vibe-effortless-on.aeb69723.mp3",
+                    "file": "yunfan/zh/vibe-effortless-on.604892a1.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上不费力。"
                 },
                 "vibe-feeling-good-off": {
-                    "file": "yunfan/zh/vibe-feeling-good-off.da355a3e.mp3",
+                    "file": "yunfan/zh/vibe-feeling-good-off.c4400da4.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉感觉不错。"
                 },
                 "vibe-feeling-good-on": {
-                    "file": "yunfan/zh/vibe-feeling-good-on.7900c421.mp3",
+                    "file": "yunfan/zh/vibe-feeling-good-on.d3fbe886.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上感觉不错。"
                 },
                 "vibe-loving-off": {
-                    "file": "yunfan/zh/vibe-loving-off.879f1f03.mp3",
+                    "file": "yunfan/zh/vibe-loving-off.0ac9a198.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉慈爱。"
                 },
                 "vibe-loving-on": {
-                    "file": "yunfan/zh/vibe-loving-on.547a2bf1.mp3",
+                    "file": "yunfan/zh/vibe-loving-on.005d26fa.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上慈爱。"
                 },
                 "vibe-playful-off": {
-                    "file": "yunfan/zh/vibe-playful-off.fc7b0f39.mp3",
+                    "file": "yunfan/zh/vibe-playful-off.b9a7425e.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉轻松有玩心。"
                 },
                 "vibe-playful-on": {
-                    "file": "yunfan/zh/vibe-playful-on.9b3e5e1e.mp3",
+                    "file": "yunfan/zh/vibe-playful-on.47de7c54.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上轻松有玩心。"
                 },
                 "vibe-spacious-off": {
-                    "file": "yunfan/zh/vibe-spacious-off.c2398d01.mp3",
+                    "file": "yunfan/zh/vibe-spacious-off.b1f67039.mp3",
+                    "gainDb": 1.5,
                     "text": "已去掉开阔。"
                 },
                 "vibe-spacious-on": {
-                    "file": "yunfan/zh/vibe-spacious-on.6dbf3ef6.mp3",
+                    "file": "yunfan/zh/vibe-spacious-on.cdee3b24.mp3",
+                    "gainDb": 1.5,
                     "text": "已加上开阔。"
                 },
                 "voice-intro-first": {
-                    "file": "yunfan/zh/voice-intro-first.d7496aad.mp3",
+                    "file": "yunfan/zh/voice-intro-first.ab1ba6fe.mp3",
+                    "gainDb": 1.5,
                     "text": "你好，我是 Yunfan。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "yunfan/zh/voice-intro-second.86d2ae97.mp3",
+                    "file": "yunfan/zh/voice-intro-second.5c0c5ccf.mp3",
+                    "gainDb": 1.5,
                     "text": "我是 Yunfan。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },

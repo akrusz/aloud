@@ -223,14 +223,25 @@ The curated hosted voices live in `src/providers/voice-catalog.ts` - a short-nam
 `premium` voice under "Best", a `value` one under "Very Good") and sends the
 short name back, which `/cloud/v1/tts` resolves. To add more: audition, then append the winners to `CURATED_VOICES`.
 
-Providers render voices at very different levels: the as-shipped auditions
-spread from -17.5 to -29 LUFS (2026-11-16). A voice that sits too quiet or
-loud next to the others takes a `gainDb` trim, which `routes/tts.ts`
-`synthFor` applies to everything it makes of that voice (sessions, previews,
-canned lines, setup clips) by moving the MP3's own gain field
-(`providers/mp3-gain.ts` `withGain`): lossless, no billed characters, in
-1.5 dB steps, with no limiter behind it, so check the voice's true peak first
-(`ffmpeg -af ebur128=peak=true`). Ethan carries +3 dB.
+**Levels.** Every voice carries a `gainDb` (`CuratedVoice`, how to pick one
+is on the field) that `routes/tts.ts` `synthFor` applies to all of its audio by
+moving the MP3's own gain field (`providers/mp3-gain.ts` `withGain`). The
+target is -22.4 LUFS, the catalog average, measured 2026-11-16 on the
+as-shipped audition line (LUFS before → gainDb):
+
+| Voice | LUFS | gainDb | Voice | LUFS | gainDb |
+|---|---|---|---|---|---|
+| Phoenix | -22.8 | 0 | Harper | -17.8 | -4.5 |
+| Orion | -23.2 | 0 | Isla | -17.5 | -4.5 |
+| Leda | -23.0 | 0 | Serena | -26.7 | +1.5 |
+| Vega | -19.2 | -3 | Yunfan | -28.1 | +1.5 |
+| Rigel | -19.1 | -3 | Luna | -22.1 | 0 |
+| Ada | -17.7 | -4.5 | Wren | -25.0 | +3 |
+| Davis | -21.6 | -1.5 | Silas | -25.8 | +3 |
+| Ethan | -24.9 | +3 | Clive | -24.3 | +1.5 |
+
+Serena and Yunfan stop short (about -25 and -27): their peaks leave no
+room for another step.
 
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a

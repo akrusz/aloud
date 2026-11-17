@@ -53,7 +53,14 @@ function frameAt(b: Uint8Array, i: number): Frame | null {
     const lead = mpeg1 ? 9 + (channels === 1 ? 5 : 3) + 4 * channels : 8 + channels;
     const stride = mpeg1 ? 59 : 63;
     const gainBits: number[] = [];
-    for (let block = 0; block < (mpeg1 ? 2 : 1) * channels; block++) gainBits.push(sideInfo + lead + block * stride + 21);
+    // A Xing/Info (or VBRI) frame is the stream's header, not audio, and the
+    // LAME tag in it checksums these bytes: left alone.
+    const sideBytes = mpeg1 ? (channels === 1 ? 17 : 32) : channels === 1 ? 9 : 17;
+    const tag = (at: number) => String.fromCharCode(...b.subarray(at, at + 4));
+    const header = ['Xing', 'Info'].includes(tag(i + sideInfo / 8 + sideBytes)) || tag(i + 36) === 'VBRI';
+    if (!header) {
+        for (let block = 0; block < (mpeg1 ? 2 : 1) * channels; block++) gainBits.push(sideInfo + lead + block * stride + 21);
+    }
     return { length, crc, gainBits };
 }
 

@@ -93,6 +93,14 @@ describe('withGain', () => {
         expect(withGain(notMp3, 3)).toBe(notMp3);
     });
 
+    it('leaves a Xing/Info header frame alone and moves the audio behind it', () => {
+        const info = lsfFrame(0);
+        info.set([0x49, 0x6e, 0x66, 0x6f], 4 + 9);
+        const out = withGain(concat(info, lsfFrame(150)), 3);
+        expect(out.slice(0, 288)).toEqual(info);
+        expect(get8(out, 288 * 8 + LSF_GAIN_BIT)).toBe(152);
+    });
+
     it('walks the real lead-silence frames, so a padded clip takes the trim', () => {
         const padded = withLeadSilence(lsfFrame(150));
         const out = withGain(padded, 3);
@@ -102,10 +110,8 @@ describe('withGain', () => {
 });
 
 describe('CuratedVoice.gainDb', () => {
-    it('sits on a whole step for every voice that has one', () => {
-        for (const v of CURATED_VOICES.filter((c) => c.gainDb !== undefined)) {
-            expect(Math.abs(v.gainDb! / MP3_GAIN_STEP_DB) % 1, v.name).toBe(0);
-        }
+    it('sits on a whole step for every voice', () => {
+        for (const v of CURATED_VOICES) expect(Math.abs(v.gainDb / MP3_GAIN_STEP_DB) % 1, v.name).toBe(0);
     });
 
     describe('in the synthesis sessions and setup clips share', () => {
@@ -122,22 +128,23 @@ describe('CuratedVoice.gainDb', () => {
             globalThis.fetch = realFetch;
         });
 
-        it("lifts Ethan's audio and leaves his SSML, and so his bill, as Harper's", async () => {
+        it('moves the audio by the voice gain and leaves its SSML, and so its bill, alone', async () => {
             const config = loadConfig({ AZURE_SPEECH_KEY: 'az-key' });
             const ethan = resolveVoice('Ethan');
-            expect(ethan.gainDb).toBe(3);
-            const harper = resolveVoice('Harper');
-            expect(harper.gainDb).toBeUndefined();
+            const steps = ethan.gainDb! / MP3_GAIN_STEP_DB;
+            expect(steps).not.toBe(0);
+            const bare = { ...ethan };
+            delete bare.gainDb;
 
-            const lifted = await synthFor(config, ethan)!('Breathe in.', 1);
-            const plain = await synthFor(config, harper)!('Breathe in.', 1);
+            const moved = await synthFor(config, ethan)!('Breathe in.', 1);
+            const plain = await synthFor(config, bare)!('Breathe in.', 1);
             const first = AZURE_LEAD_SILENCE_MP3.length * 8 + LSF_GAIN_BIT;
-            expect([get8(lifted, first), get8(lifted, first + 288 * 8)]).toEqual([152, 162]);
+            expect([get8(moved, first), get8(moved, first + 288 * 8)]).toEqual([150 + steps, 160 + steps]);
             expect([get8(plain, first), get8(plain, first + 288 * 8)]).toEqual([150, 160]);
 
+            expect(ssml[0]).toBe(ssml[1]);
             expect(ssml[0]).not.toContain('<prosody');
-            expect(ssml[0]).toContain('<mstts:express-as style="softvoice">');
-            expect(billedCharsFor(ethan, 'Breathe in.', 1)).toBe(billedCharsFor(harper, 'Breathe in.', 1));
+            expect(billedCharsFor(ethan, 'Breathe in.', 1)).toBe(billedCharsFor(bare, 'Breathe in.', 1));
         });
     });
 });
