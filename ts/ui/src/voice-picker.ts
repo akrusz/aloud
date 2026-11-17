@@ -45,6 +45,9 @@ export interface ServerVoice {
  *  CloudVoice contract). */
 export interface CloudVoice {
     name: string;
+    /** Names the voice had before: a pick stored under one follows it
+     *  (renamedHostedVoice). */
+    formerly?: string[];
     gender: 'female' | 'male' | 'androgynous';
     /** Placement bucket: 'premium' lists under Best, 'value' under Very Good.
      *  Optional so an older server that doesn't send it still works. */
@@ -123,6 +126,8 @@ export interface ScoredVoice {
     zhNative?: boolean;
     /** The server's default hosted voice (CloudVoice.default). */
     hostedDefault?: boolean;
+    /** A hosted voice's earlier names (CloudVoice.formerly). */
+    formerly?: readonly string[];
 }
 
 export const TIER_LABELS: Record<number, string> = {
@@ -150,7 +155,7 @@ export function prefixedVoiceId(engine: string | undefined, name: string): strin
     return `${prefix}${name}`;
 }
 
-/** A voice's name as this screen shows it: 云帆 for Yunfan in the zh UI
+/** A voice's name as this screen shows it: 大海 for Dahai in the zh UI
  *  (core voice-names.ts). Display only; lookups and storage take the name. */
 export function voiceLabel(name: string): string {
     return displayVoiceName(name, uiLang());
@@ -175,6 +180,15 @@ export function isOrphanedHostedVoice(voice: string | null | undefined, voices: 
     if (!name) return false;
     const hosted = voices.filter((v) => v.engine === 'aloud');
     return hosted.length > 0 && !hosted.some((v) => v.name === name);
+}
+
+/** A stored hosted pick under a name the voice has since dropped
+ *  (CloudVoice.formerly), as the stored id of its name now; null otherwise. */
+export function renamedHostedVoice(voice: string | null | undefined, voices: readonly ScoredVoice[]): string | null {
+    const name = /^aloud:(.+)$/.exec(voice ?? '')?.[1];
+    if (!name) return null;
+    const now = voices.find((v) => v.engine === 'aloud' && v.formerly?.includes(name));
+    return now ? prefixedVoiceId(now.engine, now.name) : null;
 }
 
 // Known high-quality macOS base voice names (without Premium/Enhanced suffix).
@@ -264,6 +278,7 @@ export function buildScoredVoiceList(
             ...(hv.fixedPace ? { fixedPace: true } : {}),
             ...(hv.zhNative ? { zhNative: true } : {}),
             ...(hv.default ? { hostedDefault: true } : {}),
+            ...(hv.formerly?.length ? { formerly: hv.formerly } : {}),
         });
         seen.add(hv.name);
     }
@@ -978,6 +993,9 @@ export function downloadPercent(p: DownloadProgress): number {
 }
 
 let cloudVoicesCache: CloudVoice[] | null = null;
+/** The language the cached list was asked for in: the server lists some
+ *  voices to one language only (CuratedVoice.only). */
+let cloudVoicesLang: string | null = null;
 
 /**
  * Fetch the curated hosted voices: [] when the server is unreachable or has no
@@ -987,11 +1005,13 @@ let cloudVoicesCache: CloudVoice[] | null = null;
  * picker empty until restart.
  */
 export async function fetchCloudVoices(force = false): Promise<CloudVoice[]> {
-    if (!force && cloudVoicesCache !== null) return cloudVoicesCache;
+    const lang = uiLang();
+    if (!force && cloudVoicesCache !== null && cloudVoicesLang === lang) return cloudVoicesCache;
     try {
-        const response = await fetch(cloudUrl('/voices'));
+        const response = await fetch(cloudUrl(`/voices?lang=${lang}`));
         if (!response.ok) return [];
         cloudVoicesCache = (await response.json()) as CloudVoice[];
+        cloudVoicesLang = lang;
         return cloudVoicesCache;
     } catch {
         return [];

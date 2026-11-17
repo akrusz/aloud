@@ -8,6 +8,7 @@ import {
     isOrphanedHostedVoice,
     prefixedVoiceId,
     previewErrorMessage,
+    renamedHostedVoice,
     voiceLabel,
     type ScoredVoice,
 } from '../ui/src/voice-picker.js';
@@ -20,9 +21,10 @@ afterEach(() => {
 
 describe('voiceLabel', () => {
     it('shows a zh house voice by the name its lines say, in the zh UI only', () => {
-        expect(voiceLabel('Yunfan')).toBe('Yunfan');
+        expect(voiceLabel('Dahai')).toBe('Dahai');
         setUiLang('zh');
-        expect(voiceLabel('Yunfan')).toBe('云帆');
+        expect(voiceLabel('Dahai')).toBe('大海');
+        expect(voiceLabel('Xiaoyue')).toBe('小月');
         expect(voiceLabel('Serena')).toBe('Serena');
         expect(voiceLabel('Harper')).toBe('Harper');
         expect(voiceLabel('')).toBe('');
@@ -558,5 +560,27 @@ describe('isOrphanedHostedVoice (a hosted pick the catalog dropped)', () => {
         expect(isOrphanedHostedVoice(null, voices)).toBe(false);
         // A browser voice that shares a retired hosted name is not hosted.
         expect(isOrphanedHostedVoice('browser:Pulcherrima', voices)).toBe(false);
+    });
+});
+
+describe('renamedHostedVoice (a hosted pick under a name the voice dropped)', () => {
+    const voices: ScoredVoice[] = [
+        { name: 'Harper', lang: 'en-US', score: 3, engine: 'aloud' },
+        { name: 'Dahai', lang: 'en-US', score: 3, engine: 'aloud', formerly: ['Yunfan'] },
+        { name: 'Yunfan', lang: 'zh-CN', score: 1, engine: 'browser' },
+    ];
+
+    it('moves the pick to the name the voice has now', () => {
+        expect(renamedHostedVoice('aloud:Yunfan', voices)).toBe('aloud:Dahai');
+        vi.stubGlobal('navigator', { language: 'en-US' });
+        const listed = buildScoredVoiceList([], false, [{ name: 'Dahai', formerly: ['Yunfan'], gender: 'male', tier: 'premium' }]);
+        expect(renamedHostedVoice('aloud:Yunfan', listed)).toBe('aloud:Dahai');
+    });
+
+    it('leaves a current hosted name, a local voice and no pick alone', () => {
+        expect(renamedHostedVoice('aloud:Dahai', voices)).toBeNull();
+        expect(renamedHostedVoice('aloud:Harper', voices)).toBeNull();
+        expect(renamedHostedVoice('browser:Yunfan', voices)).toBeNull();
+        expect(renamedHostedVoice(null, voices)).toBeNull();
     });
 });

@@ -15,7 +15,7 @@
  */
 
 import { LEAVE_LEAD, LEAVE_TAIL, editDistance, leavesAsk, soundKey } from './setup-command.js';
-import { wordIsName, zhSaysName } from './voice-names.js';
+import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 export type SetupPick =
@@ -107,8 +107,7 @@ function words(utterance: string): string[] {
 
 /**
  * Which of `names` the words `said` name, or null. In order: the whole name
- * (with or without the spaces between the words said), or a zh house voice's
- * Latin respelling (voice-names.ts `wordIsName`);
+ * (with or without the spaces between the words said);
  * else the names that contain every word said ("opus" for "Claude Opus 5.5",
  * "amy" for "en_US-amy-medium"), the first listed winning, since both lists
  * come best first; else, for one word, a name that sounds like it ("Eason"
@@ -122,9 +121,6 @@ export function namedIn(said: readonly string[], names: readonly string[]): numb
     const run = said.join('');
     const whole = tokens.findIndex((name) => name.join(' ') === joined || name.join('') === run);
     if (whole >= 0) return whole;
-    // A zh house voice as a zh recognizer spells it ("Sarina" for Serena).
-    const respelled = names.findIndex((name) => wordIsName(run, name));
-    if (respelled >= 0) return respelled;
     const contains = tokens.findIndex((name) => said.every((word) => name.includes(word)));
     if (contains >= 0) return contains;
     if (said.length !== 1 || said[0]!.length < 4) return null;

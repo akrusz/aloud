@@ -142,6 +142,9 @@ export interface SpeakRequest {
  *  as the /cloud/v1/tts `voice`. */
 export interface CloudVoice {
     name: string;
+    /** Names this voice had before (CuratedVoice.formerly): a pick stored
+     *  under one of them is this voice. */
+    formerly?: string[];
     gender: 'female' | 'male' | 'androgynous';
     /** Quality/placement bucket (voice-catalog VoiceTier): 'premium' leads the
      *  picker, 'value' sits one rung below it. Not the price: see

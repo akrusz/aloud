@@ -179,7 +179,7 @@ export function setupLineText(id: SetupLineId, language: string, vars: { name?: 
     const name = spokenVoiceName(vars.name ?? '', language);
     const line = SETUP_LINES[id][setupLanguage(language)];
     // A name in characters sits in the sentence without the spaces a Latin
-    // one is set off by: 我是云帆, 我是 Serena.
+    // one is set off by: 我是大海, 我是 Harper.
     return /^[㐀-鿿]/u.test(name) ? line.replace(/ ?\{name\} ?/, name) : line.replace('{name}', name);
 }
 

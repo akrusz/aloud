@@ -34,6 +34,7 @@ import type { SttEngine } from '../../../src/platform/index.js';
 import {
     defaultVoicePick,
     isOrphanedHostedVoice,
+    renamedHostedVoice,
     downloadVoiceFromRow,
     invalidateServerVoicesCache,
     loadScoredVoices,
@@ -674,6 +675,12 @@ export async function mountSetupView(
         // loadSetup) hides incompatible voices in the picker.
         scoredVoices = await loadScoredVoices(setup.language);
         voicesLoaded = true;
+        // A pick stored under a hosted voice's old name follows it.
+        const renamed = renamedHostedVoice(setup.voice, scoredVoices);
+        if (renamed) {
+            setup.voice = renamed;
+            void persistDefaultVoice(setup.voice, setup.ttsRate);
+        }
         // Never leave the picker on a bare "Default", or on a hosted voice
         // that is gone.
         if (!stripVoicePrefix(setup.voice) || isOrphanedHostedVoice(setup.voice, scoredVoices)) {

@@ -217,11 +217,11 @@ meant to work.
       attention-focus card did, a second or two in, while the setup mic let
       go of its stream as each line began (voice-commands.md, "Stopped is not
       let go").
-- [ ] **zh**: the same quick pass with the language set to 中文 (Serena and
-      Yunfan; the lines are an unreviewed draft). On the tour's voice step
-      Yunfan introduces himself as 云帆 with no accent on the name, and saying
-      云帆 (or Serena) picks him (or her); so does 试听云帆 with the voice
-      picker closed. Note what the recognizer wrote if it does not.
+- [ ] **zh**: the same quick pass with the language set to 中文 (小月 and
+      大海; the lines are an unreviewed draft). On the tour's voice step each
+      introduces itself by its Chinese name, and saying 大海 (or 小月) picks
+      him (or her); so does 试听大海 with the voice picker closed. Note what
+      the recognizer wrote if it does not.
 
 **The sheet.** Read each line as its own utterance, with a pause between.
 Lines marked ✗ must do nothing.
@@ -314,8 +314,8 @@ Must do nothing (✗):
     开阔。                                   → off (added above)
     特别要求。                               → "你的特别要求是什么？"
     特别要求：慢一点。
-    试听云帆。                               → plays Yunfan's sample
-    试听Serena。
+    试听大海。                               → plays Dahai's sample
+    试听小月。
     停止聆听。
     开始。
     ✗ 今天天气不错。

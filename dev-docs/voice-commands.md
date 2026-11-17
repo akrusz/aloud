@@ -192,48 +192,45 @@ spacious vibe" does. Special requests are 特别要求 (or 补充指引, the old
 label): 特别要求 / 我有一个特别要求 asks, 特别要求：慢一点 / 我的特别要求是慢一点
 says it, 清除特别要求 empties it.
 
-The zh house voices have Latin names in the catalog, and a Chinese sentence
-needs them otherwise in both directions (`voice-names.ts`). Spoken, a zh line
-said "我是 Yunfan" with the name read as an English word, the only accented
-word in it; Yunfan's lines now say 云帆 (`spokenVoiceName`, used by
-`setupLineText`, so the clips render with it). Azure gives no characters for
-him (its voices list has "Yunfan Dragon HD Latest" as the local name, where
-older voices have 云希, 云健), so 云帆 is our choice. Serena is an English name
-and stays "Serena" in a zh line, as an English name does in Chinese speech.
-Heard, a zh recognizer writes characters, and the voice picker and the tour's
-voice step looked for the Latin name in them, so a correctly heard 云帆 matched
-nothing. `zhSaysName` takes the Latin name or what a recognizer writes for the
-syllables (yún fān: 云帆, 云凡, 运帆, 雲帆 ...; Serena: 瑟琳娜, 塞雷娜, 赛琳娜 ...),
-and the names as said are in `setupVocabulary('zh').phrases`. The zh UI shows
-him as 云帆 too, wherever a voice's name is shown (`displayVoiceName`,
-`voiceLabel` in `ui/src/voice-picker.ts`); the stored id, the server and the
-English UI keep "Yunfan". An English recognizer writing "yun fan" as two
-words now finds him too (`namedIn`).
+The zh house voices go by Chinese names that local Whisper writes right
+(`voice-names.ts`): 大海 (catalog name Dahai, Azure's Yunfan) and 小月
+(Xiaoyue, Azure's Xiaoqiu). The catalog name is the pinyin, which storage, the
+server and every English screen use. A zh line says the characters
+(`spokenVoiceName`, used by `setupLineText`, so the clips render with them),
+the zh UI shows them (`displayVoiceName`, `voiceLabel` in
+`ui/src/voice-picker.ts`), and `zhSaysName` finds a voice by what a zh
+recognizer wrote for its name (`heard`) or by its catalog name in Latin
+letters. The names as said are in `setupVocabulary('zh').phrases`. Dahai was
+"Yunfan" until 2026-11-17: the catalog keeps that in `formerly`, so
+`resolveVoice` still speaks a stored "Yunfan" and the client moves the pick to
+the new name (`renamedHostedVoice`, from `CloudVoice.formerly`).
 
-The spellings are measured, not guessed (2026-11-17): the names said the ways
-people pick at the voice step (云帆, 我选云帆, 云帆吧, 我要云帆的声音 ...;
-Serena in Latin letters and as 瑟琳娜), rendered by twelve Mandarin voices of
-the server's TTS and three macOS ones, clean and under room noise, and
-transcribed by the desktop's local Whisper as the setup screen runs it (base,
-zh, no prompt: `setupVocabulary('zh').prompt` is null, so `zhVoicePhrases`
-reaches only the phone recognizers' phrase lists, never Whisper). For yún
-Whisper also writes yuán (元, 援, 远, 圆, 缘), yín and yǒng, for fān it writes
-fēn, fāng and shān, often in traditional characters (`zh-script.ts` maps the
-ones the matchers read), and Serena comes back mostly in Latin letters (Sarina,
-Srina, Cirina, "就是Rina") or as 色林呢 / 色灵啊. Each name has three tiers in
-`ZH_NAMES`: `heard` anywhere in the utterance, `latin` for a run of Latin
-letters, and `loose` (缘分, 远方, 一番, 司霖) only as the whole answer, with
-nothing around it but the words of a pick (`PICK_WORDS`), since those are
-everyday words or barely the name. On that sample the tour's voice step picks
-Yunfan from 229 of 252 takes (53% before; 139 of 144 clean takes from the
-server's voices) and Serena from 82 of 168 (4% before). The rest of Serena's
-takes come back as other words (水呢, 要死了, 做好), which no spelling can
-recover, and a bare "Serena" is the worst of them. A Whisper prompt of the
-two names does not help: on 78 of the takes it wrote the prompt back
-("Serena，云帆。" for Serena吧), which names both and picks neither, and Serena
-fell from 20 of 32 to 16. 女声 / 男声 and 第一个 /
-第二个 came through in all 36 takes and pick at the voice step too
-(`pickedVoice` in `tour-command.ts`); 男的吧 comes back 难得吧.
+The names are measured (2026-11-17), because the ones before were not: 云帆
+needed a table of a dozen spellings (元凡, 缘分, 远方 ...) to pick him in 91%
+of takes, and Serena came back as Latin respellings or other words, 49%.
+Thirty names of two syllables were said the ways people pick at the voice step
+(X, 我选X, X吧, 要X, 选X, 用X, 就X吧, 我要X的声音) by four Mandarin voices of
+the server's TTS, two of each sex, clean and under room noise, and transcribed
+by the desktop's local Whisper as the setup screen runs it (base, zh, no
+prompt: `setupVocabulary('zh').prompt` is null, so `zhVoicePhrases` reaches
+only the phone recognizers' phrase lists, never Whisper). Whisper writes the
+everyday word it expects, so the homely names won and the poetic ones lost:
+大海 came back as written in 62 of 64 takes, 大山 and 小北 in 84% and 83%, 清风
+in 51% (青风, 青峰), 晨光 and 浩然 never (成光, 好燃); of the female names
+小月 91%, 珍珠 88%, 小雨 70% (小语), 明月 62%. The two winners then went through
+eight more of the server's voices. 大海 also comes back as 大孩, and 小月 as
+小玉, 小悦 or 晓月; `heard` takes those, and nothing else. Through the matchers
+the voice step (`parseTourCommand`) and the open picker (`parseSetupPick`)
+pick Dahai from 186 of 192 takes by the twelve voices (95 of 96 clean) and
+Xiaoyue from 174 (90 of 96 clean), seven of her 18 misses from one voice
+(Xiaohan, whose 小 Whisper hears as 想 or 巧). macOS `say` voices are no guide:
+Eddy's 大海 never came back right. Neither name turns up in anything else the
+setup screen hears (its zh vocabulary, the tour's words, the zh UI strings and
+earlier transcripts, about 3,100 strings). A Whisper prompt of the old names
+did not help: it wrote the prompt back on 78 takes ("Serena，云帆。" for
+Serena吧), naming both. 女声 / 男声 and 第一个 / 第二个 came through in all 36
+takes and pick at the voice step too (`pickedVoice` in `tour-command.ts`);
+男的吧 comes back 难得吧.
 
 ### What happens to a request
 
@@ -364,7 +361,7 @@ hosted voice:
   tour (`AppSettings.houseVoice`), else the language's default (the female
   one). House voices are the catalog entries flagged `house`
   (`server/src/providers/voice-catalog.ts`): Harper and Ethan for English,
-  Serena and Yunfan for Chinese.
+  Xiaoyue and Dahai (小月, 大海) for Chinese.
 - Where neither can speak (no clip, a browser tab that won't play without a
   gesture), the caption is the answer.
 

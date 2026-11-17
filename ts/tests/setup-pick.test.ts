@@ -47,10 +47,10 @@ describe('the voice picker by voice', () => {
     });
 
     it('never reads a name, a preview or a bare no as a close', () => {
-        const zh = { voices: ['Serena', 'Yunfan', 'Harper'], pickerOpen: true };
+        const zh = { voices: ['Xiaoyue', 'Dahai', 'Harper'], pickerOpen: true };
         expect(pick('Harper.', zh)).toEqual({ kind: 'voice', name: 'Harper', preview: false });
-        expect(pick('云帆吧', zh)).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
-        expect(pick('preview Serena', zh)).toEqual({ kind: 'voice', name: 'Serena', preview: true });
+        expect(pick('大海吧', zh)).toEqual({ kind: 'voice', name: 'Dahai', preview: false });
+        expect(pick('preview Xiaoyue', zh)).toEqual({ kind: 'voice', name: 'Xiaoyue', preview: true });
         for (const said of ['no', 'stop', 'skip', 'close the door', 'go back to sleep', '好的', '关闭声音', '我不想离开']) {
             expect(pick(said, zh), said).toBeNull();
         }
@@ -106,31 +106,25 @@ describe('a voice by name', () => {
         expect(pick('声音换成Serena', { voices: ['Serena', 'Ethan'] })).toEqual({ kind: 'voice', name: 'Serena', preview: false });
     });
 
-    it('hears the zh house voices by the characters a recognizer writes for them', () => {
-        const zh = { voices: ['Serena', 'Yunfan', 'Harper'] };
-        for (const said of ['试听云帆', '试听雲帆', '声音换成云凡', '我想听听运帆的声音', '试听Yunfan']) {
-            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Yunfan' });
+    it('hears the zh house voices by their Chinese names, or their catalog names', () => {
+        const zh = { voices: ['Xiaoyue', 'Dahai', 'Harper'] };
+        // 大孩 and 小玉 (and 小悦, 晓月) are what local Whisper wrote for them on
+        // a few takes.
+        for (const said of ['试听大海', '声音换成大海', '我想听听大海的声音', '试听大孩', '试听Dahai']) {
+            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Dahai' });
         }
-        for (const said of ['试听瑟琳娜', '声音换成塞雷娜', '试听賽琳娜', '试听Serena']) {
-            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Serena' });
+        for (const said of ['试听小月', '声音换成小月', '试听小玉', '试听Xiaoyue']) {
+            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Xiaoyue' });
         }
-        expect(pick('云帆', { ...zh, pickerOpen: true })).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
+        expect(pick('大海', { ...zh, pickerOpen: true })).toEqual({ kind: 'voice', name: 'Dahai', preview: false });
         // A name alone is still only an answer while the picker is up.
-        expect(pick('云帆', zh)).toBeNull();
-        expect(pick('试听云帆和瑟琳娜', zh)).toBeNull();
+        expect(pick('大海', zh)).toBeNull();
+        expect(pick('试听大海和小月', zh)).toBeNull();
         expect(pick('试听Harper', zh)).toMatchObject({ kind: 'voice', name: 'Harper' });
     });
 
-    it('hears the zh house voices as local Whisper writes them, picker up', () => {
-        const zh = { voices: ['Serena', 'Yunfan', 'Harper'], pickerOpen: true };
-        for (const said of ['我選雲翻。', '元凡', '我选 Yun-Fan', '试听元番']) expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Yunfan' });
-        for (const said of ['Sarina', '我選Srina.', '色林呢', '司霖了吧']) expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Serena' });
-        expect(pick('要死了', zh)).toBeNull();
-        expect(pick('Sarina', { voices: ['Serena', 'Yunfan'] })).toBeNull();
-    });
-
     it('takes a name an English recognizer wrote as two words', () => {
-        expect(pick('set the voice to yun fan', { voices: ['Serena', 'Yunfan'] })).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
+        expect(pick('set the voice to da hai', { voices: ['Xiaoyue', 'Dahai'] })).toEqual({ kind: 'voice', name: 'Dahai', preview: false });
         expect(namedIn(['harper'], ['Harper', 'Ethan'])).toBe(0);
     });
 });

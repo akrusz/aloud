@@ -234,24 +234,37 @@ as-shipped audition line (LUFS before → gainDb):
 | Phoenix | -22.8 | 0 | Harper | -17.8 | -4.5 |
 | Orion | -23.2 | 0 | Isla | -17.5 | -4.5 |
 | Leda | -23.0 | 0 | Serena | -26.7 | +3 |
-| Vega | -19.2 | -3 | Yunfan | -28.1 | +3 |
+| Vega | -19.2 | -3 | Dahai | -28.1 | +3 |
 | Rigel | -19.1 | -3 | Luna | -22.1 | 0 |
 | Ada | -17.7 | -4.5 | Wren | -25.0 | +3 |
 | Davis | -21.6 | -1.5 | Silas | -25.8 | +3 |
 | Ethan | -24.9 | +3 | Clive | -24.3 | +1.5 |
 
-Serena and Yunfan stop short of the target: their peaks allow one step more
-than the first pass gave them (gainDb 3 since 2026-11-17, the loudest of a
-dozen takes then peaking at -2.5 and -0.8 dBTP) and no further, and they move
-up to 8 dB from one take to the next. With that gain a session sits at about
--24.3 LUFS (Serena) and -27.7 (Yunfan), recorded as `sessionLufs`. The dev's
-rule is that a voice is as loud in the tour as in the session it leads into,
-even where that is quieter than the other voices. So
+Serena and Dahai (Azure's Yunfan) stop short of the target: their peaks
+allow one step more than the first pass gave them (gainDb 3 since 2026-11-17,
+the loudest of a dozen takes then peaking at -2.5 and -0.8 dBTP) and no
+further, and they move up to 8 dB from one take to the next. With that gain a
+session sits at about -24.3 LUFS (Serena) and -27.7 (Dahai), recorded as
+`sessionLufs`. The dev's rule is that a voice is as loud in the tour as in the
+session it leads into, even where that is quieter than the other voices. So
 `scripts/render-voice-clips.ts` levels every setup clip by its own gain behind
 a limiter (`levelGain`, `encodeClip`) to the voice's `sessionLufs`, or to
 -22.4 without one, and marks it `levelled` in the manifest; a later change of
 `gainDb` renames such a clip and moves nothing, so `sessionLufs` moves with it
-by hand. Louder Chinese voices mean new voices.
+by hand.
+
+That is why Serena is no longer a house voice. The zh female one is Xiaoyue
+(小月), Azure's zh-CN-XiaoqiuNeural, picked on 2026-11-17 by measure alone from
+ten zh-native female Azure voices (DragonHD, HD Flash, HD Omni, multilingual
+and plain neural, MAI-Voice-2.1-Flash) reading setup lines at session pace.
+Xiaoqiu was the slowest of them (282 ms a character; Serena 289, Dahai 248),
+paused only at punctuation, and sat at -20.6 LUFS with -3.9 dBTP peaks, the
+same on every take of a line, as a plain neural voice renders it; so gainDb
+-1.5 reaches the target with headroom, where Serena and Dahai spread 2.6 and
+4.8 dB over five takes of the same lines. The runners-up were Xiaoyu (HD
+Flash) and Mei (MAI-Voice-2.1-Flash). All three cost what Serena and Dahai do
+or less ($16, $22 and $15 a million characters), none lost an opening or
+doubled 很好 in ten takes, and no native speaker has heard them yet.
 
 **Harper's lead word.** Harper's softvoice swallows a consonant-initial
 opening word on most takes ("Back to Exploration" lost "Back" 6 of 7, "That

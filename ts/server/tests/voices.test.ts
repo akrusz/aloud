@@ -37,6 +37,11 @@ describe('voice catalog', () => {
         expect(resolveVoice('Mira').voiceId).toBe(defaultVoice().providerVoiceId);
     });
 
+    it('still answers to a renamed voice\'s old name, which clients have stored', () => {
+        expect(resolveVoice('Yunfan')).toEqual(resolveVoice('Dahai'));
+        expect(resolveVoice('Yunfan').voiceId).toBe('zh-CN-Yunfan:DragonHDLatestNeural');
+    });
+
     it('defaultVoice falls through its chain to a provider with a key', () => {
         const flagged = defaultVoice();
         // Full availability: the flagged default wins.
@@ -82,7 +87,18 @@ describe('GET /cloud/v1/voices', () => {
             )
         );
         const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
-        expect(voices.map((v) => v.name)).toEqual(CURATED_VOICES.map((v) => v.name));
+        expect(voices.map((v) => v.name)).toEqual(CURATED_VOICES.filter((v) => !v.only).map((v) => v.name));
+        // A voice for one language is listed to a client asking in it.
+        expect(voices.some((v) => v.name === 'Xiaoyue')).toBe(false);
+        const zh = (await (await app.request('/cloud/v1/voices?lang=zh')).json()) as CloudVoice[];
+        expect(zh.map((v) => v.name)).toEqual(CURATED_VOICES.map((v) => v.name));
+    });
+
+    it("lists a renamed voice's old names, so a client can move a stored pick", async () => {
+        const app = createApp(buildDeps(loadConfig({ AZURE_SPEECH_KEY: 'k3' })));
+        const voices = (await (await app.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        expect(voices.find((v) => v.name === 'Dahai')!.formerly).toEqual(['Yunfan']);
+        expect(voices.find((v) => v.name === 'Harper')!.formerly).toBeUndefined();
     });
 
     it('hides the Inworld voices without its key, as for every provider', async () => {

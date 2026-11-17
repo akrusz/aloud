@@ -129,8 +129,10 @@ export function createApp(deps: Deps): Hono {
             (Object.keys(hasKey) as (keyof typeof hasKey)[]).filter((k) => hasKey[k])
         );
         const fallback = defaultVoice(available).name;
-        const voices: CloudVoice[] = CURATED_VOICES.filter((v) => hasKey[v.provider]).map((v) => ({
+        const lang = c.req.query('lang');
+        const voices: CloudVoice[] = CURATED_VOICES.filter((v) => hasKey[v.provider] && (!v.only || v.only === lang)).map((v) => ({
             name: v.name,
+            ...(v.formerly ? { formerly: [...v.formerly] } : {}),
             gender: v.gender,
             tier: v.tier,
             creditsPerHourTypical: voiceCreditsPerHourTypical(v.provider, v.providerVoiceId, v),

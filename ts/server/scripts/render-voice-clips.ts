@@ -232,7 +232,7 @@ const CLIP_BITRATE = '48k';
 /** What a clip is levelled to: the catalog average (CuratedVoice.gainDb), or
  *  for a voice that can't reach it, where its sessions sit (sessionLufs), so
  *  the tour is never louder than what follows. A voice's gainDb is one trim
- *  for all its audio and some voices move 8 dB from take to take (Yunfan,
+ *  for all its audio and some voices move 8 dB from take to take (Dahai,
  *  Serena); a clip is one take, decoded here anyway, so it gets its own. */
 const CLIP_LUFS = -22.4;
 /** The sample peak a boosted clip is limited to: about -3 dBFS, which keeps

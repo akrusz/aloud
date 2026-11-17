@@ -27,6 +27,16 @@ export type VoiceTier = 'premium' | 'value';
 export interface CuratedVoice {
     /** Short display name shown + stored by the client (e.g. "Phoenix"). */
     name: string;
+    /** Names the voice was published under before. Clients have them stored
+     *  as picks, so resolveVoice still answers to them and /cloud/v1/voices
+     *  lists them, which lets a client move a stored pick to `name`
+     *  (ui voice-picker.ts renamedHostedVoice). */
+    formerly?: readonly string[];
+    /** The one language the voice is offered in: /cloud/v1/voices lists it
+     *  only to a client that asks in that language (`?lang=`), so no English
+     *  session, and no client older than the parameter, is offered a voice
+     *  nobody has heard speak English. */
+    only?: 'zh';
     provider: TtsProvider;
     /** Google Cloud TTS voice id (en-US-Chirp3-HD-Leda), Azure ShortName
      *  (en-US-AvaMultilingualNeural), or Inworld
@@ -160,10 +170,21 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
     // heard it as a bit fast in both languages (2026-11-14).
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -24.3 },
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', gainDb: 3, sessionLufs: -24.3 },
     // Serena's model with a Mandarin persona; the dev heard it in both
     // languages (2026-11-14). No zhNative until a native speaker has listened.
-    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -27.7 },
+    // The zh house voices go by Chinese names that local Whisper writes right
+    // (dev-docs/voice-commands.md), here 大海; Azure calls this one Yunfan, and
+    // so did the catalog until 2026-11-17.
+    { name: 'Dahai', formerly: ['Yunfan'], provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -27.7 },
+    // 小月, Azure's Xiaoqiu (晓秋): the zh female house voice since
+    // 2026-11-17, picked on measures alone (dev-docs/ts-server.md) and not yet
+    // heard by a native speaker. A plain neural voice, so a line comes out the
+    // same on every take, at -20.6 LUFS before gain. A zh-CN voice, not one of
+    // Azure's multilingual ones, so its English is unheard and it is `only`
+    // for zh; `multilingual` is what keeps a zh session from marking it as
+    // the wrong language.
+    { name: 'Xiaoyue', provider: 'azure', multilingual: true, only: 'zh', providerVoiceId: 'zh-CN-XiaoqiuNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: -1.5 },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,
@@ -236,9 +257,10 @@ function resolvedFrom(v: CuratedVoice): ResolvedVoice {
 
 /**
  * Resolve a client-supplied voice to (provider, voiceId). Accepts a curated
- * short name ("Leda", "Harper"), a raw Google or Azure voice id (power-user
- * passthrough), or empty → the default (steered by `available` to a provider
- * with a key - see defaultVoice). The meter bills per char at the RESOLVED
+ * short name ("Leda", "Harper") or one it had before (`formerly`), a raw
+ * Google or Azure voice id (power-user passthrough), or empty → the default
+ * (steered by `available` to a provider with a key - see defaultVoice). The
+ * meter bills per char at the RESOLVED
  * provider's rate, so an unrecognized value can't be a billing problem.
  */
 export function resolveVoice(
@@ -246,7 +268,7 @@ export function resolveVoice(
     available?: ReadonlySet<TtsProvider>
 ): ResolvedVoice {
     if (!voice) return resolvedFrom(defaultVoice(available));
-    const curated = CURATED_VOICES.find((v) => v.name === voice);
+    const curated = CURATED_VOICES.find((v) => v.name === voice || v.formerly?.includes(voice));
     if (curated) return resolvedFrom(curated);
     // A short name that is no longer curated (a removed voice, e.g. Mira,
     // 2026-09-01) falls back to the default rather than the passthrough below:
