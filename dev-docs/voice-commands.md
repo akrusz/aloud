@@ -192,8 +192,10 @@ Heard, a zh recognizer writes characters, and the voice picker and the tour's
 voice step looked for the Latin name in them, so a correctly heard 云帆 matched
 nothing. `zhSaysName` takes the Latin name or what a recognizer writes for the
 syllables (yún fān: 云帆, 云凡, 运帆, 雲帆 ...; Serena: 瑟琳娜, 塞雷娜, 赛琳娜 ...),
-and the names as said are in `setupVocabulary('zh').phrases`. The picker and
-the tour still show "Yunfan". An English recognizer writing "yun fan" as two
+and the names as said are in `setupVocabulary('zh').phrases`. The zh UI shows
+him as 云帆 too, wherever a voice's name is shown (`displayVoiceName`,
+`voiceLabel` in `ui/src/voice-picker.ts`); the stored id, the server and the
+English UI keep "Yunfan". An English recognizer writing "yun fan" as two
 words now finds him too (`namedIn`).
 
 ### What happens to a request

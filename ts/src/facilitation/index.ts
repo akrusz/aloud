@@ -76,6 +76,7 @@ export type { BeginRequest, BeginMode } from './begin-command.js';
 export { parseSetupCommand, isSetupCommand, leavesAsk, setupVocabulary, GUIDANCE_STOPS } from './setup-command.js';
 export type { SetupAction, SetupFocus } from './setup-command.js';
 export { parseSetupPick, namedIn } from './setup-pick.js';
+export { displayVoiceName } from './voice-names.js';
 export type { SetupPick, PickContext } from './setup-pick.js';
 export {
     SETUP_SPECS,

@@ -18,12 +18,13 @@
  */
 
 import type { TtsEngine } from '../../src/platform/index.js';
+import { displayVoiceName } from '../../src/facilitation/index.js';
 
 import { createTtsForVoice, createCloudAloudPreviewTts } from './adapters/tts-picker.js';
 import { rateBadge, RATE_LEGEND, RATE_LEGEND_TITLE } from './credit-rate.js';
 import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
-import { t } from './i18n.js';
+import { t, uiLang } from './i18n.js';
 import { alertDialog } from './dialog.js';
 import { readNdjson } from './ndjson.js';
 
@@ -147,6 +148,12 @@ export const PREVIEW_PHRASE = "Welcome to aloud. I'll be your facilitator.";
 export function prefixedVoiceId(engine: string | undefined, name: string): string {
     const prefix = engine === 'browser' ? 'browser:' : engine === 'aloud' ? 'aloud:' : 'server:';
     return `${prefix}${name}`;
+}
+
+/** A voice's name as this screen shows it: 云帆 for Yunfan in the zh UI
+ *  (core voice-names.ts). Display only; lookups and storage take the name. */
+export function voiceLabel(name: string): string {
+    return displayVoiceName(name, uiLang());
 }
 
 /** A stored voice id as the raw name the picker lists (strips the engine
@@ -548,7 +555,7 @@ function appendRow(
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'voice-row-name';
-    nameSpan.textContent = entry.name;
+    nameSpan.textContent = voiceLabel(entry.name);
     if (entry.note) {
         const note = document.createElement('span');
         note.className = 'voice-row-engine';
@@ -619,7 +626,7 @@ function appendRow(
     previewBtn.className = 'voice-row-preview';
     previewBtn.textContent = t('Preview');
     // A screen reader lists a page's buttons out of their rows.
-    previewBtn.setAttribute('aria-label', t('Preview {name}', { name: entry.name }));
+    previewBtn.setAttribute('aria-label', t('Preview {name}', { name: voiceLabel(entry.name) }));
     previewBtn.dataset['voiceName'] = entry.name;
     if (entry.needsDownload && !entry.downloaded) {
         previewBtn.classList.add('preview-unavailable');

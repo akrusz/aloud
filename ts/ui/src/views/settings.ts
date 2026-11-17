@@ -81,6 +81,7 @@ import {
     renderVoiceList,
     renderVoiceModalHTML,
     stripVoicePrefix,
+    voiceLabel,
     syncSpeedControlForVoice,
     voiceRateLabel,
     stopPreview,
@@ -1025,7 +1026,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
 
     function updateVoiceButtonLabel(btn: HTMLButtonElement): void {
         const name = stripVoicePrefix(settings.defaultVoice);
-        if (name) btn.textContent = `${name} · ${voiceRateLabel(name, scoredVoices, settings.defaultTtsRate)}`;
+        if (name) btn.textContent = `${voiceLabel(name)} · ${voiceRateLabel(name, scoredVoices, settings.defaultTtsRate)}`;
         else btn.textContent = scoredVoices.length > 0 ? t('Choose voice') : t('Default');
     }
 

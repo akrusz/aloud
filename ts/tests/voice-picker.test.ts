@@ -8,10 +8,26 @@ import {
     isOrphanedHostedVoice,
     prefixedVoiceId,
     previewErrorMessage,
+    voiceLabel,
     type ScoredVoice,
 } from '../ui/src/voice-picker.js';
+import { setUiLang } from '../ui/src/i18n.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    setUiLang('en');
+});
+
+describe('voiceLabel', () => {
+    it('shows a zh house voice by the name its lines say, in the zh UI only', () => {
+        expect(voiceLabel('Yunfan')).toBe('Yunfan');
+        setUiLang('zh');
+        expect(voiceLabel('Yunfan')).toBe('云帆');
+        expect(voiceLabel('Serena')).toBe('Serena');
+        expect(voiceLabel('Harper')).toBe('Harper');
+        expect(voiceLabel('')).toBe('');
+    });
+});
 
 /** A Response whose body streams the given NDJSON lines as UTF-8 chunks. */
 function ndjsonResponse(lines: string[], chunking: 'whole' | 'split' = 'whole'): Response {

@@ -10,12 +10,17 @@
  *   云凡 ...), and the matchers (setup-pick.ts, tour-command.ts) looked for
  *   the Latin name in the text. `zhSaysName` reads those spellings.
  *
+ * - Shown: the zh UI calls a voice what its lines call it
+ *   (`displayVoiceName`), so 云帆 on the screen is 云帆 out loud. Storage, the
+ *   server and every English screen keep the catalog name.
+ *
  * Only the house voices of a zh session are here; a voice that isn't keeps its
  * Latin name in both directions. Matched on simplified text (zh-script.ts).
  */
 
 interface ZhName {
-    /** What a zh line says. Latin where the name is foreign to Chinese too. */
+    /** What a zh line says and the zh UI shows. Latin where the name is
+     *  foreign to Chinese too. */
     said: string;
     /** The characters a recognizer may write for it, by syllable: each class
      *  is one syllable's homophones, tones and a soft n/ng aside. */
@@ -42,6 +47,11 @@ const ZH_NAMES: Readonly<Record<string, ZhName>> = {
 /** The name as a line in `language` says it. */
 export function spokenVoiceName(name: string, language: string): string {
     return language === 'zh' ? (ZH_NAMES[name]?.said ?? name) : name;
+}
+
+/** The name as the UI in `language` shows it: what its lines say. */
+export function displayVoiceName(name: string, language: string): string {
+    return spokenVoiceName(name, language);
 }
 
 /** Whether simplified zh text names the voice: its Latin name, or what a

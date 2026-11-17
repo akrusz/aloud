@@ -18,11 +18,11 @@
  */
 
 import { sharedKv } from '../state.js';
-import { t } from '../i18n.js';
+import { t, uiLang } from '../i18n.js';
 import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { escapeHtml } from '../escape-html.js';
 import { isTauri } from '../is-desktop.js';
-import { parseTourCommand, type OfferedVoice, type SetupLineId } from '../../../src/facilitation/index.js';
+import { displayVoiceName, parseTourCommand, type OfferedVoice, type SetupLineId } from '../../../src/facilitation/index.js';
 import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
@@ -693,7 +693,7 @@ function showVoiceStep(): void {
     html += '<div class="tour-choices tour-voices">';
     offered.forEach((voice, i) => {
         html += '<button class="tour-choice" data-action="voice" data-voice="' + i + '">';
-        html += '<strong>' + escapeHtml(voice.name) + '</strong></button>';
+        html += '<strong>' + escapeHtml(displayVoiceName(voice.name, uiLang())) + '</strong></button>';
     });
     html += '</div>';
     showCentered(html);

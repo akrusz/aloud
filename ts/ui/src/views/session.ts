@@ -206,6 +206,7 @@ import {
     ENGINE_LABELS,
     type ScoredVoice,
     stripVoicePrefix,
+    voiceLabel,
 } from '../voice-picker.js';
 import { onBackdropClick } from '../modal-backdrop.js';
 import { sessionOllama } from '../setup-local-reader.js';
@@ -631,7 +632,7 @@ export async function mountSessionView(
         rows.push(
             {
                 label: t('Voice'),
-                value: voiceName ?? t('Default'),
+                value: voiceName ? voiceLabel(voiceName) : t('Default'),
                 note: engineLabel
                     ? `${t(engineLabel)} · ${voiceRateLabel(voiceName, scoredVoices, setup.ttsRate)}`
                     : voiceRateLabel(voiceName, scoredVoices, setup.ttsRate),
@@ -3183,7 +3184,7 @@ export async function mountSessionView(
 
     function updateVoicePickerLabel(): void {
         const name = stripVoicePrefix(setup.voice);
-        if (name) voicePickerBtn.textContent = `${name} · ${voiceRateLabel(name, scoredVoices, setup.ttsRate)}`;
+        if (name) voicePickerBtn.textContent = `${voiceLabel(name)} · ${voiceRateLabel(name, scoredVoices, setup.ttsRate)}`;
         else voicePickerBtn.textContent = t('Voice');
     }
 

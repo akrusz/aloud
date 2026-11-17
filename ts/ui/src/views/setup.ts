@@ -43,6 +43,7 @@ import {
     renderVoiceList,
     renderVoiceModalHTML,
     stripVoicePrefix,
+    voiceLabel,
     syncSpeedControlForVoice,
     voiceRateLabel,
     stopPreview,
@@ -734,10 +735,10 @@ export async function mountSetupView(
         const ratePart = rate ? ` · ${rate}` : '';
         let text: string;
         if (entry) {
-            text = `${entry.name}${ratePart} · ${voiceRateLabel(entry.name, scoredVoices, setup.ttsRate)}`;
+            text = `${voiceLabel(entry.name)}${ratePart} · ${voiceRateLabel(entry.name, scoredVoices, setup.ttsRate)}`;
         } else if (selectedName) {
             // Voice id is stored but we haven't loaded its details yet.
-            text = `${selectedName} · ${voiceRateLabel(selectedName, scoredVoices, setup.ttsRate)}`;
+            text = `${voiceLabel(selectedName)} · ${voiceRateLabel(selectedName, scoredVoices, setup.ttsRate)}`;
         } else {
             text = scoredVoices.length > 0 ? t('Default') : t('Voice');
         }
@@ -1478,7 +1479,7 @@ export async function mountSetupView(
             return sayLines([modelSetLine(option.textContent ?? '', appSettings.language)]);
         }
         if (pick.preview) {
-            showVoiceNote(t('Previewing {name}', { name: pick.name }), true);
+            showVoiceNote(t('Previewing {name}', { name: voiceLabel(pick.name) }), true);
             return previewByVoice(pick.name);
         }
         // A row tap where the picker is up (it may be choosing a noting
@@ -1489,7 +1490,7 @@ export async function mountSetupView(
             void persistDefaultVoice(setup.voice, setup.ttsRate);
             updateVoiceButtonLabel();
         }
-        showVoiceNote(t('Voice: {name}', { name: pick.name }));
+        showVoiceNote(t('Voice: {name}', { name: voiceLabel(pick.name) }));
         // The voice answers for itself.
         return previewByVoice(pick.name);
     }
@@ -2194,7 +2195,8 @@ export async function mountSetupView(
     const REACTIVE_LABELS = ['None', 'Low', 'High'];
 
     function voiceNameFromId(id: string | null): string {
-        return stripVoicePrefix(id) ?? '';
+        const name = stripVoicePrefix(id);
+        return name ? voiceLabel(name) : '';
     }
     function participantLabel(p: NotingParticipantConfig, index: number): string {
         if (p.type === 'sound') return t(notingSoundLabel(p.sound));
@@ -2217,7 +2219,7 @@ export async function mountSetupView(
         listEl.innerHTML = ps
             .map((p, i) => {
                 const reactiveIdx = p.type === 'llm' ? Math.max(0, REACTIVE_LEVELS.indexOf(p.reactive)) : 1;
-                const voiceLabel = p.type !== 'sound' ? voiceNameFromId(p.voice ?? setup.voice) || t('Default') : t('Default');
+                const voiceText = p.type !== 'sound' ? voiceNameFromId(p.voice ?? setup.voice) || t('Default') : t('Default');
                 const soundLabel = p.type === 'sound' ? t(notingSoundLabel(p.sound)) : t('Crow');
                 const phraseVal = p.type === 'fixed' ? p.phrase : '';
                 const delayVal = p.fixedDelaySec || 4;
@@ -2237,7 +2239,7 @@ export async function mountSetupView(
                         </div>
                         <div class="participant-field participant-voice-field${p.type === 'sound' ? ' hidden' : ''}">
                             <label>${t('Voice')}</label>
-                            <button type="button" class="setup-voice-btn participant-voice-btn">${escapeHtml(voiceLabel)}</button>
+                            <button type="button" class="setup-voice-btn participant-voice-btn">${escapeHtml(voiceText)}</button>
                         </div>
                         <div class="participant-field">
                             <label>${t('Timing')}</label>
