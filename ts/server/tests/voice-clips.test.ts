@@ -6,6 +6,7 @@ import {
     secondsPerCharNorm,
     phraseCount,
     spokenChars,
+    wordCount,
 } from '../scripts/voice-clips/analysis.js';
 import {
     clipFile,
@@ -68,6 +69,16 @@ describe('clip analysis', () => {
         expect(clipFaults(a, 'Okay, noting mode.')).toEqual([]);
         const three = analyzePcm(pcm(LEAD, WORD, { silence: 0.9 }, WORD, { silence: 1.5 }, WORD), RATE);
         expect(clipFaults(three, 'Okay, noting mode.').join()).toMatch(/3 bursts for 2 phrases/);
+    });
+
+    it('counts bursts only on a short line: a long one pauses inside its clauses', () => {
+        const five = analyzePcm(pcm(LEAD, WORD, { silence: 1 }, WORD, { silence: 1 }, WORD, { silence: 1 }, WORD, { silence: 1 }, WORD), RATE);
+        const long =
+            "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it.";
+        expect(wordCount(long)).toBeGreaterThan(GATE.burstCheckMaxWords);
+        expect(clipFaults(five, long)).toEqual([]);
+        expect(clipFaults(five, 'Okay, noting mode.').join()).toMatch(/5 bursts for 2 phrases/);
+        expect(wordCount('好的，标记模式。')).toBe(6);
     });
 
     it('bridges pauses shorter than the gap, and ignores clicks', () => {

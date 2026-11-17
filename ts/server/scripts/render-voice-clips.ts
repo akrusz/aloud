@@ -23,15 +23,20 @@
  * styled voice ignores rate anyway.
  *
  * THE GATE (voice-clips/analysis.ts). Every clip is decoded with ffmpeg and
- * checked for a repeated utterance (more bursts than its phrases) and a
- * cut first word (no onset rise); a failing clip is re-rendered, up to
- * MAX_ATTEMPTS. A second pass checks each new clip's length against its
- * voice's own seconds-per-character norm, computed from the voice's whole
- * set, and re-rolls the outliers. A clip that fails every attempt keeps its
+ * checked for a repeated utterance (on a short line, more bursts than its
+ * phrases; on a long one, a word Whisper hears said again, transcript.ts)
+ * and a cut first word (no onset rise); a failing clip is re-rendered, up to
+ * MAX_ATTEMPTS. A long line is rendered until LONG_LINE_TAKES pass and keeps
+ * the one with the fewest pauses inside a clause. A second pass checks each
+ * new clip's length against its voice's own seconds-per-character norm,
+ * computed from the voice's whole set, and re-rolls the outliers. A clip that fails every attempt keeps its
  * best render and is marked `suspect` in the manifest: the run ends by
  * listing those, which are the only ones anyone needs to listen to. Deleting
  * a `suspect` field by hand after listening clears it; it stays cleared until
  * the line re-renders. Each re-roll is billed, so the estimate is a floor.
+ *
+ * Before the 48 kbps encode, every pause longer than its punctuation can
+ * carry is shortened (voice-clips/cadence.ts).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -46,7 +51,9 @@ import { withGain } from '../src/providers/mp3-gain.js';
 import { TtsUpstreamError, isProviderAccountFailure } from '../src/providers/tts.js';
 import { CURATED_VOICES, resolveVoice, type ResolvedVoice } from '../src/providers/voice-catalog.js';
 import { billedCharsFor, synthFor } from '../src/routes/tts.js';
-import { GATE, analyzePcm, clipFaults, secondsPerCharNorm, type ClipAnalysis } from './voice-clips/analysis.js';
+import { GATE, analyzePcm, clipFaults, secondsPerCharNorm, wordCount, type ClipAnalysis } from './voice-clips/analysis.js';
+import { capPauses, findPauses } from './voice-clips/cadence.js';
+import { findWhisper, repeatedWords, transcribe } from './voice-clips/transcript.js';
 import {
     emptyManifest,
     orphanFiles,
@@ -65,6 +72,11 @@ const CLIPS_DIR = resolve(UI_DIR, 'public', 'voice-clips');
 const MANIFEST_PATH = resolve(UI_DIR, 'src', 'voice-clips.json');
 
 const MAX_ATTEMPTS = 4;
+/** On these voices a long line's pauses vary more from take to take than
+ *  anything else about it (2026-11-16: 0 to 6 inside a clause over ten takes
+ *  of one line), so it is rendered until this many takes pass. */
+const LONG_LINE_TAKES = 3;
+const isLongLine = (text: string) => wordCount(text) > GATE.burstCheckMaxWords;
 const CONCURRENCY = 3;
 /** Decode rate for the gate; Azure renders at 24kHz. */
 const DECODE_RATE = 24_000;
@@ -215,11 +227,11 @@ function decodeMp3(ffmpeg: string, mp3: Uint8Array): Float32Array {
  *  in every build, so they ship at half that. */
 const CLIP_BITRATE = '48k';
 
-function shrinkMp3(ffmpeg: string, mp3: Uint8Array): Uint8Array {
+function encodeClip(ffmpeg: string, pcm: Float32Array): Uint8Array {
     return execFileSync(
         ffmpeg,
-        ['-v', 'error', '-f', 'mp3', '-i', 'pipe:0', '-codec:a', 'libmp3lame', '-b:a', CLIP_BITRATE, '-ac', '1', '-f', 'mp3', 'pipe:1'],
-        { input: mp3, maxBuffer: 64 * 1024 * 1024 }
+        ['-v', 'error', '-f', 'f32le', '-ar', String(DECODE_RATE), '-ac', '1', '-i', 'pipe:0', '-codec:a', 'libmp3lame', '-b:a', CLIP_BITRATE, '-f', 'mp3', 'pipe:1'],
+        { input: Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), maxBuffer: 64 * 1024 * 1024 }
     );
 }
 
@@ -252,6 +264,10 @@ async function synthWithRetry(synth: SynthFn, text: string): Promise<Uint8Array>
 interface Attempt {
     bytes: Uint8Array;
     analysis?: ClipAnalysis;
+    /** Pauses inside a clause (cadence.ts), what picks among a long line's takes. */
+    midClause?: number;
+    /** Words the transcript check heard said again. */
+    repeated?: string[];
 }
 
 interface Job {
@@ -264,15 +280,18 @@ interface Job {
 }
 
 function faultsOf(attempt: Attempt, text: string, norm: number | null): string[] {
-    return attempt.analysis ? clipFaults(attempt.analysis, text, norm) : [];
+    const faults = attempt.analysis ? clipFaults(attempt.analysis, text, norm) : [];
+    if (attempt.repeated?.length) faults.push(`heard "${attempt.repeated.join(' ')}" said again: probable repeat`);
+    return faults;
 }
 
-/** The attempt to keep: fewest faults, then (a repeat runs long) the shortest. */
+/** The attempt to keep: fewest faults, then fewest pauses inside a clause,
+ *  then (a repeat runs long) the shortest. */
 function bestAttempt(job: Job, norm: number | null): Attempt | undefined {
     const score = (a: Attempt) => {
         const faults = faultsOf(a, job.target.text, norm);
-        const silent = a.analysis && a.analysis.bursts.length === 0 ? 1e4 : 0;
-        return silent + faults.length * 1e3 + (a.analysis?.voicedS ?? 0);
+        const silent = a.analysis && a.analysis.bursts.length === 0 ? 1e6 : 0;
+        return silent + faults.length * 1e4 + (a.midClause ?? 0) * 1e2 + (a.analysis?.voicedS ?? 0);
     };
     return job.attempts.reduce<Attempt | undefined>((best, a) => (!best || score(a) < score(best) ? a : best), undefined);
 }
@@ -300,22 +319,25 @@ function money(n: number): string {
 /** Billed characters and dollars per voice, one attempt per clip. */
 function printEstimate(jobs: readonly { target: ClipTarget; resolved: ResolvedVoice }[]): void {
     const byVoice = new Map<string, { count: number; chars: number; usd: number }>();
+    let worst = 0;
     for (const { target, resolved } of jobs) {
         const row = byVoice.get(target.voice.name) ?? { count: 0, chars: 0, usd: 0 };
-        const chars = billedCharsFor(resolved, target.text, 1);
+        const once = billedCharsFor(resolved, target.text, 1);
+        const chars = once * (isLongLine(target.text) ? LONG_LINE_TAKES : 1);
         row.count++;
         row.chars += chars;
         row.usd += usd(resolved, chars);
+        worst += usd(resolved, once * MAX_ATTEMPTS);
         byVoice.set(target.voice.name, row);
     }
     let total = { count: 0, chars: 0, usd: 0 };
-    console.log('\nEstimate (one attempt per clip):');
+    console.log(`\nEstimate (one take per clip, ${LONG_LINE_TAKES} for a long line):`);
     for (const [name, row] of byVoice) {
         console.log(`  ${name.padEnd(10)} ${String(row.count).padStart(4)} clips  ${String(row.chars).padStart(7)} billed chars  ${money(row.usd)}`);
         total = { count: total.count + row.count, chars: total.chars + row.chars, usd: total.usd + row.usd };
     }
     console.log(`  ${'total'.padEnd(10)} ${String(total.count).padStart(4)} clips  ${String(total.chars).padStart(7)} billed chars  ${money(total.usd)}`);
-    console.log(`  Each gate re-roll bills again, up to ${MAX_ATTEMPTS} attempts per clip (${money(total.usd * MAX_ATTEMPTS)} at worst).`);
+    console.log(`  Each gate re-roll bills again, up to ${MAX_ATTEMPTS} attempts per clip (${money(worst)} at worst).`);
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +455,13 @@ async function main(): Promise<void> {
     const ffmpeg = jobs.length && args.gate ? findFfmpeg() : null;
     if (jobs.length && args.gate && !ffmpeg)
         fail('ffmpeg not found (brew install ffmpeg); the quality gate decodes every clip. --no-gate renders without it.');
+    const hearable = (t: ClipTarget) => isLongLine(t.text) && t.voice.language === 'en';
+    const whisper = ffmpeg && jobs.some((j) => hearable(j.target)) ? findWhisper() : null;
+    if (ffmpeg && !whisper && jobs.some((j) => hearable(j.target)))
+        console.log(
+            '\nTranscript check off for the long lines: no whisper_batch build or base.en model ' +
+                '(cargo build --manifest-path ts/src-tauri/Cargo.toml --example whisper_batch).'
+        );
 
     const billed = new Map<string, { chars: number; usd: number }>();
     const save = () => writeFileSync(MANIFEST_PATH, serializeManifest(manifest));
@@ -453,9 +482,9 @@ async function main(): Promise<void> {
 
     const run = async (job: Job, norm: number | null) => {
         const { target } = job;
+        const wanted = isLongLine(target.text) ? LONG_LINE_TAKES : 1;
         for (;;) {
-            const best = bestAttempt(job, norm);
-            if (best && faultsOf(best, target.text, norm).length === 0) return;
+            if (job.attempts.filter((a) => faultsOf(a, target.text, norm).length === 0).length >= wanted) return;
             if (job.attempts.length >= MAX_ATTEMPTS) return;
             let bytes: Uint8Array;
             try {
@@ -473,17 +502,23 @@ async function main(): Promise<void> {
             const attempt: Attempt = { bytes };
             if (ffmpeg) {
                 try {
-                    attempt.analysis = analyzePcm(decodeMp3(ffmpeg, bytes), DECODE_RATE);
+                    const pcm = decodeMp3(ffmpeg, bytes);
+                    attempt.analysis = analyzePcm(pcm, DECODE_RATE);
+                    if (isLongLine(target.text))
+                        attempt.midClause = findPauses(pcm, DECODE_RATE, target.text).filter((p) => p.kind === 'word').length;
                 } catch (err) {
                     console.log(`  ${label(target).padEnd(32)} could not decode: ${String(err).slice(0, 160)}`);
                     attempt.analysis = { durationS: 0, bursts: [], gapsS: [], voicedS: 0, onsetRiseMs: null };
                 }
+                const heard = whisper && hearable(target) ? transcribe(whisper, ffmpeg, bytes) : null;
+                if (heard !== null) attempt.repeated = repeatedWords(target.text, heard);
             }
             job.attempts.push(attempt);
             const faults = faultsOf(attempt, target.text, norm);
             console.log(
                 `  ${label(target).padEnd(32)} try ${job.attempts.length}  ` +
                     (attempt.analysis ? describe(attempt.analysis) : 'ungated') +
+                    (attempt.midClause !== undefined ? `, ${attempt.midClause} inside a clause` : '') +
                     (faults.length ? `  FAIL: ${faults.join('; ')}` : '  ok')
             );
         }
@@ -494,7 +529,10 @@ async function main(): Promise<void> {
         if (!best) return;
         const { target } = job;
         mkdirSync(dirname(clipPath(target.file)), { recursive: true });
-        writeFileSync(clipPath(target.file), ffmpeg ? shrinkMp3(ffmpeg, best.bytes) : best.bytes);
+        writeFileSync(
+            clipPath(target.file),
+            ffmpeg ? encodeClip(ffmpeg, capPauses(decodeMp3(ffmpeg, best.bytes), DECODE_RATE, target.text)) : best.bytes
+        );
         const faults = faultsOf(best, target.text, norm);
         manifest.voices[target.voice.name]!.clips[target.lineId] = {
             file: target.file,

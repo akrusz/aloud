@@ -11,7 +11,11 @@
  *   render, which fits a pause, not a repeat (2026-11-14, unheard). That
  *   leaves a repeat of a line with a comma to the backstop, a duration check
  *   against the voice's own seconds-per-character norm across its set (a
- *   repeat runs over twice the line's length).
+ *   repeat runs over twice the line's length). Only on a short line
+ *   (burstCheckMaxWords), where the fault happens: a long one pauses past
+ *   minGapMs inside its clauses on most takes and is said once (heard by
+ *   Whisper, 2026-11-16), so the norm and the script's transcript check
+ *   judge it.
  * - A first word that starts MID-PHONEME: the voiced part jumps from silence
  *   to full level with no rise. Measured as the time from the floor to
  *   ONSET_TOP_DB in 2ms windows; a cut onset reads 0ms, a clean one 16-80ms
@@ -44,6 +48,11 @@ export const GATE = {
     longRatio: 1.75,
     /** Fewer clips than this in a voice's set and the norm is not trusted. */
     minNormClips: 8,
+    /** Bursts are counted against phrases only on a line of at most this
+     *  many words: softvoice voices a two-word input twice about a third of
+     *  the time and an eight-word one never (ui streaming-tts.ts
+     *  MIN_TTS_SENTENCE_CHARS). */
+    burstCheckMaxWords: 12,
 } as const;
 
 export interface Burst {
@@ -141,6 +150,11 @@ export function phraseCount(text: string): number {
     return Math.max(1, parts.length);
 }
 
+/** Words, each CJK character counting as one. */
+export function wordCount(text: string): number {
+    return text.match(/\p{Script=Han}|(?:(?!\p{Script=Han})[\p{L}\p{N}'’])+/gu)?.length ?? 0;
+}
+
 /** Letters, digits and CJK characters: what takes time to say. */
 export function spokenChars(text: string): number {
     return text.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
@@ -166,7 +180,7 @@ export function clipFaults(a: ClipAnalysis, text: string, norm?: number | null):
     if (a.bursts.length === 0) return ['no voice above the floor'];
     const faults: string[] = [];
     const phrases = phraseCount(text);
-    if (a.bursts.length > phrases) {
+    if (wordCount(text) <= GATE.burstCheckMaxWords && a.bursts.length > phrases) {
         faults.push(
             `${a.bursts.length} bursts for ${phrases} phrase${phrases === 1 ? '' : 's'} ` +
                 `(gaps ${a.gapsS.map(fmt).join(', ')}): probable repeat`

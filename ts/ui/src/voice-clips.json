@@ -240,8 +240,6 @@
                 "tour-felt-sense": {
                     "file": "ethan/en/tour-felt-sense.203f4bc0.mp3",
                     "gainDb": 3,
-                    "suspect": true,
-                    "suspectReason": "5 bursts for 2 phrases (gaps 0.97s, 1.12s, 0.75s, 1.26s): probable repeat",
                     "text": "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it."
                 },
                 "tour-focus": {
