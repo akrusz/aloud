@@ -151,6 +151,8 @@ let spokenStep = -1;
 /** Bumped whenever the step changes, so a line still coming for the step
  *  before it knows not to be said. */
 let speechTurn = 0;
+/** Whether this run has said that it answers to "back" and "next". */
+let controlTipSaid = false;
 let quickStartPoll: ReturnType<typeof setInterval> | null = null;
 const QUICK_START_POLL_MS = 500;
 
@@ -443,7 +445,16 @@ function speakStep(again = false): void {
     else if (step.kind === 'voice') void introduceVoices();
     else if (step.kind === 'section') {
         const line = SECTION_LINES[step.section.id];
-        if (line) void sayLine(line);
+        if (line) {
+            void sayLine(line).then((still) => {
+                // Once a tour, behind the first section's line, to someone
+                // the mic can hear.
+                if (!still || controlTipSaid || step.section.id !== 'methods-exploration') return;
+                if (!speaking() || tourVoice?.mic() !== 'on') return;
+                controlTipSaid = true;
+                void sayLine('tour-voice-control');
+            });
+        }
     }
     // It tells the listener what to say: not said where the mic is yet to be
     // turned on. One asleep is still on (TourVoice.mic).
@@ -836,6 +847,7 @@ function startGuide(): void {
     steps = buildSteps();
     currentStep = -1;
     spokenStep = -1;
+    controlTipSaid = false;
     lastViewportWidth = window.innerWidth;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);

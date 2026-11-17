@@ -541,11 +541,12 @@ becomes the voice everywhere, the session's included), a step offers to turn
 the microphone on where a tap could, and with it on the tour answers to
 "next", "back", "repeat", "skip", "mute" and a voice's name or place
 (`parseTourCommand`, `tour-command.ts`, the same whole-utterance rule). Every
-one of those is also a button. The last card is the close and, where the mic
+one of those is also a button. Once a tour, behind the Exploration card's
+line and only with the mic on, it says so (`tour-voice-control`). The last card is the close and, where the mic
 is on offer, the tip that all of this can be said ("twenty minutes", "add
 playful", "begin"); a request said there is taken as anywhere on the screen,
 and "next" is its "Got it" (知道了 in zh, matched after the same trimming of
-了 the utterance gets). Its line (`tour-done`) ends on "when you're ready",
+了 the utterance gets). Its line (`tour-done`) ends on "give it a try",
 not on the "begin" it asks for: a reopening mic can catch a line's tail, and
 only a tail is dropped as the app's own (`looksLikeSpokenTail`). The speaker
 on each card stops the reading and is remembered. The voice step is skipped

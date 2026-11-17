@@ -128,6 +128,14 @@ export const SETUP_LINES = {
         en: "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
         zh: '探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
     },
+    'tour-voice-control': {
+        // Said after 'tour-exploration', the mic on. It ends on "this tour",
+        // not on the words it offers: a "next" said within a few seconds of a
+        // line ending on it is dropped as the line's own tail
+        // (echo-guard.ts looksLikeSpokenTail).
+        en: "By the way, you can say 'back' or 'next' to control this tour.",
+        zh: '顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。',
+    },
     'tour-noting': {
         en: "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns.",
         zh: '标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',

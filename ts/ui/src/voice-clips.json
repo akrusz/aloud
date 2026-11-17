@@ -282,6 +282,11 @@
                     "gainDb": 3,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
                 },
+                "tour-voice-control": {
+                    "file": "ethan/en/tour-voice-control.67697016.mp3",
+                    "gainDb": 3,
+                    "text": "By the way, you can say 'back' or 'next' to control this tour."
+                },
                 "tour-voice-picked": {
                     "file": "ethan/en/tour-voice-picked.d68d13dd.mp3",
                     "gainDb": 3,
@@ -653,6 +658,11 @@
                     "file": "harper/en/tour-vibe.bb6041ad.mp3",
                     "gainDb": -4.5,
                     "text": "Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like."
+                },
+                "tour-voice-control": {
+                    "file": "harper/en/tour-voice-control.042d30b8.mp3",
+                    "gainDb": -4.5,
+                    "text": "By the way, you can say 'back' or 'next' to control this tour."
                 },
                 "tour-voice-picked": {
                     "file": "harper/en/tour-voice-picked.560a97b6.mp3",
@@ -1026,6 +1036,11 @@
                     "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
+                "tour-voice-control": {
+                    "file": "serena/zh/tour-voice-control.d2edcced.mp3",
+                    "gainDb": 1.5,
+                    "text": "顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。"
+                },
                 "tour-voice-picked": {
                     "file": "serena/zh/tour-voice-picked.fd447f86.mp3",
                     "gainDb": 1.5,
@@ -1397,6 +1412,11 @@
                     "file": "yunfan/zh/tour-vibe.0593ff62.mp3",
                     "gainDb": 1.5,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
+                },
+                "tour-voice-control": {
+                    "file": "yunfan/zh/tour-voice-control.510392bb.mp3",
+                    "gainDb": 1.5,
+                    "text": "顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。"
                 },
                 "tour-voice-picked": {
                     "file": "yunfan/zh/tour-voice-picked.969de9e6.mp3",
