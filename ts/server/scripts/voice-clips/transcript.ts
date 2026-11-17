@@ -91,7 +91,12 @@ function editDistance(a: string, b: string): number {
 
 /** Close enough to be Whisper's spelling of the same word ("parts" heard as
  *  "hearts"), not a different word ("that's" as "it's", "timer" as "i'm"). */
-const similar = (a: string, b: string) => a === b || editDistance(a, b) / Math.max(a.length, b.length) <= 0.4;
+const similar = (a: string, b: string) =>
+    a === b || editDistance(a, b) / Math.max(a.length, b.length) <= 0.4 || SOUND_ALIKE[a] === b || SOUND_ALIKE[b] === a;
+
+/** Words said the same and spelled too far apart for `similar`: the app's
+ *  name, which Whisper writes as the commoner word at the head of a line. */
+const SOUND_ALIKE: Readonly<Record<string, string>> = { aloud: 'allowed' };
 
 type Step =
     | { kind: 'heard'; want: number }

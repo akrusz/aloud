@@ -243,6 +243,9 @@ describe('clip plan', () => {
         ]);
         expect(plan[0]!.from!.file).toBe(entries['a']!.file);
         expect(plan[0]!.file).toBe(clipFile(louder, 'a', 'Line a.'));
+        // A clip levelled at render is renamed, not moved.
+        entries['a']!.levelled = true;
+        expect(planClips([louder], ['a'], text, manifest, (f) => present.has(f))[0]!.from!.deltaDb).toBe(0);
     });
 
     it('prunes removed lines and voices, and finds the files nothing names', () => {

@@ -80,8 +80,15 @@ export interface CuratedVoice {
      *  1.5 dB step nearest to -22.4 LUFS minus its loudness (the catalog
      *  average, dev-docs/ts-server.md). Whole steps only (providers/mp3-gain.ts).
      *  No limiter behind a boost: true peak plus gainDb stays under -2 dBTP.
-     *  On a house voice, a change re-levels its setup clips (clips:render). */
+     *  A house voice's setup clips are levelled one by one when they are
+     *  rendered (scripts/render-voice-clips.ts levelGain), whatever this is. */
     gainDb: number;
+    /** Where the voice sits in a session with its gainDb on, when that is
+     *  short of -22.4 LUFS because its peaks allow no more: the mean of a
+     *  dozen takes of real lines. Its setup clips are levelled to this and
+     *  not to the catalog's target, so the tour is as loud as the session
+     *  it leads into. Move it with gainDb. */
+    sessionLufs?: number;
     /** Azure only: a word spoken ahead of the text and cut off again
      *  (providers/mp3-lead-trim.ts), for a voice that swallows the opening
      *  word of its input. Sent only before a consonant-initial input
@@ -153,10 +160,10 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
     // heard it as a bit fast in both languages (2026-11-14).
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: 1.5 },
+    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -24.3 },
     // Serena's model with a Mandarin persona; the dev heard it in both
     // languages (2026-11-14). No zhNative until a native speaker has listened.
-    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 1.5 },
+    { name: 'Yunfan', provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -27.7 },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,

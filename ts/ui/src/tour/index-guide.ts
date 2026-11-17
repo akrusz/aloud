@@ -153,6 +153,8 @@ let spokenStep = -1;
 let speechTurn = 0;
 /** Whether this run has said that it answers to "back" and "next". */
 let controlTipSaid = false;
+/** Whether this run has said what the three method cards are. */
+let methodsIntroSaid = false;
 let quickStartPoll: ReturnType<typeof setInterval> | null = null;
 const QUICK_START_POLL_MS = 500;
 
@@ -444,21 +446,29 @@ function speakStep(again = false): void {
     if (step.kind === 'mic') void sayLine('tour-hello');
     else if (step.kind === 'voice') void introduceVoices();
     else if (step.kind === 'section') {
-        const line = SECTION_LINES[step.section.id];
-        if (line) {
-            void sayLine(line).then((still) => {
-                // Once a tour, behind the first section's line, to someone
-                // the mic can hear.
-                if (!still || controlTipSaid || step.section.id !== 'methods-exploration') return;
-                if (!speaking() || tourVoice?.mic() !== 'on') return;
-                controlTipSaid = true;
-                void sayLine('tour-voice-control');
-            });
-        }
+        void speakSection(step.section);
     }
     // It tells the listener what to say: not said where the mic is yet to be
     // turned on. One asleep is still on (TourVoice.mic).
     else if (step.kind === 'done' && micOn) void sayLine('tour-done');
+}
+
+/** A section's card. Once a tour, the first one opens on what the three
+ *  cards are (heard cold, its "close your eyes and speak" was taken as the
+ *  thing to do now) and closes, for someone the mic can hear, on what the
+ *  tour answers to. */
+async function speakSection(section: Section): Promise<void> {
+    const line = SECTION_LINES[section.id];
+    if (!line) return;
+    const first = section.id === 'methods-exploration';
+    if (first && !methodsIntroSaid) {
+        methodsIntroSaid = true;
+        if (!(await sayLine('tour-methods'))) return;
+    }
+    if (!(await sayLine(line))) return;
+    if (!first || controlTipSaid || !speaking() || tourVoice?.mic() !== 'on') return;
+    controlTipSaid = true;
+    void sayLine('tour-voice-control');
 }
 
 /** The voice step: each of the two says who it is, lit while it speaks. */
@@ -848,6 +858,7 @@ function startGuide(): void {
     currentStep = -1;
     spokenStep = -1;
     controlTipSaid = false;
+    methodsIntroSaid = false;
     lastViewportWidth = window.innerWidth;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);

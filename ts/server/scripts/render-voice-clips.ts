@@ -41,7 +41,7 @@
  * carry is shortened (voice-clips/cadence.ts).
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 
@@ -229,10 +229,50 @@ function decodeMp3(ffmpeg: string, mp3: Uint8Array): Float32Array {
  *  in every build, so they ship at half that. */
 const CLIP_BITRATE = '48k';
 
-function encodeClip(ffmpeg: string, pcm: Float32Array): Uint8Array {
+/** What a clip is levelled to: the catalog average (CuratedVoice.gainDb), or
+ *  for a voice that can't reach it, where its sessions sit (sessionLufs), so
+ *  the tour is never louder than what follows. A voice's gainDb is one trim
+ *  for all its audio and some voices move 8 dB from take to take (Yunfan,
+ *  Serena); a clip is one take, decoded here anyway, so it gets its own. */
+const CLIP_LUFS = -22.4;
+/** The sample peak a boosted clip is limited to: about -3 dBFS, which keeps
+ *  the encoded file under -2 dBTP. */
+const CLIP_PEAK = 0.7;
+const CLIP_GAIN_DB: readonly [number, number] = [-6, 12];
+
+const PCM_IN = ['-f', 'f32le', '-ar', String(DECODE_RATE), '-ac', '1', '-i', 'pipe:0'];
+
+/** Integrated loudness in LUFS, or null for a clip too short to have one. */
+function loudness(ffmpeg: string, pcm: Float32Array): number | null {
+    // Once in a couple of hundred runs this ffmpeg sat idle for good on its
+    // piped input, so it gets a clock and a second go.
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const run = spawnSync(ffmpeg, ['-hide_banner', '-nostats', ...PCM_IN, '-af', 'ebur128', '-f', 'null', '-'], {
+            input: Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength),
+            maxBuffer: 64 * 1024 * 1024,
+            timeout: 20_000,
+        });
+        if (run.error || run.status !== 0) continue;
+        const summary = String(run.stderr).split('Summary:').pop() ?? '';
+        const lufs = Number(/\bI:\s+(-?[\d.]+) LUFS/.exec(summary)?.[1]);
+        return Number.isFinite(lufs) && lufs > -60 ? lufs : null;
+    }
+    return null;
+}
+
+/** The gain that brings `pcm` to `target` LUFS, in dB, or null when its
+ *  loudness can't be measured. */
+function levelGain(ffmpeg: string, pcm: Float32Array, target: number): number | null {
+    const lufs = loudness(ffmpeg, pcm);
+    if (lufs === null) return null;
+    return Math.round(Math.min(CLIP_GAIN_DB[1], Math.max(CLIP_GAIN_DB[0], target - lufs)) * 10) / 10;
+}
+
+function encodeClip(ffmpeg: string, pcm: Float32Array, gainDb = 0): Uint8Array {
+    const level = gainDb ? ['-af', `volume=${gainDb}dB,alimiter=limit=${CLIP_PEAK}:level=false:latency=true`] : [];
     return execFileSync(
         ffmpeg,
-        ['-v', 'error', '-f', 'f32le', '-ar', String(DECODE_RATE), '-ac', '1', '-i', 'pipe:0', '-codec:a', 'libmp3lame', '-b:a', CLIP_BITRATE, '-f', 'mp3', 'pipe:1'],
+        ['-v', 'error', ...PCM_IN, ...level, '-codec:a', 'libmp3lame', '-b:a', CLIP_BITRATE, '-f', 'mp3', 'pipe:1'],
         { input: Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength), maxBuffer: 64 * 1024 * 1024 }
     );
 }
@@ -241,6 +281,8 @@ function encodeClip(ffmpeg: string, pcm: Float32Array): Uint8Array {
  *  walk it (the line is synthesized again instead). */
 function relevelled(from: { file: string; deltaDb: number }): Uint8Array | null {
     const bytes = new Uint8Array(readFileSync(clipPath(from.file)));
+    // A levelled clip is already where it belongs: only its name changes.
+    if (from.deltaDb === 0) return bytes;
     const moved = withGain(bytes, from.deltaDb);
     return moved === bytes ? null : moved;
 }
@@ -364,6 +406,7 @@ async function main(): Promise<void> {
         providerVoiceId: v.providerVoiceId,
         ...(v.style ? { style: v.style } : {}),
         ...(v.gainDb ? { gainDb: v.gainDb } : {}),
+        ...(v.sessionLufs !== undefined ? { sessionLufs: v.sessionLufs } : {}),
     }));
     if (!allVoices.length) fail('no curated voice carries `house` (server/src/providers/voice-catalog.ts)');
     const wanted = args.voices?.map((name) => {
@@ -531,15 +574,15 @@ async function main(): Promise<void> {
         if (!best) return;
         const { target } = job;
         mkdirSync(dirname(clipPath(target.file)), { recursive: true });
-        writeFileSync(
-            clipPath(target.file),
-            ffmpeg ? encodeClip(ffmpeg, capPauses(decodeMp3(ffmpeg, best.bytes), DECODE_RATE, target.text)) : best.bytes
-        );
+        const pcm = ffmpeg ? capPauses(decodeMp3(ffmpeg, best.bytes), DECODE_RATE, target.text) : null;
+        const gain = ffmpeg && pcm ? levelGain(ffmpeg, pcm, target.voice.sessionLufs ?? CLIP_LUFS) : null;
+        writeFileSync(clipPath(target.file), ffmpeg && pcm ? encodeClip(ffmpeg, pcm, gain ?? 0) : best.bytes);
         const faults = faultsOf(best, target.text, norm);
         manifest.voices[target.voice.name]!.clips[target.lineId] = {
             file: target.file,
             text: target.text,
             ...(target.voice.gainDb ? { gainDb: target.voice.gainDb } : {}),
+            ...(gain !== null ? { levelled: true as const } : {}),
             ...(faults.length ? { suspect: true as const, suspectReason: faults.join('; ') } : {}),
         };
         save();

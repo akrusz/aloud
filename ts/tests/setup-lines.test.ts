@@ -20,7 +20,8 @@ describe('the spoken lines', () => {
             // The softvoice house voices clip an opening "Right".
             expect(en, id).not.toMatch(/^right\b/i);
             expect(en, id).not.toMatch(/\bsit\b(?! with)/i);
-            expect(en[0], id).toBe(en[0]!.toUpperCase());
+            // The app's name stays lowercase, at the head of a line too.
+            if (!en.startsWith('aloud ')) expect(en[0], id).toBe(en[0]!.toUpperCase());
         }
     });
 

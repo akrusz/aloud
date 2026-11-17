@@ -20,6 +20,9 @@ export interface ClipEntry {
     suspectReason?: string;
     /** The level trim the file carries (CuratedVoice.gainDb); absent is 0. */
     gainDb?: number;
+    /** Brought to the clips' own loudness target when it was rendered, so a
+     *  change of gainDb renames it and moves nothing. */
+    levelled?: true;
 }
 
 export interface VoiceEntry {
@@ -43,6 +46,8 @@ export interface HouseVoice {
     style?: string;
     /** CuratedVoice.gainDb. */
     gainDb?: number;
+    /** CuratedVoice.sessionLufs. */
+    sessionLufs?: number;
 }
 
 export function emptyManifest(): ClipManifest {
@@ -116,7 +121,7 @@ export function planClips(
                         ...target,
                         status: 'relevel',
                         why: `gain ${was} -> ${now} dB`,
-                        from: { file: entry.file, deltaDb: now - was },
+                        from: { file: entry.file, deltaDb: entry.levelled ? 0 : now - was },
                     });
             } else if (!exists(entry.file)) targets.push({ ...target, status: 'missing', why: 'file missing' });
             else targets.push({ ...target, status: 'current' });

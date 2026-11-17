@@ -124,9 +124,14 @@ export const SETUP_LINES = {
         en: 'Good. There are more voices in the voice picker whenever you like.',
         zh: '好的。以后随时可以在声音选择里换别的声音。',
     },
+    // Said once, ahead of 'tour-exploration'.
+    'tour-methods': {
+        en: "aloud has three different ways to meditate using your voice. Let me tell you about each of them.",
+        zh: 'aloud 有三种用声音冥想的方式。我来一个一个地介绍。',
+    },
     'tour-exploration': {
-        en: "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
-        zh: '探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
+        en: "Exploration is a conversation. In this mode, you close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
+        zh: '探索是一场对话。在这个模式里，你闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
     },
     'tour-voice-control': {
         // Said after 'tour-exploration', the mic on. It ends on "this tour",
@@ -137,8 +142,8 @@ export const SETUP_LINES = {
         zh: '顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。',
     },
     'tour-noting': {
-        en: "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns.",
-        zh: '标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',
+        en: "Noting is simple. With a word or two, name something you're noticing in the moment, like 'warmth' or 'relaxation' or 'thinking'. You can add sounds or virtual participants to keep the pace between turns.",
+        zh: '标记很简单。用一两个词说出你此刻注意到的，比如“温暖”、“放松”或“思考”。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',
     },
     'tour-felt-sense': {
         en: "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it.",

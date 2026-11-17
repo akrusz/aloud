@@ -541,8 +541,10 @@ becomes the voice everywhere, the session's included), a step offers to turn
 the microphone on where a tap could, and with it on the tour answers to
 "next", "back", "repeat", "skip", "mute" and a voice's name or place
 (`parseTourCommand`, `tour-command.ts`, the same whole-utterance rule). Every
-one of those is also a button. Once a tour, behind the Exploration card's
-line and only with the mic on, it says so (`tour-voice-control`). The last card is the close and, where the mic
+one of those is also a button. Once a tour, the Exploration card's line is
+framed (`speakSection`): `tour-methods` ahead of it says the three cards are
+ways to meditate, not something to do now, and behind it, only with the mic
+on, `tour-voice-control` says what the tour answers to. The last card is the close and, where the mic
 is on offer, the tip that all of this can be said ("twenty minutes", "add
 playful", "begin"); a request said there is taken as anywhere on the screen,
 and "next" is its "Got it" (知道了 in zh, matched after the same trimming of

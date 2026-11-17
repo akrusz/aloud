@@ -233,15 +233,25 @@ as-shipped audition line (LUFS before → gainDb):
 |---|---|---|---|---|---|
 | Phoenix | -22.8 | 0 | Harper | -17.8 | -4.5 |
 | Orion | -23.2 | 0 | Isla | -17.5 | -4.5 |
-| Leda | -23.0 | 0 | Serena | -26.7 | +1.5 |
-| Vega | -19.2 | -3 | Yunfan | -28.1 | +1.5 |
+| Leda | -23.0 | 0 | Serena | -26.7 | +3 |
+| Vega | -19.2 | -3 | Yunfan | -28.1 | +3 |
 | Rigel | -19.1 | -3 | Luna | -22.1 | 0 |
 | Ada | -17.7 | -4.5 | Wren | -25.0 | +3 |
 | Davis | -21.6 | -1.5 | Silas | -25.8 | +3 |
 | Ethan | -24.9 | +3 | Clive | -24.3 | +1.5 |
 
-Serena and Yunfan stop short (about -25 and -27): their peaks leave no
-room for another step.
+Serena and Yunfan stop short of the target: their peaks allow one step more
+than the first pass gave them (gainDb 3 since 2026-11-17, the loudest of a
+dozen takes then peaking at -2.5 and -0.8 dBTP) and no further, and they move
+up to 8 dB from one take to the next. With that gain a session sits at about
+-24.3 LUFS (Serena) and -27.7 (Yunfan), recorded as `sessionLufs`. The dev's
+rule is that a voice is as loud in the tour as in the session it leads into,
+even where that is quieter than the other voices. So
+`scripts/render-voice-clips.ts` levels every setup clip by its own gain behind
+a limiter (`levelGain`, `encodeClip`) to the voice's `sessionLufs`, or to
+-22.4 without one, and marks it `levelled` in the manifest; a later change of
+`gainDb` renames such a clip and moves nothing, so `sessionLufs` moves with it
+by hand. Louder Chinese voices mean new voices.
 
 **Harper's lead word.** Harper's softvoice swallows a consonant-initial
 opening word on most takes ("Back to Exploration" lost "Back" 6 of 7, "That

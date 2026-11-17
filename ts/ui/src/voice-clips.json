@@ -253,9 +253,10 @@
                     "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say 'begin' to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
-                    "file": "ethan/en/tour-exploration.74e88d4c.mp3",
+                    "file": "ethan/en/tour-exploration.0c22ac45.mp3",
                     "gainDb": 3,
-                    "text": "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
+                    "levelled": true,
+                    "text": "Exploration is a conversation. In this mode, you close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
                     "file": "ethan/en/tour-felt-sense.203f4bc0.mp3",
@@ -272,10 +273,17 @@
                     "gainDb": 3,
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
-                "tour-noting": {
-                    "file": "ethan/en/tour-noting.f62e8866.mp3",
+                "tour-methods": {
+                    "file": "ethan/en/tour-methods.8e9dacb2.mp3",
                     "gainDb": 3,
-                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns."
+                    "levelled": true,
+                    "text": "aloud has three different ways to meditate using your voice. Let me tell you about each of them."
+                },
+                "tour-noting": {
+                    "file": "ethan/en/tour-noting.cc0b846d.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like 'warmth' or 'relaxation' or 'thinking'. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
                     "file": "ethan/en/tour-vibe.fed76407.mp3",
@@ -630,9 +638,10 @@
                     "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say 'begin' to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
-                    "file": "harper/en/tour-exploration.27a0f0af.mp3",
+                    "file": "harper/en/tour-exploration.ddc44c73.mp3",
                     "gainDb": -4.5,
-                    "text": "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
+                    "levelled": true,
+                    "text": "Exploration is a conversation. In this mode, you close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
                     "file": "harper/en/tour-felt-sense.e6ecd05b.mp3",
@@ -649,10 +658,17 @@
                     "gainDb": -4.5,
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
-                "tour-noting": {
-                    "file": "harper/en/tour-noting.66d5aa58.mp3",
+                "tour-methods": {
+                    "file": "harper/en/tour-methods.73a71be6.mp3",
                     "gainDb": -4.5,
-                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns."
+                    "levelled": true,
+                    "text": "aloud has three different ways to meditate using your voice. Let me tell you about each of them."
+                },
+                "tour-noting": {
+                    "file": "harper/en/tour-noting.94fda593.mp3",
+                    "gainDb": -4.5,
+                    "levelled": true,
+                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like 'warmth' or 'relaxation' or 'thinking'. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
                     "file": "harper/en/tour-vibe.bb6041ad.mp3",
@@ -757,373 +773,453 @@
         "Serena": {
             "clips": {
                 "all-set": {
-                    "file": "serena/zh/all-set.a996d599.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/all-set.885f6e13.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，都设好了。"
                 },
                 "belongs-exploration": {
-                    "file": "serena/zh/belongs-exploration.007d887a.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/belongs-exploration.be3a2c28.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这是探索模式的设置。"
                 },
                 "belongs-felt-sense": {
-                    "file": "serena/zh/belongs-felt-sense.47e436ef.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/belongs-felt-sense.ee5a5ba2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这是体会模式的设置。"
                 },
                 "checkins-off": {
-                    "file": "serena/zh/checkins-off.847f6b27.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/checkins-off.faacc99f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "安静时我不会打扰。"
                 },
                 "checkins-on": {
-                    "file": "serena/zh/checkins-on.454cb271.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/checkins-on.b95f28e8.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "安静时我会轻声问候。"
                 },
                 "clock-elapsed": {
-                    "file": "serena/zh/clock-elapsed.c8f3fce0.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/clock-elapsed.15f94cdd.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟会显示已用时间。"
                 },
                 "clock-hidden": {
-                    "file": "serena/zh/clock-hidden.86a8f1a1.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/clock-hidden.7d8a015d.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已隐藏。"
                 },
                 "clock-off": {
-                    "file": "serena/zh/clock-off.8b58fed2.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/clock-off.3ee661a4.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已关闭。"
                 },
                 "clock-shown": {
-                    "file": "serena/zh/clock-shown.60a97890.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/clock-shown.1cc55de8.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已显示。"
                 },
                 "clock-wall": {
-                    "file": "serena/zh/clock-wall.0c1ac5ad.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/clock-wall.a1a1128c.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
-                    "file": "serena/zh/focus-body-off.661fb944.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-body-off.42dcf807.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉身体与感受。"
                 },
                 "focus-body-on": {
-                    "file": "serena/zh/focus-body-on.86a4fd89.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-body-on.06d48f08.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上身体与感受。"
                 },
                 "focus-cleared": {
-                    "file": "serena/zh/focus-cleared.24b4d195.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-cleared.6e862cdb.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "焦点已全部去掉。"
                 },
                 "focus-emotions-off": {
-                    "file": "serena/zh/focus-emotions-off.e242ce30.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-emotions-off.b0986673.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉情绪。"
                 },
                 "focus-emotions-on": {
-                    "file": "serena/zh/focus-emotions-on.7fa428e9.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-emotions-on.51c15fd0.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上情绪。"
                 },
                 "focus-parts-off": {
-                    "file": "serena/zh/focus-parts-off.b2540ab4.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-parts-off.9f150c2f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉内在部分。"
                 },
                 "focus-parts-on": {
-                    "file": "serena/zh/focus-parts-on.36041c23.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/focus-parts-on.4aee7eda.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上内在部分。"
                 },
                 "guidance-0": {
-                    "file": "serena/zh/guidance-0.a5698906.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/guidance-0.51c3db25.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为跟随。"
                 },
                 "guidance-1": {
-                    "file": "serena/zh/guidance-1.eef58636.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/guidance-1.052db146.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为略偏跟随。"
                 },
                 "guidance-2": {
-                    "file": "serena/zh/guidance-2.7d9a446e.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/guidance-2.a492fb7c.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为均衡。"
                 },
                 "guidance-3": {
-                    "file": "serena/zh/guidance-3.7d226c5d.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/guidance-3.222c21e9.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为略偏主导。"
                 },
                 "guidance-4": {
-                    "file": "serena/zh/guidance-4.71187f2b.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/guidance-4.aa2dc796.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "serena/zh/help.a0134a89.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/help.a93f1c1f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
-                    "file": "serena/zh/intention-ask.befeab70.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/intention-ask.f807e673.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你的意图是什么？"
                 },
                 "intention-cleared": {
-                    "file": "serena/zh/intention-cleared.09225457.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/intention-cleared.72ebe8d7.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "意图已清除。"
                 },
                 "intention-set": {
-                    "file": "serena/zh/intention-set.3cfc8dc6.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/intention-set.865c88d6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "意图已记下。"
                 },
                 "mic-off": {
-                    "file": "serena/zh/mic-off.08f88907.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/mic-off.62a524c2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，麦克风已关闭。"
                 },
                 "mode-exploration": {
-                    "file": "serena/zh/mode-exploration.0d6ce9b7.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/mode-exploration.3796810d.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，探索模式。"
                 },
                 "mode-felt-sense": {
-                    "file": "serena/zh/mode-felt-sense.93f8fbe2.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/mode-felt-sense.dbe4e1eb.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，体会模式。"
                 },
                 "mode-noting": {
-                    "file": "serena/zh/mode-noting.3f898116.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/mode-noting.66a6ee47.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，标记模式。"
                 },
                 "model-set": {
-                    "file": "serena/zh/model-set.8679df63.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/model-set.e2c1b6c5.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，模型已设好。"
                 },
                 "never-mind": {
-                    "file": "serena/zh/never-mind.9fb92a19.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/never-mind.08ef8480.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
-                    "file": "serena/zh/not-in-mode.31a4d907.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/not-in-mode.9ace89a6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这个模式没有这一项。"
                 },
                 "responses-high": {
-                    "file": "serena/zh/responses-high.5c811584.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/responses-high.41e04274.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应会更长一些。"
                 },
                 "responses-low": {
-                    "file": "serena/zh/responses-low.9484b9b4.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/responses-low.ccd66872.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应会简短一些。"
                 },
                 "responses-medium": {
-                    "file": "serena/zh/responses-medium.8dcccb7e.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/responses-medium.92351a7a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应长度适中。"
                 },
                 "special-request-added": {
-                    "file": "serena/zh/special-request-added.f42419e2.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/special-request-added.d169620e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "特别要求已记下。"
                 },
                 "special-request-ask": {
-                    "file": "serena/zh/special-request-ask.51943b48.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/special-request-ask.59c30ffc.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你的特别要求是什么？"
                 },
                 "special-request-never-mind": {
-                    "file": "serena/zh/special-request-never-mind.0f9d0c9d.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/special-request-never-mind.7d255892.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，不加特别要求了。"
                 },
                 "special-requests-cleared": {
-                    "file": "serena/zh/special-requests-cleared.4305375d.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/special-requests-cleared.0dd280db.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "特别要求已清除。"
                 },
                 "timer-10": {
-                    "file": "serena/zh/timer-10.d9026f97.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-10.4781b56e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时十分钟。"
                 },
                 "timer-15": {
-                    "file": "serena/zh/timer-15.9011e438.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-15.4e144f25.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时十五分钟。"
                 },
                 "timer-20": {
-                    "file": "serena/zh/timer-20.677e7cc2.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-20.baac2a96.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时二十分钟。"
                 },
                 "timer-30": {
-                    "file": "serena/zh/timer-30.6b2a53cd.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-30.48b0a9d7.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时三十分钟。"
                 },
                 "timer-45": {
-                    "file": "serena/zh/timer-45.995046a5.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-45.9e7d30fe.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时四十五分钟。"
                 },
                 "timer-5": {
-                    "file": "serena/zh/timer-5.4e6bf98d.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-5.6f06189f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时五分钟。"
                 },
                 "timer-60": {
-                    "file": "serena/zh/timer-60.35a7a287.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-60.8ee021ec.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时一小时。"
                 },
                 "timer-off": {
-                    "file": "serena/zh/timer-off.97bf6346.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-off.8253c4c5.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时已关闭。"
                 },
                 "timer-set": {
-                    "file": "serena/zh/timer-set.b219ca6a.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/timer-set.a72b59c7.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.ea6716ac.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-done.1cf3a39a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。"
                 },
                 "tour-exploration": {
-                    "file": "serena/zh/tour-exploration.7491e906.mp3",
-                    "gainDb": 1.5,
-                    "text": "探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
+                    "file": "serena/zh/tour-exploration.a6956073.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "探索是一场对话。在这个模式里，你闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "serena/zh/tour-felt-sense.42c20f43.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-felt-sense.7bc55efb.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "serena/zh/tour-focus.26deaccd.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-focus.23e26e01.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "serena/zh/tour-hello.98bc40ba.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-hello.35fe26e1.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
+                "tour-methods": {
+                    "file": "serena/zh/tour-methods.4ef09a8b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "aloud 有三种用声音冥想的方式。我来一个一个地介绍。"
+                },
                 "tour-noting": {
-                    "file": "serena/zh/tour-noting.43e4f635.mp3",
-                    "gainDb": 1.5,
-                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
+                    "file": "serena/zh/tour-noting.1e68629e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如“温暖”、“放松”或“思考”。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
-                    "file": "serena/zh/tour-vibe.cdb68da2.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-vibe.b3508c5b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "serena/zh/tour-voice-control.d2edcced.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-voice-control.263f0bbc.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。"
                 },
                 "tour-voice-picked": {
-                    "file": "serena/zh/tour-voice-picked.fd447f86.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/tour-voice-picked.c94939c6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的。以后随时可以在声音选择里换别的声音。"
                 },
                 "unavailable": {
-                    "file": "serena/zh/unavailable.8e4c5c0d.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/unavailable.e30135b2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "现在改不了这一项。"
                 },
                 "vibe-cleared": {
-                    "file": "serena/zh/vibe-cleared.d5c70735.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-cleared.a6c7ebb7.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "氛围已全部去掉。"
                 },
                 "vibe-compassionate-off": {
-                    "file": "serena/zh/vibe-compassionate-off.4ab465ea.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-compassionate-off.446a29ec.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉慈悲。"
                 },
                 "vibe-compassionate-on": {
-                    "file": "serena/zh/vibe-compassionate-on.235b5bc4.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-compassionate-on.bb70bb73.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上慈悲。"
                 },
                 "vibe-effortless-off": {
-                    "file": "serena/zh/vibe-effortless-off.74ee64e3.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-effortless-off.995b7a4c.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉不费力。"
                 },
                 "vibe-effortless-on": {
-                    "file": "serena/zh/vibe-effortless-on.e6b48399.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-effortless-on.bbb3627b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上不费力。"
                 },
                 "vibe-feeling-good-off": {
-                    "file": "serena/zh/vibe-feeling-good-off.47ece4df.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-feeling-good-off.19a2a5fc.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉感觉不错。"
                 },
                 "vibe-feeling-good-on": {
-                    "file": "serena/zh/vibe-feeling-good-on.e040c143.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-feeling-good-on.8f5a90d2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上感觉不错。"
                 },
                 "vibe-loving-off": {
-                    "file": "serena/zh/vibe-loving-off.d39101f5.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-loving-off.d6873d0b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉慈爱。"
                 },
                 "vibe-loving-on": {
-                    "file": "serena/zh/vibe-loving-on.df668e35.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-loving-on.1f725ad3.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上慈爱。"
                 },
                 "vibe-playful-off": {
-                    "file": "serena/zh/vibe-playful-off.6787b252.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-playful-off.0d65a5b1.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉轻松有玩心。"
                 },
                 "vibe-playful-on": {
-                    "file": "serena/zh/vibe-playful-on.f11dfe6a.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-playful-on.caf0d217.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上轻松有玩心。"
                 },
                 "vibe-spacious-off": {
-                    "file": "serena/zh/vibe-spacious-off.e7b0e511.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-spacious-off.a5efd946.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉开阔。"
                 },
                 "vibe-spacious-on": {
-                    "file": "serena/zh/vibe-spacious-on.961b2930.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/vibe-spacious-on.fed6b99a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上开阔。"
                 },
                 "voice-intro-first": {
-                    "file": "serena/zh/voice-intro-first.94d02499.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/voice-intro-first.b8ac4102.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你好，我是 Serena。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "serena/zh/voice-intro-second.508bd4cb.mp3",
-                    "gainDb": 1.5,
+                    "file": "serena/zh/voice-intro-second.c78c7be8.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "我是 Serena。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },
@@ -1134,373 +1230,453 @@
         "Yunfan": {
             "clips": {
                 "all-set": {
-                    "file": "yunfan/zh/all-set.0a558596.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/all-set.4bc8ba21.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，都设好了。"
                 },
                 "belongs-exploration": {
-                    "file": "yunfan/zh/belongs-exploration.11aeb6e6.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/belongs-exploration.66801ca0.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这是探索模式的设置。"
                 },
                 "belongs-felt-sense": {
-                    "file": "yunfan/zh/belongs-felt-sense.9a1d3c25.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/belongs-felt-sense.b5f8ae86.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这是体会模式的设置。"
                 },
                 "checkins-off": {
-                    "file": "yunfan/zh/checkins-off.4bb63bc0.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/checkins-off.1c056e2f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "安静时我不会打扰。"
                 },
                 "checkins-on": {
-                    "file": "yunfan/zh/checkins-on.d486b56d.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/checkins-on.ef58e75a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "安静时我会轻声问候。"
                 },
                 "clock-elapsed": {
-                    "file": "yunfan/zh/clock-elapsed.6d6e1381.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/clock-elapsed.5d1b6eef.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟会显示已用时间。"
                 },
                 "clock-hidden": {
-                    "file": "yunfan/zh/clock-hidden.f878ddaf.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/clock-hidden.7a7f9504.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已隐藏。"
                 },
                 "clock-off": {
-                    "file": "yunfan/zh/clock-off.96656de9.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/clock-off.4ce530f1.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已关闭。"
                 },
                 "clock-shown": {
-                    "file": "yunfan/zh/clock-shown.7b7e9570.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/clock-shown.62de0812.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟已显示。"
                 },
                 "clock-wall": {
-                    "file": "yunfan/zh/clock-wall.4cfbfc39.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/clock-wall.741f708e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "时钟会显示当前时间。"
                 },
                 "focus-body-off": {
-                    "file": "yunfan/zh/focus-body-off.e47601b5.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-body-off.86c2e6d2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉身体与感受。"
                 },
                 "focus-body-on": {
-                    "file": "yunfan/zh/focus-body-on.3d213f58.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-body-on.25fb4ab4.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上身体与感受。"
                 },
                 "focus-cleared": {
-                    "file": "yunfan/zh/focus-cleared.7203d3fb.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-cleared.8d21618a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "焦点已全部去掉。"
                 },
                 "focus-emotions-off": {
-                    "file": "yunfan/zh/focus-emotions-off.2b6ee471.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-emotions-off.9185b96e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉情绪。"
                 },
                 "focus-emotions-on": {
-                    "file": "yunfan/zh/focus-emotions-on.ceb784aa.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-emotions-on.fcfeb51b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上情绪。"
                 },
                 "focus-parts-off": {
-                    "file": "yunfan/zh/focus-parts-off.7061e373.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-parts-off.1d25e335.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉内在部分。"
                 },
                 "focus-parts-on": {
-                    "file": "yunfan/zh/focus-parts-on.f7c406d5.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/focus-parts-on.21aee1aa.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上内在部分。"
                 },
                 "guidance-0": {
-                    "file": "yunfan/zh/guidance-0.99e343e3.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/guidance-0.a6d89573.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为跟随。"
                 },
                 "guidance-1": {
-                    "file": "yunfan/zh/guidance-1.6a96385d.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/guidance-1.77aee845.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为略偏跟随。"
                 },
                 "guidance-2": {
-                    "file": "yunfan/zh/guidance-2.d20806a3.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/guidance-2.995e429c.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为均衡。"
                 },
                 "guidance-3": {
-                    "file": "yunfan/zh/guidance-3.63f5dde3.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/guidance-3.c5c0ae95.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为略偏主导。"
                 },
                 "guidance-4": {
-                    "file": "yunfan/zh/guidance-4.47296acc.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/guidance-4.5a999d3e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "引导设为主导。"
                 },
                 "help": {
-                    "file": "yunfan/zh/help.fabf3ffc.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/help.6c82fc4f.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "说“开始”就可以开始，也可以说出氛围、焦点或时长来定制这次冥想。"
                 },
                 "intention-ask": {
-                    "file": "yunfan/zh/intention-ask.4a132e85.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/intention-ask.fc47c593.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你的意图是什么？"
                 },
                 "intention-cleared": {
-                    "file": "yunfan/zh/intention-cleared.210e9798.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/intention-cleared.1e1e7062.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "意图已清除。"
                 },
                 "intention-set": {
-                    "file": "yunfan/zh/intention-set.a1975259.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/intention-set.ab4fdaa6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "意图已记下。"
                 },
                 "mic-off": {
-                    "file": "yunfan/zh/mic-off.135054f1.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/mic-off.592c6f89.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，麦克风已关闭。"
                 },
                 "mode-exploration": {
-                    "file": "yunfan/zh/mode-exploration.6fd3fdbd.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/mode-exploration.b08d71a2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，探索模式。"
                 },
                 "mode-felt-sense": {
-                    "file": "yunfan/zh/mode-felt-sense.fe25bf4f.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/mode-felt-sense.41833d5a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，体会模式。"
                 },
                 "mode-noting": {
-                    "file": "yunfan/zh/mode-noting.5cd6e60b.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/mode-noting.cbab885d.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，标记模式。"
                 },
                 "model-set": {
-                    "file": "yunfan/zh/model-set.a7fbd85e.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/model-set.bf853e9a.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，模型已设好。"
                 },
                 "never-mind": {
-                    "file": "yunfan/zh/never-mind.432d0d28.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/never-mind.c0be9cd0.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，意图不改了。"
                 },
                 "not-in-mode": {
-                    "file": "yunfan/zh/not-in-mode.cd789e73.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/not-in-mode.de97ec11.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "这个模式没有这一项。"
                 },
                 "responses-high": {
-                    "file": "yunfan/zh/responses-high.d0bf8011.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/responses-high.f7bb2dfd.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应会更长一些。"
                 },
                 "responses-low": {
-                    "file": "yunfan/zh/responses-low.6009337a.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/responses-low.f7c7f523.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应会简短一些。"
                 },
                 "responses-medium": {
-                    "file": "yunfan/zh/responses-medium.68f4e595.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/responses-medium.67cb6df1.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回应长度适中。"
                 },
                 "special-request-added": {
-                    "file": "yunfan/zh/special-request-added.3174509d.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/special-request-added.02f69b73.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "特别要求已记下。"
                 },
                 "special-request-ask": {
-                    "file": "yunfan/zh/special-request-ask.4d3b23cd.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/special-request-ask.77631dd4.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你的特别要求是什么？"
                 },
                 "special-request-never-mind": {
-                    "file": "yunfan/zh/special-request-never-mind.1faa7ff1.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/special-request-never-mind.72397c4b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的，不加特别要求了。"
                 },
                 "special-requests-cleared": {
-                    "file": "yunfan/zh/special-requests-cleared.2ac70ace.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/special-requests-cleared.391a39ab.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "特别要求已清除。"
                 },
                 "timer-10": {
-                    "file": "yunfan/zh/timer-10.8f93793e.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-10.034462d5.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时十分钟。"
                 },
                 "timer-15": {
-                    "file": "yunfan/zh/timer-15.7f731cb0.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-15.26bbc5f0.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时十五分钟。"
                 },
                 "timer-20": {
-                    "file": "yunfan/zh/timer-20.1e471c92.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-20.0dfe0ab2.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时二十分钟。"
                 },
                 "timer-30": {
-                    "file": "yunfan/zh/timer-30.a3344336.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-30.e8c17a65.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时三十分钟。"
                 },
                 "timer-45": {
-                    "file": "yunfan/zh/timer-45.79b2a200.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-45.95515879.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时四十五分钟。"
                 },
                 "timer-5": {
-                    "file": "yunfan/zh/timer-5.8da0794c.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-5.d945620b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时五分钟。"
                 },
                 "timer-60": {
-                    "file": "yunfan/zh/timer-60.37d2ae57.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-60.0e939dc4.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时一小时。"
                 },
                 "timer-off": {
-                    "file": "yunfan/zh/timer-off.be29a5d0.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-off.f459b2d9.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时已关闭。"
                 },
                 "timer-set": {
-                    "file": "yunfan/zh/timer-set.4a9fd36a.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/timer-set.87c3e605.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.ae1d7ee4.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-done.de85f81b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。"
                 },
                 "tour-exploration": {
-                    "file": "yunfan/zh/tour-exploration.64bd2696.mp3",
-                    "gainDb": 1.5,
-                    "text": "探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
+                    "file": "yunfan/zh/tour-exploration.802f2f29.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "探索是一场对话。在这个模式里，你闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "yunfan/zh/tour-felt-sense.cf239e4a.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-felt-sense.8d360fc4.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "yunfan/zh/tour-focus.7a5602b9.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-focus.7cd90bf6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
-                    "file": "yunfan/zh/tour-hello.e8ac4d5f.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-hello.3e27a7f1.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
+                "tour-methods": {
+                    "file": "yunfan/zh/tour-methods.e9bf6cca.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "aloud 有三种用声音冥想的方式。我来一个一个地介绍。"
+                },
                 "tour-noting": {
-                    "file": "yunfan/zh/tour-noting.0a0b2fdd.mp3",
-                    "gainDb": 1.5,
-                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
+                    "file": "yunfan/zh/tour-noting.c1fc804d.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
+                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如“温暖”、“放松”或“思考”。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
-                    "file": "yunfan/zh/tour-vibe.0593ff62.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-vibe.9785f1be.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "氛围决定这次冥想的基调。轻松有玩心、开阔、慈悲，可以随意搭配。"
                 },
                 "tour-voice-control": {
-                    "file": "yunfan/zh/tour-voice-control.510392bb.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-voice-control.f4cd3d88.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。"
                 },
                 "tour-voice-picked": {
-                    "file": "yunfan/zh/tour-voice-picked.969de9e6.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/tour-voice-picked.6c3187c0.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "好的。以后随时可以在声音选择里换别的声音。"
                 },
                 "unavailable": {
-                    "file": "yunfan/zh/unavailable.b36fe336.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/unavailable.5fc1ce29.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "现在改不了这一项。"
                 },
                 "vibe-cleared": {
-                    "file": "yunfan/zh/vibe-cleared.ba81c250.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-cleared.dad1804c.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "氛围已全部去掉。"
                 },
                 "vibe-compassionate-off": {
-                    "file": "yunfan/zh/vibe-compassionate-off.31101714.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-compassionate-off.32384f2e.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉慈悲。"
                 },
                 "vibe-compassionate-on": {
-                    "file": "yunfan/zh/vibe-compassionate-on.dabd9f4d.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-compassionate-on.17a19b46.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上慈悲。"
                 },
                 "vibe-effortless-off": {
-                    "file": "yunfan/zh/vibe-effortless-off.4205b344.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-effortless-off.8780af14.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉不费力。"
                 },
                 "vibe-effortless-on": {
-                    "file": "yunfan/zh/vibe-effortless-on.604892a1.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-effortless-on.d8052b47.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上不费力。"
                 },
                 "vibe-feeling-good-off": {
-                    "file": "yunfan/zh/vibe-feeling-good-off.c4400da4.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-feeling-good-off.96be7f41.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉感觉不错。"
                 },
                 "vibe-feeling-good-on": {
-                    "file": "yunfan/zh/vibe-feeling-good-on.d3fbe886.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-feeling-good-on.436008a6.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上感觉不错。"
                 },
                 "vibe-loving-off": {
-                    "file": "yunfan/zh/vibe-loving-off.0ac9a198.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-loving-off.e4f85a62.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉慈爱。"
                 },
                 "vibe-loving-on": {
-                    "file": "yunfan/zh/vibe-loving-on.005d26fa.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-loving-on.deb86780.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上慈爱。"
                 },
                 "vibe-playful-off": {
-                    "file": "yunfan/zh/vibe-playful-off.b9a7425e.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-playful-off.6b6391ed.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉轻松有玩心。"
                 },
                 "vibe-playful-on": {
-                    "file": "yunfan/zh/vibe-playful-on.47de7c54.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-playful-on.bf023ada.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上轻松有玩心。"
                 },
                 "vibe-spacious-off": {
-                    "file": "yunfan/zh/vibe-spacious-off.b1f67039.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-spacious-off.259a720b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已去掉开阔。"
                 },
                 "vibe-spacious-on": {
-                    "file": "yunfan/zh/vibe-spacious-on.cdee3b24.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/vibe-spacious-on.10eb2c9b.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "已加上开阔。"
                 },
                 "voice-intro-first": {
-                    "file": "yunfan/zh/voice-intro-first.0ad7c97c.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/voice-intro-first.b88ef829.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "你好，我是云帆。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "yunfan/zh/voice-intro-second.8b098215.mp3",
-                    "gainDb": 1.5,
+                    "file": "yunfan/zh/voice-intro-second.5fce39a9.mp3",
+                    "gainDb": 3,
+                    "levelled": true,
                     "text": "我是云帆。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },

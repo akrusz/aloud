@@ -2703,7 +2703,7 @@ function renderSetupHTML(
         </div>
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
-                <p><strong>${t('Exploration')}</strong>: ${t('This is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore.')}</p>
+                <p><strong>${t('Exploration')}</strong>: ${t('This is a dyadic meditation format where you speak about what you are experiencing in the moment and the facilitator asks brief questions to help you explore.')}</p>
                 <p>${t("In this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads. In my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.")}</p>
                 <p>${t('Thanks to')} <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> ${t('and')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for guiding me in similar practices.')}</p>
             </div>
@@ -2712,7 +2712,7 @@ function renderSetupHTML(
                 <p>${t('Thanks to')} <a href="https://www.buddhistgeeks.org/" target="_blank" rel="noopener">Vince Horn</a> ${t('and again to')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for inspiration.')}</p>
             </div>
             <div data-method="felt_sense" class="hidden">
-                <p><strong>${t('Felt Sense')}</strong>: ${t('Six steps: settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. The facilitator keeps track of the steps; you talk and take your time.')}</p>
+                <p><strong>${t('Felt Sense')}</strong>: ${t('This mode follows a six step process: settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. The facilitator keeps track of the steps; you talk and take your time.')}</p>
                 <p>${t('Adapted from')} <a href="https://focusing.org/" target="_blank" rel="noopener">${t("Eugene Gendlin's Focusing")}</a>${t(', which deserves the credit for the method.')}</p>
             </div>
             <p class="info-panel-link"><a href="#" id="start-guide-link">${t('Take the full tour')} &rarr;</a></p>
