@@ -77,7 +77,7 @@ import {
 import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
-import { bargeInDetectorFits, wrapTtsWithBargeIn } from '../barge-in.js';
+import { wrapTtsWithBargeIn } from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
 import {
     sessionModelLabel,
@@ -735,10 +735,9 @@ export async function mountSessionView(
         return true;
     }
 
-    // Barge-in (wrapTtsWithBargeIn opens its own mic stream during speak() and
-    // cancels on sustained energy). The listen loop picks up the user's next
-    // utterance naturally. Never a hold exit: a timer notice or command ack
-    // spoken into a hold can be barged over, and the hold outlives it.
+    // Barge-in, from either detector. Never a hold exit: a timer notice or
+    // command ack spoken into a hold can be barged over, and the hold outlives
+    // it.
     const onBargeIn = () => {
         tapEvent('audio', 'barge-in');
     };
@@ -789,10 +788,12 @@ export async function mountSessionView(
     let continuousCapture = engineDrivenBargeIn;
     // Turn supersession + barge-in plumbing. turnGen bumps each turn so a stale
     // turn bails; activeFullAbort stops a superseded turn generating;
-    // activeTtsAbort hushes the in-flight reply without discarding it.
+    // activeTtsAbort hushes the in-flight reply, which keeps what was heard.
     let turnGen = 0;
     let activeFullAbort: AbortController | null = null;
     let activeTtsAbort: AbortController | null = null;
+    // Set while a reply is in the log and still being spoken (watchReply).
+    let cutReply: (() => void) | null = null;
     // The continuous-capture engine when that's the live backend; used for
     // barge-in wiring (echo calibration goes through echoListener).
     let whisperEngine = continuousWhisper(stt);
@@ -836,14 +837,21 @@ export async function mountSessionView(
         // facilitator's voice cancels its own TTS, and the extra stream starves
         // the platform's single recognizer (meditation-pal-x4h4, -oxmt). Phones
         // pause capture while busy anyway, so they skip it; server-whisper
-        // drives its own. Nor beside a browser voice (bargeInDetectorFits).
+        // drives its own. The wrapper itself stands down beside a voice the OS
+        // speaks (bargeInDetectorFits).
         const wrapBargeIn =
-            !engineDrivenBargeIn &&
-            sttBackend !== 'capacitor' &&
-            !isSingleOwnerMicPlatform() &&
-            bargeInDetectorFits(engine);
+            !engineDrivenBargeIn && sttBackend !== 'capacitor' && !isSingleOwnerMicPlatform();
         return wrapBargeIn
-            ? wrapTtsWithBargeIn(engine, { onBargeIn, micDeviceId: appSettings.micDeviceId })
+            ? wrapTtsWithBargeIn(engine, {
+                  // The wrapper cancels the sentence it heard over; the abort
+                  // keeps the reply's next ones from playing over the meditator.
+                  // Null outside a reply (a notice spoken into a hold).
+                  onBargeIn: () => {
+                      activeTtsAbort?.abort();
+                      onBargeIn();
+                  },
+                  micDeviceId: appSettings.micDeviceId,
+              })
             : engine;
     }
     // A voice that can't speak the session's language (a leftover English pick
@@ -1016,9 +1024,9 @@ export async function mountSessionView(
         whisperEngine.setBargeInHandler(() => {
             // Only meaningful while the facilitator is responding: hush it so
             // the user isn't talked over. The utterance keeps being captured and
-            // gets its own turn, which supersedes this one. Muting TTS only, so
-            // a false trigger doesn't lose the in-flight reply - it just
-            // finishes silently into the transcript. In a silence hold there's
+            // gets its own turn, which supersedes this one. What wasn't heard
+            // is cut from the transcript and the log (watchReply), so a false
+            // trigger costs the rest of the reply. In a silence hold there's
             // nothing to interrupt (busy is false) and the resume classifier
             // owns leaving the hold, so don't clear it here.
             if (!busy || openingSounding) {
@@ -1364,6 +1372,31 @@ export async function mountSessionView(
                 el = null;
                 content = null;
             },
+        };
+    }
+
+    /**
+     * Follow a reply that is in the log and still being spoken. If a barge-in
+     * or a newer turn keeps the rest of it from being heard, the log keeps
+     * only what was (cutUnspokenReply). The returned settle gives the text the
+     * log ended up with; call it when the audio is over. Until then whatever
+     * takes the floor runs the same cut through `cutReply`, ahead of its own
+     * words going into the log.
+     */
+    function watchReply(full: string, heard: () => { text: string; cut: boolean }): () => string {
+        let kept = full;
+        const cut = (): void => {
+            if (kept !== full) return;
+            const h = heard();
+            if (!h.cut || !session.cutUnspokenReply(full, h.text)) return;
+            kept = h.text;
+            tapEvent('audio', 'reply-cut', { heardChars: kept.length, ofChars: full.length });
+        };
+        cutReply = cut;
+        return () => {
+            cut();
+            if (cutReply === cut) cutReply = null;
+            return kept;
         };
     }
 
@@ -1887,6 +1920,7 @@ export async function mountSessionView(
         ++turnGen;
         activeFullAbort?.abort();
         void tts.cancel();
+        cutReply?.();
         // The superseded turn no longer owns the flag (see respondTo's finally).
         busy = false;
     }
@@ -2279,6 +2313,8 @@ export async function mountSessionView(
         if (busy) diag(`[turn] interrupting in-flight reply (${userText.length} chars)`);
         activeFullAbort?.abort();
         void tts.cancel();
+        // Before this turn's words go into the log behind it.
+        cutReply?.();
         const myFullAbort = new AbortController();
         const myTtsAbort = new AbortController();
         activeFullAbort = myFullAbort;
@@ -2358,8 +2394,9 @@ export async function mountSessionView(
             // Streaming + sentence-chunked TTS, falling back to non-streaming
             // when the provider has no completeStream: the first sentence starts
             // speaking before the rest finishes generating. Two signals, so a
-            // barge-in can hush the audio (ttsSignal) without losing the
-            // transcript, while a newer turn aborts outright (signal).
+            // barge-in can hush the audio (ttsSignal) and keep the reply's
+            // signals and what was heard, while a newer turn aborts outright
+            // (signal).
             // onSpeakStart fires with control tokens already stripped; status
             // stays "Thinking…" until a sentence actually speaks.
             armSlowResponseStatus();
@@ -2442,7 +2479,7 @@ export async function mountSessionView(
                     completion = null;
                 }
             }
-            let { text: rawText, ttsDone, usage, finishReason } =
+            let { text: rawText, ttsDone, usage, finishReason, heard } =
                 completion ?? (await attemptCompletion(bubble));
             if (superseded()) {
                 bubble.discard();
@@ -2475,7 +2512,7 @@ export async function mountSessionView(
                 bubble.discard();
                 bubble = createAssistantReveal();
                 reveal = bubble;
-                ({ text: rawText, ttsDone, usage, finishReason } = await attemptCompletion(bubble));
+                ({ text: rawText, ttsDone, usage, finishReason, heard } = await attemptCompletion(bubble));
                 if (superseded()) {
                     bubble.discard();
                     return;
@@ -2582,6 +2619,7 @@ export async function mountSessionView(
             // has been spoken), so a turn that supersedes us mid-playback can't
             // end up ordered above this reply.
             bubble.anchor();
+            const settleReply = ephemeral ? () => cleanText : watchReply(cleanText, heard);
 
             // Let in-flight TTS chunks finish so the next turn doesn't pile on.
             try {
@@ -2589,18 +2627,26 @@ export async function mountSessionView(
             } catch {
                 /* non-fatal */
             }
-            // Complete the bubble whatever happened to the audio (hushed
-            // barge-in, TTS failure, normal finish): the reply is in history, so
-            // the transcript must show it in full.
-            bubble.finalize(cleanText);
-            tapTurn('assistant', 'reply', cleanText, { raw: rawText, latencyMs: turnLatencyMs });
+            // The bubble ends up showing what history holds: the whole reply
+            // (TTS failure and muted voice included), or what was heard of one
+            // that was cut off.
+            const said = settleReply();
+            if (said.trim()) {
+                bubble.finalize(said);
+                tapTurn('assistant', 'reply', said, { raw: rawText, latencyMs: turnLatencyMs });
+            } else {
+                bubble.discard();
+                if (!superseded()) hideTyping();
+            }
             if (superseded()) return;
             // A [HOLD] is only a bid (see awaitingHoldConfirm, rlgm): the
             // meditator's next utterance is classified for a yes. Ignored
             // entirely when silenceModeEnabled is false. (Re-entry right after
             // a hold never reaches here: handleReHoldRequest takes that turn
             // before the model is asked for a reply.)
-            let bid = !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled;
+            // Nor one whose reply was cut off: the question it asks comes last.
+            let bid =
+                !ephemeral && !wasSilent && hold && pacingConfig.silenceModeEnabled && said === cleanText;
             // A bid made in answer to someone frightened or in danger is not
             // one. Models reach for [HOLD] as "I am stopping the meditation"
             // (Haiku 5.5 on "I don't think I want to be alive anymore", 1 try
@@ -3285,7 +3331,7 @@ export async function mountSessionView(
             if (!resuming && provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }
-            const { text: rawText, ttsDone, usage, finishReason } = await streamCompletionWithChunkedTts(
+            const { text: rawText, ttsDone, usage, finishReason, heard } = await streamCompletionWithChunkedTts(
                 provider,
                 tts,
                 session.getContextMessages(),
@@ -3326,12 +3372,19 @@ export async function mountSessionView(
             if (!resuming) tapTurn('assistant', 'opener', cleanText, { raw: rawText });
             session.addAssistantMessage(cleanText, undefined, usage);
             reveal.anchor();
+            const settleReply = watchReply(cleanText, heard);
             try {
                 await ttsDone;
             } catch {
                 /* non-fatal */
             }
-            reveal.finalize(cleanText);
+            const said = settleReply();
+            if (said.trim()) {
+                reveal.finalize(said);
+            } else {
+                reveal.discard();
+                if (!turn.superseded()) hideTyping();
+            }
         } catch (err) {
             // Aborted by the turn that took over: no fallback greeting.
             if (turn.superseded()) {

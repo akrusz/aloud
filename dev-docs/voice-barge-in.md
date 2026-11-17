@@ -22,10 +22,24 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    energy. It does **not** capture the triggering audio; once TTS is cancelled the
    normal listen loop wakes (busy → false as the `speak()` promise resolves) and
    captures the user's next words. In practice users pause ~300ms after
-   interrupting, which the listen loop more than makes up. Not beside a browser
-   (`speechSynthesis`) voice (`bargeInDetectorFits`): the OS plays it, so echo
-   cancellation has no reference for it and the detector cut every sentence
-   after its first word. Such a voice can't be interrupted.
+   interrupting, which the listen loop more than makes up. Not beside a
+   `speechSynthesis` voice the OS speaks (Ava; `bargeInDetectorFits`,
+   `BrowserTtsEngine.spokenByOs`): echo cancellation has no reference for it
+   and the detector cut every sentence after its first word. Such a voice
+   can't be interrupted. One the browser fetches and plays itself (Chrome's
+   Google voices) keeps the detector.
+
+On both detecting paths a barge-in cancels the sentence in flight and aborts
+`activeTtsAbort`, so the reply's later sentences never play. The reply keeps
+generating (its signals and usage still land), but the log and the bubble end
+up with only what was heard: the sentences whose audio started, the one cut
+mid-word included (`heard()` in `streaming-tts.ts`, `watchReply` in
+`session.ts`, `SessionManager.cutUnspokenReply`). The same cut runs when a
+newer turn or a command takes the floor mid-reply, before its own words are
+logged. A reply none of which was heard leaves no entry, and a `[HOLD]` bid on
+a cut reply is dropped, since its question comes last. So a false trigger
+costs the rest of that reply. A turn superseded while still generating is not
+recorded at all, as before.
 
 3. **None (phones)** - `session.ts` skips the wrapper entirely on the Capacitor
    plugin and on any single-owner-mic platform (`isSingleOwnerMicPlatform`). A

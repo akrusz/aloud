@@ -101,6 +101,19 @@ export class BrowserTtsEngine implements TtsEngine {
         });
     }
 
+    /**
+     * Whether the OS speaks this engine's voice, rather than the browser
+     * fetching and playing it (Chrome's Google voices, Edge's online ones).
+     * Asked per utterance, since Chrome lists its voices late. A voice that
+     * isn't listed falls back to the OS default, so it counts as one.
+     */
+    spokenByOs(): boolean {
+        const name = this.defaultVoice;
+        if (!name) return true;
+        const voice = speechSynthesis.getVoices().find((v) => v.voiceURI === name || v.name === name);
+        return voice?.localService ?? true;
+    }
+
     cancel(): Promise<void> {
         this.cancelSync();
         return Promise.resolve();

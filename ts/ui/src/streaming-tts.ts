@@ -44,7 +44,8 @@ export interface StreamCompletionOptions extends CompletionOptions {
      * supported, otherwise at chunk end), with the chunk's text - lets the UI
      * reveal the transcript in step with the voice instead of dumping the reply
      * ahead of the audio. Chunks arrive in spoken order, control tokens already
-     * stripped. Not called for hushed or failed chunks, so keep a fallback render.
+     * stripped. Not called for failed chunks, or for ones a hush kept from
+     * being heard, so keep a fallback render.
      */
     onSpeakStart?: (text: string) => void;
     /** Forwarded to tts.speak() for each sentence. */
@@ -57,9 +58,9 @@ export interface StreamCompletionOptions extends CompletionOptions {
     /** Abort the whole completion - stop consuming the stream AND speaking. For
      *  when a newer turn supersedes this one and the reply is discarded. */
     signal?: AbortSignal;
-    /** Hush TTS but keep generating, so the full reply still reaches the
-     *  transcript. Barge-in: stop talking over the user without losing the
-     *  in-progress response. */
+    /** Hush TTS but keep generating, so the reply's signals and usage still
+     *  arrive. Barge-in: stop talking over the user. What was said before it
+     *  is `heard()`. */
     ttsSignal?: AbortSignal;
     /**
      * Asked once, when the first words are ready to be spoken: resolve true to
@@ -74,6 +75,13 @@ export interface StreamCompletionResult {
     text: string;
     /** Promise that resolves when the last TTS chunk finishes playing. */
     ttsDone: Promise<void>;
+    /**
+     * What the meditator heard, once speech was hushed (either signal): the
+     * chunks whose audio started, the one cut mid-sentence included. `cut` is
+     * true when a hush left at least one chunk unspoken; false on a reply that
+     * is still playing, played out, or lost chunks only to a TTS failure.
+     */
+    heard: () => { text: string; cut: boolean };
     /** LLM usage split from this completion (for session usage tracking). */
     usage: LlmUsage;
     /** Provider/proxy finish reason from the final chunk. The cloud proxy flags
@@ -96,6 +104,19 @@ export async function streamCompletionWithChunkedTts(
     const { onTextDelta, onSpeakStart, ttsOptions, onTtsError, signal, ttsSignal, speakGate, ...completionOpts } =
         options;
     const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
+    const startedChunks: string[] = [];
+    let chunkCount = 0;
+    // The stream was dropped with text still to come.
+    let brokenOff = false;
+    const heard = (): { text: string; cut: boolean } => ({
+        text: startedChunks.join(' '),
+        cut: hushed() && (brokenOff || startedChunks.length < chunkCount),
+    });
+    // A chunk that resolves hushed without having started was cancelled before
+    // any of it was audible: not heard, so not reported.
+    const startedUnlessHushed = (reportStart: () => void) => (): void => {
+        if (!hushed()) reportStart();
+    };
     // A gate that throws opens: a broken check must not swallow a reply.
     let gate: Promise<boolean> | null = null;
     const maySpeak = (): Promise<boolean> =>
@@ -122,10 +143,12 @@ export async function streamCompletionWithChunkedTts(
         // right here") - only the tokens are silenced, never the words. The
         // caller parses the signals separately from the full text.
         const spoken = parseTurnSignals(result.text).cleanText;
+        if (spoken.trim()) chunkCount = 1;
         let started = false;
         const reportStart = (): void => {
             if (started) return;
             started = true;
+            startedChunks.push(spoken);
             onSpeakStart?.(spoken);
         };
         return {
@@ -135,7 +158,7 @@ export async function streamCompletionWithChunkedTts(
                     ? undefined
                     : tts
                           .speak(spoken, { ...ttsOptions, onStart: reportStart })
-                          .then(reportStart)
+                          .then(startedUnlessHushed(reportStart))
                           .catch((err: unknown) => {
                               reportTtsError(err);
                               throw err; // callers already treat ttsDone as non-fatal
@@ -143,6 +166,7 @@ export async function streamCompletionWithChunkedTts(
             ),
             usage: usageFrom(result),
             finishReason: result.finishReason ?? null,
+            heard,
         };
     }
 
@@ -161,7 +185,9 @@ export async function streamCompletionWithChunkedTts(
         // be read aloud. Never honored (signals stay leading-only), just never
         // spoken.
         text = scrubControlTokens(text);
-        if (!text.trim() || hushed()) return;
+        if (!text.trim()) return;
+        chunkCount++;
+        if (hushed()) return;
         // Start synthesis NOW, concurrent with earlier sentences' playback, so
         // this chunk's audio is usually fetched by the time it plays instead of
         // costing a round-trip of silence between sentences. Engines without
@@ -174,12 +200,15 @@ export async function streamCompletionWithChunkedTts(
         const reportStart = (): void => {
             if (started) return;
             started = true;
+            startedChunks.push(text);
             onSpeakStart?.(text);
         };
         ttsQueue = ttsQueue
             .then(async () => {
                 if (hushed() || !(await maySpeak()) || hushed()) return;
-                return tts.speak(text, { ...ttsOptions, onStart: reportStart }).then(reportStart);
+                return tts
+                    .speak(text, { ...ttsOptions, onStart: reportStart })
+                    .then(startedUnlessHushed(reportStart));
             })
             .catch((err: unknown) => {
                 // Non-fatal to the queue/session, but surfaced once so the
@@ -245,7 +274,10 @@ export async function streamCompletionWithChunkedTts(
 
     for await (const chunk of provider.completeStream(messages, providerOpts)) {
         // Superseded by a newer turn - stop consuming and return what we have.
-        if (signal?.aborted) break;
+        if (signal?.aborted) {
+            brokenOff = true;
+            break;
+        }
         if (chunk.text) {
             fullText += chunk.text;
             pendingTtsText += chunk.text;
@@ -284,7 +316,7 @@ export async function streamCompletionWithChunkedTts(
         }
     }
 
-    return { text: fullText, ttsDone: ttsQueue, usage, finishReason };
+    return { text: fullText, ttsDone: ttsQueue, usage, finishReason, heard };
 }
 
 /**

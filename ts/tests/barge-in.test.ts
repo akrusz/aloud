@@ -43,9 +43,34 @@ describe('wrapTtsWithBargeIn', () => {
 describe('bargeInDetectorFits', () => {
     afterEach(() => vi.unstubAllGlobals());
 
-    it('keeps the detector away from a speechSynthesis voice', () => {
-        vi.stubGlobal('speechSynthesis', {});
-        expect(bargeInDetectorFits(new BrowserTtsEngine({ defaultVoice: 'Ava' }))).toBe(false);
+    const voices = [
+        { name: 'Ava (Premium)', voiceURI: 'Ava (Premium)', localService: true },
+        { name: 'Google UK English Female', voiceURI: 'Google UK English Female', localService: false },
+    ];
+    const browserVoice = (name?: string) => new BrowserTtsEngine(name ? { defaultVoice: name } : {});
+
+    it('keeps the detector away from a voice the OS speaks, and only from those', () => {
+        vi.stubGlobal('speechSynthesis', { getVoices: () => voices });
+        expect(bargeInDetectorFits(browserVoice('Ava (Premium)'))).toBe(false);
+        expect(bargeInDetectorFits(browserVoice('Google UK English Female'))).toBe(true);
         expect(bargeInDetectorFits(new RecordingTts())).toBe(true);
+        // The OS default speaks for both of these.
+        expect(bargeInDetectorFits(browserVoice())).toBe(false);
+        expect(bargeInDetectorFits(browserVoice('Not Installed'))).toBe(false);
+    });
+
+    it('opens no mic beside an OS voice, and one beside a voice the browser plays', async () => {
+        const getUserMedia = vi.fn().mockRejectedValue(new Error('denied'));
+        vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+        vi.stubGlobal('speechSynthesis', { getVoices: () => voices });
+        const speaking = (name: string) => {
+            const engine = browserVoice(name);
+            engine.speak = async () => {};
+            return wrapTtsWithBargeIn(engine).speak('Hello there');
+        };
+        await speaking('Ava (Premium)');
+        expect(getUserMedia).not.toHaveBeenCalled();
+        await speaking('Google UK English Female');
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
 });

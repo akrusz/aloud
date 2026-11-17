@@ -330,6 +330,23 @@ export class SessionManager {
     }
 
     /**
+     * Cut the latest facilitator message (`reply`) down to what was heard of
+     * it, when a barge-in or a newer turn kept the rest from being spoken; none
+     * heard removes it. The one edit the append-only log takes, and only while the
+     * message is still its last entry: no request has carried it yet, so the
+     * next one still extends the last one sent. Returns whether it was cut.
+     * Its usage stays in the session tally either way.
+     */
+    cutUnspokenReply(reply: string, heard: string): boolean {
+        const exchanges = this._state?.exchanges;
+        const last = exchanges?.[exchanges.length - 1];
+        if (!exchanges || !last || last.role !== 'assistant' || last.content !== reply) return false;
+        if (heard.trim()) last.content = heard;
+        else exchanges.pop();
+        return true;
+    }
+
+    /**
      * Fold one LLM completion into the session usage tally. Call directly only
      * for off-transcript completions (summary, resume-intent, noting labels);
      * `addAssistantMessage` already calls it for on-transcript turns.

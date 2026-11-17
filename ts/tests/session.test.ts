@@ -306,3 +306,47 @@ describe('SessionManager — control entries and system notes', () => {
         expect(manager.state!.exchanges[5]!.kind).toBe('phase');
     });
 });
+
+describe('SessionManager — a reply cut off by a barge-in', () => {
+    const contents = (m: SessionManager) => m.state!.exchanges.map((e) => e.content);
+
+    it('keeps what was heard, and the usage of the whole reply', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('One. Two. Three.', undefined, { tokensIn: 100, tokensOut: 12 });
+        expect(manager.cutUnspokenReply('One. Two. Three.', 'One.')).toBe(true);
+        expect(contents(manager)).toEqual(['u0', 'One.']);
+        expect(manager.state!.usage.llmTokensOut).toBe(12);
+    });
+
+    it('removes a reply none of which was heard', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('One. Two.');
+        expect(manager.cutUnspokenReply('One. Two.', '')).toBe(true);
+        expect(contents(manager)).toEqual(['u0']);
+    });
+
+    // The cache prefix: once anything follows the reply, a request may have
+    // carried it, and it is never edited again.
+    it('leaves a reply that is no longer the last entry', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('One. Two.');
+        manager.addUserMessage('u1');
+        expect(manager.cutUnspokenReply('One. Two.', 'One.')).toBe(false);
+        expect(contents(manager)).toEqual(['u0', 'One. Two.', 'u1']);
+    });
+
+    it('leaves a last entry that is some other reply', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addUserMessage('u0');
+        manager.addAssistantMessage('A check-in line.');
+        expect(manager.cutUnspokenReply('One. Two.', 'One.')).toBe(false);
+        expect(contents(manager)).toEqual(['u0', 'A check-in line.']);
+    });
+});

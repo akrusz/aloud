@@ -572,3 +572,81 @@ describe('role-leak guard in the streaming path', () => {
         ]);
     });
 });
+
+describe('heard(): what a hush left unspoken', () => {
+    const reply = ['The first sentence goes here. ', 'The second sentence goes here. ', 'And the third one here.'];
+
+    /** Reports onStart, then plays until cancel() or `release()`. */
+    class HeldTts extends RecordingTts {
+        private end: (() => void) | null = null;
+        override speak(text: string, options?: TtsOptions): Promise<void> {
+            this.spoken.push(text);
+            options?.onStart?.();
+            return new Promise((resolve) => (this.end = resolve));
+        }
+        override async cancel(): Promise<void> {
+            this.end?.();
+        }
+    }
+
+    it('is the whole reply, not cut, once it has played out', async () => {
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider(reply), new RecordingTts(), [
+            { role: 'user', content: 'hi' },
+        ]);
+        await result.ttsDone;
+        expect(result.heard()).toEqual({
+            text: 'The first sentence goes here. The second sentence goes here. And the third one here.',
+            cut: false,
+        });
+    });
+
+    it('keeps the sentence a barge-in landed in and cuts the ones after it', async () => {
+        const tts = new HeldTts();
+        const ac = new AbortController();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(reply),
+            tts,
+            [{ role: 'user', content: 'hi' }],
+            { ttsSignal: ac.signal }
+        );
+        await new Promise((r) => setTimeout(r, 0));
+        expect(result.heard().cut).toBe(false); // still playing
+        void tts.cancel();
+        ac.abort();
+        // Known at once: a turn that takes over reads it before its own words
+        // go into the log.
+        expect(result.heard()).toEqual({ text: 'The first sentence goes here.', cut: true });
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(['The first sentence goes here.']);
+        expect(result.heard()).toEqual({ text: 'The first sentence goes here.', cut: true });
+    });
+
+    it('is empty and cut when the hush came before any audio', async () => {
+        const ac = new AbortController();
+        ac.abort();
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(reply),
+            new RecordingTts(),
+            [{ role: 'user', content: 'hi' }],
+            { ttsSignal: ac.signal }
+        );
+        await result.ttsDone;
+        expect(result.heard()).toEqual({ text: '', cut: true });
+    });
+
+    it('is not cut by a TTS failure: the reply stays, text-only', async () => {
+        class FailingTts extends RecordingTts {
+            override async speak(): Promise<void> {
+                throw new Error('synthesis failed');
+            }
+        }
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(reply),
+            new FailingTts(),
+            [{ role: 'user', content: 'hi' }],
+            { onTtsError: () => {} }
+        );
+        await result.ttsDone;
+        expect(result.heard().cut).toBe(false);
+    });
+});

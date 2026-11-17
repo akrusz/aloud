@@ -146,19 +146,19 @@ export interface BargeInTtsOptions extends BargeInListenerOptions {
 }
 
 /**
- * Whether the detector can run beside this engine. Echo cancellation only
- * removes what the page itself plays: a speechSynthesis voice is played by the
- * OS, so the detector's mic hears it at full level and cuts every sentence
- * after its first word.
+ * Whether the detector can run beside this engine's voice. Echo cancellation
+ * only removes what the browser itself plays: a speechSynthesis voice the OS
+ * speaks (Ava) reaches the detector's mic at full level and trips it on
+ * every sentence's first word. Such a voice can't be interrupted.
  */
 export function bargeInDetectorFits(engine: TtsEngine): boolean {
-    return !(engine instanceof BrowserTtsEngine);
+    return !(engine instanceof BrowserTtsEngine && engine.spokenByOs());
 }
 
 /**
  * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
  * listener fires, tts.cancel() resolves the in-flight speak(). Pure
- * pass-through otherwise.
+ * pass-through otherwise, and for a voice the detector doesn't fit.
  */
 export function wrapTtsWithBargeIn(
     inner: TtsEngine,
@@ -166,6 +166,7 @@ export function wrapTtsWithBargeIn(
 ): TtsEngine {
     const wrapped: TtsEngine = {
         async speak(text: string, speakOpts?: TtsOptions): Promise<void> {
+            if (!bargeInDetectorFits(inner)) return inner.speak(text, speakOpts);
             const listener = new BargeInListener(options);
             await listener.start(() => {
                 void inner.cancel();
