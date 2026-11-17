@@ -117,20 +117,20 @@ export const SETUP_LINES = {
         zh: '好的。以后随时可以在声音选择里换别的声音。',
     },
     'tour-exploration': {
-        en: "Exploration is a conversation. Speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
-        zh: '探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
+        en: "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore.",
+        zh: '探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。',
     },
     'tour-noting': {
-        en: "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns.",
-        zh: '标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',
+        en: "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns.",
+        zh: '标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。',
     },
     'tour-felt-sense': {
-        en: "Felt sense follows a six step process where you'll feel into your body's responses in order to investigate something that's on your mind, and get to the root of it.",
-        zh: '体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。',
+        en: "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it.",
+        zh: '体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。',
     },
     'tour-focus': {
-        en: 'A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank.',
-        zh: '焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。',
+        en: 'Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank.',
+        zh: '回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。',
     },
     'tour-vibe': {
         en: 'Vibes set the tone of the session. Playful, spacious, compassionate, or any mix you like.',
@@ -143,8 +143,8 @@ export const SETUP_LINES = {
         zh: '你可以用说话来设置冥想。比如说“计时二十分钟”，我就会设好计时。',
     },
     'tour-done': {
-        en: "That's the important stuff. Say begin when you're ready.",
-        zh: '重要的就这些。想开始的时候，说“开始”就可以了。',
+        en: "OK, that's the basics. Say begin when you're ready.",
+        zh: '好，基本的就这些。想开始的时候，说“开始”就可以了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;
 

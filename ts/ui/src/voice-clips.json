@@ -228,20 +228,26 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "ethan/en/tour-done.e86af6e8.mp3",
-                    "text": "That's the important stuff. Say begin when you're ready."
+                    "file": "ethan/en/tour-done.681e8e91.mp3",
+                    "gainDb": 3,
+                    "text": "OK, that's the basics. Say begin when you're ready."
                 },
                 "tour-exploration": {
-                    "file": "ethan/en/tour-exploration.0431a4ad.mp3",
-                    "text": "Exploration is a conversation. Speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
+                    "file": "ethan/en/tour-exploration.74e88d4c.mp3",
+                    "gainDb": 3,
+                    "text": "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
-                    "file": "ethan/en/tour-felt-sense.a0849059.mp3",
-                    "text": "Felt sense follows a six step process where you'll feel into your body's responses in order to investigate something that's on your mind, and get to the root of it."
+                    "file": "ethan/en/tour-felt-sense.203f4bc0.mp3",
+                    "gainDb": 3,
+                    "suspect": true,
+                    "suspectReason": "5 bursts for 2 phrases (gaps 0.97s, 1.12s, 0.75s, 1.26s): probable repeat",
+                    "text": "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it."
                 },
                 "tour-focus": {
-                    "file": "ethan/en/tour-focus.bc52d064.mp3",
-                    "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
+                    "file": "ethan/en/tour-focus.0b52c834.mp3",
+                    "gainDb": 3,
+                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
                     "file": "ethan/en/tour-hello.e7ba181c.mp3",
@@ -249,8 +255,9 @@
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
-                    "file": "ethan/en/tour-noting.18e435a7.mp3",
-                    "text": "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns."
+                    "file": "ethan/en/tour-noting.f62e8866.mp3",
+                    "gainDb": 3,
+                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
                     "file": "ethan/en/tour-vibe.fed76407.mp3",
@@ -580,20 +587,24 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "harper/en/tour-done.62a57a20.mp3",
-                    "text": "That's the important stuff. Say begin when you're ready."
+                    "file": "harper/en/tour-done.35bfd17a.mp3",
+                    "gainDb": -4.5,
+                    "text": "OK, that's the basics. Say begin when you're ready."
                 },
                 "tour-exploration": {
-                    "file": "harper/en/tour-exploration.fe6060d6.mp3",
-                    "text": "Exploration is a conversation. Speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
+                    "file": "harper/en/tour-exploration.27a0f0af.mp3",
+                    "gainDb": -4.5,
+                    "text": "Exploration is a conversation. Close your eyes and speak a sentence or two about a sensation or feeling you're experiencing, and I'll ask short questions to help you explore."
                 },
                 "tour-felt-sense": {
-                    "file": "harper/en/tour-felt-sense.4bac1084.mp3",
-                    "text": "Felt sense follows a six step process where you'll feel into your body's responses in order to investigate something that's on your mind, and get to the root of it."
+                    "file": "harper/en/tour-felt-sense.e6ecd05b.mp3",
+                    "gainDb": -4.5,
+                    "text": "Felt sense follows a six step process where you'll investigate something that's on your mind by putting it into words and feeling into your body's responses, in order to get to the root of it."
                 },
                 "tour-focus": {
-                    "file": "harper/en/tour-focus.1dbcf384.mp3",
-                    "text": "A focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
+                    "file": "harper/en/tour-focus.f8fa9c8b.mp3",
+                    "gainDb": -4.5,
+                    "text": "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank."
                 },
                 "tour-hello": {
                     "file": "harper/en/tour-hello.64853d9f.mp3",
@@ -601,8 +612,9 @@
                     "text": "Welcome to aloud, the meditation app that speaks and listens. Turn on the microphone and you can answer me out loud."
                 },
                 "tour-noting": {
-                    "file": "harper/en/tour-noting.3e2ebc5c.mp3",
-                    "text": "Noting is simple. Just name something you're noticing in a word or two, like warmth or relaxation. You can add sounds or virtual participants to keep the pace between turns."
+                    "file": "harper/en/tour-noting.66d5aa58.mp3",
+                    "gainDb": -4.5,
+                    "text": "Noting is simple. With a word or two, name something you're noticing in the moment, like warmth or relaxation or thinking. You can add sounds or virtual participants to keep the pace between turns."
                 },
                 "tour-vibe": {
                     "file": "harper/en/tour-vibe.bb6041ad.mp3",
@@ -932,24 +944,24 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.fdc509e4.mp3",
+                    "file": "serena/zh/tour-done.d9f2d790.mp3",
                     "gainDb": 1.5,
-                    "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
+                    "text": "好，基本的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "serena/zh/tour-exploration.12f5a823.mp3",
+                    "file": "serena/zh/tour-exploration.7491e906.mp3",
                     "gainDb": 1.5,
-                    "text": "探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
+                    "text": "探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "serena/zh/tour-felt-sense.123fea04.mp3",
+                    "file": "serena/zh/tour-felt-sense.42c20f43.mp3",
                     "gainDb": 1.5,
-                    "text": "体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。"
+                    "text": "体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "serena/zh/tour-focus.e4f8e204.mp3",
+                    "file": "serena/zh/tour-focus.26deaccd.mp3",
                     "gainDb": 1.5,
-                    "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
+                    "text": "回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
                     "file": "serena/zh/tour-hello.98bc40ba.mp3",
@@ -957,9 +969,9 @@
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "serena/zh/tour-noting.615244ae.mp3",
+                    "file": "serena/zh/tour-noting.43e4f635.mp3",
                     "gainDb": 1.5,
-                    "text": "标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
+                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
                     "file": "serena/zh/tour-vibe.cdb68da2.mp3",
@@ -1289,24 +1301,24 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.5e2d793f.mp3",
+                    "file": "yunfan/zh/tour-done.a2f7f8bc.mp3",
                     "gainDb": 1.5,
-                    "text": "重要的就这些。想开始的时候，说“开始”就可以了。"
+                    "text": "好，基本的就这些。想开始的时候，说“开始”就可以了。"
                 },
                 "tour-exploration": {
-                    "file": "yunfan/zh/tour-exploration.2b366973.mp3",
+                    "file": "yunfan/zh/tour-exploration.64bd2696.mp3",
                     "gainDb": 1.5,
-                    "text": "探索是一场对话。用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
+                    "text": "探索是一场对话。闭上眼睛，用一两句话说说你此刻的身体感觉或情绪，我会用简短的问题陪你探索。"
                 },
                 "tour-felt-sense": {
-                    "file": "yunfan/zh/tour-felt-sense.0324899f.mp3",
+                    "file": "yunfan/zh/tour-felt-sense.cf239e4a.mp3",
                     "gainDb": 1.5,
-                    "text": "体会分六步：去感受身体的反应，借此探究心里的那件事，找到它的根源。"
+                    "text": "体会分六步：把心里的那件事说出来，再去感受身体的反应，借此探究它，找到它的根源。"
                 },
                 "tour-focus": {
-                    "file": "yunfan/zh/tour-focus.c3304a82.mp3",
+                    "file": "yunfan/zh/tour-focus.7a5602b9.mp3",
                     "gainDb": 1.5,
-                    "text": "焦点告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
+                    "text": "回到探索，这是最适合开始的地方。选一个焦点，就是告诉我你打算把注意力放在哪里：身体、情绪，或内在的各个部分。也可以不选。"
                 },
                 "tour-hello": {
                     "file": "yunfan/zh/tour-hello.e8ac4d5f.mp3",
@@ -1314,9 +1326,9 @@
                     "text": "欢迎来到 aloud，一款会说也会听的冥想应用。打开麦克风，你就可以直接开口回答我。"
                 },
                 "tour-noting": {
-                    "file": "yunfan/zh/tour-noting.70528e58.mp3",
+                    "file": "yunfan/zh/tour-noting.0a0b2fdd.mp3",
                     "gainDb": 1.5,
-                    "text": "标记很简单。只要用一两个词说出你正注意到的，比如温暖或放松。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
+                    "text": "标记很简单。用一两个词说出你此刻注意到的，比如温暖、放松或思考。还可以加入音效或虚拟参与者，在你开口的间隙保持节奏。"
                 },
                 "tour-vibe": {
                     "file": "yunfan/zh/tour-vibe.0593ff62.mp3",
