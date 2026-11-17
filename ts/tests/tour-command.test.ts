@@ -83,6 +83,14 @@ describe('parseTourCommand', () => {
         expect(parseTourCommand('女声', zh)).toEqual({ kind: 'voice', index: 0 });
         expect(parseTourCommand('我想听Yunfan', zh)).toEqual({ kind: 'voice', index: 1 });
         expect(parseTourCommand('男的', zh)).toEqual({ kind: 'voice', index: 1 });
+        // The names as a zh recognizer writes them.
+        for (const said of ['云帆', '雲帆。', '我要云凡', '运帆吧', 'Yunfan']) {
+            expect(parseTourCommand(said, zh), said).toEqual({ kind: 'voice', index: 1 });
+        }
+        for (const said of ['瑟琳娜', '塞雷娜', '我选赛琳娜', 'Serena']) {
+            expect(parseTourCommand(said, zh), said).toEqual({ kind: 'voice', index: 0 });
+        }
+        expect(parseTourCommand('云帆和瑟琳娜', zh)).toBeNull();
     });
 
     it('takes no voice from an answer that names both or neither', () => {

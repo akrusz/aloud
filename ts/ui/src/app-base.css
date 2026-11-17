@@ -5162,9 +5162,10 @@ input[type="range"].preview-range {
 }
 
 /* Voice mode (views/setup.ts paintVoiceMic): lit is on, slashed is off, and
-   asleep (closed by itself, the setting still on) is the glyph at rest, with
-   no slash. The gap is drawn in the button's own colour under the slash, so
-   the slash cuts the glyph instead of lying on it. */
+   asleep (closed by itself, the setting still on) has a "z z" where the
+   sound waves were, and no slash. The gap is drawn in the button's own
+   colour under the slash, so the slash cuts the glyph instead of lying on
+   it. */
 .voice-start-mic .mute-gap {
     stroke: var(--bg-input);
     stroke-width: 6;
@@ -5174,6 +5175,13 @@ input[type="range"].preview-range {
 .voice-start-mic.sleeping .mute-gap,
 .voice-start-mic.sleeping .mute-line {
     opacity: 0;
+}
+.voice-start-mic .voice-sleep,
+.voice-start-mic.sleeping .voice-waves {
+    display: none;
+}
+.voice-start-mic.sleeping .voice-sleep {
+    display: inline;
 }
 
 .voice-start-mic.hidden {

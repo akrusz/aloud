@@ -180,6 +180,22 @@ spacious vibe" does. Special requests are 特别要求 (or 补充指引, the old
 label): 特别要求 / 我有一个特别要求 asks, 特别要求：慢一点 / 我的特别要求是慢一点
 says it, 清除特别要求 empties it.
 
+The zh house voices have Latin names in the catalog, and a Chinese sentence
+needs them otherwise in both directions (`voice-names.ts`). Spoken, a zh line
+said "我是 Yunfan" with the name read as an English word, the only accented
+word in it; Yunfan's lines now say 云帆 (`spokenVoiceName`, used by
+`setupLineText`, so the clips render with it). Azure gives no characters for
+him (its voices list has "Yunfan Dragon HD Latest" as the local name, where
+older voices have 云希, 云健), so 云帆 is our choice. Serena is an English name
+and stays "Serena" in a zh line, as an English name does in Chinese speech.
+Heard, a zh recognizer writes characters, and the voice picker and the tour's
+voice step looked for the Latin name in them, so a correctly heard 云帆 matched
+nothing. `zhSaysName` takes the Latin name or what a recognizer writes for the
+syllables (yún fān: 云帆, 云凡, 运帆, 雲帆 ...; Serena: 瑟琳娜, 塞雷娜, 赛琳娜 ...),
+and the names as said are in `setupVocabulary('zh').phrases`. The picker and
+the tour still show "Yunfan". An English recognizer writing "yun fan" as two
+words now finds him too (`namedIn`).
+
 ### What happens to a request
 
 `views/setup.ts` hands the actions to `applySetupActions`

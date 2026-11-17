@@ -26,8 +26,15 @@ describe('the spoken lines', () => {
 
     it("fill in the speaking voice's name", () => {
         expect(setupLineText('voice-intro-first', 'en', { name: 'Harper' })).toBe("Hi, I'm Harper. This is how I sound.");
-        expect(setupLineText('voice-intro-first', 'zh', { name: 'Serena' })).toContain('Serena');
+        expect(setupLineText('voice-intro-first', 'zh', { name: 'Serena' })).toBe('你好，我是 Serena。这是我的声音。');
         expect(setupLineText('mode-noting', 'fr')).toBe(SETUP_LINES['mode-noting'].en);
+    });
+
+    it('say a Chinese name in characters in a zh line, and in Latin letters everywhere else', () => {
+        expect(setupLineText('voice-intro-first', 'zh', { name: 'Yunfan' })).toBe('你好，我是云帆。这是我的声音。');
+        expect(setupLineText('voice-intro-second', 'zh', { name: 'Yunfan' })).toMatch(/^我是云帆。/);
+        expect(setupLineText('voice-intro-first', 'en', { name: 'Yunfan' })).toBe("Hi, I'm Yunfan. This is how I sound.");
+        expect(setupLineText('voice-intro-first', 'zh', { name: 'Harper' })).toBe('你好，我是 Harper。这是我的声音。');
     });
 });
 

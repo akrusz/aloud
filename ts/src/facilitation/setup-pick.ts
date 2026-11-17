@@ -15,6 +15,7 @@
  */
 
 import { editDistance, soundKey } from './setup-command.js';
+import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 export type SetupPick =
@@ -70,7 +71,8 @@ function words(utterance: string): string[] {
 }
 
 /**
- * Which of `names` the words `said` name, or null. In order: the whole name;
+ * Which of `names` the words `said` name, or null. In order: the whole name
+ * (with or without the spaces between the words said);
  * else the names that contain every word said ("opus" for "Claude Opus 5.5",
  * "amy" for "en_US-amy-medium"), the first listed winning, since both lists
  * come best first; else, for one word, a name that sounds like it ("Eason"
@@ -80,7 +82,9 @@ export function namedIn(said: readonly string[], names: readonly string[]): numb
     if (said.length === 0 || said.length > 5) return null;
     const tokens = names.map((name) => words(name));
     const joined = said.join(' ');
-    const whole = tokens.findIndex((name) => name.join(' ') === joined);
+    // An English recognizer writes a Chinese name as two words ("yun fan").
+    const run = said.join('');
+    const whole = tokens.findIndex((name) => name.join(' ') === joined || name.join('') === run);
     if (whole >= 0) return whole;
     const contains = tokens.findIndex((name) => said.every((word) => name.includes(word)));
     if (contains >= 0) return contains;
@@ -104,8 +108,7 @@ function parseZhPick(utterance: string, ctx: PickContext): SetupPick | null {
     const preview = /试听|听听|预览|播放/.test(said);
     const asks = preview || /声音|语音/.test(said);
     if (!asks && !ctx.pickerOpen) return null;
-    const lower = said.toLowerCase();
-    const named = ctx.voices.filter((name) => lower.includes(name.toLowerCase()));
+    const named = ctx.voices.filter((name) => zhSaysName(said, name));
     if (named.length !== 1) return null;
     return { kind: 'voice', name: named[0]!, preview };
 }

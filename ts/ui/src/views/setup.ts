@@ -2937,7 +2937,8 @@ function renderSetupHTML(
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M8 2a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
                         <path d="M2 10v1a6 6 0 0 0 12 0v-1M8 17v4M5 21h6"></path>
-                        <path d="M17 5.5a4.5 4.5 0 0 1 0 6.5M20 2.5a8.6 8.6 0 0 1 0 12.5"></path>
+                        <path class="voice-waves" d="M17 5.5a4.5 4.5 0 0 1 0 6.5M20 2.5a8.6 8.6 0 0 1 0 12.5"></path>
+                        <path class="voice-sleep" d="M16.5 10.5h4l-4 4h4M18 1h5l-5 5.5h5"></path>
                         <line class="mute-gap" x1="3" y1="3" x2="21" y2="21"></line>
                         <line class="mute-line" x1="3" y1="3" x2="21" y2="21"></line>
                     </svg>

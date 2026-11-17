@@ -741,7 +741,7 @@ function showDone(): void {
     html +=
         '<p>' +
         (tourVoice && tourVoice.mic() !== 'off'
-            ? t('Pick what you like and begin. With the mic on, say it: "twenty minutes", "add playful", "begin". Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')
+            ? t('Pick what you like and begin. With the mic on, you can speak: "twenty minutes", "add playful", "begin". Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')
             : t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')) +
         '</p>';
     showCentered(html, false);

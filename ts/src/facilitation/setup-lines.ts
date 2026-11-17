@@ -22,10 +22,12 @@
 import type { BeginMode } from './begin-command.js';
 import type { Quality, Verbosity } from './prompts.js';
 import type { SetupAction, SetupFocus } from './setup-command.js';
+import { spokenVoiceName } from './voice-names.js';
 
 export type SetupLanguage = 'en' | 'zh';
 
-/** `{name}` is the speaking voice's own name (the two introductions). */
+/** `{name}` is the speaking voice's own name (the two introductions), as the
+ *  line's language says it (voice-names.ts). */
 export const SETUP_LINES = {
     'mode-exploration': { en: 'Okay, exploration mode.', zh: '好的，探索模式。' },
     'mode-noting': { en: 'Okay, noting mode.', zh: '好的，标记模式。' },
@@ -146,8 +148,8 @@ export const SETUP_LINES = {
         // Never ending on a request, "begin" least of all: the tail of a line
         // is what the microphone could catch as it reopens, and only a tail
         // is dropped as the app's own (echo-guard.ts looksLikeSpokenTail).
-        en: "You can also set things up by talking: say 'twenty minutes' and I'll set a timer. That's the basics. Say begin when you're ready.",
-        zh: '你也可以用说话来设置：说“计时二十分钟”，我就会设好计时。基本的就这些。想开始的时候，说“开始”就可以了。',
+        en: "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try.",
+        zh: '你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。',
     },
 } as const satisfies Record<string, Record<SetupLanguage, string>>;
 
@@ -161,7 +163,11 @@ export function setupLanguage(language: string): SetupLanguage {
 
 /** A line's text, with the speaking voice's name filled in where it has one. */
 export function setupLineText(id: SetupLineId, language: string, vars: { name?: string } = {}): string {
-    return SETUP_LINES[id][setupLanguage(language)].replace('{name}', vars.name ?? '');
+    const name = spokenVoiceName(vars.name ?? '', language);
+    const line = SETUP_LINES[id][setupLanguage(language)];
+    // A name in characters sits in the sentence without the spaces a Latin
+    // one is set off by: 我是云帆, 我是 Serena.
+    return /^[㐀-鿿]/u.test(name) ? line.replace(/ ?\{name\} ?/, name) : line.replace('{name}', name);
 }
 
 /**

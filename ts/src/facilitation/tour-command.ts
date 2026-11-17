@@ -9,6 +9,7 @@
  * only one.
  */
 
+import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 export type TourCommand =
@@ -92,7 +93,7 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
         if (female !== null) picked.add(female);
         if (male !== null) picked.add(male);
         voices.forEach((voice, i) => {
-            if (zh.toLowerCase().includes(voice.name.toLowerCase())) picked.add(i);
+            if (zhSaysName(zh, voice.name)) picked.add(i);
         });
         return picked.size === 1 ? [...picked][0]! : null;
     }

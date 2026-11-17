@@ -76,6 +76,26 @@ describe('a voice by name', () => {
         expect(pick('试听Ethan', { voices: ['Serena', 'Ethan'] })).toEqual({ kind: 'voice', name: 'Ethan', preview: true });
         expect(pick('声音换成Serena', { voices: ['Serena', 'Ethan'] })).toEqual({ kind: 'voice', name: 'Serena', preview: false });
     });
+
+    it('hears the zh house voices by the characters a recognizer writes for them', () => {
+        const zh = { voices: ['Serena', 'Yunfan', 'Harper'] };
+        for (const said of ['试听云帆', '试听雲帆', '声音换成云凡', '我想听听运帆的声音', '试听Yunfan']) {
+            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Yunfan' });
+        }
+        for (const said of ['试听瑟琳娜', '声音换成塞雷娜', '试听賽琳娜', '试听Serena']) {
+            expect(pick(said, zh), said).toMatchObject({ kind: 'voice', name: 'Serena' });
+        }
+        expect(pick('云帆', { ...zh, pickerOpen: true })).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
+        // A name alone is still only an answer while the picker is up.
+        expect(pick('云帆', zh)).toBeNull();
+        expect(pick('试听云帆和瑟琳娜', zh)).toBeNull();
+        expect(pick('试听Harper', zh)).toMatchObject({ kind: 'voice', name: 'Harper' });
+    });
+
+    it('takes a name an English recognizer wrote as two words', () => {
+        expect(pick('set the voice to yun fan', { voices: ['Serena', 'Yunfan'] })).toEqual({ kind: 'voice', name: 'Yunfan', preview: false });
+        expect(namedIn(['harper'], ['Harper', 'Ethan'])).toBe(0);
+    });
 });
 
 describe('a model by name', () => {

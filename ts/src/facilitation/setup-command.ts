@@ -24,6 +24,7 @@
 import type { BeginMode } from './begin-command.js';
 import type { Quality, Verbosity } from './prompts.js';
 import { parseTimerRequest } from './voice-command.js';
+import { zhVoicePhrases } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
 /** The focuses the setup screen offers (open awareness is no checkbox there). */
@@ -1162,6 +1163,9 @@ export function setupVocabulary(language: string): { prompt: string | null; phra
             '探索', '标记', '体会', '氛围', '焦点', '身体与感受', '情绪', '内在部分', '轻松有玩心', '慈悲', '慈爱',
             '开阔', '不费力', '感觉不错', '多一点引导', '少一点引导', '跟随', '均衡', '主导', '简短', '意图',
             '二十分钟', '计时器',
+            // The house voices by the names their lines say, for the tour's
+            // voice step and the voice picker.
+            ...zhVoicePhrases(),
         ];
         return { prompt: null, phrases };
     }
