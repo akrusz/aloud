@@ -15,12 +15,18 @@ export type WhisperStatus =
     /** Loaded - or nothing we can reach says otherwise. */
     | { state: 'ready' }
     | { state: 'downloading'; percent: number | null }
-    /** On disk, being read into memory. Seconds, not minutes. */
-    | { state: 'loading' }
+    /** On disk, being read into memory: about a third of a second for base
+     *  (measured 2026-11-17), so it is `brief`, and not worth a notice, until
+     *  it has gone on for LOADING_NOTICE_AFTER_MS. */
+    | { state: 'loading'; brief?: true }
     /** Download or load failed; the shell keeps retrying with backoff. */
     | { state: 'failed' };
 
 const POLL_MS = 1500;
+/** While the model is only loading, so the wait ends about when the load does
+ *  and not a poll later: nothing listens on the setup screen until it has. */
+const LOADING_POLL_MS = 250;
+const LOADING_NOTICE_AFTER_MS = 1000;
 
 /** The shell's warm probe. Naming a model makes the shell start loading it;
  *  with no size it only proves the local Whisper route is wired. */
@@ -72,11 +78,16 @@ export function watchWhisperReady(
 ): () => void {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let loadingSince: number | null = null;
     const tick = async (): Promise<void> => {
-        const status = await probeWhisper(size, lang);
+        const probed = await probeWhisper(size, lang);
         if (stopped) return;
+        const status = settleLoading(probed, loadingSince, Date.now());
+        loadingSince = status.state === 'loading' ? (loadingSince ?? Date.now()) : null;
         onStatus(status);
-        if (status.state !== 'ready') timer = setTimeout(() => void tick(), POLL_MS);
+        if (status.state !== 'ready') {
+            timer = setTimeout(() => void tick(), status.state === 'loading' ? LOADING_POLL_MS : POLL_MS);
+        }
     };
     void tick();
     return () => {
@@ -85,7 +96,19 @@ export function watchWhisperReady(
     };
 }
 
-/** The setup-page notice, or null when there's nothing to wait for. */
+/** A load marked `brief` until it has lasted long enough to mention. */
+export function settleLoading(status: WhisperStatus, loadingSince: number | null, now: number): WhisperStatus {
+    if (status.state !== 'loading') return status;
+    return now - (loadingSince ?? now) < LOADING_NOTICE_AFTER_MS ? { state: 'loading', brief: true } : { state: 'loading' };
+}
+
+/** What the setup page shows while it waits: nothing for a brief load, which
+ *  still holds Begin and the listener (describeWhisperWait). */
+export function whisperNotice(status: WhisperStatus): string | null {
+    return status.state === 'loading' && status.brief ? null : describeWhisperWait(status);
+}
+
+/** Why the model can't be used yet, in words, or null when it can. */
 export function describeWhisperWait(status: WhisperStatus): string | null {
     switch (status.state) {
         case 'ready':

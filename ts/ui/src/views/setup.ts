@@ -112,7 +112,7 @@ import {
     probeMic,
     type MicStatus,
 } from '../mic-check.js';
-import { watchWhisperReady, describeWhisperWait, type WhisperStatus } from '../whisper-ready.js';
+import { watchWhisperReady, describeWhisperWait, whisperNotice, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
 import { sessionStore, sharedKv } from '../state.js';
 import { clearActiveSession } from '../active-session.js';
@@ -2018,7 +2018,7 @@ export async function mountSetupView(
     function renderWhisperNotice(): void {
         const banner = root.querySelector<HTMLElement>('#setup-whisper-wait');
         const text = root.querySelector<HTMLElement>('#setup-whisper-wait-text');
-        const wait = describeWhisperWait(whisperStatus);
+        const wait = whisperNotice(whisperStatus);
         if (banner && text) {
             banner.classList.toggle('hidden', !wait);
             text.textContent = wait ?? '';
