@@ -89,12 +89,13 @@ function groups(voiced: readonly boolean[], minGap: number): [number, number][] 
     return out;
 }
 
-/** What the sentence behind the lead should look like, when the caller
- *  knows: one burst (a short input), or an opening burst longer than a lead
- *  (text with no mark in its first words, which gives a pause no reason to
- *  fall there). A take that doesn't is the lead said twice, or the voice
- *  stalling on its first word, and is better synthesized again. */
-export type LeadExpect = 'one-burst' | 'long-opening';
+/** What the sentence behind the lead should look like: one burst (a short
+ *  input), or no more lead-length bursts ahead of a longer one than the text
+ *  gives a pause a reason for (`shortOpenings`: one per mark in its first two
+ *  words). A take with more is the lead said twice, or the voice stalling on
+ *  an opening word, and is not used: a lost opening word is better than a
+ *  lead that can be heard. */
+export type LeadExpect = 'one-burst' | { shortOpenings: number };
 
 /** Where the sentence's first sound starts behind the lead, as a frame
  *  index into the audio frames, or null when the gap is not there or the
@@ -115,7 +116,11 @@ export function sentenceStart(mp3: Uint8Array, frames: readonly Mp3Frame[], expe
     const lead = speech[0];
     if (!lead || speech.length < 2 || length(lead) > LEAD_TRIM.maxLeadS || lead[1] * s > LEAD_TRIM.gapWithinS) return null;
     if (expect === 'one-burst' && speech.length > 2) return null;
-    if (expect === 'long-opening' && speech.length > 2 && length(speech[1]!) <= LEAD_TRIM.maxLeadS) return null;
+    if (expect && expect !== 'one-burst') {
+        let short = 0;
+        while (1 + short < speech.length - 1 && length(speech[1 + short]!) <= LEAD_TRIM.maxLeadS) short++;
+        if (short > expect.shortOpenings) return null;
+    }
     const [sentence] = speech[1]!;
     // Back to the first loud frame of the sentence's approach (an inhale
     // often rises through a frame or two before the speech run).

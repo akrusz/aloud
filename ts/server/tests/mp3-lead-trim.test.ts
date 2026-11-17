@@ -95,12 +95,17 @@ describe('trimLead', () => {
         const twice = concat(run(15, LEAD), run(30, QUIET), run(17, LEAD), run(30, QUIET), run(20, SPEECH));
         expect(trimLead(twice)!.length).toBe((112 - (45 - KEEP)) * 288);
         expect(trimLead(twice, 'one-burst')).toBeNull();
-        expect(trimLead(twice, 'long-opening')).toBeNull();
+        expect(trimLead(twice, { shortOpenings: 0 })).toBeNull();
+        // One mark early in the text allows one short burst, not two.
+        expect(trimLead(twice, { shortOpenings: 1 })).toEqual(trimLead(twice));
         expect(trimLead(LED, 'one-burst')).toEqual(trimLead(LED));
         // An opening burst longer than a lead, then a pause: a sentence.
         const clause = concat(run(15, LEAD), run(30, QUIET), run(45, SPEECH), run(30, QUIET), run(20, SPEECH));
-        expect(trimLead(clause, 'long-opening')).toEqual(trimLead(clause));
+        expect(trimLead(clause, { shortOpenings: 0 })).toEqual(trimLead(clause));
         expect(trimLead(clause, 'one-burst')).toBeNull();
+        // "Yes, [pause] I hear you" said behind a doubled lead: two short bursts.
+        const yes = concat(run(15, LEAD), run(30, QUIET), run(15, LEAD), run(30, QUIET), run(12, SPEECH), run(20, QUIET), run(45, SPEECH));
+        expect(trimLead(yes, { shortOpenings: 1 })).toBeNull();
     });
 
     it('treats a short dip inside the lead as part of it', () => {
@@ -155,11 +160,12 @@ describe('leadFor', () => {
         expect(leadFor(resolveVoice('Leda'), 'Back to Exploration.')).toBeNull();
     });
 
-    it('expects one burst of a short input, a long opening of text with no early mark', () => {
+    it('expects one burst of a short input, and a short opening burst per early mark', () => {
         expect(leadExpect("That's good.")).toBe('one-burst');
-        expect(leadExpect('Back to Exploration, which is the best place to start.')).toBe('long-opening');
-        expect(leadExpect('Yes, I hear that there is some tension.')).toBeUndefined();
-        expect(leadExpect('So \u2014 where were we, before the timer?')).toBeUndefined();
+        expect(leadExpect('Back to Exploration, which is the best place to start.')).toEqual({ shortOpenings: 0 });
+        expect(leadExpect('Yes, I hear that there is some tension.')).toEqual({ shortOpenings: 1 });
+        expect(leadExpect('So \u2014 where were we, before the timer?')).toEqual({ shortOpenings: 1 });
+        expect(leadExpect('Yes, yes, I hear that there is some tension.')).toEqual({ shortOpenings: 2 });
     });
 
     it('is what Azure bills, lead included', () => {
@@ -217,6 +223,18 @@ describe('synthFor with a lead (Harper)', () => {
         expect(ssml[1]).toBe(ssml[0]);
         expect(extra).toEqual([azureBilledChars("Okay. That's good.", 1, 'softvoice')]);
         expect(out).toEqual(withGain(trimLead(LED)!, harper.gainDb!));
+    });
+
+    it('speaks without the lead when the second take is not as expected either', async () => {
+        const twice = concat(run(15, LEAD), run(30, QUIET), run(17, LEAD), run(30, QUIET), run(20, SPEECH));
+        const plain = run(20, SPEECH);
+        replies = [twice, twice, plain];
+        const extra: number[] = [];
+        const out = await synthFor(config, harper)!("That's good.", 1, (c) => extra.push(c));
+        expect(ssml).toHaveLength(3);
+        expect(ssml[2]).toContain("softvoice\">That&apos;s good.</mstts");
+        expect(extra).toEqual([azureBilledChars("Okay. That's good.", 1, 'softvoice'), azureBilledChars("That's good.", 1, 'softvoice')]);
+        expect(out).toEqual(withGain(concat(AZURE_LEAD_SILENCE_MP3, plain), harper.gainDb!));
     });
 
     it('sends a vowel-initial input as it is', async () => {

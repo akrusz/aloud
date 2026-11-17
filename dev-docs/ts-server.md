@@ -254,16 +254,22 @@ constant bitrate, so a frame's `global_gain` tracks its level, and the cut lands
 on a frame boundary in the silence, 0.15s ahead of the sentence's first sound,
 with the first kept frame emptied so it needs nothing from the bit reservoir
 cut away. A trimmed clip skips the lead-silence pad. A take that isn't what the
-text predicts (`leadExpect`: a short input in one burst, otherwise an opening
-burst longer than a lead) is the lead said twice or a stall and is rolled
-again once; with no gap at all after two takes the text is synthesized without
-the lead. Azure bills every call, so `billedCharsFor` counts the lead (6
+text predicts (`leadExpect`: a short input in one burst, otherwise no more
+lead-length bursts ahead of a longer one than there are marks in its first two
+words) is the lead said twice or a stall, and is rolled again once. If the
+second take fails the same check, or neither has a gap, the text is synthesized
+without the lead: it may lose its opening word, but a lead that can be heard
+is the worse fault, and wherever the two risks meet the code takes the lost
+word. Azure bills every call, so `billedCharsFor` counts the lead (6
 characters) and the metered route adds any further call (`extraBilled`).
 Measured 2026-11-16 through this path: 0 of 40 openings lost (16 of 23
 before), 0 of 40 short inputs voiced twice. It adds a median 23ms (p90 101ms)
-to the Azure call and about 0.1ms of CPU, and a roll costs one more call (6% of
-long sentences, 12% of short ones); only the first sentence of a reply waits
-on any of it, since the rest synthesize while earlier ones play.
+to the Azure call and about 0.1ms of CPU, and a roll costs one more call
+(about 6% of long sentences, 20% of short ones); about 1% end up without the
+lead. Only the first sentence of a reply waits on any of it, since the rest
+synthesize while earlier ones play. Other leads tried ("Hm.", "Mm.", "So.",
+"Oh.", "Ah.", "I.", "And.", "Alright.") did no better; "Ah." and "Oh." often
+ran into the sentence, and "Mm.", "So." and "Alright." slowed it by about 15%.
 
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a

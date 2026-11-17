@@ -67,14 +67,14 @@ export function leadFor(resolved: ResolvedVoice, text: string): string | null {
  *  included, twice now and then (meditation-pal-1c9h). */
 const SHORT_INPUT_CHARS = 24;
 
-/** What the speech behind the lead should look like for `text`
- *  (LeadExpect), or undefined when a mark in its first two words, short of
- *  its last, gives a pause a reason to fall right after the opening. */
-export function leadExpect(text: string): LeadExpect | undefined {
+/** What the speech behind the lead should look like for `text` (LeadExpect):
+ *  one burst for a short input, otherwise as many short opening bursts as
+ *  there are marks in its first two words, short of its last. */
+export function leadExpect(text: string): LeadExpect {
     if (text.length < SHORT_INPUT_CHARS) return 'one-burst';
     const words = text.trim().split(/\s+/);
-    const early = words.slice(0, Math.min(2, words.length - 1)).some((w) => /[,.;:!?\u2026\u2013\u2014]$/.test(w));
-    return early ? undefined : 'long-opening';
+    const marks = words.slice(0, Math.min(2, words.length - 1)).filter((w) => /[,.;:!?\u2026\u2013\u2014]$/.test(w));
+    return { shortOpenings: marks.length };
 }
 
 /** The rate actually synthesized: the caller's request scaled by the curated
@@ -120,18 +120,18 @@ export function synthFor(config: TtsKeys, resolved: ResolvedVoice): SynthFn | nu
             const lead = leadFor(resolved, text);
             if (lead) {
                 const led = `${lead} ${text}`;
-                // A take that doesn't look as expected is rolled again once,
-                // and the second is taken as it comes.
+                // A take that doesn't look as expected is rolled again once.
                 const expect = leadExpect(text);
-                for (let attempt = 0; attempt < (expect ? 2 : 1); attempt++) {
+                for (let attempt = 0; attempt < 2; attempt++) {
                     if (attempt) extraBilled?.(azureBilledChars(led, effectiveRate(resolved, rate), resolved.style));
                     // A trimmed clip starts in the voice's own silence, long
                     // enough to stand in for the lead-silence pad (LEAD_TRIM.keepS).
-                    const trimmed = trimLead(await azure(led, rate), attempt ? undefined : expect);
+                    const trimmed = trimLead(await azure(led, rate), expect);
                     if (trimmed) return level(trimmed);
                 }
-                // No clean gap behind the lead: speak the text again without
-                // it, so the lead is never heard.
+                // Two takes without a clean cut: speak the text without the
+                // lead. It may lose its opening word, but the lead is never
+                // heard, which is the worse fault (the dev's call, 2026-11-16).
                 log.info('tts lead not trimmed, synthesizing without it', { voice: resolved.voiceId });
                 extraBilled?.(azureBilledChars(text, effectiveRate(resolved, rate), resolved.style));
             }
