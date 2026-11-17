@@ -248,9 +248,9 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "ethan/en/tour-done.681e8e91.mp3",
+                    "file": "ethan/en/tour-done.d1d627a0.mp3",
                     "gainDb": 3,
-                    "text": "OK, that's the basics. Say begin when you're ready."
+                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
                     "file": "ethan/en/tour-exploration.74e88d4c.mp3",
@@ -620,9 +620,9 @@
                     "text": "Okay, the timer is set."
                 },
                 "tour-done": {
-                    "file": "harper/en/tour-done.35bfd17a.mp3",
+                    "file": "harper/en/tour-done.3357d974.mp3",
                     "gainDb": -4.5,
-                    "text": "OK, that's the basics. Say begin when you're ready."
+                    "text": "You can also use the setup screen by talking naturally. For example, say 'twenty minutes' and I'll set a timer. Or, say begin to start a session. Now you're ready to give it a try."
                 },
                 "tour-exploration": {
                     "file": "harper/en/tour-exploration.27a0f0af.mp3",
@@ -662,6 +662,8 @@
                 "unavailable": {
                     "file": "harper/en/unavailable.60efabb2.mp3",
                     "gainDb": -4.5,
+                    "suspect": true,
+                    "suspectReason": "\"that\" not heard in \"Can't change right now.\": probable lost word",
                     "text": "That can't change right now."
                 },
                 "vibe-cleared": {
@@ -992,9 +994,9 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "serena/zh/tour-done.d9f2d790.mp3",
+                    "file": "serena/zh/tour-done.ea6716ac.mp3",
                     "gainDb": 1.5,
-                    "text": "好，基本的就这些。想开始的时候，说“开始”就可以了。"
+                    "text": "你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。"
                 },
                 "tour-exploration": {
                     "file": "serena/zh/tour-exploration.7491e906.mp3",
@@ -1364,9 +1366,9 @@
                     "text": "计时已设好。"
                 },
                 "tour-done": {
-                    "file": "yunfan/zh/tour-done.a2f7f8bc.mp3",
+                    "file": "yunfan/zh/tour-done.ae1d7ee4.mp3",
                     "gainDb": 1.5,
-                    "text": "好，基本的就这些。想开始的时候，说“开始”就可以了。"
+                    "text": "你也可以用自然的说话来操作设置页面。比如说“二十分钟”，我就会设好计时。或者说“开始”，就能开始冥想。现在可以试试看了。"
                 },
                 "tour-exploration": {
                     "file": "yunfan/zh/tour-exploration.64bd2696.mp3",
@@ -1474,14 +1476,14 @@
                     "text": "已加上开阔。"
                 },
                 "voice-intro-first": {
-                    "file": "yunfan/zh/voice-intro-first.ab1ba6fe.mp3",
+                    "file": "yunfan/zh/voice-intro-first.0ad7c97c.mp3",
                     "gainDb": 1.5,
-                    "text": "你好，我是 Yunfan。这是我的声音。"
+                    "text": "你好，我是云帆。这是我的声音。"
                 },
                 "voice-intro-second": {
-                    "file": "yunfan/zh/voice-intro-second.5c0c5ccf.mp3",
+                    "file": "yunfan/zh/voice-intro-second.8b098215.mp3",
                     "gainDb": 1.5,
-                    "text": "我是 Yunfan。想听谁的声音？说出名字，或者点一下我们的名字。"
+                    "text": "我是云帆。想听谁的声音？说出名字，或者点一下我们的名字。"
                 }
             },
             "fixedPace": false,

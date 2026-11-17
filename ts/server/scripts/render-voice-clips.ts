@@ -24,8 +24,10 @@
  *
  * THE GATE (voice-clips/analysis.ts). Every clip is decoded with ffmpeg and
  * checked for a repeated utterance (on a short line, more bursts than its
- * phrases; on a long one, a word Whisper hears said again, transcript.ts)
- * and a cut first word (no onset rise); a failing clip is re-rendered, up to
+ * phrases; on a long one, a word Whisper hears said again), for words Whisper
+ * does not hear, the first above all (an English line of MIN_HEARD_WORDS or
+ * more, transcript.ts), and a cut first word (no onset rise); a failing clip
+ * is re-rendered, up to
  * MAX_ATTEMPTS. A long line is rendered until LONG_LINE_TAKES pass and keeps
  * the one with the fewest pauses inside a clause. A second pass checks each
  * new clip's length against its voice's own seconds-per-character norm,
@@ -53,7 +55,7 @@ import { CURATED_VOICES, resolveVoice, type ResolvedVoice } from '../src/provide
 import { billedCharsFor, synthFor } from '../src/routes/tts.js';
 import { GATE, analyzePcm, clipFaults, secondsPerCharNorm, wordCount, type ClipAnalysis } from './voice-clips/analysis.js';
 import { capPauses, findPauses } from './voice-clips/cadence.js';
-import { findWhisper, repeatedWords, transcribe } from './voice-clips/transcript.js';
+import { MIN_HEARD_WORDS, findWhisper, transcriptFaults, transcribe, words } from './voice-clips/transcript.js';
 import {
     emptyManifest,
     orphanFiles,
@@ -266,8 +268,8 @@ interface Attempt {
     analysis?: ClipAnalysis;
     /** Pauses inside a clause (cadence.ts), what picks among a long line's takes. */
     midClause?: number;
-    /** Words the transcript check heard said again. */
-    repeated?: string[];
+    /** What the transcript check found wrong. */
+    heardFaults?: string[];
 }
 
 interface Job {
@@ -281,7 +283,7 @@ interface Job {
 
 function faultsOf(attempt: Attempt, text: string, norm: number | null): string[] {
     const faults = attempt.analysis ? clipFaults(attempt.analysis, text, norm) : [];
-    if (attempt.repeated?.length) faults.push(`heard "${attempt.repeated.join(' ')}" said again: probable repeat`);
+    faults.push(...(attempt.heardFaults ?? []));
     return faults;
 }
 
@@ -455,11 +457,11 @@ async function main(): Promise<void> {
     const ffmpeg = jobs.length && args.gate ? findFfmpeg() : null;
     if (jobs.length && args.gate && !ffmpeg)
         fail('ffmpeg not found (brew install ffmpeg); the quality gate decodes every clip. --no-gate renders without it.');
-    const hearable = (t: ClipTarget) => isLongLine(t.text) && t.voice.language === 'en';
+    const hearable = (t: ClipTarget) => t.voice.language === 'en' && words(t.text).length >= MIN_HEARD_WORDS;
     const whisper = ffmpeg && jobs.some((j) => hearable(j.target)) ? findWhisper() : null;
     if (ffmpeg && !whisper && jobs.some((j) => hearable(j.target)))
         console.log(
-            '\nTranscript check off for the long lines: no whisper_batch build or base.en model ' +
+            '\nTranscript check off: no whisper_batch build or base.en model ' +
                 '(cargo build --manifest-path ts/src-tauri/Cargo.toml --example whisper_batch).'
         );
 
@@ -511,7 +513,7 @@ async function main(): Promise<void> {
                     attempt.analysis = { durationS: 0, bursts: [], gapsS: [], voicedS: 0, onsetRiseMs: null };
                 }
                 const heard = whisper && hearable(target) ? transcribe(whisper, ffmpeg, bytes) : null;
-                if (heard !== null) attempt.repeated = repeatedWords(target.text, heard);
+                if (heard !== null) attempt.heardFaults = transcriptFaults(target.text, heard, isLongLine(target.text));
             }
             job.attempts.push(attempt);
             const faults = faultsOf(attempt, target.text, norm);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PAUSE_CAP_S, capPauses, findPauses, pauseMarks } from '../scripts/voice-clips/cadence.js';
-import { repeatedWords } from '../scripts/voice-clips/transcript.js';
+import { missingWords, repeatedWords, transcriptFaults, words } from '../scripts/voice-clips/transcript.js';
 
 const RATE = 24_000;
 
@@ -85,5 +85,52 @@ describe('setup clip transcript check', () => {
 
     it('catches the whole line said twice', () => {
         expect(repeatedWords('Okay, noting mode.', 'Okay, noting mode. Okay, noting mode.')).toEqual(['okay', 'noting', 'mode']);
+    });
+});
+
+describe('setup clip lost words', () => {
+    const focus =
+        "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank if you aren't sure.";
+
+    it('writes numbers as digits and ok as okay, both sides alike', () => {
+        expect(words('Timer set for forty-five minutes.')).toEqual(['timer', 'set', 'for', '45', 'minutes']);
+        expect(words('A six step process, OK?')).toEqual(['a', '6', 'step', 'process', 'okay']);
+    });
+
+    // What Whisper heard in Harper's committed clips (2026-11-16).
+    it("fails a take that lost its first word, as Harper's softvoice does", () => {
+        expect(missingWords(focus, focus.replace('Back to Exploration', 'to exploration'))).toEqual(['back']);
+        expect(missingWords('Timer set for fifteen minutes.', "I'm her set for 15 minutes.")).toEqual(['timer']);
+        expect(missingWords('The timer is off.', 'Timer is off.')).toEqual(['the']);
+        expect(missingWords("That's part of exploration.", "It's part of exploration.")).toEqual(["that's"]);
+        expect(missingWords('That can\'t change right now.', "Can't change right now.")).toEqual(['that']);
+    });
+
+    // What Whisper heard in Ethan's, which are whole.
+    it("passes Whisper's own slips", () => {
+        expect(missingWords('Parts focus is on.', 'Hearts focuses on.')).toEqual([]);
+        expect(missingWords('Spacious is off.', 'Bacious is off.')).toEqual([]);
+        expect(missingWords('Okay, all set.', "Okay, I'll set.")).toEqual([]);
+        expect(missingWords('Check-ins are off.', 'Checkins are off.')).toEqual([]);
+        expect(missingWords('Timer set for forty-five minutes.', 'Timer set for 45 minutes.')).toEqual([]);
+        expect(missingWords('OK, that\'s the basics.', "Okay, that's the basics.")).toEqual([]);
+        expect(missingWords('Welcome to aloud, the meditation app.', 'Welcome to Allowed, the meditation app.')).toEqual([]);
+        expect(missingWords('Guidance set to following.', 'Guide and set to following.')).toEqual([]);
+        expect(missingWords('The clock will show time in session.', 'The clock will show time and session.')).toEqual([]);
+    });
+
+    it('fails lost words inside a line past a tenth of it, and leaves a two-word line alone', () => {
+        expect(missingWords('Timer set for five minutes.', 'Timer for minutes.')).toEqual(['set', '5']);
+        const four = focus.replace('tells me where you', 'tells where').replace('the body', 'body').replace('Or leave', 'leave');
+        expect(missingWords(focus, four)).toEqual(['me', 'you', 'the', 'or']);
+        expect(missingWords(focus, focus.replace('tells me where', 'tells where'))).toEqual([]);
+        expect(missingWords('Never mind.', 'Mind.')).toEqual([]);
+    });
+
+    it('reports lost words on any line and repeats on a long one', () => {
+        expect(transcriptFaults('The timer is off.', 'Timer is off.', false).join()).toMatch(/"the" not heard/);
+        expect(transcriptFaults('Okay, noting mode.', 'Okay, noting mode. Okay, noting mode.', false)).toEqual([]);
+        expect(transcriptFaults(focus, focus.replace('Choosing a', 'Choosing a a'), true).join()).toMatch(/said again/);
+        expect(transcriptFaults(focus, focus, true)).toEqual([]);
     });
 });
