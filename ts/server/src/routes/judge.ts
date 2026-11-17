@@ -113,7 +113,10 @@ export function judgeRoutes(deps: Deps, now: () => number = Date.now): Hono<{ Va
                 judgeQuestions(body.classifier)
             );
             const latencyMs = Date.now() - t0;
-            log.info('judge', { classifier: body.classifier, latencyMs, model: result.model });
+            // Session calls only: scripts/jev-ab.ts sends readers to these lines
+            // for Jev's latency on Fly, and the setup screen asks about every
+            // utterance it hears.
+            if (!setup) log.info('judge', { classifier: body.classifier, latencyMs, model: result.model });
             // Not awaited: it never throws, and the meditator is waiting on this
             // response, not on a telemetry write.
             void recordUsage(deps.store, {
