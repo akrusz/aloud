@@ -662,8 +662,6 @@
                 "unavailable": {
                     "file": "harper/en/unavailable.60efabb2.mp3",
                     "gainDb": -4.5,
-                    "suspect": true,
-                    "suspectReason": "\"that\" not heard in \"Can't change right now.\": probable lost word",
                     "text": "That can't change right now."
                 },
                 "vibe-cleared": {
