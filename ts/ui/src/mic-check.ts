@@ -19,7 +19,8 @@
  *   - acquireMicOnce() definitive: actually opens a stream (so it may prompt)
  *                     and releases it immediately; in the Android app the
  *                     RECORD_AUDIO grant answers instead. Run from the Begin
- *                     handler, where the prompt has a user gesture behind it.
+ *                     handler, where the prompt has a user gesture behind it,
+ *                     unless a capture of ours was just live (micForBegin).
  */
 
 import { ensureMicPermission } from './mic-permission.js';
@@ -163,6 +164,52 @@ let openedThisPage = false;
  *  (voice-start.ts micPermission). */
 export function micOpenedThisPage(): boolean {
     return openedThisPage;
+}
+
+/** Capture streams of ours that are open now (whisper-pcm-stt.ts reports them). */
+const openCaptures = new Map<MediaStream, () => boolean>();
+let lastLiveCaptureClosedAt = -Infinity;
+
+/** A capture stream of ours opened. `live` says whether it still is (open,
+ *  delivering, not muted). */
+export function noteCaptureOpened(stream: MediaStream, live: () => boolean): void {
+    openedThisPage = true;
+    openCaptures.set(stream, live);
+}
+
+/** About to stop that stream's tracks. */
+export function noteCaptureClosing(stream: MediaStream): void {
+    const live = openCaptures.get(stream);
+    openCaptures.delete(stream);
+    if (live?.()) lastLiveCaptureClosedAt = performance.now();
+}
+
+/**
+ * How recently a capture of ours must have been live for Begin to take it as
+ * the answer. Long enough for a spoken "begin", whose listener closes before
+ * the settings it named are saved; short enough that a mic unplugged or
+ * revoked since still gets acquireMicOnce's clear message, not a session
+ * that fails later (noting would never say why).
+ */
+export const RECENT_CAPTURE_MS = 3000;
+
+/**
+ * Begin's mic check. A capture stream of ours that is live, or was a moment
+ * ago (the setup screen's listener, closed by this same Begin), is the answer:
+ * a probe would open and close the mic once more, and on macOS each open or
+ * close of an echo-cancelled stream rebuilds the audio output under the
+ * opening sound (meditation-pal-uz8t). Anything older, and a recognizer with
+ * no stream of ours (the browser's, a phone's), goes to acquireMicOnce. Call
+ * it before any await, so a prompt keeps the click's gesture.
+ */
+export function micForBegin(): Promise<MicStatus> {
+    const recent =
+        [...openCaptures.values()].some((live) => live()) ||
+        performance.now() - lastLiveCaptureClosedAt <= RECENT_CAPTURE_MS;
+    // A simulated failure stands in for the hardware, which a live capture
+    // would otherwise vouch for.
+    if (recent && !getSimMic()) return Promise.resolve('ok');
+    return acquireMicOnce();
 }
 
 async function acquireMic(): Promise<MicStatus> {

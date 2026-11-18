@@ -105,6 +105,11 @@ and again a couple of seconds after it stops. Three rules keep the two apart
   (`SttStopOptions`) stops listening at once but holds the capture stream until
   the closing sound is over. Released at End, the output was rebuilt mid-sound.
 
+Begin's mic check opens no probe stream when the setup screen's listener was
+just live (`micForBegin` in `mic-check.ts`, see
+[voice-commands.md](voice-commands.md#mic-pre-flight)), which took one open and
+close out of the moment before the opening.
+
 Until `ensureCaptureGraph` became single-flight (2026-10-12) every session
 start leaked a capture stream, which kept voice processing running between
 sessions and hid all three. If session-start echo (meditation-pal-8h1x) looks

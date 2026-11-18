@@ -174,6 +174,72 @@ describe('acquireMicOnce - definitive, and releases what it opens', () => {
     });
 });
 
+describe("micForBegin - a capture of ours that just worked is Begin's answer", () => {
+    // Each probe opens and closes an echo-cancelled stream, and on macOS each
+    // of those rebuilds the audio output under the opening sound (uz8t).
+    async function freshModule() {
+        vi.resetModules();
+        return import('../ui/src/mic-check.js');
+    }
+    const stream = (): MediaStream => ({}) as MediaStream;
+
+    it('opens a probe stream when no capture of ours has run, and none while one is live', async () => {
+        const mic = await freshModule();
+        const getUserMedia = vi.fn(async () => ({ getTracks: () => [] }));
+        stubNavigator({ mediaDevices: { getUserMedia } });
+        expect(await mic.micForBegin()).toBe('ok');
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
+        mic.noteCaptureOpened(stream(), () => true);
+        expect(await mic.micForBegin()).toBe('ok');
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+
+    it('counts a capture as opening the mic on this page', async () => {
+        const mic = await freshModule();
+        expect(mic.micOpenedThisPage()).toBe(false);
+        mic.noteCaptureOpened(stream(), () => true);
+        expect(mic.micOpenedThisPage()).toBe(true);
+    });
+
+    it('takes one closed a moment ago, and probes once that moment has passed', async () => {
+        const mic = await freshModule();
+        // Unplugged since: only the probe can say so before the session.
+        stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotFoundError') } });
+        const clock = vi.spyOn(performance, 'now');
+        try {
+            const s = stream();
+            mic.noteCaptureOpened(s, () => true);
+            clock.mockReturnValue(10_000);
+            mic.noteCaptureClosing(s);
+            clock.mockReturnValue(10_000 + mic.RECENT_CAPTURE_MS);
+            expect(await mic.micForBegin()).toBe('ok');
+            clock.mockReturnValue(10_001 + mic.RECENT_CAPTURE_MS);
+            expect(await mic.micForBegin()).toBe('no-device');
+        } finally {
+            clock.mockRestore();
+        }
+    });
+
+    it('takes nothing from a stream that had died before it closed', async () => {
+        const mic = await freshModule();
+        stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotAllowedError') } });
+        const s = stream();
+        mic.noteCaptureOpened(s, () => false);
+        expect(await mic.micForBegin()).toBe('denied');
+        mic.noteCaptureClosing(s);
+        expect(await mic.micForBegin()).toBe('denied');
+    });
+
+    it('still gives a simulated failure to Begin under a live capture', async () => {
+        const mic = await freshModule();
+        const store = new Map([['aloud:simMic', 'error']]);
+        vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null });
+        stubNavigator(healthyNav());
+        mic.noteCaptureOpened(stream(), () => true);
+        expect(await mic.micForBegin()).toBe('error');
+    });
+});
+
 describe('?nomic simulation (dev builds only)', () => {
     function stubUrl(search: string): void {
         vi.stubGlobal('window', { location: { href: `http://localhost:4649/${search}` } });

@@ -25,7 +25,7 @@ import { detectCapabilities } from './capabilities.js';
 import { isCloudBuild } from './cloud-base.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
-import { acquireMicOnce, describeMicRequirement } from './mic-check.js';
+import { describeMicRequirement, micForBegin } from './mic-check.js';
 import { primeAudioPlayback } from './audio-unlock.js';
 import { diag } from './diag.js';
 import { preloadOpening, resolveSignatureSound } from './signature-sound.js';
@@ -475,7 +475,7 @@ async function ensureMicAvailable(): Promise<boolean> {
     // spoken sentence is many awaits away (audio-unlock.ts).
     primeAudioPlayback();
     diag('[signature] begin');
-    const problem = describeMicRequirement(await acquireMicOnce());
+    const problem = describeMicRequirement(await micForBegin());
     if (!problem) return true;
     await alertDialog(problem);
     return false;

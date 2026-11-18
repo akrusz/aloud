@@ -32,6 +32,7 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 import { ensureMicPermission } from '../mic-permission.js';
+import { noteCaptureClosing, noteCaptureOpened } from '../mic-check.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
 import { recordSttClip } from '../stt-clip-recorder.js';
@@ -923,6 +924,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 return;
             }
             this.stream = stream;
+            noteCaptureOpened(stream, () => !streamNeedsRefresh(stream));
             this.teardownGraph(); // any prior nodes belong to a dead stream
             this.voiceWarmupArmed = true;
 
@@ -1528,6 +1530,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (!kept) return;
         this.kept = null;
         clearTimeout(kept.cap);
+        noteCaptureClosing(kept.stream);
         for (const track of kept.stream.getTracks()) track.stop();
     }
 
@@ -1580,6 +1583,7 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     private releaseStream(): void {
         if (this.stream) {
+            noteCaptureClosing(this.stream);
             for (const track of this.stream.getTracks()) track.stop();
             this.stream = null;
         }

@@ -10,7 +10,15 @@ The judge these commands run on is described in
 `ui/src/mic-check.ts` pre-flights both start paths. A silent `probeMic()`
 paints the setup notice and disables Begin when it's certain; `acquireMicOnce()`
 runs first inside the Begin handler, before any await, so the permission prompt
-keeps the click's user gesture.
+keeps the click's user gesture. Begin goes through `micForBegin`, which skips
+that probe when a capture stream of ours is live or was within
+`RECENT_CAPTURE_MS` (the setup screen's listener, closed by the same Begin;
+`whisper-pcm-stt.ts` reports its streams): each open and close of an
+echo-cancelled stream rebuilds the audio output on macOS, under the opening
+sound (meditation-pal-uz8t). An older capture still gets the probe, since a mic
+lost since then would otherwise fail inside the session, and silently in
+noting. The browser's and the phones' recognizers have no stream of ours, so
+they always probe.
 
 Setup holds Begin the same way while local Whisper's model is still downloading
 or loading (`ui/src/whisper-ready.ts` polls the shell's `/stt/whisper/warm`,

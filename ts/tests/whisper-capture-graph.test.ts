@@ -87,6 +87,19 @@ describe('the capture graph', () => {
         expect(opened.every((s) => s.stopped)).toBe(true);
     });
 
+    it("vouches for the mic to Begin while open and just after, so Begin's gate opens no probe", async () => {
+        vi.resetModules();
+        const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+        const { micForBegin } = await import('../ui/src/mic-check.js');
+        const engine = new WhisperPcmSttEngine();
+        await engine.prime();
+        expect(await micForBegin()).toBe('ok');
+        // The setup screen's listener, closed by the Begin click.
+        await engine.stop();
+        expect(await micForBegin()).toBe('ok');
+        expect(opened).toHaveLength(1);
+    });
+
     it('keeps the mic open for a sound the session ends on, and lets go when it is over', async () => {
         const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
         const engine = new WhisperPcmSttEngine();
