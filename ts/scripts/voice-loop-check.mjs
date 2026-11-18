@@ -728,7 +728,7 @@ try {
         }
         check('"next", said once each line is over, walks the tour to its last card', /ready/.test(await s.card()), `(${await s.card()})`);
         check('one card fewer than before: the voice tip is on the last', (await s.page.locator('.tour-dot').count()) === 8, `(${await s.page.locator('.tour-dot').count()} dots)`);
-        check('which is read out, the tip and the close in one line', await said(/set things up by talking.*That's the basics/));
+        check('which is read out, the tip and the close in one line', await said(/by talking naturally.*ready to give it a try/));
         await s.say('Twenty minutes.');
         check('a request said to it is taken', await s.until(async () => (await settings()).sessionTimerMin === 20, 5_000));
         check('with the tour still on it', /ready/.test(await s.card()));
@@ -779,7 +779,7 @@ try {
             await s.tap('[data-action="next"]');
             await s.page.waitForTimeout(600);
         }
-        check('the tour goes on talking to the end, the last card read out', await said(/set things up by talking/));
+        check('the tour goes on talking to the end, the last card read out', await said(/by talking naturally/));
         check('with the mic still asleep', await asleep());
         await s.page.locator('[data-action="done"]').click();
 
