@@ -451,7 +451,7 @@ body {
 
 .tab-bar {
     display: flex;
-    gap: 6px;
+    gap: 18px;
     justify-content: center;
     align-items: center;
 }
@@ -6037,12 +6037,18 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Tap targets - the form is built around a cursor; on phones we
        need thumb-sized hit zones. Roughly aiming for 44px minimums on
        the most-tapped controls. */
+    .tab-bar {
+        gap: 12px;
+    }
     .tab-btn {
         /* Narrower side padding than desktop so all three labels ("Felt
            Sense" included) fit one line on a 360dp phone; nowrap so a
-           label never breaks internally. Height stays thumb-sized. */
-        padding: 0.75rem 0.8rem;
-        font-size: 1.12rem;
+           label never breaks internally. Height stays thumb-sized. The vw
+           caps are the widest the three English labels fit across the
+           screen: past them a bigger text size stops growing the tabs,
+           which would otherwise run off the edge. */
+        padding: 0.75rem min(0.8rem, 3.5vw);
+        font-size: min(1.12rem, 5vw);
         white-space: nowrap;
     }
     .modifier-toggle {
