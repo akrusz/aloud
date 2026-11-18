@@ -38,8 +38,6 @@ Setup, on local Whisper:
       click. Say "add playful": the box checks and "Playful is on." is spoken.
       Then "following", "balanced", "noting": each is answered once and
       nothing fires a second time.
-- [ ] **Hosted GPT on setup.** Say "twenty minutes": the timer shows 20 and
-      the balance does not move.
 
 One session on hosted GPT speech recognition, in this order:
 
@@ -159,6 +157,10 @@ played on a phone since the move to `<audio>` elements.
   controls (tap mid-line, the mic toggled under a card, "stop listening",
   the silent tour, "next" on the last card): `npm --prefix ts run voice:check`
   and the `setup-command` tests. The room half of it stays above.
+- "Twenty minutes" on hosted GPT leaving the balance alone: the client sends
+  `setup=1` on every pass (`tests/whisper-pcm-setup-params.test.ts`,
+  `tests/stt-picker-setup.test.ts`) and the server charges nothing for a
+  short setup clip (`server/tests/stt.test.ts`).
 - The second tour pass in Ethan, and Harper against Ethan for loudness: the
   levels are measured per clip at render (`sessionLufs`).
 - Settings wording and placement, the 中文 pass on desktop (Alex heard both
