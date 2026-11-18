@@ -994,12 +994,15 @@ select {
     /* A plain select clips its label at the padding; this one clips at the
        border, so a long label ran under the chevron. Cover that strip with
        the select's own background: inherited whole, it repaints the chevron
-       in the same spot, over the text. */
+       in the same spot, over the text. WebKit pads the icon 0.15em a side,
+       which widened the cover over the last letter of a select sized to its
+       label. */
     select::picker-icon {
         content: '';
         position: absolute;
         inset: 0 0 0 auto;
         width: var(--select-chevron-lane, 2.5rem);
+        padding: 0;
         background: inherit;
     }
 
