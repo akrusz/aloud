@@ -15,12 +15,16 @@ import { initSliderTouchGuard } from './slider-touch.js';
 import { initKeyboardInset } from './keyboard-inset.js';
 import { installErrorLog } from './error-log.js';
 import { initNativeBugReportMenu } from './bug-report.js';
+import { initMediaKeys } from './media-keys.js';
 
 // First, so the bug-report "Recent errors" block sees boot-time failures too.
 installErrorLog();
 
 // macOS desktop: Help > "Report a Bug…" opens the same composer from any page.
 initNativeBugReportMenu();
+
+// Desktop: a headset leaving or the Play/Pause key must not cut a line short.
+initMediaKeys();
 
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.

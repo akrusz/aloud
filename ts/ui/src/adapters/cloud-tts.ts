@@ -1,14 +1,12 @@
 /**
- * Server-side TTS - fetches a WAV from the app backend's /app/v1/voices/preview
- * and plays it via an HTMLAudioElement, whose browser-managed lifecycle avoids
- * the suspension races Firefox causes with Web Audio decode.
+ * Server-side TTS - fetches audio from the app backend's /app/v1/voices/preview
+ * (or aloud cloud's /cloud/v1/tts) and plays it through the shared <audio>
+ * element (audio-unlock.ts), on every platform.
  *
- * Desktop (Tauri) is the exception: a macOS WKWebView registers a playing
- * HTMLAudioElement with the system Now Playing center, which pops an
- * unexpected "access Apple Music and your media library" consent dialog on
- * first playback. Web Audio doesn't touch that machinery, so isTauri() plays
- * through it instead - and the Firefox reason never applies there (a Tauri
- * webview is WebKit/WebView2/WebKitGTK).
+ * Never through an AudioContext. In a macOS WKWebView all same-rate contexts of
+ * a page share one output pipe, and a stall of the page's audio thread leaves it
+ * late for good, or past ~2.7 s silent for good, while the page still reports it
+ * running (meditation-pal-wk4u, dev-docs/desktop-audio-output.md).
  *
  * The server's `rate` query param renders the WAV at the requested wpm, so
  * playbackRate stays untouched.
@@ -17,8 +15,7 @@
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../../src/platform/tts.js';
 import { appUrl } from '../app-base.js';
 import { getCloudSessionId } from '../cloud-session.js';
-import { isTauri } from '../is-desktop.js';
-import { audioContextCtor, playbackAudio } from '../audio-unlock.js';
+import { playbackAudio } from '../audio-unlock.js';
 import { withTimeout } from '../net-timeout.js';
 import { sendWithNetworkRetry } from '../net-retry.js';
 
@@ -129,6 +126,12 @@ function detachPlaybackHandlers(audio: HTMLAudioElement): void {
     audio.onpause = null;
 }
 
+/** The engine whose utterance is on the shared element. Several engines play
+ *  through it (the session's, a voice preview, a setup line in a local voice),
+ *  and giving it a new src fires no pause, so the engine it is taken from must
+ *  be finalized by the taker or its speak() never resolves. */
+let elementOwner: CloudTtsEngine | null = null;
+
 export class CloudTtsEngine implements TtsEngine {
     private readonly voiceId: string;
     private readonly engine: string | undefined;
@@ -145,10 +148,6 @@ export class CloudTtsEngine implements TtsEngine {
     private currentUrl: string | null = null;
     private currentResolve: (() => void) | null = null;
     private currentAbort: AbortController | null = null;
-    // Desktop Web Audio playback (see header): the active source + the shared
-    // context. Only one of currentAudio / currentSource is ever live at a time.
-    private currentSource: AudioBufferSourceNode | null = null;
-    private audioCtx: AudioContext | null = null;
 
     constructor(options: CloudTtsEngineOptions) {
         this.voiceId = options.voice;
@@ -283,14 +282,13 @@ export class CloudTtsEngine implements TtsEngine {
         }
         if (abort.signal.aborted) return;
 
-        // Desktop: Web Audio, so the OS never sees a media element (see header).
-        if (isTauri()) return this.playViaWebAudio(blob, abort, options?.onStart);
-
         const url = URL.createObjectURL(blob);
         // The ONE shared element, primed by the Begin click - a per-utterance
         // `new Audio()` is unprivileged under Safari's per-element autoplay gate
         // and plays nothing (see audio-unlock.ts).
         const audio = playbackAudio();
+        if (elementOwner && elementOwner !== this) elementOwner.cancelSync();
+        elementOwner = this;
         audio.src = url;
         // Report when audible playback begins (not when the blob arrived), so
         // callers can reveal text in step with the voice.
@@ -303,21 +301,23 @@ export class CloudTtsEngine implements TtsEngine {
             : null;
 
         return new Promise<void>((resolve, reject) => {
+            // A cancel (cancelSync) settles this utterance itself. The play() it
+            // cut short rejects later, often after the next utterance has put
+            // its handlers on the shared element, and must leave them alone.
+            const current = (): boolean => this.currentResolve === resolve;
             const release = (): void => {
-                detachPlaybackHandlers(audio);
                 URL.revokeObjectURL(url);
-                if (this.currentAudio === audio) {
-                    this.currentAudio = null;
-                    this.currentUrl = null;
-                    this.currentAbort = null;
-                }
+                if (!current()) return;
+                detachPlaybackHandlers(audio);
+                this.currentAudio = null;
+                this.currentUrl = null;
+                this.currentAbort = null;
+                this.currentResolve = null;
+                if (elementOwner === this) elementOwner = null;
             };
             const cleanup = (): void => {
                 release();
-                const r = this.currentResolve;
-                this.currentResolve = null;
-                if (r) r();
-                else resolve();
+                resolve();
             };
             audio.onended = cleanup;
             audio.onerror = cleanup;
@@ -339,71 +339,8 @@ export class CloudTtsEngine implements TtsEngine {
                     return;
                 }
                 release();
-                this.currentResolve = null;
                 reject(err instanceof Error ? err : new Error(String(err)));
             });
-        });
-    }
-
-    private ensureAudioContext(): AudioContext {
-        if (!this.audioCtx) {
-            const Ctor = audioContextCtor();
-            if (!Ctor) throw new Error('Web Audio is unavailable');
-            this.audioCtx = new Ctor();
-        }
-        return this.audioCtx;
-    }
-
-    /**
-     * Desktop playback: decode the WAV through a Web Audio BufferSource. Same
-     * contract as the HTMLAudioElement path - onStart at audible start, resolves
-     * on natural end OR cancel, shares currentResolve/currentAbort with
-     * cancelSync so a barge-in stops it cleanly. No object URL to revoke.
-     */
-    private playViaWebAudio(
-        blob: Blob,
-        abort: AbortController,
-        onStart: (() => void) | undefined
-    ): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            void (async () => {
-                try {
-                    const ctx = this.ensureAudioContext();
-                    if (ctx.state === 'suspended') await ctx.resume();
-                    const data = await blob.arrayBuffer();
-                    if (abort.signal.aborted) return resolve();
-                    const buffer = await ctx.decodeAudioData(data);
-                    if (abort.signal.aborted) return resolve();
-
-                    const source = ctx.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(ctx.destination);
-                    source.onended = () => {
-                        // Fires on natural end and on stop(). cancelSync detaches
-                        // this handler so a barge-in resolves through its own
-                        // currentResolve tail instead.
-                        if (this.currentSource === source) {
-                            this.currentSource = null;
-                            this.currentAbort = null;
-                        }
-                        const r = this.currentResolve;
-                        this.currentResolve = null;
-                        if (r) r();
-                        else resolve();
-                    };
-                    this.currentSource = source;
-                    this.currentResolve = resolve;
-                    source.start();
-                    // BufferSource has no "playing" event, and start latency is
-                    // sub-frame, so report audible start right after start().
-                    onStart?.();
-                } catch (err) {
-                    if (this.currentSource === null) this.currentAbort = null;
-                    this.currentResolve = null;
-                    if (abort.signal.aborted) resolve();
-                    else reject(err instanceof Error ? err : new Error(String(err)));
-                }
-            })();
         });
     }
 
@@ -433,17 +370,7 @@ export class CloudTtsEngine implements TtsEngine {
             }
             this.currentAudio.removeAttribute('src');
             this.currentAudio = null;
-        }
-        if (this.currentSource) {
-            // Detach onended first so it can't double-finalize - the
-            // currentResolve tail below resolves the pending speak() once.
-            this.currentSource.onended = null;
-            try {
-                this.currentSource.stop();
-            } catch {
-                // ignore (already stopped / never started)
-            }
-            this.currentSource = null;
+            if (elementOwner === this) elementOwner = null;
         }
         if (this.currentUrl) {
             URL.revokeObjectURL(this.currentUrl);

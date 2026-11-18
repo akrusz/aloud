@@ -20,6 +20,7 @@ params, gotchas. It's the one to keep open.
 | Doc | |
 |---|---|
 | [desktop.md](desktop.md) | The Tauri 2 shell - embedded axum backend, build, signing, notarization. |
+| [desktop-audio-output.md](desktop-audio-output.md) | Why speech plays through an `<audio>` element, never Web Audio (WebKit's shared output pipe), what still uses Web Audio, the media-keys guard. |
 | [mobile.md](mobile.md) | Capacitor build guide (iOS + Android). Start here for anything mobile. |
 | [mobile-signing.md](mobile-signing.md) | Signing + shipping to TestFlight / Play internal testing. Needs your accounts and certs. |
 | [mobile-signin-setup.md](mobile-signin-setup.md) | Console + config checklist for native Google/Apple sign-in. Code is done; this is the account-side setup. |

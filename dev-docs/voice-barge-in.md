@@ -180,8 +180,9 @@ preview costs a real speaker nothing; their turn is still judged strictly.
 ## What happens on trigger
 
 1. The detector calls `tts.cancel()`, which stops the underlying playback
-   (`HTMLAudioElement` for cloud TTS, `speechSynthesis` for browser TTS, the
-   native engine on desktop) and makes the in-flight `speak()` promise resolve.
+   (the shared `<audio>` element for hosted and desktop local voices,
+   `speechSynthesis` for browser TTS) and makes the in-flight `speak()`
+   promise resolve.
 2. The generic listener stops itself (one fire per `speak()`); the engine-driven
    adapter flips its continuous stream from idle to capturing.
 3. The listen loop resumes and captures the user's utterance - seeded from the

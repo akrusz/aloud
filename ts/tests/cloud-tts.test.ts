@@ -1,25 +1,43 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CloudTtsEngine } from '../ui/src/adapters/cloud-tts.js';
+import { playbackAudio } from '../ui/src/audio-unlock.js';
+
+// Off: play() stays pending until the test starts playback by hand, and a
+// pause() or a new src rejects it with AbortError, as a browser does.
+let autoPlay = true;
 
 // HTMLAudioElement isn't in the Node test env; stub a minimal Audio that
 // "plays" instantly so speak() resolves. The adapter plays through the shared
 // element from audio-unlock.ts, which needs play()/pause()/removeAttribute plus
 // the lifecycle event handlers.
 beforeEach(() => {
+    autoPlay = true;
     (globalThis as unknown as { Audio: unknown }).Audio = class {
         onended: (() => void) | null = null;
         onerror: (() => void) | null = null;
         onpause: (() => void) | null = null;
         onplaying: (() => void) | null = null;
         preload = '';
-        src = '';
         paused = true;
+        ended = false;
+        private source = '';
+        private pending: ((err: Error) => void) | null = null;
         constructor(public url?: string) {}
+        get src() {
+            return this.source;
+        }
+        set src(value: string) {
+            this.abortPending();
+            this.source = value;
+        }
         removeAttribute(_name: string) {
-            this.src = '';
+            this.source = '';
         }
         play() {
             this.paused = false;
+            if (!autoPlay) {
+                return new Promise<void>((_, reject) => (this.pending = reject));
+            }
             queueMicrotask(() => {
                 this.paused = true;
                 this.onplaying?.();
@@ -29,6 +47,12 @@ beforeEach(() => {
         }
         pause() {
             this.paused = true;
+            this.abortPending();
+        }
+        private abortPending() {
+            const reject = this.pending;
+            this.pending = null;
+            reject?.(Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' }));
         }
     };
     (globalThis as unknown as { URL: typeof URL }).URL.createObjectURL = () => 'blob:x';
@@ -237,3 +261,39 @@ describe('CloudTtsEngine on a dropped connection', () => {
     });
 });
 
+
+describe('CloudTtsEngine on the shared element', () => {
+    const fetchImpl = (async () =>
+        new Response(new Blob([new Uint8Array([1])], { type: 'audio/wav' }), {
+            status: 200,
+        })) as unknown as typeof fetch;
+
+    afterEach(() => {
+        autoPlay = true;
+    });
+
+    it('an engine taking the element finalizes the one on it, and keeps its own handlers', async () => {
+        autoPlay = false;
+        const session = new CloudTtsEngine({ voice: 'Leda', endpointUrl: '/handoff/session', fetchImpl });
+        const preview = new CloudTtsEngine({ voice: 'Puck', endpointUrl: '/handoff/preview', fetchImpl });
+        const audio = playbackAudio();
+
+        let sessionDone = false;
+        const sessionLine = session.speak('Notice the breath.').then(() => (sessionDone = true));
+        await vi.waitFor(() => expect(audio.onended).not.toBeNull());
+
+        // Its play() is still pending: taking the element rejects it, and that
+        // late rejection must not strip the preview's handlers.
+        let previewDone = false;
+        const previewLine = preview.speak('A preview.').then(() => (previewDone = true));
+        await sessionLine;
+        expect(sessionDone).toBe(true);
+        await new Promise((r) => setTimeout(r, 0));
+        expect(previewDone).toBe(false);
+
+        audio.onplaying?.(new Event('playing'));
+        audio.onended?.(new Event('ended'));
+        await previewLine;
+        expect(previewDone).toBe(true);
+    });
+});
