@@ -1,30 +1,29 @@
 /**
- * The one <audio> element every hosted-TTS utterance plays through, plus the
- * user-gesture priming that lets it make sound at all.
+ * The one <audio> element every spoken line plays through, and the priming a
+ * Begin click gives it and the sound player's elements (sound-player.ts).
  *
  * Safari (macOS and iOS) grants playback permission PER ELEMENT, and only to an
  * element whose play() was called inside a user gesture. A session's first
  * sentence arrives several awaits after the Begin click - LLM, then synthesis -
  * so a freshly constructed `new Audio(blobUrl)` is unprivileged by then and
- * play() rejects with NotAllowedError: the sit runs mute (macOS Safari's
+ * play() rejects with NotAllowedError: the session runs mute (macOS Safari's
  * default per-site "Stop Media with Sound" auto-play setting does the same).
- * Chrome doesn't gate this way.
+ * The opening sound, the close and the noting chime come later still. Chrome
+ * doesn't gate this way.
  *
- * So: prime this element with a silent clip inside the Begin handler, then
- * reuse it for every utterance. The permission is attached to the element. The shared
- * AudioContext (the noting chime) is primed on the same click, for the same
- * reason - it is born suspended and only a gesture may resume it.
+ * So: play every element once inside the Begin handler, then reuse them. The
+ * permission stays with the element through later src changes.
+ *
+ * Nothing audible goes through an AudioContext (dev-docs/audio-output.md); the
+ * only contexts are the mic capture graphs, which make no sound.
  */
 
-/** 8ms of 8-bit mono silence - the shortest thing that is a valid WAV. */
-const SILENT_WAV =
-    'data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+import { primeSounds, SILENT_WAV } from './sound-player.js';
 
 let element: HTMLAudioElement | null = null;
-let context: AudioContext | null = null;
 
 /** The AudioContext constructor, webkit-prefixed on older Safari; undefined
- *  where Web Audio is unavailable. */
+ *  where Web Audio is unavailable. For mic capture only. */
 export function audioContextCtor(): typeof AudioContext | undefined {
     return (
         (globalThis as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
@@ -35,9 +34,9 @@ export function audioContextCtor(): typeof AudioContext | undefined {
 /**
  * Can this page make sound with no gesture behind the call? A browser tab
  * nobody has touched can't; the desktop and mobile webviews can (measured in
- * a macOS WKWebView: play() resolves and an AudioContext runs on a page whose
- * userActivation has never been active). Asked by playing the silent clip on
- * a throwaway element, so the answer is the platform's own.
+ * a macOS WKWebView: play() resolves on a page whose userActivation has never
+ * been active). Asked by playing the silent clip on a throwaway element, so
+ * the answer is the platform's own.
  */
 export async function canPlayUntouched(): Promise<boolean> {
     try {
@@ -64,29 +63,13 @@ export function playbackAudio(): HTMLAudioElement {
 }
 
 /**
- * The shared AudioContext for synthesized sound (the noting chime). Created on
- * first use; born suspended unless primed from a gesture, and a suspended
- * context makes no sound. Null where Web Audio is unavailable.
- */
-export function playbackAudioContext(): AudioContext | null {
-    if (!context) {
-        const Ctor = audioContextCtor();
-        if (!Ctor) return null;
-        context = new Ctor();
-    }
-    if (context.state === 'suspended') void context.resume().catch(() => {});
-    return context;
-}
-
-/**
- * Grant the shared element playback permission. MUST be called synchronously
- * from a user gesture (the Begin click) - before any await, exactly like
- * acquireMicOnce - or the gesture is spent and this no-ops silently.
+ * Grant the voice's element and the sound elements playback permission. MUST
+ * be called synchronously from a user gesture (the Begin click) - before any
+ * await, exactly like acquireMicOnce - or the gesture is spent and this
+ * no-ops silently.
  */
 export function primeAudioPlayback(): void {
-    // Same gate, other half of the audio stack: a context first resumed outside
-    // a gesture stays suspended on Safari, and the chime never sounds.
-    playbackAudioContext();
+    primeSounds();
     const audio = playbackAudio();
     // A prime mid-session would cut off the sentence being spoken.
     if (!audio.paused) return;

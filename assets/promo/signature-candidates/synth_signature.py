@@ -2283,7 +2283,7 @@ def write(name, sig, voice):
 
 
 def write_chime():
-    """noting's synth chime (playChime in noting-session.ts), to compare against."""
+    """noting's chime (ts/scripts/render-chime.mjs writes the app's), to compare against."""
     t = np.arange(int(SR * 0.2)) / SR
     f = np.where(t < 0.1, 440.0, 554.0)
     y = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.15 * (0.01 / 0.15) ** (t / 0.2)

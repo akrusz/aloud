@@ -28,8 +28,8 @@ If any of those fail, stop and fix those first.
 
 ## 1. Desktop app (Tauri) - the path no test touches
 
-`npm run tauri:dev`. This is the highest-value section: local Whisper, Piper, and
-the WebAudio playback path exist only here.
+`npm run tauri:dev`. This is the highest-value section: local Whisper and Piper
+exist only here.
 
 - [ ] **First Begin asks for the mic**, and granting it starts a session. (Revoke
       in System Settings → Privacy → Microphone beforehand to get a real prompt.)
@@ -38,12 +38,17 @@ the WebAudio playback path exist only here.
 - [ ] **The facilitator speaks, audibly.** Not "a bubble appeared" - listen. A
       played-but-silent turn is a real failure mode (`meditation-pal-ypjj`) and
       nothing automated catches it.
-- [ ] **The opening and closing sounds play whole.** At Begin the sound has no
+- [ ] **The opening and closing sounds play whole.** Both are audible, and the
+      opening sits as far under the voice as before (its -4 dB is in the files
+      now, [audio-output.md](audio-output.md)). At Begin the sound has no
       drop-out in it, the facilitator's first words come after it, and it never
       shows up as a user turn or flashes in the live preview. At End the close
       rings out with no hole in it. Each of those failed on MacBook speakers
       before it was fixed ([voice-barge-in.md](voice-barge-in.md) → "The
       opening and closing sounds"), and no test hears them.
+- [ ] **The noting chime is audible**, before each of your turns in a noting
+      session with the turn cue on, and as its preview on the setup screen.
+      It is a file now (`chime.wav`), no longer synthesized.
 - [ ] **Barge-in**: talk over the facilitator mid-sentence. It should stop and
       take your turn, and its own voice must not be transcribed as a user turn.
 - [ ] **Voice preview on the setup page, then again in-session** from the voice
@@ -338,11 +343,20 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
 - [ ] **The facilitator doesn't interrupt itself.** Multi-sentence replies play
       through on the loudspeaker, and its voice never appears as a user turn
       (`meditation-pal-oxmt`).
-- [ ] **The opening and closing sounds, on the phone's speaker.** Both play
-      whole, at a level that sits with the voice, and the opening is not
-      transcribed as a turn. The iOS app played neither until the status-0
-      fix in `fetchBytes` (`signature-sound.ts`), so an iPhone is their first
-      real hearing.
+- [ ] **The opening and closing sounds, on the phone's speaker.** Both are
+      audible and play whole, the opening as far under the voice as before,
+      and it is not transcribed as a turn. The iOS app played neither until
+      the status-0 fix in `fetchBytes` (`signature-sound.ts`), so an iPhone is
+      their first real hearing. On Android on aloud cloud speech, expect the
+      close to follow the Call volume slider and the opening the Media one
+      ([audio-output.md](audio-output.md) → "Phones").
+- [ ] **A chime doesn't cut speech.** On the setup screen, start a voice
+      preview and preview the noting chime while it speaks: both are heard and
+      the voice carries on. Expected on an iPhone: a preview with no mic open
+      ignores the silent switch and pauses other apps' music.
+- [ ] **A headset's play/pause key doesn't cut a line** (`media-keys.ts`, now
+      registered on phones too). On iOS, unplugging wired headphones still
+      pauses it: that one skips the handlers.
 - [ ] **iPhone on aloud cloud (`hi6f`, `qaqb`).** On the speaker, replies play
       through and a word said just after one still opens the turn. In the
       app with headphones, talking over the facilitator stops it; unplug mid-session

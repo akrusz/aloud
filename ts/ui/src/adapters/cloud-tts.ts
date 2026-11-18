@@ -6,7 +6,7 @@
  * Never through an AudioContext. In a macOS WKWebView all same-rate contexts of
  * a page share one output pipe, and a stall of the page's audio thread leaves it
  * late for good, or past ~2.7 s silent for good, while the page still reports it
- * running (meditation-pal-wk4u, dev-docs/desktop-audio-output.md).
+ * running (meditation-pal-wk4u, dev-docs/audio-output.md).
  *
  * The server's `rate` query param renders the WAV at the requested wpm, so
  * playbackRate stays untouched.

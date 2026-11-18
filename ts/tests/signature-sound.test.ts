@@ -2,64 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-class FakeSource {
-    buffer: unknown = null;
-    onended: (() => void) | null = null;
-    stopAt: number | null = null;
-    startAt: number | null = null;
-    connect(): void {}
-    disconnect(): void {}
-    start(when = 0): void {
-        this.startAt = when;
-    }
-    stop(when = 0): void {
-        this.stopAt = when;
-    }
-}
-
-class FakeContext {
-    static last: FakeContext | null = null;
-    state = 'running';
-    currentTime = 0;
-    destination = {};
-    sources: FakeSource[] = [];
-    gains: number[] = [];
-    resumes = 0;
-    constructor() {
-        FakeContext.last = this;
-    }
-    resume(): Promise<void> {
-        this.resumes++;
-        return Promise.resolve();
-    }
-    createBufferSource(): FakeSource {
-        const source = new FakeSource();
-        this.sources.push(source);
-        return source;
-    }
-    createGain() {
-        const gains = this.gains;
-        return {
-            gain: {
-                set value(v: number) {
-                    gains.push(v);
-                },
-                get value() {
-                    return gains[gains.length - 1] ?? 1;
-                },
-                cancelScheduledValues(): void {},
-                setValueAtTime(): void {},
-                linearRampToValueAtTime(): void {},
-            },
-            connect(): void {},
-            disconnect(): void {},
-        };
-    }
-    decodeAudioData(_data: ArrayBuffer, ok: (b: unknown) => void): void {
-        ok({ duration: 4 });
-    }
-}
+import { FakeAudio, audiblePlays } from './fake-audio-element.js';
 
 type Sound = typeof import('../ui/src/signature-sound.js');
 let sound: Sound;
@@ -69,37 +12,57 @@ let fetched: string[];
 /** Set to hold every fetch open until released. */
 let gate: Promise<void> | null;
 let failing: boolean;
+/** Object URL -> the asset it was made from. */
+let blobs: Map<string, string>;
 
 beforeEach(async () => {
     vi.useFakeTimers();
     vi.resetModules();
+    FakeAudio.reset();
     fetched = [];
     gate = null;
     failing = false;
-    FakeContext.last = null;
     rippled = [];
-    const g = globalThis as unknown as { AudioContext: unknown; fetch: unknown; document: unknown };
-    g.AudioContext = FakeContext;
+    blobs = new Map();
+    vi.stubGlobal('Audio', FakeAudio);
     // Both nav orbs at once, which the app never has: enough to see which one
     // a pulse went to.
-    g.document = {
+    vi.stubGlobal('document', {
         querySelector: (selector: string) => ({
             classList: { add: () => rippled.push(selector), remove: () => {} },
         }),
-    };
-    g.fetch = async (url: string) => {
+    });
+    // The bytes carry their URL, so an object URL can say which file it is.
+    vi.stubGlobal('fetch', async (url: string) => {
         fetched.push(url);
         if (gate) await gate;
-        return { ok: !failing, status: failing ? 404 : 200, arrayBuffer: async () => new ArrayBuffer(8) };
-    };
+        return { ok: !failing, status: failing ? 404 : 200, arrayBuffer: async () => ({ url }) };
+    });
+    vi.stubGlobal(
+        'Blob',
+        class {
+            constructor(readonly parts: Array<{ url: string }>) {}
+        }
+    );
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+        const id = `blob:${blobs.size + 1}`;
+        blobs.set(id, (blob as unknown as { parts: Array<{ url: string }> }).parts[0]!.url);
+        return id;
+    });
     sound = await import('../ui/src/signature-sound.js');
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+});
 
-/** Run a play() far enough to have started its source (or decided not to). */
+/** Run a play() far enough to have started its element (or decided not to). */
 const settle = (): Promise<unknown> => vi.advanceTimersByTimeAsync(0);
-const ctx = (): FakeContext => FakeContext.last!;
+/** The files that have started playing, in order. */
+const played = (): string[] => audiblePlays().map((p) => blobs.get(p.src) ?? p.src);
+const lastEl = (): FakeAudio => audiblePlays().at(-1)!.el;
 
 function track(p: Promise<void>): { over: boolean } {
     const state = { over: false };
@@ -133,12 +96,29 @@ describe('the opening', () => {
         const opening = track(sound.playOpening('handpan'));
         await settle();
         expect(fetched).toContain('/audio/signature/handpan-open.mp3');
-        expect(ctx().sources).toHaveLength(1);
-        expect(ctx().gains[0]).toBeLessThan(1);
+        expect(played()).toEqual(['/audio/signature/handpan-open.mp3']);
         expect(opening.over).toBe(false);
-        ctx().sources[0]!.onended!();
+        lastEl().end();
         await settle();
         expect(opening.over).toBe(true);
+    });
+
+    it('plays the fetched bytes from an object URL, kept for the next session', async () => {
+        void sound.playOpening('handpan');
+        await settle();
+        const el = lastEl();
+        expect(el.src).toMatch(/^blob:/);
+        el.end();
+        await settle();
+        void sound.playClosing('handpan');
+        await settle();
+        lastEl().end();
+        await settle();
+        void sound.playOpening('handpan');
+        await settle();
+        expect(lastEl()).toBe(el);
+        expect(el.srcSets).toBe(1);
+        expect(fetched.filter((u) => u.endsWith('handpan-open.mp3'))).toHaveLength(1);
     });
 
     it('is over at once with no sound picked, and fetches nothing', async () => {
@@ -158,36 +138,39 @@ describe('the opening', () => {
         expect(opening.over).toBe(true);
         release();
         await settle();
-        expect(ctx().sources).toHaveLength(0);
+        expect(played()).toEqual([]);
     });
 
-    it('does not hold the first words for a context that will not run', async () => {
+    it('does not hold the first words for an element that will not start', async () => {
+        FakeAudio.playResult = () => new Promise(() => {});
         const opening = track(sound.playOpening('bloom'));
-        ctx().state = 'suspended';
-        ctx().resume = () => new Promise(() => {});
-        await vi.advanceTimersByTimeAsync(500);
+        await vi.advanceTimersByTimeAsync(1501);
         expect(opening.over).toBe(true);
-        expect(ctx().sources).toHaveLength(0);
+        expect(lastEl().paused).toBe(true);
     });
 
-    it('ends by the clock when the context stalls mid-sound', async () => {
+    it('does not hold the first words when playback is refused', async () => {
+        FakeAudio.playResult = () => Promise.reject(Object.assign(new Error('no gesture'), { name: 'NotAllowedError' }));
         const opening = track(sound.playOpening('bloom'));
         await settle();
-        expect(ctx().sources).toHaveLength(1);
+        expect(opening.over).toBe(true);
+    });
+
+    it('ends by the clock when the element never reports its end', async () => {
+        const opening = track(sound.playOpening('bloom'));
+        await settle();
+        expect(played()).toHaveLength(1);
         await vi.advanceTimersByTimeAsync(4000 + 400);
         expect(opening.over).toBe(true);
-        expect(ctx().sources[0]!.stopAt).not.toBeNull();
+        await vi.advanceTimersByTimeAsync(300);
+        expect(lastEl().paused).toBe(true);
     });
 
-    it("plays a file the iOS app serves with no HTTP status", async () => {
-        (globalThis as unknown as { fetch: unknown }).fetch = async () => ({
-            ok: false,
-            status: 0,
-            arrayBuffer: async () => new ArrayBuffer(8),
-        });
+    it('plays a file the iOS app serves with no HTTP status', async () => {
+        vi.stubGlobal('fetch', async (url: string) => ({ ok: false, status: 0, arrayBuffer: async () => ({ url }) }));
         void sound.playOpening('bloom');
         await settle();
-        expect(ctx().sources).toHaveLength(1);
+        expect(played()).toHaveLength(1);
     });
 
     it('ends when the file cannot be fetched, and tries again next time', async () => {
@@ -200,7 +183,19 @@ describe('the opening', () => {
         void sound.playOpening('drone');
         await settle();
         expect(fetched).toContain('/audio/signature/drone-open.mp3');
-        expect(ctx().sources).toHaveLength(1);
+        expect(played()).toEqual(['/audio/signature/drone-open.mp3']);
+    });
+
+    it('is loaded into its element ahead of the session', async () => {
+        sound.preloadOpening('ripples');
+        await settle();
+        const el = FakeAudio.made.find((a) => a.src.startsWith('blob:'))!;
+        expect(blobs.get(el.src)).toBe('/audio/signature/ripples-open.mp3');
+        expect(el.paused).toBe(true);
+        void sound.playOpening('ripples');
+        await settle();
+        expect(lastEl()).toBe(el);
+        expect(el.srcSets).toBe(1);
     });
 });
 
@@ -209,12 +204,12 @@ describe('the opening, with a mic being opened', () => {
         let micUp = (): void => {};
         const opening = track(sound.playOpening('bloom', () => new Promise<void>((r) => (micUp = r))));
         await vi.advanceTimersByTimeAsync(400);
-        expect(ctx()).toBeNull();
+        expect(played()).toEqual([]);
         micUp();
         await vi.advanceTimersByTimeAsync(590);
-        expect(ctx()).toBeNull();
+        expect(played()).toEqual([]);
         await vi.advanceTimersByTimeAsync(20);
-        expect(ctx().sources).toHaveLength(1);
+        expect(played()).toHaveLength(1);
         expect(rippled).toEqual(['#navCenter #orb']);
         expect(opening.over).toBe(false);
     });
@@ -222,7 +217,7 @@ describe('the opening, with a mic being opened', () => {
     it('stops waiting for a mic that does not open', async () => {
         void sound.playOpening('bloom', () => new Promise(() => {}));
         await vi.advanceTimersByTimeAsync(1500 + 600 + 20);
-        expect(ctx().sources).toHaveLength(1);
+        expect(played()).toHaveLength(1);
     });
 
     it('plays neither sound for a session that ends while it waits', async () => {
@@ -231,9 +226,10 @@ describe('the opening, with a mic being opened', () => {
         sound.playClosing('bloom');
         await vi.advanceTimersByTimeAsync(5000);
         expect(opening.over).toBe(true);
-        expect(ctx()).toBeNull();
+        expect(played()).toEqual([]);
         expect(rippled).toEqual([]);
     });
+
     it('with no sound picked, is over once the mic is up', async () => {
         let micUp = (): void => {};
         const opening = track(sound.playOpening('none', () => new Promise<void>((r) => (micUp = r))));
@@ -252,16 +248,15 @@ describe('the opening on Android, where the mic opens after it', () => {
     beforeEach(() => {
         vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Linux; Android 16; CPH2655) wv' });
     });
-    afterEach(() => vi.unstubAllGlobals());
 
     it('plays the sound at once, then opens the mic, and is over once the mic is up', async () => {
         let micUp = (): void => {};
         const openMic = vi.fn(() => new Promise<void>((r) => (micUp = r)));
         const opening = track(sound.playOpening('bloom', openMic));
         await settle();
-        expect(ctx().sources).toHaveLength(1);
+        expect(played()).toHaveLength(1);
         expect(openMic).not.toHaveBeenCalled();
-        ctx().sources[0]!.onended!();
+        lastEl().end();
         await settle();
         expect(openMic).toHaveBeenCalledOnce();
         expect(opening.over).toBe(false);
@@ -283,7 +278,7 @@ describe('the opening on Android, where the mic opens after it', () => {
     it("opens the mic first while the last session's close still holds one", async () => {
         void sound.playOpening('bloom');
         await settle();
-        ctx().sources[0]!.onended!();
+        lastEl().end();
         await settle();
         void sound.playClosing('bloom');
         await settle();
@@ -292,10 +287,11 @@ describe('the opening on Android, where the mic opens after it', () => {
         void sound.playOpening('bloom', openMic);
         await settle();
         expect(openMic).toHaveBeenCalledOnce();
-        expect(ctx().sources).toHaveLength(2);
+        expect(played()).toHaveLength(2);
         micUp();
-        await vi.advanceTimersByTimeAsync(600 + 20);
-        expect(ctx().sources).toHaveLength(3);
+        // The settle, then the close's fade.
+        await vi.advanceTimersByTimeAsync(600 + 250 + 20);
+        expect(played()).toHaveLength(3);
     });
 
     it('with no sound picked, opens the mic at once and waits for it', async () => {
@@ -320,18 +316,19 @@ describe('the opening on Android, where the mic opens after it', () => {
 });
 
 describe('the close', () => {
-    it('plays once the opening is over', async () => {
+    it('plays once the opening is over, on its own element', async () => {
         void sound.playOpening('marimba');
         await settle();
-        ctx().sources[0]!.onended!();
+        const openEl = lastEl();
+        openEl.end();
         await settle();
         // Its promise is what the mic is held open for: over when the sound is.
         const close = track(sound.playClosing('marimba'));
         await settle();
-        expect(ctx().sources).toHaveLength(2);
-        expect(fetched).toContain('/audio/signature/marimba-close.mp3');
+        expect(played()).toEqual(['/audio/signature/marimba-open.mp3', '/audio/signature/marimba-close.mp3']);
+        expect(lastEl()).not.toBe(openEl);
         expect(close.over).toBe(false);
-        ctx().sources[1]!.onended!();
+        lastEl().end();
         await settle();
         expect(close.over).toBe(true);
         // The session's orb for the opening, the home screen's for the close.
@@ -341,25 +338,48 @@ describe('the close', () => {
     it('is dropped, with the opening faded, when the session ends inside its opening', async () => {
         const opening = track(sound.playOpening('marimba'));
         await settle();
+        const el = lastEl();
         const close = track(sound.playClosing('marimba'));
         await settle();
         expect(opening.over).toBe(true);
         expect(close.over).toBe(true);
-        expect(ctx().sources).toHaveLength(1);
-        expect(ctx().sources[0]!.stopAt).not.toBeNull();
+        expect(played()).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(100);
+        expect(el.volume).toBeLessThan(1);
+        expect(el.paused).toBe(false);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(el.paused).toBe(true);
     });
 });
 
 describe('a preview', () => {
+    it('primes the elements from the click', () => {
+        sound.previewSignatureSound('ripples', 'open');
+        expect(FakeAudio.log.filter((p) => p.src.startsWith('data:'))).toHaveLength(4);
+    });
+
     it('cuts an opening still sounding and starts once it has faded, not over it', async () => {
         sound.previewSignatureSound('ripples', 'open');
         await settle();
-        expect(ctx().sources[0]!.startAt).toBe(0);
+        const openEl = lastEl();
         sound.previewSignatureSound('ripples', 'close');
+        await vi.advanceTimersByTimeAsync(100);
+        expect(played()).toHaveLength(1);
+        expect(openEl.volume).toBeLessThan(1);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(openEl.paused).toBe(true);
+        expect(played()).toEqual(['/audio/signature/ripples-open.mp3', '/audio/signature/ripples-close.mp3']);
+    });
+
+    it('of the same half restarts it from the top once faded', async () => {
+        sound.previewSignatureSound('drone', 'open');
         await settle();
-        expect(ctx().sources).toHaveLength(2);
-        const fadedAt = ctx().sources[0]!.stopAt!;
-        expect(fadedAt).toBeGreaterThan(0);
-        expect(ctx().sources[1]!.startAt).toBe(fadedAt);
+        const el = lastEl();
+        el.currentTime = 1.2;
+        sound.previewSignatureSound('drone', 'open');
+        await vi.advanceTimersByTimeAsync(300);
+        expect(played()).toHaveLength(2);
+        expect(audiblePlays()[1]!.el).toBe(el);
+        expect(audiblePlays()[1]!.currentTime).toBe(0);
     });
 });

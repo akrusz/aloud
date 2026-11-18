@@ -41,9 +41,9 @@ python3 -m venv <venv> && <venv>/bin/pip install numpy scipy
 
 Five pairs ship as presets (2026-10-12): `SIGNATURE_SOUNDS` in
 `ts/ui/src/signature-sound.ts`, picked in Settings under Look and Feel. The
-app's files are copies of the renders here, in
-`ts/ui/public/audio/signature/` as `<preset>-open.mp3` and
-`<preset>-close.mp3`:
+app's files, in `ts/ui/public/audio/signature/` as `<preset>-open.mp3` and
+`<preset>-close.mp3`, are written from the lossless renders here by
+`app_copies.py` (its `PRESETS` repeats this table):
 
 | Preset | Opening | Close |
 |---|---|---|
@@ -59,11 +59,16 @@ On the default, the dev: "my heart loves harmonica-bloom8". It was close with
 blooms less and preferred `ripples2` or `ripples4`, so the default may move
 to `ripples`.
 
-In the app the opening starts as soon as the session's mic is open, 4 dB
-down (the audition page's "under the voice" default of 6 dB, raised 2 dB by
-ear in the app), and the facilitator's
-first words wait for it to end; the close plays as the session ends. A new render reaches the
-app only when its file is copied over.
+In the app the opening starts as soon as the session's mic is open, and the
+facilitator's first words wait for it to end; the close plays as the session
+ends. Both sit 4 dB under the candidates (the audition page's "under the
+voice" default of 6 dB, raised 2 dB by ear in the app), and the 4 dB is in the
+app's files: the app plays every sound through an `<audio>` element, and an
+iPhone ignores an element's volume (`dev-docs/audio-output.md`).
+`app_copies.py` takes each candidate's `.wav`, gives it the gain its `.mp3`
+got, less 4 dB, and encodes it as the `.mp3`s are (44.1 kHz stereo, 128k). A
+new render reaches the app only when `uv run app_copies.py <preset>` writes
+it.
 
 Everything in the running stays to come back to. Git ignores the renders
 except the ones kept on purpose with `git add -f`, which is what is in the

@@ -38,7 +38,6 @@ import {
     type SessionEndDestination,
 } from './session.js';
 import { showErrorToast } from '../toast.js';
-import { assetPath } from '../route-base.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { loadAppSettings, saveAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
@@ -69,7 +68,7 @@ import { mountSessionInfoPanel, type SessionInfoRow } from '../session-info.js';
 import { openAiContentReport, openBugReport } from '../bug-report.js';
 import { t } from '../i18n.js';
 import { escapeHtml } from '../escape-html.js';
-import { playbackAudio, playbackAudioContext } from '../audio-unlock.js';
+import { playChime, playCue } from '../sound-player.js';
 import { mountVolumeNotice } from '../output-volume.js';
 
 export interface NotingSessionViewHandle {
@@ -416,29 +415,6 @@ export async function mountNotingSessionView(
         return engine;
     }
 
-    function playChime(): void {
-        try {
-            // The context primed by the Begin click (audio-unlock.ts): a
-            // freshly built one is suspended on Safari and chimes silently.
-            const ctx = playbackAudioContext();
-            if (!ctx) return;
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.setValueAtTime(554, now + 0.1); // A4 → C#5
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-        } catch {
-            /* cue is optional */
-        }
-    }
-
     // ---- circle state ----
     const turnOrder: Array<'user' | number> = ['user', ...participants.map((_, i) => i)];
     let currentTurn = -1;
@@ -596,7 +572,7 @@ export async function mountNotingSessionView(
             const cueDelay = userCadences.length === 0 ? 0 : USER_TURN_CUE_DELAY_MS;
             if (cueDelay > 0) await sleep(cueDelay);
             if (torn || paused) return;
-            if (setup.notingUserTurnCueSound) await playSoundFile(setup.notingUserTurnCueSound);
+            if (setup.notingUserTurnCueSound) await playCue(setup.notingUserTurnCueSound).done;
             else playChime();
             await sleep(250);
         }
@@ -767,7 +743,7 @@ export async function mountNotingSessionView(
                 playChime();
                 await sleep(300);
             } else {
-                await playSoundFile(p.sound);
+                await playCue(p.sound).done;
             }
         }
         if (torn || paused) return;
@@ -775,29 +751,6 @@ export async function mountNotingSessionView(
         // unless logging is on.
         void autosaveSession();
         scheduleNextTurn(300);
-    }
-
-    function playSoundFile(sound: string): Promise<void> {
-        return new Promise((resolve) => {
-            try {
-                // The shared, gesture-primed element - a fresh one plays
-                // nothing on Safari (audio-unlock.ts). Cues and voices are
-                // strictly sequential here, so sharing it is safe.
-                const audio = playbackAudio();
-                // The hosted build serves under /app/, so a bare /audio/... 404s.
-                audio.src = assetPath(`/audio/${encodeURIComponent(sound)}.mp3`);
-                const done = () => {
-                    audio.onended = null;
-                    audio.onerror = null;
-                    resolve();
-                };
-                audio.onended = done;
-                audio.onerror = done;
-                void audio.play().catch(done);
-            } catch {
-                resolve();
-            }
-        });
     }
 
     // ---- opener ----

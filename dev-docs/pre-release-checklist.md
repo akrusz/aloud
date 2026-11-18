@@ -150,7 +150,8 @@ check each of these still reflects reality:
   Inworld ones, because of data retention); a voice joining or leaving that
   provider means updating the policy.
 - **Added/removed/renamed an opening and closing sound** (`SIGNATURE_SOUNDS` in
-  `ui/src/signature-sound.ts`) → its two files (the id names them), the label's
+  `ui/src/signature-sound.ts`) → its two files (the id names them; `PRESETS` in
+  `assets/promo/signature-candidates/app_copies.py` writes them), the label's
   zh entry, the "Chosen" table in `assets/promo/signature-candidates/README.md`,
   and `design-push.md` where it names the default. A retired id needs no
   migration: `resolveSignatureSound` falls to the default.

@@ -62,7 +62,6 @@ import { fetchMe } from '../cloud-auth.js';
 import { getRetreatCovered } from '../cloud-coverage.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { mountModelPicker, cloudUtilityCreditsPerHour } from '../model-picker.js';
-import { assetPath } from '../route-base.js';
 import {
     sttEngineOptions,
     sttChoiceForMode,
@@ -133,7 +132,8 @@ import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
 import { loadAppSettings, saveAppSettings, type AppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clampTimerMinutes, clockModeLabel, showSessionClockModal } from '../session-clock.js';
-import { audioContextCtor, canPlayUntouched } from '../audio-unlock.js';
+import { canPlayUntouched } from '../audio-unlock.js';
+import { playChime, playCue, primeSounds } from '../sound-player.js';
 import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
@@ -2446,42 +2446,11 @@ export async function mountSetupView(
         const offBackdrop = onBackdropClick(modal, close);
     }
 
+    /** Called from the click, which is what lets the element play (primeSounds). */
     function previewSoundOrChime(name: string): void {
-        if (!name || name === 'chime') {
-            previewChime();
-            return;
-        }
-        try {
-            // assetPath: the hosted build serves under /app/, where a bare
-            // /audio/... 404s.
-            const audio = new Audio(assetPath(`/audio/${encodeURIComponent(name)}.mp3`));
-            void audio.play().catch(() => {});
-        } catch {
-            /* preview optional */
-        }
-    }
-
-    function previewChime(): void {
-        try {
-            const AC = audioContextCtor();
-            if (!AC) return;
-            const ctx = new AC();
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, now);
-            osc.frequency.setValueAtTime(554, now + 0.1);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-            osc.onended = () => void ctx.close().catch(() => {});
-        } catch {
-            /* preview optional */
-        }
+        primeSounds();
+        if (!name || name === 'chime') playChime();
+        else playCue(name);
     }
 
     async function previewPhrase(text: string, voiceId: string | null): Promise<void> {

@@ -2,20 +2,19 @@
  * aloud's signature sound: a short original sound that opens a session and a
  * sibling that closes it. Several pairs ship as presets, picked in Settings
  * ("Look and Feel", AppSettings.signatureSound). The files in
- * public/audio/signature/ are rendered by
- * assets/promo/signature-candidates/synth_signature.py; its README says which
- * candidate each preset is.
+ * public/audio/signature/ are written by
+ * assets/promo/signature-candidates/app_copies.py, 4 dB under the candidates
+ * so they sit under the voice; its README says which candidate each preset is.
  *
- * Played through the shared AudioContext, not the shared <audio> element: that
- * element is the voice's, and a sound sharing it would cut a line off or be cut
- * off by one. A gain node is also the only level control iOS honors (an
- * element's volume is read-only there).
+ * Played on the sound player's open and close elements (sound-player.ts), not
+ * the voice's: a sound sharing the voice's element would cut a line off or be
+ * cut off by one.
  */
 
-import { playbackAudioContext } from './audio-unlock.js';
-import { diag } from './diag.js';
 import { pulseNavOrb } from './orb-pulse.js';
 import { assetPath } from './route-base.js';
+import { diag } from './diag.js';
+import { playSound, preloadSound, primeSounds, type Sound } from './sound-player.js';
 
 /** [id, label], in menu order. An id names its two files, so renaming one
  *  means renaming them. */
@@ -40,20 +39,9 @@ export function resolveSignatureSound(stored: unknown): SignatureSound {
     return hit ? hit[0] : DEFAULT_SIGNATURE_SOUND;
 }
 
-/** How far the files are turned down to sit with the facilitator's voice: the
- *  audition page's "under the voice" default (-6 dB), where the pairs were
- *  chosen, then raised 2 dB by ear in the app (2026-10-14). */
-const GAIN = 10 ** (-4 / 20);
-/** Fade when a sound is cut short (a session ended early, another preview).
- *  Whatever replaces it starts once the fade is done: two of these overlapping,
- *  the same sound twice above all, beat against each other. */
-const FADE_S = 0.25;
 /** An opening that hasn't loaded by now is skipped: it would overlap the
  *  facilitator's first words instead of ahead of them. */
 const LOAD_DEADLINE_MS = 1500;
-/** How long a context that isn't running gets to start (a Bluetooth route can
- *  take a beat) before the sound is given up as inaudible. */
-const RESUME_GRACE_MS = 400;
 /** How long the audio output gets to settle once the mic has opened, before
  *  the opening plays (see playOpening). By ear, not measured: the drop-out it
  *  avoids was "some fraction of a second". */
@@ -66,6 +54,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 const bytes = new Map<string, Promise<ArrayBuffer>>();
+const objectUrls = new Map<string, Promise<string>>();
 
 function fileUrl(sound: SignatureSound, half: SignatureHalf): string {
     return assetPath(`/audio/signature/${sound}-${half}.mp3`);
@@ -87,135 +76,77 @@ function fetchBytes(url: string): Promise<ArrayBuffer> {
     return pending;
 }
 
-async function load(ctx: AudioContext, url: string): Promise<AudioBuffer> {
-    const data = await fetchBytes(url);
-    return new Promise<AudioBuffer>((resolve, reject) => {
-        // Callback form: older Safari has no promise form. Where both exist the
-        // promise rejects too, hence the catch. A copy, because decoding
-        // detaches what it is given and the cached bytes are played again.
-        const decoding = ctx.decodeAudioData(data.slice(0), resolve, reject) as Promise<AudioBuffer> | undefined;
-        decoding?.catch(() => {});
-    });
+/** The file as an object URL, made once and kept: the element holds it as its
+ *  src for as long as the preset stays picked. */
+function objectUrl(url: string): Promise<string> {
+    let pending = objectUrls.get(url);
+    if (!pending) {
+        pending = fetchBytes(url).then((data) => URL.createObjectURL(new Blob([data], { type: 'audio/mpeg' })));
+        pending.catch(() => objectUrls.delete(url));
+        objectUrls.set(url, pending);
+    }
+    return pending;
 }
 
 /** Fetch a preset's opening ahead of the session, so it starts on the click
  *  and not a round-trip after it. (Its close is fetched as the opening plays.) */
 export function preloadOpening(sound: SignatureSound): void {
-    if (sound !== 'none') void fetchBytes(fileUrl(sound, 'open')).catch(() => {});
+    if (sound !== 'none') preloadSound('open', objectUrl(fileUrl(sound, 'open')));
 }
 
 interface Sounding {
     half: SignatureHalf;
-    stop(): void;
+    sound: Sound;
 }
 let sounding: Sounding | null = null;
-/** Context time at which the last sound cut short has faded out. */
-let clearAt = 0;
+/** Settles when the last sound cut short has faded out: two of these
+ *  overlapping, the same sound twice above all, beat against each other. */
+let faded: Promise<void> = Promise.resolve();
 /** Bumped by every opening and close, so an opening still waiting for its mic
  *  knows when the session it belonged to has ended or been replaced. */
 let sessionTicket = 0;
 /** The ticket of an opening that is waiting for its mic, or 0. */
 let openingWaiting = 0;
 
+function cutSounding(): void {
+    if (!sounding) return;
+    faded = sounding.sound.stop();
+    sounding = null;
+}
+
 /**
- * Play one half, replacing whatever is sounding. The promise resolves when the
- * sound is over - played out, cut short, or never audible - and never rejects
- * or hangs: the facilitator's first words wait on it.
+ * Play one half, replacing whatever is sounding once it has faded. The promise
+ * resolves when the sound is over - played out, cut short, or never audible -
+ * and never rejects or hangs: the facilitator's first words wait on it.
  */
 function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
-    sounding?.stop();
+    cutSounding();
     if (sound === 'none') return Promise.resolve();
-    const ctx = playbackAudioContext();
-    if (!ctx) return Promise.resolve();
-    return new Promise<void>((resolve) => {
-        let source: AudioBufferSourceNode | null = null;
-        let gain: GainNode | null = null;
-        let over = false;
-        const t0 = performance.now();
-        const finish = (): void => {
-            if (over) return;
-            over = true;
-            clearTimeout(giveUp);
-            if (sounding === me) sounding = null;
-            resolve();
-        };
-        const me: Sounding = {
-            half,
-            stop: () => {
-                if (source && gain) {
-                    const now = ctx.currentTime;
-                    gain.gain.cancelScheduledValues(now);
-                    gain.gain.setValueAtTime(gain.gain.value, now);
-                    gain.gain.linearRampToValueAtTime(0, now + FADE_S);
-                    source.stop(now + FADE_S);
-                    clearAt = now + FADE_S;
-                }
-                finish();
-            },
-        };
-        sounding = me;
-        let giveUp = setTimeout(() => {
-            diag(`[signature] ${half}: not loaded in ${LOAD_DEADLINE_MS}ms, skipped`);
-            finish();
-        }, LOAD_DEADLINE_MS);
-        void (async () => {
-            const buffer = await load(ctx, fileUrl(sound, half));
-            if (over) return;
-            // A function, so the checks either side of the await aren't
-            // narrowed into one.
-            const running = (): boolean => ctx.state === 'running';
-            if (!running()) {
-                await Promise.race([
-                    ctx.resume().catch(() => {}),
-                    new Promise((r) => setTimeout(r, RESUME_GRACE_MS)),
-                ]);
-                if (over) return;
-                // No gesture behind this context. Started anyway, the sound
-                // would play whenever the context next woke, mid-session.
-                if (!running()) {
-                    diag(`[signature] ${half}: context ${ctx.state}, skipped`);
-                    finish();
-                    return;
-                }
-            }
-            source = ctx.createBufferSource();
-            gain = ctx.createGain();
-            source.buffer = buffer;
-            gain.gain.value = GAIN;
-            source.connect(gain);
-            gain.connect(ctx.destination);
-            source.onended = () => {
-                diag(`[signature] ${half}: ended at +${Math.round(performance.now() - t0)}ms`);
-                source?.disconnect();
-                gain?.disconnect();
-                finish();
-            };
-            const wait = Math.max(0, clearAt - ctx.currentTime);
-            source.start(ctx.currentTime + wait);
-            diag(
-                `[signature] ${half}: start at +${Math.round(performance.now() - t0)}ms ` +
-                    `dur=${buffer.duration.toFixed(2)}s wait=${wait.toFixed(2)}s ` +
-                    `outputLatency=${ctx.outputLatency ?? '?'}`
-            );
-            // onended never fires on a context that stalls (an interruption on
-            // iOS), so the clock ends the wait and the sound with it.
-            clearTimeout(giveUp);
-            giveUp = setTimeout(me.stop, (wait + buffer.duration) * 1000 + 300);
-        })().catch((err: unknown) => {
-            diag(`[signature] ${half}: failed, ${err instanceof Error ? err.message : String(err)}`);
-            finish();
-        });
+    const me: Sounding = {
+        half,
+        sound: playSound(half, objectUrl(fileUrl(sound, half)), {
+            label: `[signature] ${half}`,
+            startDeadlineMs: LOAD_DEADLINE_MS,
+            after: faded,
+        }),
+    };
+    sounding = me;
+    return me.sound.done.then(() => {
+        if (sounding === me) sounding = null;
     });
 }
 
 /**
  * Whether the opening plays before the mic opens, rather than after. On
- * Android an echo-cancelled mic puts the app in call mode, and Android mutes
- * media playback for 2s when a call starts and drops its outputs for ~0.5s
- * when one ends. The opening plays on the WebAudio output, a media track, so
- * it came in a second or so late on any session whose mic started call mode
- * (meditation-pal-x4n9). The voice's tracks open after the switch, as call
- * audio, and aren't muted.
+ * Android an echo-cancelled mic puts the app in call mode, which mutes media
+ * playback for 2s when it starts and drops the app's outputs for ~0.5s when it
+ * ends. When the opening played through Web Audio, a media track, it came in a
+ * second or so late on any session whose mic started call mode
+ * (meditation-pal-x4n9); the voice's lines, opened after the switch as call
+ * audio, weren't muted. Played first, the opening stays clear of the switch.
+ * It now plays on an element, whose track takes its usage when it opens, as
+ * the voice's do (read in the Chromium source, not yet heard on a device), so
+ * before the mic it is media, as it was.
  *
  * Not while the last session's close is sounding: its mic is held until the
  * close is over (SttStopOptions.keepMicUntil), so call mode is already on, and
@@ -254,7 +185,7 @@ export async function playOpening(
     const mine = ++sessionTicket;
     if (micOpensAfterOpening()) {
         if (sound !== 'none') {
-            void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
+            void objectUrl(fileUrl(sound, 'close')).catch(() => {});
             pulseNavOrb('session');
             await play(sound, 'open');
         }
@@ -269,7 +200,7 @@ export async function playOpening(
         if (micOpening) await waitForMic(micOpening);
         return;
     }
-    void fetchBytes(fileUrl(sound, 'close')).catch(() => {});
+    void objectUrl(fileUrl(sound, 'close')).catch(() => {});
     if (micOpening) {
         openingWaiting = mine;
         await waitForMic(micOpening);
@@ -293,14 +224,16 @@ export function playClosing(sound: SignatureSound): Promise<void> {
         return Promise.resolve();
     }
     if (sounding?.half === 'open') {
-        sounding.stop();
+        cutSounding();
         return Promise.resolve();
     }
     if (sound !== 'none') pulseNavOrb('home');
     return play(sound, 'close');
 }
 
-/** Settings: hear one half of a preset. */
+/** Settings: hear one half of a preset. Called from the click, which is what
+ *  lets the element play once the file is in (primeSounds). */
 export function previewSignatureSound(sound: SignatureSound, half: SignatureHalf): void {
+    primeSounds();
     void play(sound, half);
 }

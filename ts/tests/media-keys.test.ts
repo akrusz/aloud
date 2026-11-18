@@ -10,8 +10,7 @@ afterEach(() => {
 });
 
 describe('initMediaKeys', () => {
-    it('on desktop, takes play, pause and stop with handlers that do nothing', () => {
-        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+    it('takes play, pause and stop with handlers that do nothing', () => {
         const setActionHandler = vi.fn();
         stubMediaSession(setActionHandler);
 
@@ -23,18 +22,17 @@ describe('initMediaKeys', () => {
         }
     });
 
-    it('registers nothing outside the desktop shell', () => {
+    it('registers on every platform, not only in the desktop shell', () => {
         vi.stubGlobal('window', {});
         const setActionHandler = vi.fn();
         stubMediaSession(setActionHandler);
 
         initMediaKeys();
 
-        expect(setActionHandler).not.toHaveBeenCalled();
+        expect(setActionHandler).toHaveBeenCalledTimes(3);
     });
 
-    it('an action WebKit rejects does not stop the others', () => {
-        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+    it('an action the browser rejects does not stop the others', () => {
         const registered: string[] = [];
         stubMediaSession((action) => {
             if (action === 'pause') throw new TypeError('unsupported action');
@@ -46,7 +44,6 @@ describe('initMediaKeys', () => {
     });
 
     it('does nothing where there is no media session', () => {
-        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
         vi.stubGlobal('navigator', {});
         expect(() => initMediaKeys()).not.toThrow();
     });

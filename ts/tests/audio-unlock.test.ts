@@ -1,54 +1,48 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { playbackAudio, primeAudioPlayback } from '../ui/src/audio-unlock.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { FakeAudio } from './fake-audio-element.js';
 
-class FakeAudio {
-    static made = 0;
-    src = '';
-    preload = '';
-    paused = true;
-    plays: string[] = [];
-    constructor() {
-        FakeAudio.made++;
-    }
-    play() {
-        this.paused = false;
-        this.plays.push(this.src);
-        return Promise.resolve();
-    }
-    pause() {
-        this.paused = true;
-    }
-}
+type Unlock = typeof import('../ui/src/audio-unlock.js');
+let unlock: Unlock;
 
-beforeEach(() => {
-    (globalThis as unknown as { Audio: unknown }).Audio = FakeAudio;
-    FakeAudio.made = 0;
+beforeEach(async () => {
+    vi.resetModules();
+    FakeAudio.reset();
+    vi.stubGlobal('Audio', FakeAudio);
+    unlock = await import('../ui/src/audio-unlock.js');
 });
+
+afterEach(() => vi.unstubAllGlobals());
+
+const playsOn = (el: FakeAudio): string[] => FakeAudio.log.filter((p) => p.el === el).map((p) => p.src);
 
 describe('audio playback unlock', () => {
     it('hands out one element, so Safari’s per-element permission carries', () => {
-        const a = playbackAudio() as unknown as FakeAudio;
-        const b = playbackAudio() as unknown as FakeAudio;
+        const a = unlock.playbackAudio();
+        const b = unlock.playbackAudio();
         expect(a).toBe(b);
-        // Constructed once, at first use - later calls reuse it.
-        expect(FakeAudio.made).toBeLessThanOrEqual(1);
+        expect(FakeAudio.made).toHaveLength(1);
     });
 
     it('primes by playing silence on that same element', () => {
-        const el = playbackAudio() as unknown as FakeAudio;
-        el.plays = [];
-        primeAudioPlayback();
-        expect(el.plays).toHaveLength(1);
-        expect(el.plays[0]).toMatch(/^data:audio\/wav;base64,/);
+        const el = unlock.playbackAudio() as unknown as FakeAudio;
+        unlock.primeAudioPlayback();
+        expect(playsOn(el)).toHaveLength(1);
+        expect(playsOn(el)[0]).toMatch(/^data:audio\/wav;base64,/);
+    });
+
+    it('primes the sound elements on the same click', () => {
+        const voice = unlock.playbackAudio() as unknown as FakeAudio;
+        unlock.primeAudioPlayback();
+        const others = new Set(FakeAudio.log.filter((p) => p.el !== voice).map((p) => p.el));
+        expect(others.size).toBe(4);
     });
 
     it('does not interrupt an utterance already playing', () => {
-        const el = playbackAudio() as unknown as FakeAudio;
+        const el = unlock.playbackAudio() as unknown as FakeAudio;
         el.src = 'blob:sentence';
         el.paused = false;
-        el.plays = [];
-        primeAudioPlayback();
-        expect(el.plays).toHaveLength(0);
+        unlock.primeAudioPlayback();
+        expect(playsOn(el)).toHaveLength(0);
         expect(el.src).toBe('blob:sentence');
     });
 });
