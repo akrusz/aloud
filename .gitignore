@@ -34,3 +34,4 @@ recess-archive.md
 *.db
 .beads-credential-key
 .beads/proxieddb/
+*.gate.lock*
