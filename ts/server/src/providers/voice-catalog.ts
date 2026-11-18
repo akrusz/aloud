@@ -63,7 +63,9 @@ export interface CuratedVoice {
      *  glitch check but read as clearly accented to a native ear, so a zh
      *  session that never picked a voice is steered here instead of the
      *  flagged default (views/session.ts language swap), and the picker
-     *  surfaces these first in zh sessions. */
+     *  surfaces these first in zh sessions. The client takes the first one
+     *  it finds, so exactly one voice carries it: Serena did until
+     *  2026-11-18, Xiaoyue since. */
     zhNative?: boolean;
     /** A rule for the LLM about the text this voice will read, sent to the
      *  client as CloudVoice.promptNote and appended to the system prompt while
@@ -170,21 +172,22 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev
     // heard it as a bit fast in both languages (2026-11-14).
-    { name: 'Serena', provider: 'azure', multilingual: true, zhNative: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', gainDb: 3, sessionLufs: -24.3 },
+    { name: 'Serena', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Serena:DragonHDLatestNeural', gender: 'female', tier: 'premium', gainDb: 3, sessionLufs: -24.3 },
     // Serena's model with a Mandarin persona; the dev heard it in both
-    // languages (2026-11-14). No zhNative until a native speaker has listened.
+    // languages (2026-11-14).
     // The zh house voices go by Chinese names that local Whisper writes right
     // (dev-docs/voice-commands.md), here 大海; Azure calls this one Yunfan, and
     // so did the catalog until 2026-11-17.
     { name: 'Dahai', formerly: ['Yunfan'], provider: 'azure', multilingual: true, providerVoiceId: 'zh-CN-Yunfan:DragonHDLatestNeural', gender: 'male', tier: 'premium', house: 'zh', gainDb: 3, sessionLufs: -27.7 },
     // 小月, Azure's Xiaoqiu (晓秋): the zh female house voice since
-    // 2026-11-17, picked on measures alone (dev-docs/ts-server.md) and not yet
-    // heard by a native speaker. A plain neural voice, so a line comes out the
+    // 2026-11-17, picked on measures alone (dev-docs/ts-server.md); the dev
+    // heard her and Dahai on 2026-11-18 and made her the zh default
+    // (zhNative). A plain neural voice, so a line comes out the
     // same on every take, at -20.6 LUFS before gain. A zh-CN voice, not one of
     // Azure's multilingual ones, so its English is unheard and it is `only`
     // for zh; `multilingual` is what keeps a zh session from marking it as
     // the wrong language.
-    { name: 'Xiaoyue', provider: 'azure', multilingual: true, only: 'zh', providerVoiceId: 'zh-CN-XiaoqiuNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: -1.5 },
+    { name: 'Xiaoyue', provider: 'azure', multilingual: true, zhNative: true, only: 'zh', providerVoiceId: 'zh-CN-XiaoqiuNeural', gender: 'female', tier: 'premium', house: 'zh', gainDb: -1.5 },
     // Inworld: dev picks from the 2026-10-07 audition. TTS-2 is ~$25/1M and
     // TTS-2 Flash ~$15/1M, both under Chirp3-HD. English only, so none carries
     // `multilingual`. Wren and Silas are DESIGNED voices (Inworld voice design,

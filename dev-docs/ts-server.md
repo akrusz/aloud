@@ -263,8 +263,10 @@ same on every take of a line, as a plain neural voice renders it; so gainDb
 -1.5 reaches the target with headroom, where Serena and Dahai spread 2.6 and
 4.8 dB over five takes of the same lines. The runners-up were Xiaoyu (HD
 Flash) and Mei (MAI-Voice-2.1-Flash). All three cost what Serena and Dahai do
-or less ($16, $22 and $15 a million characters), none lost an opening or
-doubled 很好 in ten takes, and no native speaker has heard them yet.
+or less ($16, $22 and $15 a million characters), and none lost an opening or
+doubled 很好 in ten takes. The dev heard Xiaoyue and Dahai on 2026-11-18:
+both are good, Dahai a little quiet. Xiaoyue took `zhNative` from Serena that
+day, so a zh session with no voice picked starts on her.
 
 **Harper's lead word.** Harper's softvoice swallows a consonant-initial
 opening word on most takes ("Back to Exploration" lost "Back" 6 of 7, "That

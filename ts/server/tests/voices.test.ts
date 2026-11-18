@@ -37,6 +37,10 @@ describe('voice catalog', () => {
         expect(resolveVoice('Mira').voiceId).toBe(defaultVoice().providerVoiceId);
     });
 
+    it('marks one voice as the zh default, since a client takes the first it finds', () => {
+        expect(CURATED_VOICES.filter((v) => v.zhNative).map((v) => v.name)).toEqual(['Xiaoyue']);
+    });
+
     it('still answers to a renamed voice\'s old name, which clients have stored', () => {
         expect(resolveVoice('Yunfan')).toEqual(resolveVoice('Dahai'));
         expect(resolveVoice('Yunfan').voiceId).toBe('zh-CN-Yunfan:DragonHDLatestNeural');

@@ -145,8 +145,9 @@ played on a phone since the move to `<audio>` elements.
       OpenRouter key or host pin is wrong.
 - [ ] **Airplane mode while the reply dots show.** The status reads
       "Connection lost - trying again" and the reply still lands (30 s now).
-- [ ] **中文.** Grok transcribes a turn, 小月 and 大海 preview in Chinese, and
-      "二十分钟" on setup is answered aloud.
+- [ ] **中文.** With no voice picked, a session starts on 小月. Grok
+      transcribes a turn, 小月 and 大海 preview in Chinese, and "二十分钟" on
+      setup is answered aloud.
 - [ ] **Balance.** It moved for the session and not for the setup listening.
 
 **Dropped from the by-hand pass**, and what covers each instead:
