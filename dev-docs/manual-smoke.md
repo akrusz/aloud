@@ -17,6 +17,86 @@ per-device STT/TTS quality matrix.
 
 ---
 
+## This release (everything after v2.20.1)
+
+One pass over branch `stt-incremental`, which is `main` plus incremental
+transcription, the setup voice work and the move of every sound to `<audio>`
+elements. Delete this section once it ships. A line here is either new with
+this release or names an item further down; the order is desktop on the
+branch, merge into `main`, deploy the server, then the phone.
+
+**Desktop**, `npm run tauri:dev` on the branch: local Whisper, a hosted voice,
+speakers.
+
+- [ ] **Launch.** The wordmark is in its own face (the font ships in the app
+      now; nothing is fetched from Google Fonts) and the mic beside Begin is
+      lit with no click.
+- [ ] **A saved voice that no longer exists** (Pulcherrima, Sadachbia) shows
+      as the default with its ☁ rate (`isOrphanedHostedVoice`).
+- [ ] **Sound, by ear.** §1 from "The facilitator speaks" through "Voice
+      preview", barge-in above all: none of it has been heard since the move
+      to `<audio>` elements, and the echo thresholds were tuned on the old
+      path.
+- [ ] **Setup voice**, from the section below: "A change is heard", "It does
+      not hear itself", "Voice mode: on, asleep, off", the clock, "Set my
+      intention", "Special requests". Then "We should begin to think about
+      dinner": nothing.
+- [ ] **Hosted GPT on setup.** Say "twenty minutes": the timer shows 20 and
+      the balance does not move.
+- [ ] **Incremental, by ear** (hosted GPT, in a session). Four or five long
+      turns with pauses mid-sentence: each arrives as one turn, nothing
+      dropped or doubled at a pause, no period and capital where you only
+      paused, and the reply no slower than usual. Then answer with one word
+      ("seven"): it arrives as a turn.
+- [ ] **Silence round trip**, then the frightened line inside the held
+      silence (§1, "Stepping out"). Once more on Ollama, qwen3.5:4b.
+- [ ] **"End the session", "yes".** History has it with a summary, and the
+      setup mic is lit again.
+- [ ] **The welcome card and the window.** Settings → Developer → "Setup
+      welcome card" → first run. With the card up, drag the window by its top
+      bar: it moves, and a click on the bar does not dismiss the card. Then
+      "The tour, spoken" and "No hole in a line" below, listening to Harper's
+      first words (her spoken lead is new and unheard).
+
+**If that is clean:** merge `stt-incremental` into `main` and deploy the
+server from `main` before any client build (a new client on the old server
+falls back to full passes, and Harper's lead and the voice levels are the
+server's). Then:
+
+```bash
+curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
+  -H 'Origin: https://aloud.rest' -H 'Access-Control-Request-Method: GET' \
+  -H 'Access-Control-Request-Headers: x-provider-key' | grep -i allow-headers
+```
+
+The answer should name `x-provider-key`.
+
+**Phone**, a build from `main` against production. From §3, the ones this
+release changed or that have never run: the opening and closing sounds, "A
+chime doesn't cut speech", the volume banner, "A dropped connection" (the
+half while the dots show, now with 30 s), "Begin stays above the keyboard"
+on iOS. And new here:
+
+- [ ] **Setup mic.** It starts slashed and music from another app keeps
+      playing. Tap it, say "twenty minutes" (the answer is audible; on an
+      iPhone listen for a line quieter than the rest), then "begin".
+- [ ] **Touch targets.** Back on setup, tap Begin: a session starts, not the
+      "What are ☁?" panel. Tap the bottom edge of the model select: it opens.
+      Tap "Show all models" itself: it still toggles.
+- [ ] **GPT, two long turns with a pause in each.** Each arrives whole.
+- [ ] **Parakeet, two turns.** A 30-second stall means the production
+      OpenRouter key or host pin is wrong.
+- [ ] **Stepping out**, the frightened line a few turns in.
+- [ ] **中文.** Grok transcribes a turn, 小月 and 大海 preview in Chinese, and
+      "二十分钟" on setup is answered aloud.
+- [ ] **Balance.** It moved for the session and not for the setup listening.
+
+**Web**, optional: own-key Anthropic with no key, press Begin: "Back to
+setup", a nav link and the browser's Back each leave the error screen. In
+Chrome the setup mic is slashed until the first click, then lit.
+
+---
+
 ## 0. Before you start
 
 ```bash
