@@ -2369,8 +2369,8 @@ function renderDeveloperSection(): string {
                 `${devParam('?slowboot=2500')} Holds the boot orb that many ms before the first view. This load only.`
             )}
             ${devRow(
-                devParamOnly('Soak event tap'),
-                `${devParam('?soak=1')} What ${devCode('npm run soak:web')} sets for its driver. This load only.`
+                devParamOnly('Soak session log'),
+                `${devParam('?soak=1')} Logs a session's turns, events and model calls to ${devCode('window.__aloudSoak')}, where ${devCode('npm run soak:web')} reads them. The harness adds this itself. This load only.`
             )}`
         : '';
     const simulations = import.meta.env.DEV
