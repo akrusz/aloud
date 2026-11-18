@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { Hono } from 'hono';
@@ -269,6 +269,42 @@ describe('POST /cloud/v1/judge', () => {
         await fail();
         const details = (await store.incidentsSince(0)).filter((r) => r.kind === 'judge_error').map((r) => r.detail);
         expect(details.sort()).toEqual(['http_429', 'http_429 (+2 more since the last row)']);
+    });
+
+    it("logs a session call's latency in production only, and a failure everywhere", async () => {
+        const lines: string[] = [];
+        const spies = (['log', 'warn'] as const).map((m) =>
+            vi.spyOn(console, m).mockImplementation((...args: unknown[]) => void lines.push(args.map(String).join(' ')))
+        );
+        const named = (msg: string) =>
+            lines.flatMap((l) => {
+                try {
+                    const line = JSON.parse(l) as { msg?: string };
+                    return line.msg === msg ? [line] : [];
+                } catch {
+                    return [];
+                }
+            });
+        const ok = reply;
+        try {
+            for (const strict of [false, true]) {
+                lines.length = 0;
+                reply = ok;
+                const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_API_KEY: 'sk-test', TYPESAFE_API_KEY: 'ts-test' });
+                config.strict = strict;
+                const a = createApp(buildDeps(config, { store: new MemoryCreditsStore() }));
+                const token = await devToken(a);
+                await post(a, token, { classifier: 'resume', text: 'hi', sessionId: 's1' });
+                await post(a, token, { classifier: 'setup-gate', text: 'hi' });
+                expect(named('judge')).toHaveLength(strict ? 1 : 0);
+                if (strict) expect(named('judge')[0]).toMatchObject({ classifier: 'resume', model: 'jev-1.13.0' });
+                reply = () => new Response('', { status: 529 });
+                await post(a, token, { classifier: 'resume', text: 'hi' });
+                expect(named('judge failed')).toHaveLength(1);
+            }
+        } finally {
+            spies.forEach((s) => s.mockRestore());
+        }
     });
 
     it('advertises itself on /health only when configured', async () => {
