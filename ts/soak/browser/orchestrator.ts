@@ -278,6 +278,18 @@ export async function runWebSoakSession(
 
     try {
         // The opener is generated on mount; let it land before the first move.
+        // Wait for its turn first: the tap arms a few awaits before the
+        // greeting flags busy, and an idle read in that gap is not a boundary
+        // (an interrupt scenario has no other wait in front of its first line).
+        const greetingDeadline = Date.now() + timing.turnBoundaryMaxMs;
+        while (assistantCount(tap) === 0 && !tap.flags.ended) {
+            if (Date.now() > greetingDeadline) {
+                localEvent('note', 'greeting-timeout');
+                break;
+            }
+            await sleep(timing.pollMs);
+            await refresh();
+        }
         await waitForTurnBoundary();
 
         const capSec = scenario.realMinutes * 60;

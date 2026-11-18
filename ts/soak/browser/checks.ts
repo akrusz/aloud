@@ -10,6 +10,7 @@
 
 import type { CheckFinding } from '../types.js';
 import type { WebSessionRunResult } from './types.js';
+import { wordErrorRate } from './wer.js';
 
 /** Above this WER an utterance is treated as not understood. */
 const GARBLED_WER = 0.5;
@@ -24,6 +25,77 @@ function median(values: number[]): number {
     return sorted.length % 2 === 0
         ? ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2
         : (sorted[mid] as number);
+}
+
+/**
+ * Meditator turns whose recognizer final no spoken sim line accounts for: the
+ * app hearing something the sim never said, in practice the facilitator's own
+ * voice coming back through the mic and being answered.
+ *
+ * Finals are first given to lines the way the orchestrator gave them
+ * (speakAndObserve), recovered from what it kept: each line's `finals` count
+ * and `heard`, those finals joined in order. A final it stopped listening for
+ * still belongs to a line when it is the tail of the line before it (an
+ * endpointer split with no settle window) or a fair hearing of a line given up
+ * as missed (a late final).
+ */
+export function findPhantomTurns(result: WebSessionRunResult): string[] {
+    const finals = result.events
+        .filter((e) => e.kind === 'stt' && e.detail === 'final')
+        .map((e) => String(e.data?.text ?? ''));
+    const owner: Array<number | null> = finals.map(() => null);
+    const heard = result.spoken.map((s) => s.heard ?? '');
+
+    let cursor = 0;
+    result.spoken.forEach((line, li) => {
+        // Runs saved before `finals` existed gave every heard line one final.
+        const n = line.finals ?? 1;
+        if (line.heard === null || n < 1) return;
+        for (let k = cursor; k + n <= finals.length; k++) {
+            if (finals.slice(k, k + n).join(' ') === line.heard) {
+                owner.fill(li, k, k + n);
+                cursor = k + n;
+                return;
+            }
+        }
+    });
+
+    let last = -1;
+    finals.forEach((text, i) => {
+        const o = owner[i];
+        if (o !== null && o !== undefined) {
+            last = o;
+            return;
+        }
+        const prev = result.spoken[last];
+        const prevHeard = heard[last] ?? '';
+        if (prev && wordErrorRate(prev.said, `${prevHeard} ${text}`) < wordErrorRate(prev.said, prevHeard)) {
+            owner[i] = last;
+            heard[last] = `${prevHeard} ${text}`;
+            return;
+        }
+        const nextOwner = owner.slice(i + 1).find((x) => x !== null) ?? result.spoken.length;
+        for (let li = last + 1; li < nextOwner; li++) {
+            const line = result.spoken[li];
+            if (line && heard[li] === '' && !line.echoDropped && wordErrorRate(line.said, text) <= GARBLED_WER) {
+                owner[i] = li;
+                heard[li] = text;
+                last = li;
+                return;
+            }
+        }
+    });
+
+    const phantoms: string[] = [];
+    let from = 0;
+    for (const turn of result.transcript ?? []) {
+        if (turn.role !== 'user' || turn.kind !== 'user') continue;
+        const i = finals.indexOf(turn.text, from);
+        if (i < 0) continue;
+        if (owner[i] === null) phantoms.push(turn.text);
+        from = i + 1;
+    }
+    return phantoms;
 }
 
 export function runAudioChecks(result: WebSessionRunResult): CheckFinding[] {
@@ -78,6 +150,15 @@ export function runAudioChecks(result: WebSessionRunResult): CheckFinding[] {
             'echo-guard-false-positive',
             'fail',
             `${selfDropped.length} meditator utterance(s) were dropped as TTS echo; first: "${selfDropped[0]?.said.slice(0, 80)}"`
+        );
+    }
+    const phantoms = findPhantomTurns(result);
+    if (phantoms.length > 0) {
+        add(
+            'phantom-turn',
+            'fail',
+            `${phantoms.length} meditator turn(s) came from no spoken line (the app hearing its own voice?); ` +
+                `first: "${(phantoms[0] as string).slice(0, 80)}"`
         );
     }
     const echoDrops = byEvent('audio', 'echo-dropped').length;

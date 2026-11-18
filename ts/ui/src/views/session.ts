@@ -3276,6 +3276,7 @@ export async function mountSessionView(
     // reply that took over, so that reply ignored barge-ins.
     {
         busy = true;
+        tapFlags({ busy: true });
         const myGen = ++turnGen;
         const myFullAbort = new AbortController();
         const myTtsAbort = new AbortController();
@@ -3296,6 +3297,7 @@ export async function mountSessionView(
             } finally {
                 if (myGen === turnGen) {
                     busy = false;
+                    tapFlags({ busy: false });
                     activeFullAbort = null;
                     activeTtsAbort = null;
                 }

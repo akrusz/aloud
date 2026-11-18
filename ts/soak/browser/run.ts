@@ -124,6 +124,7 @@ async function main(): Promise<void> {
             headless: { type: 'boolean', default: false },
             'keep-open': { type: 'boolean', default: false },
             'no-audio-routing': { type: 'boolean', default: false },
+            'allow-self-echo': { type: 'boolean', default: false },
             baseline: { type: 'string' },
             out: { type: 'string' },
             list: { type: 'boolean', default: false },
@@ -149,6 +150,7 @@ Options:
   --url=<url>             where the dev UI is served (default: ${DEFAULTS.url})
   --device=<name>         loopback audio device (default: ${LOOPBACK_DEVICE})
   --no-audio-routing      don't touch the system's default devices
+  --allow-self-echo       run a speaking facilitator on a mic-capturing --stt anyway
   --headless              run Chrome headless (Web Speech is unreliable there)
   --keep-open             leave the browser open after each session
   --out=<dir>             output directory (default: ts/soak-runs/web-<timestamp>)
@@ -170,6 +172,18 @@ Options:
             ? 'all'
             : (values.scenarios ?? '').split(',').map((s) => s.trim()).filter(Boolean)
     );
+    const audible = scenarios.filter((s) => !s.silentFacilitator).map((s) => s.id);
+    if (values.stt !== DEFAULTS.stt && audible.length > 0 && !values['allow-self-echo']) {
+        const silent = [...WEB_SCENARIOS, ...PAUSE_SCENARIOS].filter((s) => s.silentFacilitator).map((s) => s.id);
+        throw new Error(
+            `--stt=${values.stt} captures the mic itself, and ${audible.join(', ')} let the facilitator speak ` +
+                'out loud: the loopback feeds that voice into the mic at full scale, the echo gate reads it as ' +
+                'barge-in, and the facilitator answers its own words (WebScenario.silentFacilitator in ' +
+                'soak/browser/types.ts). Valid pairings: a speaking-facilitator scenario on the default ' +
+                `--stt=${DEFAULTS.stt}, or any recognizer with a silent-facilitator scenario (${silent.join(', ')}). ` +
+                'Pass --allow-self-echo to run it anyway.'
+        );
+    }
     // The facilitator is resolved here only to name the model and fail early on
     // a missing key: the PAGE builds the real provider from the seeded settings,
     // and runs the silence classifiers itself off the same one.

@@ -38,13 +38,21 @@ to `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
 `run.json`, and one JSON per session with the full transcript + event log. Exit
 code 1 when any deterministic check fails, so a release script can gate on it.
 
-## Before you run: three things that bite
+## Before you run: four things that bite
 
 **`soak:web` owns the machine's audio in and out.** BlackHole becomes both the
 default output and the default input for the run's duration. Don't play anything
 else, don't take a call. Devices are restored on exit, Ctrl-C included. Pass
 `--no-audio-routing` to leave them alone (for debugging the driver, not the audio
 path).
+
+**A speaking facilitator needs the default recognizer.** The loopback feeds the
+facilitator's voice into the mic at digital full scale, which no room does. A
+mic-capturing `--stt` (anything but `web-speech`) reads that as barge-in, and the
+facilitator answers its own words for the rest of the sit. So `run.ts` refuses
+that pairing: speaking scenarios run on `web-speech`, the mic-capturing
+recognizers on the silent-facilitator `pauses*` scenarios
+(`WebScenario.silentFacilitator`). `--allow-self-echo` overrides it.
 
 **The driver only exists during a run.** A loaded BlackHole plug-in is a
 permanent candidate default input, and CoreAudio reaches for it whenever the real
@@ -173,7 +181,7 @@ the real web UI has selected as its microphone.
 | `voice.ts` | Synthesizes the meditator's lines. `say` by default (free, offline, transcribes well); `openai:<voice>` runs gpt-4o-mini-tts (paid; no hosted voice uses it any more). |
 | `audio.ts` | Points both default devices at BlackHole and restores them afterwards. |
 | `scenarios.ts` | The tier-2 matrix (`baseline`, `silence`, `barge-in`, `mute`, `timer`, `felt-sense`) plus the scenario → localStorage mapping. Also the opt-in endpointing experiments `pauses` / `pauses-nospec` / `pauses-full`: scripted lines with `say` `[[slnc]]` pauses after dangling words, speculation on vs off, and `pauses-full` as `pauses` with every pass sending the whole turn instead of an incremental piece (`sttFullPasses`, which seeds `isSttFullPassesDebug` in `dev-mode.ts` through `rawKv`). The facilitator's voice is muted (`silentFacilitator`) so the loopback can't feed it back. Run with `--stt=aloud-gpt-transcribe`; the report carries finals per line and the client's billed STT seconds by pass kind. |
-| `checks.ts`, `wer.ts` | Audio-path checks (miss rate, WER, echo-guard false positives, barge-in, mute command) and word-error scoring normalized for case, punctuation, contractions. |
+| `checks.ts`, `wer.ts` | Audio-path checks (miss rate, WER, echo-guard false positives, phantom turns, barge-in, mute command) and word-error scoring normalized for case, punctuation, contractions. `phantom-turn` (`findPhantomTurns`) fails a meditator turn no spoken line accounts for, which is what the app answering its own voice looks like; finals are given to lines as the orchestrator gave them, plus a split line's late tail and a missed line's late final. |
 | `run.ts` | CLI. Sessions run one at a time, in real time - there's one pair of default devices. |
 
 **Setup (one time):**

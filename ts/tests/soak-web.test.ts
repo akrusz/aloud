@@ -8,10 +8,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { runWebSoakSession } from '../soak/browser/orchestrator.js';
-import { runAudioChecks } from '../soak/browser/checks.js';
+import { findPhantomTurns, runAudioChecks } from '../soak/browser/checks.js';
 import { configForScenario, getWebScenarios } from '../soak/browser/scenarios.js';
 import { wordErrorRate } from '../soak/browser/wer.js';
-import type { WebScenario, WebSessionRunResult } from '../soak/browser/types.js';
+import type { SpokenLine, WebScenario, WebSessionRunResult } from '../soak/browser/types.js';
 import type { SessionDriver } from '../soak/browser/driver.js';
 import type { SimVoice } from '../soak/browser/voice.js';
 import type { SimAction, SimUser, SimView } from '../soak/sim-user.js';
@@ -214,6 +214,36 @@ describe('tier-2 orchestrator', () => {
         expect(result.events.some((e) => e.detail === 'mute-took')).toBe(true);
     });
 
+    it('waits out the greeting before its first line, even in an interrupt scenario', async () => {
+        const driver = new FakeDriver();
+        driver.tap.turns.length = 0;
+        let reads = 0;
+        let greetingOver = false;
+        const read = driver.readTap.bind(driver);
+        driver.readTap = async () => {
+            reads += 1;
+            // Idle reads first (the tap arms at mount, before the greeting
+            // starts), then the greeting holds busy for a while.
+            if (reads === 4) {
+                driver.tap.flags.busy = true;
+                driver.tap.turns.push({ at: 0, role: 'assistant', kind: 'opener', text: 'Welcome.' });
+            }
+            if (reads === 12) {
+                driver.tap.flags.busy = false;
+                greetingOver = true;
+            }
+            return read();
+        };
+        const spokeUnderGreeting: boolean[] = [];
+        const hear = driver.hear.bind(driver);
+        driver.hear = (said: string) => {
+            spokeUnderGreeting.push(!greetingOver);
+            hear(said);
+        };
+        await run(driver, ['hello'], { ...SCENARIO, interrupt: true });
+        expect(spokeUnderGreeting).toEqual([false]);
+    });
+
     it('ends when the app tears the session down on its own', async () => {
         const driver = new FakeDriver();
         driver.tap.flags.ended = true;
@@ -274,6 +304,58 @@ describe('runAudioChecks', () => {
             sttEngine: 'web-speech',
         } as unknown as WebSessionRunResult;
         expect(runAudioChecks(result).find((f) => f.id === 'barge-in')?.level).toBe('warn');
+    });
+});
+
+describe('phantom-turn', () => {
+    /** Every final also became a meditator turn, as it does in the app. */
+    function session(spoken: Array<Partial<SpokenLine> & { said: string }>, finals: string[]): WebSessionRunResult {
+        return {
+            scenario: SCENARIO,
+            voiceId: 'fake',
+            sttEngine: 'aloud-gpt-transcribe',
+            spoken: spoken.map((s) => ({ at: 0, heard: null, echoDropped: false, wer: null, latencyMs: null, finals: 0, ...s })),
+            events: finals.map((text, i) => ({ at: i + 1, kind: 'stt', detail: 'final', data: { text } })),
+            transcript: finals.map((text, i) => ({ at: i + 1, role: 'user', kind: 'user', text })),
+        } as unknown as WebSessionRunResult;
+    }
+    const LINE = 'I notice my shoulders are up around my ears';
+
+    it('fails when the app takes turns nobody spoke, even ones echoing the meditator', () => {
+        const result = session([{ said: LINE, heard: LINE, finals: 1 }], [LINE, 'Shoulders.', "What's it like?"]);
+        expect(findPhantomTurns(result)).toEqual(['Shoulders.', "What's it like?"]);
+        expect(runAudioChecks(result).find((f) => f.id === 'phantom-turn')?.level).toBe('fail');
+    });
+
+    it('passes a line the orchestrator heard as two finals inside its settle window', async () => {
+        const driver = new FakeDriver();
+        const split = 'I want to [[slnc 6000]] pull away from it';
+        const original = driver.hear.bind(driver);
+        driver.hear = (said: string) => {
+            if (said === split) {
+                original('I want to');
+                original('pull away from it');
+            } else original(said);
+        };
+        const result = await run(driver, [split], { ...SCENARIO, finalsSettleMs: 20 });
+        expect(result.spoken[0]?.finals).toBe(2);
+        expect(runAudioChecks(result).find((f) => f.id === 'phantom-turn')).toBeUndefined();
+    });
+
+    it("passes a split line's tail that came after the orchestrator stopped listening", () => {
+        const result = session(
+            [{ said: 'I want to pull away from it', heard: 'I want to', finals: 1 }],
+            ['I want to', 'pull away from it']
+        );
+        expect(findPhantomTurns(result)).toEqual([]);
+    });
+
+    it('passes a late final for a line given up as missed', () => {
+        const result = session(
+            [{ said: 'my breath is slow and even' }, { said: LINE, heard: LINE, finals: 1 }],
+            ['My breath is slow and even.', LINE]
+        );
+        expect(findPhantomTurns(result)).toEqual([]);
     });
 });
 
