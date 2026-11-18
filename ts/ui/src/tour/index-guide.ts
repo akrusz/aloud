@@ -188,8 +188,8 @@ function modifierGroup(info: string): HTMLElement | null {
 // tour visits each tab in turn to cover all three methods.
 const SECTIONS: ReadonlyArray<Section> = [
     { id: 'methods-exploration', panel: 'methods', tab: 'exploration', target: setupHeader },
-    { id: 'methods-noting', panel: 'methods', tab: 'noting', target: setupHeader },
     { id: 'methods-felt-sense', panel: 'methods', tab: 'felt_sense', target: setupHeader },
+    { id: 'methods-noting', panel: 'methods', tab: 'noting', target: setupHeader },
     { id: 'focus', tab: 'exploration', target: () => modifierGroup('focus') },
     { id: 'vibe', tab: 'exploration', target: () => modifierGroup('vibe') },
 ];

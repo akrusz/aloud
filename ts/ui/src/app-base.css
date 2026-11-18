@@ -74,10 +74,17 @@ html { font-size: 16px; }
     --border: #302618;
     /* Zine treatment (shared with the landing page): the orb gradient's yellow
        and orange bands, used to color-code the three modes alongside --accent
-       (exploration yellow, noting orange, felt sense pink), and as sticker-
-       shadow accents. Dark values sit in the approved gold family. */
+       (exploration pink, felt sense orange, noting yellow, on the setup tabs
+       and the landing page's practice cards), and as sticker-shadow accents. Dark values sit in the approved gold family. */
     --orb-yellow: #e8b820;
     --orb-orange: #d4692a;
+    /* The setup tabs' own takes on the mode colours: a label and a rail that
+       still read on light, where the orb's yellow sinks into the cream. */
+    --orb-yellow-ink: var(--orb-yellow);
+    --orb-yellow-rail: var(--orb-yellow);
+    --orb-orange-ink: var(--orb-orange);
+    --tab-idle-text: var(--text-secondary);
+    --tab-idle-rail: var(--hairline);
     /* A hairline that still reads when --border is nearly the surface it sits
        on - for controls whose only edge cue is their outline (.clouds-help). */
     --hairline: rgba(245, 239, 230, 0.22);
@@ -172,6 +179,13 @@ html[data-platform="android"] {
     --hairline: #d9c3a2;
     --orb-yellow: #f5d820;
     --orb-orange: #ed7326;
+    --orb-yellow-ink: #8a6a00;
+    --orb-yellow-rail: #dba800;
+    --orb-orange-ink: #b04a0e;
+    /* Greyer than --text-secondary and --border, whose warm browns sit too
+       close to a picked tab's gold. */
+    --tab-idle-text: #7d6f69;
+    --tab-idle-rail: color-mix(in srgb, var(--border) 65%, transparent);
     --danger: #b04435;
     --success: #4a8e5f;
     /* Pigmented below the ground, mirroring dark's raised-above. */
@@ -437,23 +451,26 @@ body {
 
 .tab-bar {
     display: flex;
-    gap: 0;
+    gap: 6px;
     justify-content: center;
     align-items: center;
 }
 
+/* Every tab sits on its own length of dim rail, so three modes read as three
+   tabs before any of them is picked. */
 .tab-btn {
     background: none;
     border: none;
-    border-bottom: 3px solid transparent;
-    color: var(--text-secondary);
-    font-size: 1rem;
+    border-bottom: 3px solid var(--tab-idle-rail);
+    color: var(--tab-idle-text);
+    font-size: 1.08rem;
     padding: 0.5rem 1.5rem;
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s;
 }
 
-.tab-btn:hover:not(:disabled) {
+/* Never the picked tab: hover would swap its mode colour for plain ink. */
+.tab-btn:hover:not(:disabled):not(.active) {
     color: var(--text-primary);
 }
 
@@ -463,14 +480,15 @@ body {
     cursor: not-allowed;
 }
 
-/* The active tab's underline wears its mode's orb band - the same yellow /
-   orange / pink coding the landing page gives the three practice cards. */
+/* The active tab's label and underline wear its mode's colour: pink for
+   Exploration (the main mode gets the brand colour), orange for Felt Sense,
+   gold for Noting. */
 .tab-btn.active {
     color: var(--accent-text);
     border-bottom-color: var(--accent);
 }
-.tab-btn.active[data-tab="exploration"] { border-bottom-color: var(--orb-yellow); }
-.tab-btn.active[data-tab="noting"]      { border-bottom-color: var(--orb-orange); }
+.tab-btn.active[data-tab="felt_sense"] { color: var(--orb-orange-ink); border-bottom-color: var(--orb-orange); }
+.tab-btn.active[data-tab="noting"]     { color: var(--orb-yellow-ink); border-bottom-color: var(--orb-yellow-rail); }
 
 .tab-panel {
     display: flex;
@@ -6024,7 +6042,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
            Sense" included) fit one line on a 360dp phone; nowrap so a
            label never breaks internally. Height stays thumb-sized. */
         padding: 0.75rem 0.8rem;
-        font-size: 1.05rem;
+        font-size: 1.12rem;
         white-space: nowrap;
     }
     .modifier-toggle {

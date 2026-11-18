@@ -2681,8 +2681,8 @@ function renderSetupHTML(
     <div class="setup-header">
         <div class="tab-bar">
             <button type="button" class="tab-btn active" data-tab="exploration">${t('Exploration')}</button>
-            <button type="button" class="tab-btn" data-tab="noting">${t('Noting')}</button>
             <button type="button" class="tab-btn" data-tab="felt_sense">${t('Felt Sense')}</button>
+            <button type="button" class="tab-btn" data-tab="noting">${t('Noting')}</button>
             <button type="button" class="info-btn" data-info="methods" aria-label="${t('About meditation methods')}">?</button>
         </div>
         <div class="info-panel hidden" id="info-methods">
