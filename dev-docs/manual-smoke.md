@@ -21,47 +21,89 @@ per-device STT/TTS quality matrix.
 
 One pass over branch `stt-incremental`, which is `main` plus incremental
 transcription, the setup voice work and the move of every sound to `<audio>`
-elements. Delete this section once it ships. A line here is either new with
-this release or names an item further down; the order is desktop on the
-branch, merge into `main`, deploy the server, then the phone.
+elements. Delete this section once it ships. The order is desktop on the
+branch, two minutes in Chrome, merge into `main`, deploy the server, one
+listen after the deploy, then the phone.
 
-**Desktop**, `npm run tauri:dev` on the branch: local Whisper, a hosted voice,
-speakers.
+Cut on 2026-11-18 to what only a person at a real microphone and speaker can
+vet. What was dropped, and what stands in for it, is listed at the end.
 
-- [ ] **Launch.** The wordmark is in its own face (the font ships in the app
-      now; nothing is fetched from Google Fonts) and the mic beside Begin is
-      lit with no click.
-- [ ] **A saved voice that no longer exists** (Pulcherrima, Sadachbia) shows
-      as the default with its ☁ rate (`isOrphanedHostedVoice`).
-- [ ] **Sound, by ear.** §1 from "The facilitator speaks" through "Voice
-      preview", barge-in above all: none of it has been heard since the move
-      to `<audio>` elements, and the echo thresholds were tuned on the old
-      path.
-- [ ] **Setup voice**, from the section below: "A change is heard", "It does
-      not hear itself", "Voice mode: on, asleep, off", the clock, "Set my
-      intention", "Special requests". Then "We should begin to think about
-      dinner": nothing.
+**Desktop**, `npm run tauri:dev` on the branch, speakers, Harper. About 20
+minutes.
+
+Setup, on local Whisper:
+
+- [x] **Launch.** The wordmark is in its own face.
+- [ ] **It hears you and not itself.** The mic beside Begin is lit with no
+      click. Say "add playful": the box checks and "Playful is on." is spoken.
+      Then "following", "balanced", "noting": each is answered once and
+      nothing fires a second time.
 - [ ] **Hosted GPT on setup.** Say "twenty minutes": the timer shows 20 and
       the balance does not move.
-- [ ] **Incremental, by ear** (hosted GPT, in a session). Four or five long
-      turns with pauses mid-sentence: each arrives as one turn, nothing
-      dropped or doubled at a pause, no period and capital where you only
-      paused, and the reply no slower than usual. Then answer with one word
-      ("seven"): it arrives as a turn.
-- [ ] **Silence round trip**, then the frightened line inside the held
-      silence (§1, "Stepping out"). Once more on Ollama, qwen3.5:4b.
-- [ ] **"End the session", "yes".** History has it with a summary, and the
-      setup mic is lit again.
-- [ ] **The welcome card and the window.** Settings → Developer → "Setup
-      welcome card" → first run. With the card up, drag the window by its top
-      bar: it moves, and a click on the bar does not dismiss the card. Then
-      "The tour, spoken" and "No hole in a line" below, listening to Harper's
-      first words (her spoken lead is new and unheard).
+
+One session on hosted GPT speech recognition, in this order:
+
+- [ ] **Begin, mic lit.** The opening sound plays before her first line, as
+      far under her voice as before, with no drop-out, and the first line is
+      whole (Begin skips its mic probe now when a capture is live).
+- [ ] **Incremental, by ear.** Two long turns with a pause mid-sentence in
+      each, and make the first thing you say one of them: each arrives as one
+      turn, nothing dropped or doubled at the pause, no period and capital
+      where you only paused, and the reply no slower than usual. Then answer
+      with one word ("seven"): it arrives as a turn.
+- [ ] **Barge-in.** Ask for a few sentences and talk over the second. She
+      stops, the rest never plays, and the bubble ends at the sentence you cut
+      into. Ask "what was the last thing you said?": she knows only the part
+      you heard. Across the whole session she never interrupts herself and
+      your turns never arrive with her words in them (the echo thresholds
+      were tuned on the old Web Audio path).
+- [ ] **Media key.** Press F8 while she is speaking: the line carries on.
+- [ ] **Silence, then the frightened line.** Ask for silence and say yes to
+      the bid. Think out loud once: it stays quiet. Say "I feel like I'm
+      disappearing and it's scaring me": she comes back and tells you plainly
+      to open your eyes and look around.
+- [ ] **"End the session", "yes".** The closing sound plays, History has the
+      session with a summary, and the setup mic is lit again.
+
+Then:
+
+- [ ] **Begin, mic slashed, noting.** Tap the setup mic off and press Begin on
+      a noting session: it still starts and listens, and the chime marks each
+      turn. Two notes are enough.
+- [ ] **Headset**, if one is in reach. Connect a Bluetooth headset
+      mid-session, then switch it off: she carries on from the speakers, and
+      the next session is audible too. (This is what left the app silent on
+      2026-11-17, `meditation-pal-wk4u`.)
+- [ ] **The tour, once.** Settings → Developer → "Setup welcome card" → first
+      run. With the card up, drag the window by its top bar: it moves, and a
+      click on the bar does not dismiss the card. Wait a few seconds, then
+      "Show me around", and on each card let the line finish and wait two
+      seconds before going on, by "next" at least once. No line loses half a
+      second partway through, no sentence of Harper's is missing its first
+      word, and none starts with an audible "Okay" (her spoken lead). Before
+      the Exploration card she says "aloud has three different ways to
+      meditate using your voice…", and after its line "By the way, you can
+      say 'back' or 'next' to control this tour."
+
+**Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
+
+- [ ] **Sounds.** Begin a noting session on Harper: the opening sound and the
+      chime are heard.
+- [ ] **Harper.** In exploration, ask "tell me in three or four sentences
+      what we'll do" and talk over the second: she stops within a beat,
+      nothing more plays, and the bubble ends where you cut in. Press the
+      keyboard's Play/Pause during a line: nothing happens.
+- [ ] **Google UK English Female** (what a signed-out "Use a free voice"
+      gets). Let one reply play without speaking: it plays whole. Talk over
+      the next: the same as Harper.
+- [ ] **Ava**, or another macOS voice. A reply plays in whole sentences, not
+      cut after each first word. Talking over her does nothing, which is
+      expected (`bargeInDetectorFits`).
 
 **If that is clean:** merge `stt-incremental` into `main` and deploy the
 server from `main` before any client build (a new client on the old server
-falls back to full passes, and Harper's lead and the voice levels are the
-server's). Then:
+falls back to full passes, and Harper's lead, the voice levels and the Chinese
+voice names are the server's). Then:
 
 ```bash
 curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
@@ -71,29 +113,66 @@ curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
 
 The answer should name `x-provider-key`.
 
-**Phone**, a build from `main` against production. From §3, the ones this
-release changed or that have never run: the opening and closing sounds, "A
-chime doesn't cut speech", the volume banner, "A dropped connection" (the
-half while the dots show, now with 30 s), "Begin stays above the keyboard"
-on iOS. And new here:
+- [ ] **After the deploy, one listen.** In a session Harper is as loud as her
+      tour lines and sits sensibly against the opening sound (she is 4.5 dB
+      quieter than before).
 
+**Phone**, a build from `main` against production, sounds first: no sound has
+played on a phone since the move to `<audio>` elements.
+
+- [ ] **Android sounds.** The opening plays before the first line, not late.
+      The close and a noting chime are audible; with the mic open they follow
+      the Call volume now, so check they sit sensibly against the voice.
+- [ ] **iPhone sounds.** A chime does not cut the voice. Ending a session
+      inside its opening sound stops the sound at once, with no loud click. A
+      chime or preview with no mic open sounds even with the silent switch on.
+- [ ] **The lock-screen or headset play/pause button** does nothing to the
+      facilitator.
 - [ ] **Setup mic.** It starts slashed and music from another app keeps
       playing. Tap it, say "twenty minutes" (the answer is audible; on an
-      iPhone listen for a line quieter than the rest), then "begin".
+      iPhone it is not noticeably quieter or call-quality next to a session),
+      then "begin" (the first line is audible).
+- [ ] **Volume banner.** Turn the volume down or off before a session: the
+      banner says so. On iOS, first check the reading follows the volume
+      buttons at all.
 - [ ] **Touch targets.** Back on setup, tap Begin: a session starts, not the
       "What are ☁?" panel. Tap the bottom edge of the model select: it opens.
       Tap "Show all models" itself: it still toggles.
+- [ ] **Keyboard**, iOS (never run there). Tap the intention box and type:
+      Begin sits above the keys.
 - [ ] **GPT, two long turns with a pause in each.** Each arrives whole.
 - [ ] **Parakeet, two turns.** A 30-second stall means the production
       OpenRouter key or host pin is wrong.
-- [ ] **Stepping out**, the frightened line a few turns in.
+- [ ] **Airplane mode while the reply dots show.** The status reads
+      "Connection lost - trying again" and the reply still lands (30 s now).
 - [ ] **中文.** Grok transcribes a turn, 小月 and 大海 preview in Chinese, and
       "二十分钟" on setup is answered aloud.
 - [ ] **Balance.** It moved for the session and not for the setup listening.
 
-**Web**, optional: own-key Anthropic with no key, press Begin: "Back to
-setup", a nav link and the browser's Back each leave the error screen. In
-Chrome the setup mic is slashed until the first click, then lit.
+**Dropped from the by-hand pass**, and what covers each instead:
+
+- Five long turns of incremental: `npm --prefix ts run soak:web --
+  --scenarios=pauses --stt=aloud-gpt-transcribe` reads nine lines with pauses
+  of 2 to 8 seconds through Chrome and scores each against what was said.
+- The setup voice's commands, voice mode's three states and the tour's
+  controls (tap mid-line, the mic toggled under a card, "stop listening",
+  the silent tour, "next" on the last card): `npm --prefix ts run voice:check`
+  and the `setup-command` tests. The room half of it stays above.
+- The second tour pass in Ethan, and Harper against Ethan for loudness: the
+  levels are measured per clip at render (`sessionLufs`).
+- Settings wording and placement, the 中文 pass on desktop (Alex heard both
+  voices on 2026-11-18) and a saved voice that no longer exists: copy and
+  catalog, nothing a room changes.
+- Stepping out on Ollama: the code under it has not moved since the
+  2026-11-14 soak, and small models missing the rule is its own bead
+  (`meditation-pal-vwhf`).
+- In Chrome, the free-voice pick, the setup mic's first click and the BYOK
+  error screen: `tests/voice-picker.test.ts` pins the pick, and the other two
+  are layout and routing.
+- After the deploy, Opus 5 gone and 大海 for a saved Yunfan are pinned by
+  `tests/model-line.test.ts` and `server/tests/voices.test.ts`; the judge
+  line is read from the server's log.
+- Stepping out on a phone: it is the engine's, the same code as desktop.
 
 ---
 
