@@ -1215,6 +1215,7 @@
                 "voice-intro-first": {
                     "file": "harper/en/voice-intro-first.2c201bfb.mp3",
                     "gainDb": -4.5,
+                    "levelled": true,
                     "text": "Hi, I'm Harper. This is how I sound."
                 },
                 "voice-intro-second": {
