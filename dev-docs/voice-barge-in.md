@@ -156,7 +156,10 @@ voice processing sets up, and a word said then is lost ("Actually, can you"
 came back "She, can you"). So an unmute that opens the mic on a Whisper engine
 shows `Opening the mic…` until the first frame with sound in it
 (`whenHearing`, `SILENT_FRAME_RMS`), for at most `MIC_OPENING_STATUS_MAX_MS`.
-`whenLive` settles earlier, on the first of those silent frames.
+`whenLive` settles earlier, on the first of those silent frames. The mic button
+is grey and unslashed for exactly as long as that line stands (`setStatus`'s
+`micOpening`, `.btn-voice.opening`), where the setup screen's mic stays lit and
+pulses instead (`voice-commands.md`).
 
 ## Detection
 

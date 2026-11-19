@@ -2333,6 +2333,15 @@ body:has(.session-container) {
     transition: box-shadow 0.1s ease-out;
 }
 
+/* Unmuted, but the mic is still opening and hears nothing yet (views/session.ts
+   setStatus, "Opening the mic…"): grey and unslashed, no level ring, then lit. */
+.btn-voice.active.opening {
+    background: var(--bg-secondary);
+    border-color: var(--border);
+    color: var(--text-muted);
+    box-shadow: none;
+}
+
 .btn-tts {
     width: 42px;
     height: 42px;

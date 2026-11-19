@@ -1155,8 +1155,11 @@ export async function mountSessionView(
         setHolding(false);
     }
 
-    function setStatus(text: string): void {
+    /** `micOpening` greys the mic button for as long as this line stands:
+     *  any later status, whatever wrote it, gives the button its look back. */
+    function setStatus(text: string, micOpening = false): void {
         statusEl.textContent = text;
+        micBtn.classList.toggle('opening', micOpening);
     }
 
     function holdingStatus(): string {
@@ -3120,6 +3123,7 @@ export async function mountSessionView(
     /** Past this the unmuted status line stops saying the mic is opening,
      *  so a mic that never sends sound can't leave it stuck there. */
     const MIC_OPENING_STATUS_MAX_MS = 5000;
+    let micOpenings = 0;
 
     /** Mic on/off. Unmuting is button-only - a muted mic hears no way back. */
     function setMuted(next: boolean): void {
@@ -3143,12 +3147,15 @@ export async function mountSessionView(
             // taken back is live at once.
             const opensMic = stt instanceof WhisperPcmSttEngine && !stt.micKept ? stt : null;
             if (opensMic) {
-                const text = t('Opening the mic…');
-                setStatus(text);
+                const opening = ++micOpenings;
+                setStatus(t('Opening the mic…'), true);
                 void Promise.race([opensMic.whenHearing(), sleep(MIC_OPENING_STATUS_MAX_MS)]).then(() => {
                     // Anything that replaced it meanwhile (muted again, a
-                    // reply, a mic error) stands.
-                    if (!torn && statusEl.textContent === text) setStatus(ready());
+                    // reply, a mic error) stands, and so does a later unmute's
+                    // opening, which this one's bound must not cut short.
+                    if (!torn && opening === micOpenings && micBtn.classList.contains('opening')) {
+                        setStatus(ready());
+                    }
                 });
             } else {
                 setStatus(ready());
@@ -3904,6 +3911,7 @@ export async function mountSessionView(
         const finalState = session.endSession();
         document.removeEventListener('visibilitychange', onVisibilityChange);
         stopMeter();
+        micBtn.classList.remove('opening');
         void tts.cancel();
         // Listening stops now; the mic itself is let go once the closing sound
         // is over, or macOS cuts a hole in the sound (SttStopOptions).
