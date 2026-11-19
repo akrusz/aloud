@@ -45,7 +45,10 @@ describe('volumeProblem', () => {
 
     it('is "low" at the bottom steps of the speaker, and not just above them', () => {
         expect(volumeProblem(reading({ level: LOW_VOLUME }))).toBe('low');
-        expect(volumeProblem(reading({ level: 3 / 16 }))).toBeNull();
+        expect(volumeProblem(reading({ level: 1 / 15 }))).toBe('low');
+        expect(volumeProblem(reading({ level: 2 / 16 }))).toBeNull();
+        // Android's call stream, one step above its lowest of nine.
+        expect(volumeProblem(reading({ level: 1 / 8 }))).toBeNull();
     });
 
     it('leaves a low setting alone in headphones', () => {

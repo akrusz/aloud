@@ -25,9 +25,10 @@ export interface VolumeReading {
 
 export type VolumeProblem = 'off' | 'low';
 
-/** Two steps up from the bottom on an iPhone (16 steps) and on Android's
- *  usual media stream (15): a voice from the speaker is lost in a quiet room. */
-export const LOW_VOLUME = 0.15;
+/** One step up from the bottom on an iPhone (16 steps) and on Android's media
+ *  stream (15), and only the bottom step of Android's call stream (9 on the
+ *  phone it was set on, where one step up is 0.125 and already fine). */
+export const LOW_VOLUME = 0.1;
 const POLL_MS = 2000;
 /** How long a session keeps looking, and keeps a "very low" banner up. Long
  *  enough for the mic to open and the first line to be spoken. */
