@@ -22,90 +22,65 @@ per-device STT/TTS quality matrix.
 One pass over branch `stt-incremental`, which is `main` plus incremental
 transcription, the setup voice work and the move of every sound to `<audio>`
 elements. Delete this section once it ships. The order is desktop on the
-branch, two minutes in Chrome, merge into `main`, deploy the server, one
-listen after the deploy, then the phone.
+branch, Chrome, merge into `main`, deploy the server, one listen after the
+deploy, then the phone.
 
 Cut on 2026-11-18 to what only a person at a real microphone and speaker can
 vet. What was dropped, and what stands in for it, is listed at the end.
+Passed that day and taken off this list: launch, the setup mic hearing you
+and not itself, Begin with the mic lit, incremental by ear, the media key,
+silence and the frightened line, ending by voice, noting with the mic off,
+the headset, the tour, a mute mid-line, a quiet setup screen keeping the mic
+(the log, 14 minutes), and Harper in Chrome. What is left is what that day's
+notes changed, none of it heard yet, and four older items.
 
-**Desktop**, `npm run tauri:dev` on the branch, speakers, Harper. About 20
-minutes.
+**Desktop**, `npm run tauri:dev` on the branch, speakers, hosted GPT speech
+recognition. In this order it is one sitting: the setup screen, one session
+of any length, then the tour.
 
-Setup, on local Whisper:
+On the setup screen:
 
-- [x] **Launch.** The wordmark is in its own face.
-- [x] **It hears you and not itself.** The mic beside Begin is lit with no
-      click. Say "add playful": the box checks and "Playful is on." is spoken.
-      Then "following", "balanced", "noting": each is answered once and
-      nothing fires a second time.
+- [ ] **Setup mic.** At launch it breathes for a second, then goes steady
+      with the ring: say "add playful" as it steadies and it is heard whole.
+      "Set my intention", then "never mind" as the mic steadies after the
+      question: answered. Say a sentence that is no request: `Heard "…"`
+      shows it on one line, cut to the pill.
+- [ ] **Right after an answer.** Say "change focus to parts", and as the
+      answer ends say "change focus to body" at your own pace: only Body is
+      checked (a lost "change" adds it beside Parts, which is what happened
+      three times in twelve on 2026-11-18). The same with "change vibe to
+      playful", then "change vibe to loving". With a Bluetooth speaker in
+      reach, a few answers through it: no `Heard "…"` pill carrying the end
+      of the app's own line (the mic now hears 0.4 s after the voice stops,
+      `SPEECH_TAIL_MS`).
+- [ ] **Setup.** The guidance stops read 1 to 5 with the current one on the
+      thumb, in light mode and in Firefox too. "Guidance four" moves it and is
+      answered. Special requests folded over text shows a dot and its first
+      words. Then "begin session": it starts.
 
-One session on hosted GPT speech recognition, in this order:
+In the session:
 
-- [x] (used Ethan and Harper) **Begin, mic lit.** The opening sound plays before her first line, as
-      far under her voice as before, with no drop-out, and the first line is
-      whole (Begin skips its mic probe now when a capture is live).
-- [x] **Incremental, by ear.** Two long turns with a pause mid-sentence in
-      each, and make the first thing you say one of them: each arrives as one
-      turn, nothing dropped or doubled at the pause, no period and capital
-      where you only paused, and the reply no slower than usual. Then answer
-      with one word ("seven"): it arrives as a turn.
-- [?] **Barge-in.** Ask for a few sentences and talk over the second. She
-      stops, the rest never plays, and the bubble ends at the sentence you cut
-      into. Ask "what was the last thing you said?": she says again only the
-      part you heard, and your question leaves the screen (that is the repeat
-      command reading her line back out of the log, so what you hear is what
-      the log kept). Across the whole session she never interrupts herself and
-      your turns never arrive with her words in them (the echo thresholds
-      were tuned on the old Web Audio path).
-- [x] **Media key.** Press F8 while she is speaking: the line carries on.
-- [x] **Silence, then the frightened line.** Ask for silence and say yes to
-      the bid. Think out loud once: it stays quiet. Say "I feel like I'm
-      disappearing and it's scaring me": she comes back and tells you plainly
-      to open your eyes and look around.
-- [x] **"End the session", "yes".** The closing sound plays, History has the
-      session with a summary, and the setup mic is lit again.
-
-Then:
-
-- [x] **Begin, mic slashed, noting.** Tap the setup mic off and press Begin on
-      a noting session: it still starts and listens, and the chime marks each
-      turn. Two notes are enough.
-- [x] **Headset**, if one is in reach. Connect a Bluetooth headset
-      mid-session, then switch it off: she carries on from the speakers, and
-      the next session is audible too. (This is what left the app silent on
-      2026-11-17, `meditation-pal-wk4u`.)
-- [x] **The tour, once.** Settings → Developer → "Setup welcome card" → first
-      run. With the card up, drag the window by its top bar: it moves, and a
-      click on the bar does not dismiss the card. Wait a few seconds, then
-      "Show me around", and on each card let the line finish and wait two
-      seconds before going on, by "next" at least once. No line loses half a
-      second partway through, no sentence of Harper's is missing its first
-      word, and none starts with an audible "Okay" (her spoken lead). Before
-      the Exploration card she says "aloud has three different ways to
-      meditate using your voice…", and after its line "By the way, you can
-      say 'back' or 'next' to control this tour."
-
-**From the notes on this pass** (fixed 2026-11-18, none of it heard yet
-but the mute).
-Desktop, hosted GPT speech recognition:
-
-- [x] **Mute mid-line.** Ask for four sentences, click mute a second into
-      the first, and touch nothing until she has finished: no skip. One go is
-      enough, because the log settles it either way (a mute 1.4 s into a
-      sentence closed the mic there and Ethan skipped at "on" 3 s later):
-
-      ```bash
-      /usr/bin/log show --last 3m --style compact --predicate 'process == "com.apple.WebKit.GPU" AND (eventMessage CONTAINS "CoreAudioCaptureSource::end(" OR eventMessage CONTAINS "ObjC::play(" OR eventMessage CONTAINS "didEnd(")' | sed -E 's/^[0-9-]+ //; s/ Df .*\] / /' | cut -c1-80
-      ```
-
-      The `CoreAudioCaptureSource::end` line comes after the last `didEnd`,
-      not between a `play` and its `didEnd`.
-- [ ] **Unmute.** The status reads "Opening the mic…" for a second or so, then
-      "Listening…". Start speaking as it changes: the first word arrives
-      whole ("Actually" came back "She").
+- [ ] **Barge-in, then repeat.** Ask for a few sentences and talk over the
+      second. She stops, the rest never plays, and the bubble ends at the
+      sentence you cut into. "Say that again": she says again only the part
+      you heard, and your request leaves the screen (the repeat command
+      reads her line back out of the log, so what you hear is what the log
+      kept). "What did you say before that?": your words stay on screen and
+      she answers in a new line. Across the whole session she never
+      interrupts herself and your turns never arrive with her words in them
+      (the echo thresholds were tuned on the old Web Audio path; this was
+      left at `[?]` on the first pass).
+- [ ] **Unmute.** Click mute, then unmute: the status reads "Opening the
+      mic…" for a second or so, then "Listening…". Start speaking as it
+      changes: the first word arrives whole ("Actually" came back "She").
 - [ ] **Voice picker mid-session.** Open it during a reply and play a preview:
       neither has a hole in it, and after closing the next thing said is heard
       from its first word.
+- [ ] **The end question.** "End the session" asks "Would you like to end the
+      session now?".
+
+After it:
+
 - [ ] **Tour after the mic opens.** Tap the setup mic off (slashed), then
       Settings → Developer → "Setup welcome card" → first run, "Show me
       around" and "Turn on the microphone". As the second voice finishes
@@ -123,53 +98,14 @@ Desktop, hosted GPT speech recognition:
       No `CoreAudioCaptureSource::start` falls between a `play` and its
       `didEnd`, and a `play` right after one comes a second or more later,
       not 137 ms.
-- [ ] **Repeat.** "Say that again": the last line is spoken again. "What did
-      you say before that?": your words stay on screen and she answers in a
-      new line. (The local server has the new ask now, production after the
-      deploy.)
-- [ ] **Setup.** The guidance stops read 1 to 5 with the current one on the
-      thumb, in light mode and in Firefox too. "Guidance four" moves it and is
-      answered. Special requests folded over text shows a dot and its first
-      words. "End the session" in a session asks "Would you like to end the
-      session now?".
-- [ ] **Setup mic.** At launch it breathes for a second, then goes steady
-      with the ring: say "add playful" as it steadies and it is heard whole.
-      "Set my intention", then "never mind" as the mic steadies after the
-      question: answered. Say a sentence that is no request: `Heard "…"`
-      shows it on one line, cut to the pill. On hosted recognition, leave the
-      screen quiet for three minutes: the mic is still lit.
-- [ ] **Right after an answer.** Say "change focus to parts", and as the
-      answer ends say "change focus to body" at your own pace: only Body is
-      checked (a lost "change" adds it beside Parts, which is what happened
-      three times in twelve on 2026-11-18). The same with "change vibe to
-      playful", then "change vibe to loving". Then "begin session": it
-      starts. With a Bluetooth speaker in reach, a few answers through it:
-      no `Heard "…"` pill carrying the end of the app's own line (the mic
-      now hears 0.4 s after the voice stops, `SPEECH_TAIL_MS`).
 
-**Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
+**Chrome**, `npm run web:dev`, speakers and not Bluetooth, with the desktop
+app closed (its lit setup mic holds a headset in call mode,
+`meditation-pal-n3m3`). Six minutes.
 
-- [/] **Sounds.** Begin a noting session on Harper: the opening sound and the
-      chime are heard. (2026-11-18: heard, but rough and with a skip, on a
-      Bluetooth headset that the desktop app's lit setup mic was holding in
-      call mode, `meditation-pal-n3m3`. Once more on the speakers, or with
-      the desktop app closed.)
-- [x] **Harper.** In exploration, ask "tell me in three or four sentences
-      what we'll do" and talk over the second: she stops within a beat,
-      nothing more plays, and the bubble ends where you cut in. Press the
-      keyboard's Play/Pause during a line: nothing happens.
-- [?] **Google UK English Female** (what a signed-out "Use a free voice"
-      gets). Let one reply play without speaking: it plays whole. Talk over
-      the next: the same as Harper. (2026-11-18: the first line of one
-      session stopped half a second in, once, on Bluetooth, and no cause was
-      found. If it happens again send a bug report straight away: its log
-      now says whether barge-in cut the line, `[vad] wrapper barge-in`.)
-- [fail] **Ava**, or another macOS voice. A reply plays in whole sentences, not
-      cut after each first word. Talking over her does nothing, which is
-      expected (`voiceEchoCancelled`). (2026-11-18: on the browser's
-      recognizer she was fine. On Parakeet she answered her own first words,
-      and picked by voice her sample played over the opening sound; both
-      fixed, unheard, and checked by the three items below.)
+- [ ] **Sounds.** Begin a noting session on Harper, on the browser's
+      recognizer: the opening sound and the chime are heard, clean and with
+      no skip (rough on 2026-11-18, on a headset in call mode).
 - [ ] **Zoe on hosted Parakeet.** Switch speech recognition to Parakeet and
       begin a session on Zoe (or another macOS voice). Every line plays whole
       and none of her words come back as your turn; answer her two or three
@@ -182,6 +118,11 @@ Desktop, hosted GPT speech recognition:
 - [ ] **A sample at Begin.** On the setup screen say "set the voice to Zoe"
       (or another macOS voice) and click Begin before her sample is over: the
       sample stops, and only the opening sound plays until her first line.
+
+Not a check, a thing to watch: on Google UK English Female the first line of
+one session stopped half a second in, once, on Bluetooth (2026-11-18), and no
+cause was found. If it happens again send a bug report straight away: its
+log now says whether barge-in cut the line (`[vad] wrapper barge-in`).
 
 **If that is clean:** merge `stt-incremental` into `main` and deploy the
 server from `main` before any client build (a new client on the old server
