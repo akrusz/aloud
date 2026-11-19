@@ -11,8 +11,10 @@
  *   npm run stt:replay -- <any-dir> --set noise --models ... (synthetic noise only: no capture needed, nobody's voice sent)
  *   npm run stt:replay -- <capture-dir> --set battery        (the full no-speech gate: noise + the capture's wordless clips)
  *   npm run stt:replay -- <capture-dir> --set passes         (every pass: the end-of-turn table)
- *   npm run stt:replay -- <capture-dir> --set incremental    (each pass sends only its new audio: gpt-transcribe only)
+ *   npm run stt:replay -- <capture-dir> --set incremental    (each pass sends only its new audio: gpt-transcribe)
+ *   npm run stt:replay -- <capture-dir> --set incremental --models or:moondream/parakeet-ultra   (the same, unprompted)
  *   npm run stt:replay -- <capture-dir> --set incremental --models local   (the same on the desktop's whisper.cpp: nothing sent)
+ *   npm run stt:replay -- <capture-dir> --set latency --models or:moondream/parakeet-ultra,openai --runs 2   (each turn's final request, interleaved)
  *   npm run stt:replay -- <capture-dir> --report --show      (no calls; print where models differ)
  *
  * `--set incremental` (meditation-pal-12q9) asks whether a pass can send only
@@ -22,17 +24,22 @@
  * passes, which share an exact sample prefix, two ways: "stitched" (pass 1
  * whole, then from just before where each pass parts from the last) and
  * "seam" (the engine's cut: each piece ends in the quietest 85 ms near the
- * pass's end and the next starts there). Both score against the `openai`
- * cache of whole passes: run `--set passes` first. Every non-first pass also
- * goes again whole, once, as the noise floor (gpt-transcribe against itself).
- * Refuses to send over $0.20 in a run, or --max-usd.
+ * pass's end and the next starts there). Both score against the model's own
+ * cache of whole passes: run `--set passes` for it first. Every non-first
+ * pass also goes again whole, once, as the noise floor (the model against
+ * itself). An OpenRouter model aloud cloud serves takes no prompt, so its
+ * pieces go unprompted, as the server would forward them. Request times are
+ * split by audio length, with a fixed-plus-per-second fit, whole against
+ * pieces. Refuses to send over $0.20 in a run, or --max-usd.
  *
  * Models: `openai` and `groq` go through the server's own forwarder
  * (transcribeWhisper), so the request is the production one. `azure` is
  * MAI-Transcribe-2 on the Speech key, verbatim by default (it writes down
  * every "um" and cut-off word); `azure:clean` asks for its tidied style.
  * `or:<id>` is any model on OpenRouter's transcription API, which lists most
- * of the field behind one key.
+ * of the field behind one key; one aloud cloud serves (OPENROUTER_STT_MODELS)
+ * goes through the server's forwarder (transcribeOpenRouter: its host pin and
+ * zero-retention filter), so its cache is the production request.
  *
  * `local` is the desktop shell's own Whisper, run on this machine through
  * src-tauri/examples/whisper_batch.rs (built here first, -j 2) on the model the
@@ -72,7 +79,7 @@ import { isNonSpeechOnly } from '../src/platform/stt.js';
 import { joinTranscripts, priorPrompt } from '../src/platform/stt-stitch.js';
 import { resolveSttConfig } from '../server/src/config.js';
 import { sttBilledSeconds, sttUsdPerSecond } from '../server/src/pricing/providers.js';
-import { int16ToFloat32, transcribeWhisper } from '../server/src/providers/stt.js';
+import { OPENROUTER_STT_MODELS, int16ToFloat32, transcribeOpenRouter, transcribeWhisper } from '../server/src/providers/stt.js';
 import { normalizeForWer, wordErrorRate } from '../soak/browser/wer.js';
 import { loadServerEnv } from '../soak/env.js';
 
@@ -123,6 +130,10 @@ interface Model {
     needs?: string;
     /** `prompt` reaches only the Whisper-compatible models and local. */
     transcribe(clip: Clip, prompt?: string): Promise<Heard>;
+    /** Whether `prompt` reaches the model at all. */
+    prompted: boolean;
+    /** Seconds the provider bills for one request of `seconds`. */
+    billed(seconds: number): number;
     /** Dollars for one request of `seconds`, used when the call reports none. */
     price(seconds: number): number;
     /** Where `price` is a list rate we could not confirm against a bill. */
@@ -137,7 +148,13 @@ async function postJson(url: string, init: RequestInit, who: string): Promise<un
     return res.json();
 }
 
-function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['price'], priceNote?: string): Model {
+function whisperCompatible(
+    id: 'openai' | 'groq',
+    needs: string,
+    billed: Model['billed'],
+    price: Model['price'],
+    priceNote?: string
+): Model {
     // resolveSttConfig on a one-key env picks that backend's production
     // defaults (URL + model), so this can't drift from what the server sends.
     const backend = () =>
@@ -149,6 +166,8 @@ function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['p
     return {
         id,
         needs,
+        prompted: true,
+        billed,
         price,
         ...(priceNote ? { priceNote } : {}),
         async transcribe(clip, prompt) {
@@ -163,6 +182,8 @@ function whisperCompatible(id: 'openai' | 'groq', needs: string, price: Model['p
 const azure = (style?: 'clean'): Model => ({
     id: style ? `azure:${style}` : 'azure',
     needs: 'AZURE_SPEECH_KEY',
+    prompted: false,
+    billed: (seconds) => seconds,
     // The $0.10/audio-hr promo, through 2026-12-31. The rate after it is
     // unpublished; its sibling meters are $0.36/hr.
     price: (seconds) => (seconds * 0.1) / 3600,
@@ -192,13 +213,42 @@ const azure = (style?: 'clean'): Model => ({
 });
 
 function openRouter(modelId: string): Model {
+    const route = OPENROUTER_STT_MODELS[modelId];
     return {
         id: `or:${modelId}`,
         needs: 'OPENROUTER_API_KEY',
+        prompted: false,
+        billed: (seconds) => sttBilledSeconds(seconds, modelId),
         // OpenRouter reports each call's cost; a call that doesn't is unpriced
-        // here on purpose (its list prices mix per-second and per-hour units).
-        price: () => NaN,
+        // here on purpose (its list prices mix per-second and per-hour units),
+        // except a model aloud cloud serves: its table rate, so the
+        // incremental set's cap has a price to stop at.
+        price: route ? (seconds) => seconds * sttUsdPerSecond(modelId) : () => NaN,
+        ...(route ? { priceNote: `server route: ${route.host} only${route.zdr ? ', zdr' : ''}` } : {}),
         async transcribe(clip) {
+            if (route) {
+                // The server's own forwarder, so the request is production's;
+                // the tap reads the cost OpenRouter reports beside the text.
+                let cost: unknown;
+                const tapped: typeof fetch = async (input, init) => {
+                    const res = await fetch(input, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+                    if (res.ok) cost = ((await res.clone().json()) as { usage?: { cost?: unknown } }).usage?.cost;
+                    return res;
+                };
+                const r = await transcribeOpenRouter(
+                    int16ToFloat32(clip.pcm),
+                    SAMPLE_RATE,
+                    env('OPENROUTER_API_KEY'),
+                    modelId,
+                    { language: LANGUAGE },
+                    tapped
+                );
+                return {
+                    text: r.text,
+                    ...(typeof cost === 'number' ? { costUsd: cost } : {}),
+                    ...(r.reportedSeconds !== undefined ? { billedSeconds: r.reportedSeconds } : {}),
+                };
+            }
             const data = (await postJson(
                 'https://openrouter.ai/api/v1/audio/transcriptions',
                 {
@@ -294,6 +344,8 @@ function localWhisper(size?: string): Model {
     };
     return {
         id: `local:${file.replace(/^ggml-|\.bin$/g, '')}`,
+        prompted: true,
+        billed: (seconds) => seconds,
         price: () => 0,
         priceNote: `${file}, on this machine`,
         async transcribe(clip, prompt) {
@@ -323,11 +375,13 @@ function modelFor(id: string): Model {
         return localWhisper(size || undefined);
     }
     if (id === 'openai') {
-        return whisperCompatible('openai', 'OPENAI_API_KEY', (s) => sttBilledSeconds(s, 'gpt-transcribe') * sttUsdPerSecond('gpt-transcribe'));
+        const billed = (s: number): number => sttBilledSeconds(s, 'gpt-transcribe');
+        return whisperCompatible('openai', 'OPENAI_API_KEY', billed, (s) => billed(s) * sttUsdPerSecond('gpt-transcribe'));
     }
     if (id === 'groq') {
         // $0.04/audio-hr list, and every request bills at least 10 seconds.
-        return whisperCompatible('groq', 'GROQ_API_KEY', (s) => (Math.max(s, 10) * 0.04) / 3600, '10 s minimum per request');
+        const billed = (s: number): number => Math.max(s, 10);
+        return whisperCompatible('groq', 'GROQ_API_KEY', billed, (s) => (billed(s) * 0.04) / 3600, '10 s minimum per request');
     }
     if (id === 'azure') return azure();
     if (id === 'azure:clean') return azure('clean');
@@ -685,9 +739,12 @@ function report(
 
 // --- incremental (meditation-pal-12q9) -------------------------------------
 
-const INCREMENTAL_ID = 'openai-incremental';
-const SEAM_ID = 'openai-seam';
-const RERUN_ID = 'openai-rerun';
+/** Each arm's cache, beside the model's own cache of whole passes. */
+const armIds = (modelId: string): { stitched: string; seam: string; rerun: string } => ({
+    stitched: `${modelId}-incremental`,
+    seam: `${modelId}-seam`,
+    rerun: `${modelId}-rerun`,
+});
 /** The long slice: turns whose submitted audio runs past this. */
 const LONG_TURN_SECONDS = 28;
 /** The stitched arm's increment starts this far before the point where two
@@ -701,6 +758,11 @@ const SEAM_SPAN = 0.5 * SAMPLE_RATE;
 const DENSE_CHARS_PER_SECOND = 25;
 /** Upper edges (s) of the piece-length buckets the word errors are split by. */
 const PIECE_BUCKETS = [5, 10];
+/** Upper edges (s) of the audio-length buckets request times are split by. */
+const LATENCY_BUCKETS = [5, 10, 20, 40];
+/** A piece whose loudest SEAM_WINDOW is under this holds no speech: room
+ *  tone, a breath. Soft speech in the captures peaks well above it. */
+const QUIET_PIECE_DBFS = -40;
 
 /** A request an arm sends at a pass. */
 interface Sent {
@@ -708,6 +770,8 @@ interface Sent {
     pass: Clip;
     seconds: number;
     prompt?: string;
+    /** dBFS of the piece's loudest SEAM_WINDOW. */
+    level: number;
     outcome?: Outcome | undefined;
     /** Speech replies only: the turn's text before, what the reply added,
      *  and the two joined. */
@@ -744,7 +808,6 @@ type Send = (sent: Sent, pcm: Int16Array) => Promise<void>;
 const secondsOf = (pcm: Int16Array): number => pcm.length / SAMPLE_RATE;
 const total = <T>(xs: T[], f: (x: T) => number): number => xs.reduce((n, x) => n + f(x), 0);
 const sameWords = (a: string, b: string): boolean => normalizeForWer(a).join(' ') === normalizeForWer(b).join(' ');
-const billedSeconds = (seconds: number): number => sttBilledSeconds(seconds, 'gpt-transcribe');
 const samePrompt = (o: Outcome, prompt: string | undefined): boolean => (o.prompt ?? '') === (prompt ?? '');
 const sentenceEnds = (t: string): number => (t.match(/[.!?](?=\s|$)/gu) ?? []).length;
 const endsTerminated = (t: string): boolean => /[.!?]["')\]]*$/u.test(t.trim());
@@ -754,6 +817,19 @@ function byTurn(clips: Clip[]): Clip[][] {
     const turns = new Map<number, Clip[]>();
     for (const c of clips) turns.set(c.turn, [...(turns.get(c.turn) ?? []), c]);
     return [...turns.values()];
+}
+
+/** dBFS of the loudest SEAM_WINDOW in `pcm`, at half-window steps. */
+function loudestDb(pcm: Int16Array): number {
+    let best = 0;
+    for (let start = 0; start < pcm.length; start += SEAM_WINDOW >> 1) {
+        const end = Math.min(pcm.length, start + SEAM_WINDOW);
+        let sum = 0;
+        for (let i = start; i < end; i++) sum += pcm[i]! * pcm[i]!;
+        best = Math.max(best, sum / (end - start));
+        if (end === pcm.length) break;
+    }
+    return best > 0 ? 10 * Math.log10(best / 32768 ** 2) : -Infinity;
 }
 
 function sharedPrefix(a: Int16Array, b: Int16Array): number {
@@ -821,7 +897,11 @@ function planIncremental(spoken: Clip[]): Step[][] {
     );
 }
 
-async function stitchedArm(plan: Step[][], full: Cache, cache: Cache, send?: Send): Promise<Arm> {
+/** What an arm needs of its model: whether a piece carries the text so far,
+ *  and what a request bills. */
+type Chain = Pick<Model, 'prompted' | 'billed'>;
+
+async function stitchedArm(plan: Step[][], full: Cache, cache: Cache, chain: Chain, send?: Send): Promise<Arm> {
     const sent: Sent[] = [];
     const turns: ArmPass[][] = [];
     for (const steps of plan) {
@@ -833,7 +913,13 @@ async function stitchedArm(plan: Step[][], full: Cache, cache: Cache, send?: Sen
                 text = full[step.clip.name]!.text.trim();
                 pieces = [{ text, seconds: step.clip.seconds }];
             } else if (text !== undefined) {
-                const s: Sent = { key: step.clip.name, pass: step.clip, seconds: secondsOf(step.increment!), prompt: priorPrompt(text) };
+                const s: Sent = {
+                    key: step.clip.name,
+                    pass: step.clip,
+                    seconds: secondsOf(step.increment!),
+                    level: loudestDb(step.increment!),
+                    ...(chain.prompted ? { prompt: priorPrompt(text) } : {}),
+                };
                 sent.push(s);
                 await settle(s, step.increment!, cache, send);
                 text = s.outcome ? fold(s, text, pieces) : undefined;
@@ -848,7 +934,7 @@ async function stitchedArm(plan: Step[][], full: Cache, cache: Cache, send?: Sen
         id: 'stitched',
         turns,
         sent,
-        billed: total(steps, (s) => billedSeconds(s.increment ? secondsOf(s.increment) : s.clip.seconds)),
+        billed: total(steps, (s) => chain.billed(s.increment ? secondsOf(s.increment) : s.clip.seconds)),
         notes: [
             `pass 1 whole, then ${sent.length} increments; ${fallbacks.length} non-prefix fallbacks` +
                 (fallbacks.length ? ` (${fallbacks.map((s) => s.clip.name).join(', ')})` : ''),
@@ -878,7 +964,7 @@ function seamAt(pass: Int16Array, next: Int16Array, cursor: number): number | un
  *  this pass's, so no audio goes twice, except after a wordless reply, which
  *  commits nothing (the next piece starts from the same seam). A turn's
  *  wordless passes are in the chain, as the engine would send them. */
-async function seamArm(capture: Clip[], full: Cache, cache: Cache, send?: Send): Promise<Arm> {
+async function seamArm(capture: Clip[], full: Cache, cache: Cache, chain: Chain, send?: Send): Promise<Arm> {
     const sent: Sent[] = [];
     const turns: ArmPass[][] = [];
     let billed = 0;
@@ -892,7 +978,7 @@ async function seamArm(capture: Clip[], full: Cache, cache: Cache, send?: Send):
             const clip = clips[0]!;
             const text = full[clip.name]!.text.trim();
             turns.push([{ clip, text, pieces: [{ text, seconds: clip.seconds }] }]);
-            billed += billedSeconds(clip.seconds);
+            billed += chain.billed(clip.seconds);
             continue;
         }
         let cursor = 0;
@@ -906,9 +992,15 @@ async function seamArm(capture: Clip[], full: Cache, cache: Cache, send?: Send):
             if (end === undefined) unseamed++;
             else if (text !== undefined) {
                 const pcm = source.subarray(cursor, end);
-                const s: Sent = { key: `${clip.name}@${cursor}-${end}`, pass: clip, seconds: secondsOf(pcm), ...(text ? { prompt: priorPrompt(text) } : {}) };
+                const s: Sent = {
+                    key: `${clip.name}@${cursor}-${end}`,
+                    pass: clip,
+                    seconds: secondsOf(pcm),
+                    level: loudestDb(pcm),
+                    ...(text && chain.prompted ? { prompt: priorPrompt(text) } : {}),
+                };
                 sent.push(s);
-                billed += billedSeconds(s.seconds);
+                billed += chain.billed(s.seconds);
                 await settle(s, pcm, cache, send);
                 if (!s.outcome) text = undefined;
                 else {
@@ -969,6 +1061,27 @@ function wordEdits(ref: string, hyp: string): Array<{ op: string; at: number }> 
     return edits.reverse();
 }
 
+interface Timed {
+    seconds: number;
+    ms: number;
+}
+
+/** Theil-Sen line through request times: the median slope over every pair at
+ *  least a second of audio apart, and the median intercept under it. A slow
+ *  outlier moves neither, as it would a least-squares line. */
+function robustLine(xs: Timed[]): { fixed: number; perSecond: number } | undefined {
+    const slopes: number[] = [];
+    for (let i = 0; i < xs.length; i++) {
+        for (let j = i + 1; j < xs.length; j++) {
+            const dx = xs[j]!.seconds - xs[i]!.seconds;
+            if (Math.abs(dx) >= 1) slopes.push((xs[j]!.ms - xs[i]!.ms) / dx);
+        }
+    }
+    if (slopes.length === 0) return undefined;
+    const perSecond = quantile(slopes, 0.5);
+    return { fixed: quantile(xs.map((x) => x.ms - perSecond * x.seconds), 0.5), perSecond };
+}
+
 /** Index of the hyp word each piece starts at. */
 const pieceStarts = (pieces: Piece[]): number[] => {
     const starts: number[] = [];
@@ -987,9 +1100,17 @@ interface Column {
     pass?: (c: Clip) => ArmPass | undefined;
 }
 
-/** `local`: the reference is that model's own whole passes, run beside the
+/** The reference is `model`'s own whole passes. `local`: run beside the
  *  pieces, and nothing is billed. */
-function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cache, show: boolean, local?: string): void {
+function reportIncremental(
+    spoken: Clip[],
+    arms: Arm[],
+    full: Cache,
+    rerun: Cache,
+    show: boolean,
+    model: Pick<Model, 'id' | 'billed'>,
+    local = false
+): void {
     const turns = byTurn(spoken);
     const multi = turns.filter((t) => t.length > 1);
     const lasts = multi.map(lastOf);
@@ -1006,7 +1127,7 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
 
     console.log(
         `\nIncremental passes: ${turns.length} spoken turns, ${multi.length} multi-pass, ${spoken.length} passes ` +
-            `(${pauses.length} pauses, ${endings.length} endings). Reference: ${local ? `${local}'s own whole passes` : 'the openai cache, every pass sent whole'}.`
+            `(${pauses.length} pauses, ${endings.length} endings). Reference: ${local ? `${model.id}'s own whole passes` : `the ${model.id} cache, every pass sent whole`}.`
     );
     for (const arm of arms) {
         const broken = arm.turns.filter((t) => t.some((p) => p.text === undefined)).length;
@@ -1136,20 +1257,44 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
     // The joined text kept a clip's closing period before a lowercase word.
     const periodJoin = (s: Sent): boolean =>
         !!s.before && /(?:^|[^.])\.$/u.test(s.before) && /^\p{Ll}/u.test(s.added ?? '') && !!s.joined?.startsWith(s.before);
+    // The reply's first word is the text's last: a word heard on both sides
+    // of the cut, or the speaker saying it twice (--show tells them apart).
+    const doubledAtJoin = (s: Sent): boolean =>
+        !!s.before && !!s.added && bare(s.before.split(/\s+/).pop()!) !== '' &&
+        bare(s.before.split(/\s+/).pop()!) === bare(s.added.split(/\s+/)[0]!);
+    // An unprompted piece opens as a sentence: a capital the join kept after
+    // text that ends on no sentence end ("I" and its contractions aside).
+    const capitalAtJoin = (s: Sent): boolean =>
+        !!s.before && !!s.added && !!s.joined?.endsWith(s.added) &&
+        !/[.!?…]["')\]]*$/u.test(s.before.trim()) && /^\p{Lu}/u.test(s.added) && !/^I(?!\p{L})/u.test(s.added);
+    // The model's own whole pass gained no words over the pass before (or the
+    // capture heard none in it): the piece is the pause, a breath, the tail.
+    const previous = new Map(turns.flatMap((t) => t.slice(1).map((c, i) => [c.name, t[i]!] as const)));
+    const noNewWords = (s: Sent): boolean => {
+        if (!full[s.pass.name]) return true;
+        const before = previous.get(s.pass.name);
+        return !!before && sameWords(fullText(before), fullText(s.pass));
+    };
+    const wordy = (ss: Sent[]): string => `${ss.filter((s) => !isNonSpeechOnly(s.outcome!.text)).length}/${ss.length}`;
     art.push(['replies', ...per((_, ok) => String(ok.length))]);
     art.push(['empty or non-speech', ...per((_, ok) => String(ok.filter((s) => isNonSpeechOnly(s.outcome!.text)).length))]);
     art.push(['opens repeating 3+ words of the text before', ...per((_, ok) => String(ok.filter((s) => s.before && echoWords(s.before, s.added!)).length))]);
     art.push([`over ${DENSE_CHARS_PER_SECOND} chars/s of audio`, ...per((_, ok) => String(ok.filter((s) => density(s) > DENSE_CHARS_PER_SECOND).length))]);
     art.push(['". " then lowercase at a join', ...per((_, ok) => String(ok.filter(periodJoin).length))]);
+    art.push(['opens on the last word before', ...per((_, ok) => String(ok.filter(doubledAtJoin).length))]);
+    art.push(['capital mid-sentence at a join', ...per((_, ok) => String(ok.filter(capitalAtJoin).length))]);
+    art.push(['no new words in the whole pass: replies with words', ...per((_, ok) => wordy(ok.filter(noNewWords)))]);
+    art.push([`under ${QUIET_PIECE_DBFS} dBFS: replies with words`, ...per((_, ok) => wordy(ok.filter((s) => s.level < QUIET_PIECE_DBFS)))]);
     table(art);
 
-    const fullBilled = total(spoken, (c) => billedSeconds(c.seconds));
-    if (!local) console.log(`\nBilled seconds (ceil per request): full passes ${fullBilled} s over ${spoken.length} passes`);
+    const fullBilled = total(spoken, (c) => model.billed(c.seconds));
+    if (!local) console.log(`\nBilled seconds (per request, as ${model.id} bills): full passes ${fullBilled.toFixed(0)} s over ${spoken.length} passes`);
     for (const arm of local ? [] : arms) {
         const reported = arm.sent.filter((s) => s.outcome?.billedSeconds !== undefined);
         console.log(
-            `  ${arm.id}: ${arm.billed} s, saving ${fullBilled - arm.billed} s (${pct((fullBilled - arm.billed) / fullBilled)}). ` +
-                `OpenAI reported ${total(reported, (s) => s.outcome!.billedSeconds!)} s for ${reported.length} replies we ceil to ${total(reported, (s) => billedSeconds(s.seconds))} s.`
+            `  ${arm.id}: ${arm.billed.toFixed(0)} s, saving ${(fullBilled - arm.billed).toFixed(0)} s (${pct((fullBilled - arm.billed) / fullBilled)}). ` +
+                `${model.id} reported ${total(reported, (s) => s.outcome!.billedSeconds!).toFixed(1)} s for ${reported.length} replies ` +
+                `we bill at ${total(reported, (s) => model.billed(s.seconds)).toFixed(1)} s.`
         );
     }
 
@@ -1164,9 +1309,32 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
         latency.push([label, String(cs.length), ...q((c) => full[c.name]!.ms), ...cols.flatMap((col) => q((c) => lastMs(col, c)))]);
     }
     console.log(
-        `\nRequest ms on last passes (this machine; ${local ? 'whole passes and pieces in one run' : 'the full passes ran on an earlier day, the rest on one day'})`
+        `\nRequest ms on last passes (this machine; ${local ? 'whole passes and pieces in one run' : 'each reply timed in the run that cached it'})`
     );
     table(latency);
+
+    // Every reply each arm holds, by its audio length: a piece saves only the
+    // per-second part of a request, never the fixed part.
+    const timed = (pairs: Array<[number, Outcome | undefined]>): Timed[] =>
+        pairs.flatMap(([seconds, o]) => (usable(o) ? [{ seconds, ms: o!.ms }] : []));
+    const timedRows: Array<[string, Timed[]]> = [
+        ['whole passes (cache)', timed(spoken.map((c) => [c.seconds, full[c.name]]))],
+        ['whole again (rerun)', timed(spoken.map((c) => [c.seconds, rerun[c.name]]))],
+        ...arms.map((a): [string, Timed[]] => [`pieces (${a.id})`, timed(a.sent.map((s) => [s.seconds, s.outcome]))]),
+    ];
+    const edges = [0, ...LATENCY_BUCKETS, Infinity];
+    const byLength = [['requests', 'n', ...edges.slice(1).map((e, i) => (e === Infinity ? `>${edges[i]}s` : `${edges[i]}-${e}s`)), 'fixed ms + ms per audio s']];
+    for (const [label, xs] of timedRows) {
+        if (xs.length === 0) continue;
+        const cells = edges.slice(1).map((e, i) => {
+            const ms = xs.filter((x) => x.seconds >= edges[i]! && x.seconds < e).map((x) => x.ms);
+            return ms.length ? `${Math.round(quantile(ms, 0.5))}/${Math.round(quantile(ms, 0.9))} (${ms.length})` : '-';
+        });
+        const line = robustLine(xs);
+        byLength.push([label, String(xs.length), ...cells, line ? `${Math.round(line.fixed)} + ${Math.round(line.perSecond)}` : '-']);
+    }
+    console.log('\nRequest ms by audio length, p50/p90 (n), and a Theil-Sen line through every reply');
+    table(byLength);
 
     if (!show) {
         console.log('\n(--show prints the finals that differ and the artifacts. It prints the meditator\'s words.)');
@@ -1200,6 +1368,11 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
             else if (s.before && echoWords(s.before, s.added!)) console.log(`  repeat: ${s.key} ${echoWords(s.before, s.added!)} words: "...${tail(s.before)}" | "${words(s.added!).slice(0, 8).join(' ')}"`);
             if (density(s) > DENSE_CHARS_PER_SECOND) console.log(`  dense: ${s.key} ${density(s).toFixed(0)} chars/s on ${s.seconds.toFixed(1)} s: "${what.slice(0, 80)}"`);
             if (periodJoin(s)) console.log(`  period join: ${s.key} ...${words(s.before!).slice(-5).join(' ')} | ${words(s.added!).slice(0, 6).join(' ')}...`);
+            if (doubledAtJoin(s)) console.log(`  doubled: ${s.key} ...${words(s.before!).slice(-5).join(' ')} | ${words(s.added!).slice(0, 6).join(' ')}...`);
+            if (capitalAtJoin(s)) console.log(`  capital: ${s.key} ...${words(s.before!).slice(-5).join(' ')} | ${words(s.added!).slice(0, 6).join(' ')}...`);
+            if (!isNonSpeechOnly(what) && (noNewWords(s) || s.level < QUIET_PIECE_DBFS)) {
+                console.log(`  words on a quiet piece: ${s.key} (${s.seconds.toFixed(1)} s, ${s.level.toFixed(0)} dBFS${noNewWords(s) ? ', no new words in the whole pass' : ''}) "${what.slice(0, 60)}"`);
+            }
         }
     }
     console.log('\n[rerun] end-of-turn disagreements with the full pass:');
@@ -1212,16 +1385,24 @@ function reportIncremental(spoken: Clip[], arms: Arm[], full: Cache, rerun: Cach
 
 async function incremental(dir: string, modelIds: string[], reportOnly: boolean, show: boolean, maxUsd: number): Promise<void> {
     if (modelIds.length === 1 && /^local(?::|$)/.test(modelIds[0]!)) return incrementalLocal(dir, modelFor(modelIds[0]!), reportOnly, show);
-    if (modelIds.join(',') !== 'openai') throw new Error('--set incremental sends to gpt-transcribe only (or runs on local): drop --models.');
+    const id = modelIds.join(',');
+    if (id !== 'openai' && !(id.startsWith('or:') && id.slice(3) in OPENROUTER_STT_MODELS)) {
+        throw new Error(
+            `--set incremental takes one model: openai, local, or or:<id> for ${Object.keys(OPENROUTER_STT_MODELS).join(', ')} (the ones the cap can price).`
+        );
+    }
+    const model = modelFor(id);
     const capture = loadCapture(dir);
     const spoken = capture.filter((c) => !isNonSpeechOnly(c.captured));
-    const full = readCache(dir, 'openai');
+    const full = readCache(dir, model.id);
     const missing = spoken.filter((c) => !usable(full[c.name]));
-    if (missing.length) throw new Error(`${missing.length} spoken passes have no whole-pass result in the openai cache: run --set passes first.`);
+    if (missing.length) {
+        throw new Error(`${missing.length} spoken passes have no whole-pass result in the ${model.id} cache: run --set passes --models ${model.id} first.`);
+    }
     const plan = planIncremental(spoken);
-    const caches = { stitched: readCache(dir, INCREMENTAL_ID), seam: readCache(dir, SEAM_ID) };
+    const ids = armIds(model.id);
+    const caches = { stitched: readCache(dir, ids.stitched), seam: readCache(dir, ids.seam) };
     const rerunJobs: Job[] = byTurn(spoken).flatMap((t) => t.slice(1).map((clip) => ({ key: clip.name, clip })));
-    const model = modelFor('openai');
 
     let sends: { stitched?: Send; seam?: Send } = {};
     if (!reportOnly) {
@@ -1233,7 +1414,7 @@ async function incremental(dir: string, modelIds: string[], reportOnly: boolean,
         // Every reply this run lacks, as if each comes back with words: a
         // wordless one makes the seam arm re-send its audio, which the
         // running cap below catches.
-        const rerunCache = readCache(dir, RERUN_ID);
+        const rerunCache = readCache(dir, ids.rerun);
         const rerunTodo = rerunJobs.filter((j) => !usable(rerunCache[j.key]));
         const pending: number[] = rerunTodo.map((j) => j.clip.seconds);
         const dry = (cache: Cache): Send => async (s) => {
@@ -1241,19 +1422,19 @@ async function incremental(dir: string, modelIds: string[], reportOnly: boolean,
             cache[s.key] = { text: 'words', ms: 0, ...(s.prompt !== undefined ? { prompt: s.prompt } : {}) };
         };
         const stitchedScratch = { ...caches.stitched };
-        await stitchedArm(plan, full, stitchedScratch, dry(stitchedScratch));
+        await stitchedArm(plan, full, stitchedScratch, model, dry(stitchedScratch));
         const seamScratch = { ...caches.seam };
-        await seamArm(capture, full, seamScratch, dry(seamScratch));
+        await seamArm(capture, full, seamScratch, model, dry(seamScratch));
         const usd = total(pending, (s) => model.price(s));
         console.log(
             `To send: ${pending.length} requests, ${total(pending, (s) => s).toFixed(1)} s of audio, ` +
-                `billed ${total(pending, billedSeconds)} s = $${usd.toFixed(4)} at $0.27/audio-hr (cap $${maxUsd}).`
+                `billed ${total(pending, model.billed).toFixed(1)} s = $${usd.toFixed(4)} at $${model.price(3600).toFixed(3)}/audio-hr (cap $${maxUsd}).`
         );
         if (usd > maxUsd) throw new Error('Over the cap: not sending.');
         if (pending.length && !env(model.needs)) throw new Error(`${model.needs} is not set.`);
         mkdirSync(join(dir, 'replay'), { recursive: true });
 
-        await run(dir, { ...model, id: RERUN_ID }, rerunJobs);
+        await run(dir, { ...model, id: ids.rerun }, rerunJobs);
         let spent = total(rerunTodo, (j) => model.price(j.clip.seconds));
         let capped = false;
         const live = (id: string, cache: Cache): Send => async (s, pcm) => {
@@ -1269,13 +1450,13 @@ async function incremental(dir: string, modelIds: string[], reportOnly: boolean,
             writeFileSync(cachePath(dir, id), JSON.stringify(cache, null, 1));
             if (out.error) console.log(`${id}: ${out.error}`);
         };
-        sends = { stitched: live(INCREMENTAL_ID, caches.stitched), seam: live(SEAM_ID, caches.seam) };
+        sends = { stitched: live(ids.stitched, caches.stitched), seam: live(ids.seam, caches.seam) };
     }
     const arms = [
-        await stitchedArm(plan, full, caches.stitched, sends.stitched),
-        await seamArm(capture, full, caches.seam, sends.seam),
+        await stitchedArm(plan, full, caches.stitched, model, sends.stitched),
+        await seamArm(capture, full, caches.seam, model, sends.seam),
     ];
-    reportIncremental(spoken, arms, full, readCache(dir, RERUN_ID), show);
+    reportIncremental(spoken, arms, full, readCache(dir, ids.rerun), show, model);
 }
 
 /** `--set incremental --models local`: the seam arm on the desktop's own
@@ -1297,9 +1478,146 @@ async function incrementalLocal(dir: string, model: Model, reportOnly: boolean, 
         writeFileSync(cachePath(dir, seamId), JSON.stringify(cache, null, 1));
         if (out.error) console.log(`${seamId}: ${out.error}`);
     };
-    const arm = await seamArm(capture, full, cache, reportOnly ? undefined : send);
+    const arm = await seamArm(capture, full, cache, model, reportOnly ? undefined : send);
     console.log(`\n${model.id} (${model.priceNote}). No rerun: the floor is 0.`);
-    reportIncremental(spoken, [arm], full, {}, show, model.id);
+    reportIncremental(spoken, [arm], full, {}, show, model, true);
+}
+
+// --- latency ----------------------------------------------------------------
+
+/** The engine holds the submit while the terminal speculative pass is in
+ *  flight, and fires it this long before the submit on a long buffer
+ *  (ui/src/adapters/whisper-pcm-stt.ts SPEC_TERMINAL_LEAD_MS): only a request
+ *  slower than this keeps the meditator waiting. */
+const TERMINAL_LEAD_MS = 1500;
+/** Upper edges (s) of the turn-length buckets the probe is split by. */
+const TURN_BUCKETS = [10, 20, 40];
+
+/** A multi-pass turn's last piece on the engine's cut, as if every piece
+ *  before it came back with words: from the last seam to the end. */
+function terminalPiece(clips: Clip[]): Int16Array {
+    let cursor = 0;
+    for (let k = 0; k < clips.length - 1; k++) {
+        const end = seamAt(clips[k]!.pcm, clips[k + 1]!.pcm, cursor);
+        if (end !== undefined) cursor = end;
+    }
+    return lastOf(clips).pcm.subarray(cursor);
+}
+
+/**
+ * `--set latency`: each multi-pass turn's final request, timed back to back
+ * across models so a slow minute lands on every side of a comparison. A model
+ * that takes a prompt sends what production sends, the terminal piece with
+ * the text before it; one that takes none sends its whole last pass (today's
+ * request) and the terminal piece (the candidate). The order rotates turn by
+ * turn. Text is cached but not scored: --set incremental scores it.
+ */
+async function latencyProbe(dir: string, modelIds: string[], runs: number, reportOnly: boolean, maxUsd: number): Promise<void> {
+    const models = modelIds.map(modelFor);
+    const capture = loadCapture(dir);
+    const turns = byTurn(capture).filter((t) => t.length > 1 && !isNonSpeechOnly(lastOf(t).captured));
+    type Probe = { model: Model; kind: 'whole' | 'piece'; key: string; clip: Clip; prompt?: string };
+    const caches = new Map(models.map((m) => [m.id, readCache(dir, `${m.id}-latency`)]));
+    const own = new Map(models.map((m) => [m.id, readCache(dir, m.id)]));
+    const rounds: Probe[][] = [];
+    for (let r = 1; r <= runs; r++) {
+        for (const [i, clips] of turns.entries()) {
+            const last = lastOf(clips);
+            const pcm = terminalPiece(clips);
+            const piece: Clip = { ...last, pcm, wav: wavOf(pcm), seconds: secondsOf(pcm) };
+            const jobs = models.flatMap((model): Probe[] => {
+                const before = clips[clips.length - 2]!;
+                const text = usable(own.get(model.id)![before.name])?.text ?? before.captured;
+                return [
+                    ...(model.prompted ? [] : [{ model, kind: 'whole' as const, key: `${last.name}|whole|${r}`, clip: last }]),
+                    { model, kind: 'piece', key: `${last.name}|piece|${r}`, clip: piece, ...(model.prompted ? { prompt: priorPrompt(text) } : {}) },
+                ];
+            });
+            const shift = (i + r) % jobs.length;
+            rounds.push([...jobs.slice(shift), ...jobs.slice(0, shift)]);
+        }
+    }
+    if (!reportOnly) {
+        const todo = rounds.flat().filter((p) => !usable(caches.get(p.model.id)![p.key]));
+        const usd = total(todo, (p) => p.model.price(p.clip.seconds));
+        console.log(`To send: ${todo.length} requests, ${total(todo, (p) => p.clip.seconds).toFixed(1)} s of audio, $${usd.toFixed(4)} (cap $${maxUsd}).`);
+        if (!(usd <= maxUsd)) throw new Error('Over the cap, or a model with no price: not sending.');
+        for (const m of models) if (todo.some((p) => p.model === m) && m.needs && !env(m.needs)) throw new Error(`${m.needs} is not set.`);
+        mkdirSync(join(dir, 'replay'), { recursive: true });
+        for (const p of todo) {
+            const cache = caches.get(p.model.id)!;
+            const out = await transcribeTimed(p.model, p.clip, p.prompt);
+            cache[p.key] = { ...out, seconds: p.clip.seconds };
+            writeFileSync(cachePath(dir, `${p.model.id}-latency`), JSON.stringify(cache, null, 1));
+            if (out.error) console.log(`${p.model.id}: ${out.error}`);
+        }
+    }
+
+    const edges = [0, ...TURN_BUCKETS, Infinity];
+    const bucketLabels = edges.slice(1).map((e, i) => (e === Infinity ? `>=${edges[i]}s` : `${edges[i]}-${e}s`));
+    const inBucket = (seconds: number, i: number): boolean => seconds >= edges[i]! && seconds < edges[i + 1]!;
+    const ms = (m: Model, kind: string, clip: Clip, r: number): number | undefined => usable(caches.get(m.id)![`${clip.name}|${kind}|${r}`])?.ms;
+    const runsList = Array.from({ length: runs }, (_, r) => r + 1);
+    const rows = models.flatMap((m) => (m.prompted ? ['piece'] : ['whole', 'piece']).map((kind) => ({ m, kind })));
+    const pieceSeconds = new Map(turns.map((t) => [lastOf(t).name, secondsOf(terminalPiece(t))]));
+    const turnSeconds = (t: Clip[]): number => lastOf(t).seconds;
+
+    console.log(
+        `\nFinal requests on ${turns.length} multi-pass turns x ${runs} rounds, interleaved. Turn length = the whole last pass; ` +
+            `the terminal piece holds ${pct(total(turns, (t) => pieceSeconds.get(lastOf(t).name)!) / total(turns, turnSeconds))} of the turns' audio.`
+    );
+    const head = ['request', 'n', 'p50', 'p90', `wait past ${TERMINAL_LEAD_MS} ms (mean)`, ...bucketLabels.map((b) => `${b} p50 (n)`)];
+    const tab = [head];
+    for (const { m, kind } of rows) {
+        const all = turns.flatMap((t) => runsList.map((r) => ms(m, kind, lastOf(t), r))).filter((x): x is number => x !== undefined);
+        if (all.length === 0) continue;
+        tab.push([
+            `${m.id} ${kind}`,
+            String(all.length),
+            String(Math.round(quantile(all, 0.5))),
+            String(Math.round(quantile(all, 0.9))),
+            String(Math.round(mean(all.map((x) => Math.max(0, x - TERMINAL_LEAD_MS))))),
+            ...bucketLabels.map((_, i) => {
+                const xs = turns.filter((t) => inBucket(turnSeconds(t), i)).flatMap((t) => runsList.map((r) => ms(m, kind, lastOf(t), r))).filter((x): x is number => x !== undefined);
+                return xs.length ? `${Math.round(quantile(xs, 0.5))} (${xs.length})` : '-';
+            }),
+        ]);
+    }
+    tab.push([
+        'audio s: turn / terminal piece', '', '', '', '',
+        ...bucketLabels.map((_, i) => {
+            const ts = turns.filter((t) => inBucket(turnSeconds(t), i));
+            return ts.length ? `${quantile(ts.map(turnSeconds), 0.5).toFixed(0)} / ${quantile(ts.map((t) => pieceSeconds.get(lastOf(t).name)!), 0.5).toFixed(0)}` : '-';
+        }),
+    ]);
+    table(tab);
+
+    // Paired within a turn and round: the same moment, so drift cancels.
+    const pairs: Array<[string, (t: Clip[], r: number) => number | undefined]> = [];
+    for (const a of rows) {
+        for (const b of rows) {
+            if (a === b || a.kind !== 'whole') continue;
+            pairs.push([
+                `${a.m.id} whole - ${b.m.id} ${b.kind}`,
+                (t, r) => {
+                    const x = ms(a.m, a.kind, lastOf(t), r);
+                    const y = ms(b.m, b.kind, lastOf(t), r);
+                    return x !== undefined && y !== undefined ? x - y : undefined;
+                },
+            ]);
+        }
+    }
+    if (pairs.length) {
+        console.log('\nPaired differences, ms (median [p10, p90]): what the whole pass costs over the other request');
+        const ptab = [['pair', 'all', ...bucketLabels]];
+        const cell = (xs: number[]): string =>
+            xs.length ? `${Math.round(quantile(xs, 0.5))} [${Math.round(quantile(xs, 0.1))}, ${Math.round(quantile(xs, 0.9))}]` : '-';
+        for (const [label, diff] of pairs) {
+            const of = (ts: Clip[][]): number[] => ts.flatMap((t) => runsList.map((r) => diff(t, r))).filter((x): x is number => x !== undefined);
+            ptab.push([label, cell(of(turns)), ...bucketLabels.map((_, i) => cell(of(turns.filter((t) => inBucket(turnSeconds(t), i)))))]);
+        }
+        table(ptab);
+    }
 }
 
 // --- cli ------------------------------------------------------------------
@@ -1318,19 +1636,24 @@ async function main(): Promise<void> {
     };
     const modelIds = (take('--models') ?? 'openai').split(',').filter(Boolean);
     const sets = new Set((take('--set') ?? 'battery,finals').split(','));
-    const runs = Number(take('--runs') ?? 3);
+    const runsArg = take('--runs');
+    const runs = Number(runsArg ?? 3);
     const refId = take('--ref') ?? 'openai';
     const reportOnly = has('--report');
     const show = has('--show');
     const maxUsd = Number(take('--max-usd') ?? 0.2);
     const dir = args[0];
     if (!dir) {
-        console.error('Usage: npm run stt:replay -- <capture-dir> [--models a,b] [--set noise|battery,finals,passes|incremental] [--runs 3] [--ref openai|capture] [--report] [--show] [--max-usd 0.2]');
+        console.error('Usage: npm run stt:replay -- <capture-dir> [--models a,b] [--set noise|battery,finals,passes|incremental|latency] [--runs 3] [--ref openai|capture] [--report] [--show] [--max-usd 0.2]');
         process.exit(2);
     }
     if (sets.has('incremental')) {
         if (sets.size > 1) throw new Error('--set incremental runs on its own.');
         return incremental(dir, modelIds, reportOnly, show, maxUsd);
+    }
+    if (sets.has('latency')) {
+        if (sets.size > 1) throw new Error('--set latency runs on its own.');
+        return latencyProbe(dir, modelIds, Number(runsArg ?? 1), reportOnly, maxUsd);
     }
 
     const models = modelIds.map(modelFor);
