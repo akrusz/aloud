@@ -85,7 +85,7 @@ describe('voiceEchoCancelled', () => {
 describe('bargesInOnOwnStream', () => {
     afterEach(() => vi.unstubAllGlobals());
 
-    const desk = { iosWeb: false, iosHeadphones: false };
+    const desk = { phone: false, iosWeb: false, iosHeadphones: false };
 
     // Zoe on hosted Parakeet in Chrome (2026-11-18): the stream barged in on
     // her a word or two into each line and sent those words as the
@@ -105,9 +105,18 @@ describe('bargesInOnOwnStream', () => {
     });
 
     it('keeps the iPhone rule: off on its speaker, on with headphones', () => {
-        const iphone = { backend: 'server-whisper' as const, iosWeb: true, voiceEchoCancelled: true };
+        const iphone = { backend: 'server-whisper' as const, phone: true, iosWeb: true, voiceEchoCancelled: true };
         expect(bargesInOnOwnStream({ ...iphone, iosHeadphones: false })).toBe(false);
         expect(bargesInOnOwnStream({ ...iphone, iosHeadphones: true })).toBe(true);
+    });
+
+    // Measured at a desktop only: a phone's echo canceller may hear the OS's
+    // own voice, and its rule was set without one.
+    it("leaves a phone's rule alone whatever the voice", () => {
+        const os = { backend: 'server-whisper' as const, phone: true, voiceEchoCancelled: false };
+        expect(bargesInOnOwnStream({ ...os, iosWeb: false, iosHeadphones: false })).toBe(true);
+        expect(bargesInOnOwnStream({ ...os, iosWeb: true, iosHeadphones: true })).toBe(true);
+        expect(bargesInOnOwnStream({ ...os, iosWeb: true, iosHeadphones: false })).toBe(false);
     });
 
     it('is never on for a recognizer with no stream of ours', () => {

@@ -781,13 +781,15 @@ export async function mountSessionView(
     // words as the meditator's turn (meditation-pal-hi6f). There the mic closes
     // while the facilitator speaks, as on the built-in recognizer. Headphones
     // are fine, and the iOS app can tell (watched below); iPhone Safari can't.
-    // The same beside a voice the OS speaks, which no echo canceller hears
-    // (bargesInOnOwnStream in barge-in.ts): known once the voice is built.
+    // At a desktop, the same beside a voice the OS speaks, which no echo
+    // canceller hears (bargesInOnOwnStream in barge-in.ts): known once the
+    // voice is built.
     let iosHeadphonesOn = await iosHeadphones();
     let voiceCancelled = true;
     const bargesInOnOwnStream = (backend: SttBackend): boolean =>
         streamBargesIn({
             backend,
+            phone: isSingleOwnerMicPlatform(),
             iosWeb: isIosWeb(),
             iosHeadphones: iosHeadphonesOn,
             voiceEchoCancelled: voiceCancelled,
@@ -935,7 +937,7 @@ export async function mountSessionView(
         // The engine still hears the speaker, so it must stop barging in.
         if (!whisperEngine) was?.setBargeInHandler(null);
         wireWhisperBargeIn();
-        if (!voiceCancelled) diag('[vad] the OS speaks this voice: no barge-in, mic closed while it speaks');
+        if (!voiceCancelled) diag(`[vad] the OS speaks this voice, mic open while it speaks: ${continuousCapture}`);
     }
 
     // Depth of in-flight speak() calls: while > 0 the facilitator's audio is

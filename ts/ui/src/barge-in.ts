@@ -176,14 +176,22 @@ export function voiceEchoCancelled(engine: TtsEngine): boolean {
  * every line, and the stream's onset buffer sent those words as the
  * meditator's turn, too short for the transcript echo guard (Chrome,
  * 2026-11-18). There the mic closes while the facilitator speaks.
+ *
+ * The voice counts at a desktop only. A phone keeps its own rule: its echo
+ * canceller may well hear the OS's voice, nothing there was measured with
+ * one, and an iPhone with headphones has no echo to hear.
  */
 export function bargesInOnOwnStream(o: {
     backend: SttBackend;
+    /** A single-owner mic platform (is-desktop.ts isSingleOwnerMicPlatform). */
+    phone: boolean;
     iosWeb: boolean;
     iosHeadphones: boolean;
     voiceEchoCancelled: boolean;
 }): boolean {
-    return o.backend === 'server-whisper' && (!o.iosWeb || o.iosHeadphones) && o.voiceEchoCancelled;
+    if (o.backend !== 'server-whisper') return false;
+    if (o.iosWeb) return o.iosHeadphones;
+    return o.phone || o.voiceEchoCancelled;
 }
 
 /** How long after playback ends the mic still hears the facilitator: the

@@ -9,8 +9,8 @@ heuristics below are tuned for typical conversation volume.
 
 The path is chosen by STT backend, platform and voice (`bargesInOnOwnStream`
 in `ts/ui/src/barge-in.ts`, read by `ts/ui/src/views/session.ts`:
-server-Whisper, except on an iPhone's speaker and beside a voice the OS
-speaks):
+server-Whisper, except on an iPhone's speaker and, at a desktop, beside a
+voice the OS speaks):
 
 1. **Engine-driven (server-Whisper)** - `ts/ui/src/adapters/whisper-pcm-stt.ts`.
    The adapter keeps a continuous, echo-cancelled capture stream alive between
@@ -79,14 +79,16 @@ recorded at all, as before.
    transcript echo guard below: she answered herself over and over
    (2026-11-18). Now the mic is closed while she speaks, and the next turn
    opens `PLAYBACK_TAIL_MS` after her line ends (`micReopensAfterMs` in
-   `session.ts`), on Web Speech too. She can't be interrupted. A noting
+   `session.ts`), on Web Speech too. She can't be interrupted. A phone keeps
+   its own rule whatever the voice: its echo canceller may well hear the
+   OS's voice, and nothing there has been measured with one. A noting
    circle (`views/noting-session.ts`, its own listen loop, no barge-in) has
    the same hole without the barge-in: its Whisper engine keeps its stream
    between turns and opens a note with the two seconds it heard before, and
    with no sound on the meditator's turn that turn opens 300ms after a
-   participant's line. After a line in such a
-   voice it waits out the same tail and drops what the onset buffer heard of
-   the line (`waitOutUncancelledVoice`).
+   participant's line. After a line in such a voice it waits out the same
+   tail and drops what the onset buffer heard of the line
+   (`waitOutUncancelledVoice`), on every platform.
 
    On that path the engine's stream still hears the reply, so before each
    turn the listen loop keeps only the onset audio heard `PLAYBACK_TAIL_MS`
