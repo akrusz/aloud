@@ -184,7 +184,7 @@ async function open(settings, setupPatch = {}, { speechCapMs = 2500, micUnasked 
     const recognizerOpen = () => page.evaluate(() => Boolean(window.__stt.active && window.__stt.active.onresult));
     const shown = (re) => until(async () => re.test(await page.evaluate(() => document.body.innerText)));
     const asked = async () =>
-        ((await page.evaluate(() => document.body.innerText)).match(/Would you like to end the session\?/g) ?? []).length;
+        ((await page.evaluate(() => document.body.innerText)).match(/Would you like to end the session now\?/g) ?? []).length;
     return {
         context,
         page,
@@ -276,7 +276,7 @@ try {
 
         let calls = s.model.calls;
         await s.say('End the session.');
-        check('"end the session" is answered with the question', await s.shown(/Would you like to end the session\?/));
+        check('"end the session" is answered with the question', await s.shown(/Would you like to end the session now\?/));
         check('and never reaches the model', s.model.calls === calls);
         await s.say('Not yet.');
         check('"not yet" carries on', await s.shown(/we'll keep going/));
@@ -372,7 +372,7 @@ try {
         await s.until(s.recognizerOpen, 20_000);
         const before = s.model.checks;
         await s.say('End the session.');
-        await s.shown(/Would you like to end the session\?/);
+        await s.shown(/Would you like to end the session now\?/);
         check('a request matched on the device is not screened', s.model.checks === before, `(${s.model.checks - before} checks)`);
         await s.say('Yes.');
         check('and the session ends by voice', await s.until(async () => !(await s.inSession())));
@@ -419,7 +419,7 @@ try {
         await s.say("Okay, let's begin.");
         check('"let\'s begin" starts the session', await s.until(s.inSession));
         await s.say('End the session.');
-        await s.shown(/Would you like to end the session\?/);
+        await s.shown(/Would you like to end the session now\?/);
         await s.say('Yes.');
         check('ended by voice', await s.until(async () => !(await s.inSession())));
         check('back on setup and listening, with no touch', await s.until(async () => /^Listening\./.test(await s.status())));
@@ -455,7 +455,7 @@ try {
         );
         check('and the clock is counting down from it', await s.shown(/\b(10:00|9:[0-5]\d)\b/));
         await s.say('End the session.');
-        await s.shown(/Would you like to end the session\?/);
+        await s.shown(/Would you like to end the session now\?/);
         await s.say('Yes.');
         check('and it ends by voice like any other', await s.until(async () => !(await s.inSession())));
         await s.context.close();
@@ -806,7 +806,7 @@ try {
         check('a note is a note', await s.shown(/thinking/i));
 
         await s.sayAfter(1700, 'End the session.');
-        check('noting: "end the session" is answered with the question', await s.shown(/Would you like to end the session\?/));
+        check('noting: "end the session" is answered with the question', await s.shown(/Would you like to end the session now\?/));
         await s.sayAfter(1700, 'Not yet.');
         check('noting: "not yet" carries on', (await s.shown(/we'll keep going/)) && (await s.inSession()));
         await s.sayAfter(1700, 'hearing');

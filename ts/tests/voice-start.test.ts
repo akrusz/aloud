@@ -16,6 +16,7 @@ vi.mock('../ui/src/mic-check.js', () => ({ micOpenedThisPage: () => micCheck.ope
 
 import {
     createMicHandover,
+    HEARING_WAIT_MAX_MS,
     listenOnSetup,
     LOBBY_STT,
     micPermission,
@@ -25,6 +26,8 @@ import {
     SPEECH_TAIL_MS,
     VOICE_START_MAX_OPEN_MS,
     VOICE_START_WINDOW_MS,
+    type ListenOnSetupOptions,
+    type SetupHearing,
     type SetupListeningLimits,
     type VoiceStartEnd,
     type VoiceStartHandle,
@@ -502,6 +505,182 @@ describe('listenOnSetup', () => {
         expect(ends).toEqual([]);
         await vi.advanceTimersByTimeAsync(1_000);
         expect(ends).toEqual(['begin']);
+    });
+});
+
+/** Stands in for WhisperPcmSttEngine.whenHearing: each call waits for hear(). */
+function hearingSignal(): { asked: number; whenHearing: () => Promise<void>; hear: () => void } {
+    const waiting: Array<() => void> = [];
+    const signal = {
+        asked: 0,
+        whenHearing: (): Promise<void> => {
+            signal.asked++;
+            return new Promise<void>((resolve) => waiting.push(resolve));
+        },
+        hear: (): void => {
+            for (const resolve of waiting.splice(0)) resolve();
+        },
+    };
+    return signal;
+}
+
+/** An engine whose turn ends when say() hands it words, or when stopped. */
+function liveEngine(): SttEngine & { starts: number; say: (text: string) => void } {
+    let deliver: ((text: string | null) => void) | null = null;
+    const engine = {
+        starts: 0,
+        async *start(): AsyncIterable<SttEvent> {
+            engine.starts++;
+            const text = await new Promise<string | null>((resolve) => (deliver = resolve));
+            deliver = null;
+            if (text) yield { type: 'final', text } as const;
+        },
+        async stop(): Promise<void> {
+            deliver?.(null);
+        },
+        say: (text: string): void => deliver?.(text),
+    };
+    return engine;
+}
+
+describe('listenOnSetup: whether the recognizer can hear', () => {
+    // What the mic beside Begin pulses on: lit while words said are lost
+    // would be a mic that lies.
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    function listen(engine: SttEngine, extra: Partial<ListenOnSetupOptions> = {}) {
+        const states: SetupHearing[] = [];
+        const ends: VoiceStartEnd[] = [];
+        const handle = listenOnSetup({
+            engine,
+            alive: () => true,
+            onBegin: () => undefined,
+            onEnd: (why) => ends.push(why),
+            onHearing: (state) => states.push(state),
+            ...extra,
+        });
+        return { handle, states, ends };
+    }
+
+    it('is opening until the turn can hear, not merely until it has started', async () => {
+        // A capture opened afresh on macOS sends digital silence first.
+        const engine = scriptedEngine([]);
+        const signal = hearingSignal();
+        const { states } = listen(engine, { whenHearing: signal.whenHearing });
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(engine.starts).toBe(1);
+        expect(signal.asked).toBe(1);
+        expect(states).toEqual([]);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing']);
+    });
+
+    it('is paused for a line and its tail, and hears again only once the next turn can', async () => {
+        const engine = scriptedEngine([]);
+        const signal = hearingSignal();
+        const { handle, states } = listen(engine, { whenHearing: signal.whenHearing });
+        await vi.advanceTimersByTimeAsync(100);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 2_000)));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing', 'paused']);
+        await vi.advanceTimersByTimeAsync(2_000 + SPEECH_TAIL_MS + 50);
+        // Started again, and still paused: a kept stream is quick, not instant.
+        expect(engine.starts).toBe(2);
+        expect(states).toEqual(['hearing', 'paused']);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing', 'paused', 'hearing']);
+    });
+
+    it('is paused while a request is answered and through the tail after it', async () => {
+        const engine = liveEngine();
+        const signal = hearingSignal();
+        const { states } = listen(engine, {
+            whenHearing: signal.whenHearing,
+            onHeard: async () => {
+                await new Promise((r) => setTimeout(r, 2_000));
+                return true;
+            },
+        });
+        await vi.advanceTimersByTimeAsync(10);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        engine.say('add playful');
+        await vi.advanceTimersByTimeAsync(10);
+        expect(states).toEqual(['hearing', 'paused']);
+        await vi.advanceTimersByTimeAsync(2_000 + SPEECH_TAIL_MS - 100);
+        expect(engine.starts).toBe(1);
+        await vi.advanceTimersByTimeAsync(200);
+        expect(engine.starts).toBe(2);
+        expect(states.at(-1)).toBe('paused');
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing', 'paused', 'hearing']);
+    });
+
+    it('stays opening through a line said before it ever heard', async () => {
+        // The pause around a line is quick; the mic opening is the slow part,
+        // and that is what it still is.
+        const engine = scriptedEngine([]);
+        const signal = hearingSignal();
+        const { handle, states } = listen(engine, { whenHearing: signal.whenHearing });
+        await vi.advanceTimersByTimeAsync(100);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)));
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 50);
+        expect(engine.starts).toBe(2);
+        expect(states).toEqual([]);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing']);
+    });
+
+    it('stops waiting HEARING_WAIT_MAX_MS into a turn whose sign never comes, counted from that turn', async () => {
+        // A mic that sends only silence must not leave the mic pulsing.
+        const engine = scriptedEngine([]);
+        const { handle, states } = listen(engine, { whenHearing: () => new Promise<void>(() => undefined) });
+        await vi.advanceTimersByTimeAsync(1_000);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 3_000)));
+        // The first turn's wait runs out under the line: not counted.
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(engine.starts).toBe(2);
+        expect(states).toEqual([]);
+        await vi.advanceTimersByTimeAsync(HEARING_WAIT_MAX_MS);
+        expect(states).toEqual(['hearing']);
+    });
+
+    it('hears as soon as the turn starts on a recognizer with nothing better to say', async () => {
+        const engine = scriptedEngine([]);
+        const { handle, states } = listen(engine);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(states).toEqual(['hearing']);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)));
+        await vi.advanceTimersByTimeAsync(10);
+        expect(states).toEqual(['hearing', 'paused']);
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 50);
+        expect(states).toEqual(['hearing', 'paused', 'hearing']);
+    });
+
+    it('says nothing more once listening has ended, stopped or failed', async () => {
+        const engine = scriptedEngine([]);
+        const signal = hearingSignal();
+        const stopped = listen(engine, { whenHearing: signal.whenHearing });
+        await vi.advanceTimersByTimeAsync(100);
+        await stopped.handle.stop();
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(HEARING_WAIT_MAX_MS * 2);
+        expect(stopped.ends).toEqual(['stopped']);
+        expect(stopped.states).toEqual([]);
+
+        const failed = listen(scriptedEngine([new Error('not-allowed')]), {
+            whenHearing: () => new Promise<void>(() => undefined),
+        });
+        await vi.advanceTimersByTimeAsync(HEARING_WAIT_MAX_MS * 2);
+        expect(failed.ends).toEqual(['error']);
+        expect(failed.states).toEqual([]);
     });
 });
 

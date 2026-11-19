@@ -5350,6 +5350,25 @@ input[type="range"].preview-range {
     --mic-level: 0 !important;
 }
 
+/* Lit, but the recognizer can't hear yet (views/setup.ts paintVoiceMic,
+   micHearing): the mic opening, or stopped for a line and its tail. A slow
+   breath in place of the level ring, which could show a voice nothing is
+   taking in. Glyph and fill stay as lit, so it never reads as asleep. */
+.voice-start-mic.active.waiting {
+    animation: voice-mic-waiting 1.4s ease-in-out infinite;
+}
+@keyframes voice-mic-waiting {
+    0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--warm) 18%, transparent); }
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--warm) 30%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .voice-start-mic.active.waiting {
+        animation: none;
+        box-shadow: none;
+        border-style: dashed;
+    }
+}
+
 /* Not an answer: what was heard and not understood, or the first-visits
    hint. */
 .voice-start-note.aside {

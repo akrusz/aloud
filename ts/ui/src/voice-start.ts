@@ -97,6 +97,21 @@ export function setupListeningLimits(free: boolean): SetupListeningLimits {
 export const SPEECH_TAIL_MS = 450;
 
 /**
+ * Whether the recognizer can hear right now (`onHearing`), for the mic beside
+ * Begin, which pulses while it can't: words said then are lost.
+ * - `opening`: nothing heard yet since the listener began. A capture opened
+ *   afresh on macOS sends digital silence for a second or more.
+ * - `paused`: stopped for a line and its tail, an answer, or between turns.
+ * - `hearing`: a turn is under way and can hear.
+ */
+export type SetupHearing = 'opening' | 'paused' | 'hearing';
+
+/** The longest one turn shows it is waiting to hear, should the sign never
+ *  come (a mic that sends only silence). As session.ts
+ *  MIC_OPENING_STATUS_MAX_MS. */
+export const HEARING_WAIT_MAX_MS = 5000;
+
+/**
  * How the recognizer is tuned on the setup screen, in place of a session's
  * pacing. A request is a few words said in one breath, so the turn
  * ends on a short pause (a session waits 3s and more, for someone thinking
@@ -246,6 +261,16 @@ export interface ListenOnSetupOptions {
     isEcho?: (text: string) => boolean;
     /** Why listening ended, for the mic beside Begin. */
     onEnd: (why: VoiceStartEnd) => void;
+    /**
+     * Settles once a turn just started can hear (WhisperPcmSttEngine
+     * whenHearing: the first frame with sound in it). Asked as each turn
+     * starts, with the recognizer stopped. Absent, a turn hears as soon as it
+     * has started, the best the browser's and the phones' recognizers can say.
+     */
+    whenHearing?: () => Promise<void>;
+    /** Each change of SetupHearing, which starts at `opening`. Not called once
+     *  listening has ended. */
+    onHearing?: (hearing: SetupHearing) => void;
     windowMs?: number;
     maxOpenMs?: number;
     /** Close after this many things heard in a row that were not requests. */
@@ -276,7 +301,21 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     // playing then loses half a second (SttStopOptions.keepMicUntil).
     let letMicGo!: () => void;
     const listeningOver = new Promise<void>((resolve) => (letMicGo = resolve));
-    const stopBetweenTurns = (): Promise<void> => opts.engine.stop({ keepMicUntil: listeningOver });
+    let hearing: SetupHearing = 'opening';
+    const setHearing = (next: SetupHearing): void => {
+        // Until it has heard once, any wait is still the mic opening.
+        if (ended || next === hearing || (next === 'paused' && hearing === 'opening')) return;
+        hearing = next;
+        opts.onHearing?.(next);
+    };
+    // Bumped by every start and stop of the recognizer: a turn's sign that it
+    // hears counts only while that turn is the one running.
+    let turnSeq = 0;
+    const stopBetweenTurns = (): Promise<void> => {
+        turnSeq++;
+        setHearing('paused');
+        return opts.engine.stop({ keepMicUntil: listeningOver });
+    };
 
     const keepOpen = (): void => {
         deadline = Math.min(now() + windowMs, ceiling);
@@ -331,6 +370,11 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             if (ended) return;
             let heard = '';
             let failed = false;
+            const turn = ++turnSeq;
+            const canHear = opts.whenHearing?.().catch(() => undefined) ?? Promise.resolve();
+            void Promise.race([canHear, pause(HEARING_WAIT_MAX_MS)]).then(() => {
+                if (turn === turnSeq) setHearing('hearing');
+            });
             try {
                 for await (const event of opts.engine.start()) {
                     if (ended) break;
@@ -387,7 +431,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
 
 /**
  * The mics of listeners stopped for a recognizer change (a mode with its own
- * pick), each held until the listener replacing them is live. The last
+ * pick), each held until the listener replacing them can hear. The last
  * echo-cancelled capture closing on macOS rebuilds the audio output a second
  * or two later, under the line the new card is saying; with the new mic open
  * first, the old one going is never the last.
@@ -395,7 +439,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
 export interface MicHandover {
     /** Stop `handle`, its mic held until the handover settles, along with any
      *  held already and `owed`: what `handle`'s own listener had taken and was
-     *  holding until it went live, which it never will now. */
+     *  holding until it could hear, which it never will now. */
     stop(handle: VoiceStartHandle, owed?: (() => void) | null): Promise<void>;
     /** Every mic being held, now the caller's to let go. Null when none is. */
     take(): (() => void) | null;

@@ -432,6 +432,20 @@ speaking, it lights at once and starts hearing when the line is over
 (`runVoiceSync` paints it before it waits; `micShows` is what a second tap
 reads).
 
+**Waiting to hear is a look of On, not a fourth state.** Lit while the
+recognizer can't hear, the ring gives way to a slow pulse (`.waiting`; a
+dashed rim under reduced motion), since words said then are lost
+(`listenOnSetup` `onHearing`, `micHearing` in `views/setup.ts`). That is the
+mic opening, which on macOS sends digital silence for a second or more, and
+the recognizer stopped for a line and its tail, an answer, or between turns.
+A Whisper engine hears at its first frame with sound in it (`whenHearing`);
+the browser's and the phones' recognizers count as hearing once the turn
+starts, all they can say. A turn waits at most `HEARING_WAIT_MAX_MS`. Opening
+also says so in the button's label (`Opening the mic…`) and, on the visits
+that show the first-visits hint, in its pill after `MIC_OPENING_NOTE_AFTER_MS`;
+the hint itself waits until the mic hears. The pause around a line keeps the
+listening label.
+
 It works under the tour's cards too (`data-tour-live`, kept live by
 `holdPage` in `tour/index-guide.ts`): a tap switches it and leaves the tour
 where it is. Held with the rest of the page, the tap fell through to the
@@ -493,12 +507,13 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   manual-smoke.md). Chrome played the same lines whole: its echo canceller is
   its own, not the OS's. A listener replaced because the mode has another
   recognizer (noting keeps its own pick) is stopped the same way and holds its
-  stream through the card's line until the new listener's capture delivers
-  its first frame (`createMicHandover`, `whenLive`), so the last
-  echo-cancelled capture never closes under a line. One tab switch sets off
-  several syncs, and the newest takes the handover over; one that builds
-  nothing with no newer sync behind it lets the mic go, as do Begin and the
-  mic being closed.
+  stream through the card's line until the new listener can hear
+  (`createMicHandover`, its first `onHearing` of `hearing`; a first frame is
+  too soon, being the silence a fresh capture sends while the OS sets it up),
+  so the last echo-cancelled capture never closes under a line. One tab
+  switch sets off several syncs, and the newest takes the handover over; one
+  that builds nothing with no newer sync behind it lets the mic go, as do
+  Begin and the mic being closed.
 - **Not where the recognizer would need a sign-in.** A hosted speech
   recognition pick with nobody signed in would refuse the first thing heard,
   and nothing on this screen may raise a sign-in, so there is no mic then

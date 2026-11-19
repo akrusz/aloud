@@ -81,6 +81,7 @@ import {
     voiceStartBlocker,
     setupListeningLimits,
     type MicPermission,
+    type SetupHearing,
     type VoiceStartHandle,
 } from '../voice-start.js';
 import {
@@ -1208,13 +1209,13 @@ export async function mountSetupView(
         handle: VoiceStartHandle;
         choice: SttEngineChoice;
         engine: SttEngine;
-        /** The mics this listener holds until it is live, handed to whoever
+        /** The mics this listener holds until it can hear, handed to whoever
          *  replaces it first (micHandover). */
         passOn: () => (() => void) | null;
     } | null = null;
     let voiceStartGen = 0;
     // A listener stopped because the mode switched recognizer keeps its mic
-    // until the next listener's is live (runVoiceSync), else the card's line
+    // until the next listener can hear (runVoiceSync), else the card's line
     // loses half a second on macOS (voice-start.ts createMicHandover).
     const micHandover = createMicHandover();
     // Null until the first reading lands: nothing is offered on a guess.
@@ -1240,6 +1241,9 @@ export async function mountSetupView(
     // the listener does: a mic switched on while the app speaks shows on at
     // once and starts listening when the line is over.
     let micShows: VoiceMicLook = 'hidden';
+    // Whether the listener can hear right now (listenOnSetup onHearing). Lit
+    // and not hearing, the mic pulses: words said then are lost.
+    let micHearing: SetupHearing = 'opening';
     // Read whether the setting is on or off: with it off the mic still shows,
     // slashed, and a tap switches it on. Neither probe prompts or listens.
     void micPermission().then((permission) => {
@@ -1285,15 +1289,25 @@ export async function mountSetupView(
      * - `blocked`: slashed and inert (the permission denied).
      * - `hidden`: nothing to offer (Begin itself can't run, hosted
      *   recognition with nobody signed in).
+     *
+     * Lit while the recognizer can't hear (micHearing), it pulses: no
+     * listener yet, the mic opening, or stopped for a line and its tail.
+     * Opening says so in its label; the pause around a line keeps the
+     * listening one, so a screen reader is not told twice a line.
      */
     function paintVoiceMic(state: VoiceMicLook, why?: string): void {
         const el = root.querySelector<HTMLButtonElement>('#voice-start-mic');
         micShows = state;
         if (!el) return;
+        // Lit with no listener yet is the mic opening too.
+        const hearing: SetupHearing = voiceStart ? micHearing : 'opening';
+        const waiting = state === 'listening' && hearing !== 'hearing';
         const label =
             why ??
             (state === 'listening'
-                ? t('Listening. Say "begin", or what to change. Tap to turn off.')
+                ? hearing === 'opening'
+                    ? t('Opening the mic…')
+                    : t('Listening. Say "begin", or what to change. Tap to turn off.')
                 : state === 'sleeping'
                   ? t('Sleeping. Tap to listen.')
                   : state === 'off'
@@ -1303,6 +1317,7 @@ export async function mountSetupView(
                       : t('Tap to listen'));
         el.classList.toggle('hidden', state === 'hidden');
         el.classList.toggle('active', state === 'listening');
+        el.classList.toggle('waiting', waiting);
         el.classList.toggle('sleeping', state === 'sleeping');
         el.disabled = state === 'blocked';
         el.title = label;
@@ -1433,9 +1448,13 @@ export async function mountSetupView(
     /** Say lines, with their words on screen. */
     function sayLines(lines: readonly SpokenSetupLine[]): Promise<void> {
         showVoiceNote(lines.map((line) => line.text).join(' '));
-        speaking = speaker.say(lines).then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
+        const said = speaker.say(lines);
+        speaking = said.then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
         quietRingDuring(speaking);
-        return speaking;
+        // Not `speaking`: the listener waits a tail of its own after a request
+        // it understood (listenOnSetup), and the two stacked left the mic deaf
+        // for 900 ms after a question.
+        return said;
     }
 
     /** Say what a request came to, on screen and out loud. */
@@ -1668,7 +1687,7 @@ export async function mountSetupView(
             const { handle, passOn } = voiceStart;
             voiceStart = null;
             // Closed by a blocker, the mic goes now. Replaced, it is held
-            // through the card's line until the new listener's is live.
+            // through the card's line until the new listener can hear.
             await (blocker ? handle.stop() : micHandover.stop(handle, passOn()));
         }
         if (blocker === 'no-touch-yet') {
@@ -1718,15 +1737,17 @@ export async function mountSetupView(
         if (gen !== voiceStartGen || voiceStart || beginning || !beginBtn.isConnected || !isLiveMount()) return;
         noRecognizer = engine ? null : choice;
         if (!engine) return paintVoiceMic('ask');
-        // The mic of the listener this one replaces goes once this one's own
-        // capture delivers audio. A recognizer with no stream of ours (the
-        // browser's, a phone's) has nothing to wait for.
+        // The mic of the listener this one replaces goes once this one can
+        // hear. Its first frame is too soon: a capture opened afresh on macOS
+        // sends digital silence while the OS sets it up. A recognizer with no
+        // stream of ours (the browser's, a phone's) has nothing to wait for.
         let owed = micHandover.take();
         const settleOwed = (): void => {
             owed?.();
             owed = null;
         };
-        if (owed) void (engine instanceof WhisperPcmSttEngine ? engine.whenLive() : Promise.resolve()).then(settleOwed);
+        if (!(engine instanceof WhisperPcmSttEngine)) settleOwed();
+        micHearing = 'opening';
         const handle = listenOnSetup({
             engine,
             alive: () =>
@@ -1736,8 +1757,17 @@ export async function mountSetupView(
             isEcho: heardOwnLine,
             // Free to leave open on a desktop; the rest close by the clock.
             ...setupListeningLimits(choice === 'whisper' || choice === 'web-speech'),
+            ...(engine instanceof WhisperPcmSttEngine ? { whenHearing: () => engine.whenHearing() } : {}),
+            onHearing: (state) => {
+                if (state === 'hearing') settleOwed();
+                if (voiceStart?.handle !== handle) return;
+                micHearing = state;
+                if (micShows === 'listening') paintVoiceMic('listening');
+                if (state === 'hearing') void hintAtVoice();
+            },
             onEnd: (why) => {
                 settleOwed();
+                dropOpeningNote();
                 meter.stop();
                 if (voiceStart?.handle === handle) voiceStart = null;
                 // The screen went away under a line: nobody is there to hear
@@ -1761,7 +1791,7 @@ export async function mountSetupView(
             },
         };
         paintVoiceMic('listening');
-        void hintAtVoice();
+        hintWhileOpening();
     }
 
     /**
@@ -1814,19 +1844,62 @@ export async function mountSetupView(
         };
     }
 
-    /** The first few times the mic opens here, say on screen what it is for.
-     *  Not under the tour, which says so itself. */
+    /** The first few times the mic opens here, say on screen what it is for,
+     *  once it can hear: a try said sooner would be lost. Not under the tour,
+     *  which says so itself. */
     let hinted = false;
     async function hintAtVoice(): Promise<void> {
+        clearTimeout(openingNoteTimer);
         // Once a visit, however many times the listener is rebuilt.
         if (hinted) return;
         hinted = true;
         const shown = Number(await sharedKv.get(VOICE_HINT_KEY)) || 0;
         const note = root.querySelector<HTMLElement>('#voice-start-note');
-        const busy = note !== null && !note.classList.contains('hidden');
-        if (shown >= VOICE_HINT_TIMES || busy || !voiceStart || document.body.classList.contains('guide-running')) return;
+        const busy = note !== null && !note.classList.contains('hidden') && note.textContent !== t('Opening the mic…');
+        if (shown >= VOICE_HINT_TIMES || busy || !voiceStart || document.body.classList.contains('guide-running')) {
+            return dropOpeningNote();
+        }
         await sharedKv.set(VOICE_HINT_KEY, String(shown + 1));
         showVoiceNote(t('Listening. Try "twenty minutes", or say "begin".'), true);
+    }
+
+    /** On the visits the hint is for, a fresh capture slow to hear says it is
+     *  opening meanwhile, and the hint takes its place. */
+    let openingNoteTimer: ReturnType<typeof setTimeout> | undefined;
+    function hintWhileOpening(): void {
+        clearTimeout(openingNoteTimer);
+        if (hinted) return;
+        openingNoteTimer = setTimeout(() => {
+            void sharedKv.get(VOICE_HINT_KEY).then((stored) => {
+                const note = root.querySelector<HTMLElement>('#voice-start-note');
+                if (
+                    hinted ||
+                    (Number(stored) || 0) >= VOICE_HINT_TIMES ||
+                    !voiceStart ||
+                    micHearing !== 'opening' ||
+                    document.body.classList.contains('guide-running') ||
+                    (note !== null && !note.classList.contains('hidden'))
+                ) {
+                    return;
+                }
+                showVoiceNote(t('Opening the mic…'), true);
+            });
+        }, MIC_OPENING_NOTE_AFTER_MS);
+    }
+
+    /** Take "Opening the mic…" down, with the usual fade, once it isn't so. */
+    function dropOpeningNote(): void {
+        clearTimeout(openingNoteTimer);
+        const opening = t('Opening the mic…');
+        root.querySelectorAll<HTMLElement>('.voice-start-note').forEach((el) => {
+            if (el.classList.contains('hidden') || el.textContent !== opening) return;
+            clearTimeout(voiceNoteTimer);
+            el.classList.add('leaving');
+            voiceNoteTimer = setTimeout(() => {
+                el.classList.add('hidden');
+                el.classList.remove('leaving');
+            }, VOICE_NOTE_FADE_MS);
+        });
     }
 
     /**
@@ -2596,6 +2669,9 @@ const INTENTION_PAUSE_MS = [2000, 3500] as const;
 /** How many times the mic opening on this screen says what it is for. */
 const VOICE_HINT_KEY = 'aloud-setup-voice-hints';
 const VOICE_HINT_TIMES = 3;
+/** On those visits, how long a fresh mic may take to hear before the hint's
+ *  place says it is opening. */
+const MIC_OPENING_NOTE_AFTER_MS = 400;
 
 /** After the app speaks, how long something heard may still be the end of its
  *  own line. A wireless speaker can run a second or two behind the page, and
