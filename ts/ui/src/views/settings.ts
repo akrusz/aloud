@@ -1826,7 +1826,13 @@ function renderLanguageSection(s: AppSettings): string {
                 <select id="s-mic-device" name="mic_device">
                     <option value="">${t('System default')}</option>
                 </select>
-                <span class="form-hint">${t('Which mic aloud listens to.')}</span>
+                <span class="form-hint">${
+                    // On a phone a Bluetooth headset is on its call link with
+                    // any mic, so the warning would point at the wrong thing.
+                    isCapacitor()
+                        ? t('Which mic aloud listens to.')
+                        : t('Which mic aloud listens to. Using a wireless mic may reduce sound quality.')
+                }</span>
             </div>
         </div>
         <div class="form-row">
