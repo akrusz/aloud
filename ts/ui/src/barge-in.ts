@@ -17,6 +17,7 @@ import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.j
 import { audioContextCtor } from './audio-unlock.js';
 import { BrowserTtsEngine } from './adapters/browser-tts.js';
 import type { SttBackend } from './adapters/stt-picker.js';
+import { diag } from './diag.js';
 
 const FRAME_SIZE = 4096;
 const BARGE_IN_THRESHOLD = 0.04;
@@ -84,6 +85,8 @@ export class BargeInListener {
 
         let count = 0;
         let fired = false;
+        // The line is asked to play once this has opened (wrapTtsWithBargeIn).
+        const opened = performance.now();
         this.processor.onaudioprocess = (e) => {
             if (fired || this.stopped) return;
             const data = e.inputBuffer.getChannelData(0);
@@ -94,6 +97,11 @@ export class BargeInListener {
                 count++;
                 if (count >= this.requiredChunks) {
                     fired = true;
+                    // So a report can tell a line this cut from one the output dropped.
+                    diag(
+                        `[vad] wrapper barge-in ${Math.round(performance.now() - opened)}ms after the line began, ` +
+                            `energy=${energy.toFixed(4)} threshold=${this.threshold}`
+                    );
                     onBargeIn();
                     // Stop self - caller will release after TTS cancel.
                     void this.stop();
