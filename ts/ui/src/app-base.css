@@ -5356,6 +5356,22 @@ input[type="range"].preview-range {
     color: var(--text-secondary);
 }
 
+/* Something heard and not understood: one line, as much of it as the room
+   takes, the closing quote kept. */
+.voice-start-note.heard {
+    display: flex;
+    max-width: min(calc(100vw - 2rem), 24rem);
+    white-space: nowrap;
+}
+.voice-start-note.heard.in-bar {
+    max-width: min(var(--note-room), 24rem);
+}
+.voice-start-note.heard .heard-words {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Over the voice picker, inside its own layer (the Begin bar is under the
    picker's dimming): bottom center of the screen. */
 .voice-start-note.over-modal {

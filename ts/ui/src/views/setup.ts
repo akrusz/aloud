@@ -105,7 +105,7 @@ import { startMicMeter } from '../mic-meter.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { createLocalSetupReader, readsSetupLocally } from '../setup-local-reader.js';
 import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
-import { heardExcerpt } from '../heard-excerpt.js';
+import { heardNote } from '../heard-note.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -1340,10 +1340,20 @@ export async function mountSetupView(
         return over;
     }
 
-    function showVoiceNote(text: string, aside = false): void {
+    function showVoiceNote(text: string, aside = false, heard?: string): void {
         const el = voiceNoteEl();
         if (!el || !text) return;
-        el.textContent = text;
+        // Something heard is one line, cut by the pill to the room it has;
+        // its words are a part of their own so the closing quote stays.
+        el.classList.toggle('heard', heard !== undefined);
+        if (heard === undefined) el.textContent = text;
+        else {
+            const [before = '', after = ''] = text.split(HEARD_SLOT);
+            const words = document.createElement('span');
+            words.className = 'heard-words';
+            words.textContent = heard;
+            el.replaceChildren(before, words, after);
+        }
         // An aside is not an answer: what was heard and not understood, or
         // the first-visits hint.
         el.classList.toggle('aside', aside);
@@ -1570,8 +1580,8 @@ export async function mountSetupView(
         if (!actions) {
             // What came to nothing is shown as heard, so a mishearing reads
             // as one and not as a mic that isn't working.
-            const said = heardExcerpt(text);
-            if (said) showVoiceNote(t('Heard "{text}"', { text: said }), true);
+            const said = heardNote(text);
+            if (said) showVoiceNote(t('Heard "{text}"', { text: HEARD_SLOT }), true, said);
             return false;
         }
         return act(actions);
@@ -2569,6 +2579,10 @@ const VOICE_NOTE_FADE_MS = 500;
 const VOICE_NOTE_GAP_PX = 16;
 const VOICE_NOTE_EDGE_PX = 16;
 const VOICE_NOTE_MIN_ROOM_PX = 150;
+
+/** Stands for what was heard in the translated `Heard "{text}"`, which
+ *  showVoiceNote splits around it. */
+const HEARD_SLOT = '\u0001';
 
 /** The fields the app asks for out loud, the next thing said being the answer. */
 type AskedField = 'intention' | 'special-request';

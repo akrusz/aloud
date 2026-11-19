@@ -267,9 +267,10 @@ the bar is under the picker's dimming. A clear that only made room is not announ
 three lines become one "Okay, all set."
 
 Something heard that came to nothing is shown back the same way, as `Heard
-"…"`: its first few words (`heardExcerpt`, `ui/src/heard-excerpt.ts`), so a
-mishearing reads as one and not as a dead mic. Past a dozen words it is the
-room talking and nothing shows.
+"…"`, so a mishearing reads as one and not as a dead mic: one line, cut with
+an ellipsis to the room the pill has (`.voice-start-note.heard`). Past a dozen
+words it is the room talking and nothing shows (`heardNote`,
+`ui/src/heard-note.ts`).
 
 ### The judge tier
 
