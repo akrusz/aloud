@@ -19,115 +19,32 @@ per-device STT/TTS quality matrix.
 
 ## This release (everything after v2.20.1)
 
-One pass over branch `stt-incremental`, which is `main` plus incremental
-transcription, the setup voice work and the move of every sound to `<audio>`
-elements. Delete this section once it ships. The order is desktop on the
-branch, Chrome, merge into `main`, deploy the server, one listen after the
-deploy, then the phone.
+The desktop and Chrome pass over branch `stt-incremental` (`main` plus
+incremental transcription, the setup voice work and the move of every sound
+to `<audio>` elements) is done: every item passed by the night of 2026-11-18
+and the branch was merged into `main` then, unpushed. What is left is the
+server deploy, one listen after it, and the phone. Delete this section once
+it ships.
 
-Cut on 2026-11-18 to what only a person at a real microphone and speaker can
-vet. What was dropped, and what stands in for it, is listed at the end.
-Passed that day and taken off this list: launch, the setup mic hearing you
-and not itself, Begin with the mic lit, incremental by ear, the media key,
-silence and the frightened line, ending by voice, noting with the mic off,
-the headset, the tour, a mute mid-line, a quiet setup screen keeping the mic
-(the log, 14 minutes), and Harper in Chrome. What is left is what that day's
-notes changed, none of it heard yet, and four older items.
+From the last round's notes, none of it holding the release:
 
-**Desktop**, `npm run tauri:dev` on the branch, speakers, hosted GPT speech
-recognition. In this order it is one sitting: the setup screen, one session
-of any length, then the tour.
+- Ethan repeated the end of a line twice in one session, which reads as the
+  voice's own fault at Azure (`meditation-pal-tapb`).
+- Answers on the setup screen came "with some delays, but overall fine".
+  Not looked into.
+- Asked for, on `stt-incremental` after the merge and unseen by Alex: the
+  session's mic button showing that it is opening, an "Introduction voice"
+  control and a two-line "Play a sound on your turn" on the noting tab, and
+  a shorter first round of adaptive noting.
+- Editing noting participants by voice is hard (`meditation-pal-86z1`).
+- On Google UK English Female the first line of one session stopped half a
+  second in, once, on Bluetooth, and not again. A bug report's log now says
+  whether barge-in cut a line (`[vad] wrapper barge-in`).
 
-On the setup screen:
-
-- [ ] **Setup mic.** At launch it breathes for a second, then goes steady
-      with the ring: say "add playful" as it steadies and it is heard whole.
-      "Set my intention", then "never mind" as the mic steadies after the
-      question: answered. Say a sentence that is no request: `Heard "…"`
-      shows it on one line, cut to the pill.
-- [ ] **Right after an answer.** Say "change focus to parts", and as the
-      answer ends say "change focus to body" at your own pace: only Body is
-      checked (a lost "change" adds it beside Parts, which is what happened
-      three times in twelve on 2026-11-18). The same with "change vibe to
-      playful", then "change vibe to loving". With a Bluetooth speaker in
-      reach, a few answers through it: no `Heard "…"` pill carrying the end
-      of the app's own line (the mic now hears 0.4 s after the voice stops,
-      `SPEECH_TAIL_MS`).
-- [ ] **Setup.** The guidance stops read 1 to 5 with the current one on the
-      thumb, in light mode and in Firefox too. "Guidance four" moves it and is
-      answered. Special requests folded over text shows a dot and its first
-      words. Then "begin session": it starts.
-
-In the session:
-
-- [ ] **Barge-in, then repeat.** Ask for a few sentences and talk over the
-      second. She stops, the rest never plays, and the bubble ends at the
-      sentence you cut into. "Say that again": she says again only the part
-      you heard, and your request leaves the screen (the repeat command
-      reads her line back out of the log, so what you hear is what the log
-      kept). "What did you say before that?": your words stay on screen and
-      she answers in a new line. Across the whole session she never
-      interrupts herself and your turns never arrive with her words in them
-      (the echo thresholds were tuned on the old Web Audio path; this was
-      left at `[?]` on the first pass).
-- [ ] **Unmute.** Click mute, then unmute: the status reads "Opening the
-      mic…" for a second or so, then "Listening…". Start speaking as it
-      changes: the first word arrives whole ("Actually" came back "She").
-- [ ] **Voice picker mid-session.** Open it during a reply and play a preview:
-      neither has a hole in it, and after closing the next thing said is heard
-      from its first word.
-- [ ] **The end question.** "End the session" asks "Would you like to end the
-      session now?".
-
-After it:
-
-- [ ] **Tour after the mic opens.** Tap the setup mic off (slashed), then
-      Settings → Developer → "Setup welcome card" → first run, "Show me
-      around" and "Turn on the microphone". As the second voice finishes
-      introducing itself, pick one at once. Every line starts on its first
-      word at full level; the pick's answer may start a second or two late,
-      which is the mic settling. Harper's "Hi, I'm Harper" has its "h" (the
-      clip was rendered again). On the Bluetooth headset too, if it is in
-      reach (it was the route when Harper's first line came in quiet). The
-      log settles it:
-
-      ```bash
-      /usr/bin/log show --last 3m --style compact --predicate 'process == "com.apple.WebKit.GPU" AND (eventMessage CONTAINS "CoreAudioCaptureSource::start(" OR eventMessage CONTAINS "ObjC::play(" OR eventMessage CONTAINS "didEnd(")' | sed -E 's/^[0-9-]+ //; s/ Df .*\] / /' | cut -c1-80
-      ```
-
-      No `CoreAudioCaptureSource::start` falls between a `play` and its
-      `didEnd`, and a `play` right after one comes a second or more later,
-      not 137 ms.
-
-**Chrome**, `npm run web:dev`, speakers and not Bluetooth, with the desktop
-app closed (its lit setup mic holds a headset in call mode,
-`meditation-pal-n3m3`). Six minutes.
-
-- [ ] **Sounds.** Begin a noting session on Harper, on the browser's
-      recognizer: the opening sound and the chime are heard, clean and with
-      no skip (rough on 2026-11-18, on a headset in call mode).
-- [ ] **Zoe on hosted Parakeet.** Switch speech recognition to Parakeet and
-      begin a session on Zoe (or another macOS voice). Every line plays whole
-      and none of her words come back as your turn; answer her two or three
-      times. Talking over her still does nothing, and an answer begun just
-      after she stops arrives whole.
-- [ ] **Noting on Zoe, Parakeet.** Untick "Play a sound on your turn" and
-      begin a noting session with a participant in a macOS voice. Say each
-      note as soon as it is your turn: none comes back with the participant's
-      word, or the opener's last words, in front of it.
-- [ ] **A sample at Begin.** On the setup screen say "set the voice to Zoe"
-      (or another macOS voice) and click Begin before her sample is over: the
-      sample stops, and only the opening sound plays until her first line.
-
-Not a check, a thing to watch: on Google UK English Female the first line of
-one session stopped half a second in, once, on Bluetooth (2026-11-18), and no
-cause was found. If it happens again send a bug report straight away: its
-log now says whether barge-in cut the line (`[vad] wrapper barge-in`).
-
-**If that is clean:** merge `stt-incremental` into `main` and deploy the
-server from `main` before any client build (a new client on the old server
-falls back to full passes, and Harper's lead, the voice levels, the Chinese
-voice names and the narrower repeat command are the server's). Then:
+**Deploy the server from `main`** before any client build (a new client on
+the old server falls back to full passes, and Harper's lead, the voice
+levels, the Chinese voice names and the narrower repeat command are the
+server's). Then:
 
 ```bash
 curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
