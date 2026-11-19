@@ -1219,6 +1219,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     TRANSCRIBE_TIMEOUT_MS,
                     'aloud cloud transcription timed out.'
                 );
+            const sentAt = performance.now();
             const response = await sendWithNetworkRetry(
                 async () => {
                     let res = await send();
@@ -1253,6 +1254,13 @@ export class WhisperPcmSttEngine implements SttEngine {
             const text = (data.text ?? '').trim();
             const seconds = downsampled.length / TARGET_SAMPLE_RATE;
             diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
+            if (diagOn()) {
+                const now = performance.now();
+                diag(
+                    `[stt-time] ${label} ${this.opts.cloudModel ?? 'default'} round-trip=${Math.round(now - sentAt)}ms ` +
+                        `since-speech=${Math.round(now - this.lastSpeechMs)}ms`
+                );
+            }
             const turnText = withPiece(piece.prior, text);
             // Provenance for transcript anomalies: a user turn with no
             // matching [stt-text] line did not come from the mic.
