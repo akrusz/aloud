@@ -1,5 +1,5 @@
 /**
- * "End the session" and the answer to "Would you like to end the session?",
+ * "End the session" and the answer to "Would you like to end the session now?",
  * recognized outright, with no judge.
  *
  * Spoken commands run on the Jev judge (voice-command.ts), which a session
@@ -13,7 +13,7 @@
  *
  * Looser than the mute match on purpose, because the two failures differ.
  * A wrong "mute" takes the mic away mid-sentence. A wrong "end the session"
- * only gets asked "Would you like to end the session?", and nothing ends
+ * only gets asked "Would you like to end the session now?", and nothing ends
  * without a yes. So this accepts the ways people actually ask ("can we end
  * the session", "I'd like to stop the meditation now") while still requiring
  * the whole utterance to be the request: a verb, the thing being ended, and
@@ -211,7 +211,7 @@ const ZH_NO_RE =
     /^(?:不|不要|不用|不用了|不了|不行|先不|先不要|先不了|还不|还没|还没有|等一下|等等|继续|继续吧|我们继续|不结束|先不结束|再坐一会儿?|再等一会儿?)$/;
 
 /**
- * The reply to "Would you like to end the session?" when it is plainly a yes
+ * The reply to "Would you like to end the session now?" when it is plainly a yes
  * or a no, or null when it is anything else (which then goes on as an ordinary
  * turn; the button still works). Every word has to be one this knows, so "yes,
  * I think my leg is asleep" is a turn and not a yes. Any no-word makes it a

@@ -2166,7 +2166,7 @@ export async function mountSessionView(
         for (const d of done) d.after?.();
     }
 
-    /** The reply to "Would you like to end the session?". True when it was
+    /** The reply to "Would you like to end the session now?". True when it was
      *  consumed here; false sends it on as an ordinary utterance. */
     async function handleEndConfirm(userText: string): Promise<boolean> {
         endConfirmUntil = 0;

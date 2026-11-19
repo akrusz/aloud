@@ -179,7 +179,7 @@ const POINTING_BACK: BackCase[] = [
 
 /** "Okay, I'll do that." after "you can end the session" scores ~0.72 on
  *  end_session though they mean to do it themselves. Ending only ever asks, so
- *  the cost is one "Would you like to end the session?". Reported, not counted. */
+ *  the cost is one "Would you like to end the session now?". Reported, not counted. */
 const KNOWN_BACK: BackCase[] = [[ENDING, "Okay, I'll do that.", []]];
 
 loadServerEnv();

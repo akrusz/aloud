@@ -43,7 +43,7 @@ quit) plus what is being ended (session, sit, meditation) and nothing else but
 the words that politely surround a request, so "can we end the session" and
 "I'd like to stop the meditation now" match and "I don't want this session to
 end" does not. Looser than mute, because the failure is cheaper: ending is only
-ever a bid, and a wrong match gets asked "Would you like to end the session?".
+ever a bid, and a wrong match gets asked "Would you like to end the session now?".
 The answer is a small vocabulary where any no-word wins and one unknown word
 makes it an ordinary turn ("yes, I think my leg is asleep").
 

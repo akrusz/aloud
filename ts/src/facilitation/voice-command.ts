@@ -246,7 +246,7 @@ export class CommandPrefetch extends UtterancePrefetch<DetectedCommand | null> {
 }
 
 /**
- * The reply to "Would you like to end the session?".
+ * The reply to "Would you like to end the session now?".
  * - `yes`   - end it.
  * - `no`    - they declined; acknowledge and carry on.
  * - `other` - they ignored the question (or the judge failed): an ordinary
@@ -473,6 +473,6 @@ export const COMMAND_LINES = {
     lightMode: fixed('Light mode.', '浅色模式。'),
     endDiscardConfirm: fixed('End the session without saving it?', '不保存,直接结束这次冥想吗?'),
     endSaveConfirm: fixed('End the session and save it?', '保存并结束这次冥想吗?'),
-    endConfirm: fixed('Would you like to end the session?', '要结束这次冥想吗?'),
+    endConfirm: fixed('Would you like to end the session now?', '现在要结束这次冥想吗?'),
     endDeclined: fixed("Okay, we'll keep going.", '好,我们继续。'),
 } as const;
