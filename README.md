@@ -19,7 +19,7 @@ no install needed: open [aloud.rest/app](https://aloud.rest/app) and start. the 
 
 ## what it does
 
-aloud has three modes: exploration, noting, and felt sense.
+aloud has three modes: exploration, felt sense, and noting.
 
 **exploration**: this is a dyadic meditation format where the meditator speaks about what they are experiencing in the moment and the facilitator asks brief questions to help the meditator explore. 
 
@@ -27,13 +27,13 @@ in this mode, you optionally set an intention, and **customize facilitator** ope
 
 thanks to [Maija Haavisto](https://lovingawakening.net/) and [Jhourney](https://www.jhourney.io/) for guiding me in similar practices.
 
-**noting**: you specify what participants you'd like, if any - AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1–2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -> hearing my cue -> observing -> speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.
-
-thanks to [Vince Horn](https://www.buddhistgeeks.org/) and again to [Jhourney](https://www.jhourney.io/) for inspiration.
-
 **felt sense**: a guided arc inspired by Eugene Gendlin's focusing. you start by settling and noticing what's between you and feeling fine, pick one thing, and sense how the whole of it sits in your body - vague and hard to describe is exactly right. then you let a word or image come that fits it, check it against the body-feel, ask into it, and receive whatever comes. the facilitator says very little and moves through the stages at your pace; long silences usually mean it's working.
 
 inspired by [Gendlin's Focusing](https://focusing.org/) and Ann Weiser Cornell's inner relationship focusing.
+
+**noting**: you specify what participants you'd like, if any - AIs, fixed phrases, or sound effects. then starting with you, each participant notes a sensation in their "awareness" (ideally 1–2 words) or plays their fixed phrase or sound. yes, AIs noting their experience seems kind of silly, but I've actually found it helpful to observe the mental and somatic processes that happen in the cycle of resting -> hearing my cue -> observing -> speaking. if there are no other participants, it'll just briefly introduce the method and then record what you note.
+
+thanks to [Vince Horn](https://www.buddhistgeeks.org/) and again to [Jhourney](https://www.jhourney.io/) for inspiration.
 
 ## getting started
 
@@ -63,7 +63,7 @@ to use the **Anthropic (Subscription)** provider, install the Claude Code CLI fi
 
 - say something like "hold on a bit" during a session and the facilitator will offer to go quiet. say "come back" or similar to resume. most other session controls can be used with voice commands, too.
 - on the setup screen, the mic beside Begin is listening too: say "twenty minutes", "add playful" or "felt sense" to set things up, then "begin". no account needed.
-- signed in to aloud cloud or with your own TypeSafe key, you can just ask for things: "set a timer for ten minutes", "talk slower", "hide the clock", "show me the orb", "end the session". two at once works too, and "what can I say?" gets you the list. opt out: settings → advanced → voice commands. "mute" and "end the session" work everywhere without it: they're recognized on your device and nothing is sent.
+- signed in to aloud cloud or with your own TypeSafe key, you can just ask for things: "set a timer for ten minutes", "talk slower", "hide the clock", "show me the orb", "end the session". two at once works too, and "what can I say?" gets you the list. with your own provider or a local model, turn them on in settings → advanced → voice commands (needs a free account). "mute" and "end the session" work everywhere without it: they're recognized on your device and nothing is sent.
 - click the orb in the nav bar to enter kasina gazing mode during a session. click away from it to exit.
 - the ember controls add floating particles. just for cozy.
 - click the voice name in the controls bar to open a voice/speed picker.

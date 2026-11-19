@@ -24,13 +24,13 @@ Meditate by talking. Say what you're noticing in your body and emotions, and it 
 
 ## Full description
 
-With aloud, you meditate by talking. It listens and talks back. There are three modes: Exploration, Noting, and Felt Sense.
+With aloud, you meditate by talking. It listens and talks back. There are three modes: Exploration, Felt Sense, and Noting.
 
 Exploration is a conversation: you say what you're noticing in your body and emotions, and the facilitator asks short questions back. You can also focus on your internal parts; people who find IFS or other parts work useful will like this too. It can also help with learning meditative states like jhana.
 
-Noting is simpler: you say one or two words for one thing you feel in the moment, such as warmth, tingling, or belly tension. Sound effects, spoken phrases, or simulated participants can help you keep a rhythm between quiet rest and spoken noticing.
-
 Felt Sense mode is inspired by Gendlin's Focusing: six steps that walk you through settling in, sensing how something on your mind feels in your body, finding words for it, checking that they fit, asking it questions, and receiving whatever comes up.
+
+Noting is simpler: you say one or two words for one thing you feel in the moment, such as warmth, tingling, or belly tension. Sound effects, spoken phrases, or simulated participants can help you keep a rhythm between quiet rest and spoken noticing.
 
 Any mode can have a set length. With the optional timer, the facilitator winds down near the end and says when time is up.
 

@@ -133,7 +133,7 @@ const SHOTS = [
     {
         id: 'setup',
         session: false,
-        caption: ['three ways to practice', 'exploration, noting, and felt sense. choose what it focuses on and how much it leads.'],
+        caption: ['three ways to practice', 'exploration, felt sense, and noting. choose what it focuses on and how much it leads.'],
     },
     {
         id: 'kasina',
