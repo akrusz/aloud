@@ -2929,14 +2929,16 @@ function renderSetupHTML(
                     title="${escapeHtml(t('Add another participant to the noting circle (up to 4)'))}">${t('+ Add participant')}</button>
             </div>
 
-            <div class="setup-extras-row">
+            <div class="setup-extras-row setup-extras-row-noting">
                 <div class="noting-option-row">
                     <label class="noting-option">
                         <input type="checkbox" id="user-turn-cue">
                         <span>${t('Play a sound on your turn')}</span>
                     </label>
-                    <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">${t('Chime')}</button>
-                    <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}" aria-label="${escapeHtml(t('Play sound'))}">&#9654;</button>
+                    <div class="noting-option-sound">
+                        <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">${t('Chime')}</button>
+                        <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}" aria-label="${escapeHtml(t('Play sound'))}">&#9654;</button>
+                    </div>
                 </div>
                 ${renderClockButton('noting')}
             </div>
