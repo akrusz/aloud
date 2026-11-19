@@ -73,7 +73,8 @@ different standards.
 
 **"Begin"** starts the session the Begin button would (`parseBeginRequest`,
 `begin-command.ts`: begin or start, optionally the session, and the words
-people wrap around it). It can name a mode and a length, as in "begin a twenty
+people wrap around it; "began" and "begun" count as begin, being what a
+recognizer writes for it). It can name a mode and a length, as in "begin a twenty
 minute felt sense session". The match is strict and on the device, and nothing
 looser ever reaches it: a wrong Begin is the one costly thing to mishear.
 

@@ -17,6 +17,9 @@ describe('isBeginCommand', () => {
             'Hey aloud, start a new session',
             'start meditating',
             'begin my sit now',
+            // A recognizer's vowel.
+            'Began session.',
+            'Begun.',
         ]) {
             expect(isBeginCommand(text), text).toBe(true);
         }
@@ -34,6 +37,9 @@ describe('isBeginCommand', () => {
             'begin again from the top of the list please',
             'ready',
             'session',
+            'It began to rain',
+            'again',
+            'Stop.',
             "let's go",
             // Two verbs.
             'start, begin',

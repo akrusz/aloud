@@ -35,7 +35,10 @@ export interface BeginRequest {
     minutes?: number;
 }
 
-const BEGIN_VERBS = new Set(['begin', 'start']);
+/** "Began" and "begun" are what a recognizer writes for "begin" when it gets
+ *  the vowel wrong (hosted GPT, "Began session.", 2026-11-18). Nothing nearer
+ *  to "start" belongs here: its neighbour is "stop". */
+const BEGIN_VERBS = new Set(['begin', 'began', 'begun', 'start']);
 
 const BEGIN_OBJECTS = new Set(['session', 'sit', 'meditation', 'sitting', 'meditating']);
 
