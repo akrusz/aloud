@@ -504,7 +504,7 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
       nothing asked each one counts for five
       (`VOICE_START_LATE_UNHEARD_COST`), so a television is closed on within
       a few lines of the two-minute mark and four lines after it. It was on
-      the phone's clock until 2026-11-19: a quiet two minutes on the setup
+      the phone's clock until 2026-11-18: a quiet two minutes on the setup
       screen put the mic to sleep.
 
     A request understood starts the count, and the two minutes, over.
@@ -593,6 +593,32 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   most Mandarin. `zh-script.ts` (`toSimplified`, `trimHeardZh`) does that for
   begin, the setup parser and the tour's words instead, and a recognizer set
   to zh-TW needs it anyway.
+- **Hosted listening here is not billed, inside an allowance.**
+  `POST /cloud/v1/stt?setup=1` (`server/src/routes/stt.ts`) costs nothing
+  while the clip is short (`SETUP_MAX_CLIP_SECONDS`, 15) and the account has
+  setup seconds left that day (`SETUP_STT_SECONDS_PER_DAY`, 600, in
+  `server/src/deps.ts`, with an all-accounts ceiling beside it). Past either
+  it is metered like any session audio, so the flag can't make a session's
+  recognition free; the bound is the server's, not the client's. An account at
+  zero can still say "begin". Usage is recorded with `purpose: 'setup'` and
+  has its own row in the admin panel's cost split ("STT setup listening"),
+  kept out of the session numbers. A server that predates this ignores the
+  flag and bills as before.
+- **A touch only where sound needs one.** A browser tab nobody has interacted
+  with can't play sound, so a session begun there would be silent; the mic
+  shows slashed until any touch (`pageTouched`). The webviews don't have the
+  rule (`canPlayUntouched` asks the platform by playing a silent clip:
+  untouched Chrome refuses it, an untouched macOS WKWebView plays it), so the
+  desktop app listens from launch with no touch at all.
+
+The listener belongs to one mount of the setup screen and one begin attempt.
+The view has no teardown, so its probe callbacks keep firing after it is
+replaced (`setupMounts` / `isLiveMount` in `views/setup.ts`), and a begin that
+is under way holds the mic closed until it has become a session or been
+turned back (`beginning`). Both were found the hard way: a second listener on
+the next setup screen, and one that reopened for half a second under a
+starting session. A listener rebuilt mid-line (a mode with its own recognizer
+pick) waits for the line to finish (`speaking`).
 
 ### Measured on synthetic speech
 
@@ -623,32 +649,6 @@ systematically writes and for what the prompt does, not a measure of a real
 voice in a real room. What Whisper wrote and the parser still misses is
 regenerated into `misheard.ts`, which `npm run jev:setup` scores the judge
 tier on.
-- **Hosted listening here is not billed, inside an allowance.**
-  `POST /cloud/v1/stt?setup=1` (`server/src/routes/stt.ts`) costs nothing
-  while the clip is short (`SETUP_MAX_CLIP_SECONDS`, 15) and the account has
-  setup seconds left that day (`SETUP_STT_SECONDS_PER_DAY`, 600, in
-  `server/src/deps.ts`, with an all-accounts ceiling beside it). Past either
-  it is metered like any session audio, so the flag can't make a session's
-  recognition free; the bound is the server's, not the client's. An account at
-  zero can still say "begin". Usage is recorded with `purpose: 'setup'` and
-  has its own row in the admin panel's cost split ("STT setup listening"),
-  kept out of the session numbers. A server that predates this ignores the
-  flag and bills as before.
-- **A touch only where sound needs one.** A browser tab nobody has interacted
-  with can't play sound, so a session begun there would be silent; the mic
-  shows slashed until any touch (`pageTouched`). The webviews don't have the
-  rule (`canPlayUntouched` asks the platform by playing a silent clip:
-  untouched Chrome refuses it, an untouched macOS WKWebView plays it), so the
-  desktop app listens from launch with no touch at all.
-
-The listener belongs to one mount of the setup screen and one begin attempt.
-The view has no teardown, so its probe callbacks keep firing after it is
-replaced (`setupMounts` / `isLiveMount` in `views/setup.ts`), and a begin that
-is under way holds the mic closed until it has become a session or been
-turned back (`beginning`). Both were found the hard way: a second listener on
-the next setup screen, and one that reopened for half a second under a
-starting session. A listener rebuilt mid-line (a mode with its own recognizer
-pick) waits for the line to finish (`speaking`).
 
 ### The tour, spoken
 
