@@ -98,7 +98,7 @@ const similar = (a: string, b: string) =>
  *  name, which Whisper writes as the commoner word at the head of a line. */
 const SOUND_ALIKE: Readonly<Record<string, string>> = { aloud: 'allowed' };
 
-type Step =
+export type Step =
     | { kind: 'heard'; want: number }
     | { kind: 'missed'; want: number }
     | { kind: 'extra'; got: string; at: number };
@@ -107,7 +107,7 @@ type Step =
  *  heard as itself, or as two words run together or split, costs nothing.
  *  Not a run-together pair when one of the two alone is the word: "the
  *  timer" heard as "timer" lost its "the". */
-function align(want: string[], got: string[]): Step[] {
+export function align(want: string[], got: string[]): Step[] {
     const split = (i: number, j: number) =>
         j + 1 < got.length && !similar(want[i]!, got[j]!) && !similar(want[i]!, got[j + 1]!) && similar(want[i]!, got[j]! + got[j + 1]!);
     const joined = (i: number, j: number) =>
