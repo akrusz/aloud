@@ -667,6 +667,7 @@ export const ZH: Record<string, string> = {
     "What can I say?": "可以说什么?",
     "What is an LLM?": "什么是 LLM？",
     "Whether the facilitator speaks up during silence. \"Every\" says a stock phrase on a fixed interval; Smart lets the AI pick the timing and the words, following the session's guidance level.": "静默期间引导者是否开口。「每」按固定间隔说一句固定短语；「智能」让 AI 根据本次冥想的引导程度自行决定时机和措辞。",
+    "Which mic aloud listens to.": "aloud 使用哪个麦克风。",
     "Which provider?": "哪个服务商？",
     "Whisper (local)": "Whisper（本地）",
     "Whisper Model": "Whisper 模型",
