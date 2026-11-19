@@ -67,14 +67,14 @@ One session on hosted GPT speech recognition, in this order:
 
 Then:
 
-- [ ] **Begin, mic slashed, noting.** Tap the setup mic off and press Begin on
+- [x] **Begin, mic slashed, noting.** Tap the setup mic off and press Begin on
       a noting session: it still starts and listens, and the chime marks each
       turn. Two notes are enough.
-- [ ] **Headset**, if one is in reach. Connect a Bluetooth headset
+- [x] **Headset**, if one is in reach. Connect a Bluetooth headset
       mid-session, then switch it off: she carries on from the speakers, and
       the next session is audible too. (This is what left the app silent on
       2026-11-17, `meditation-pal-wk4u`.)
-- [ ] **The tour, once.** Settings → Developer → "Setup welcome card" → first
+- [x] **The tour, once.** Settings → Developer → "Setup welcome card" → first
       run. With the card up, drag the window by its top bar: it moves, and a
       click on the bar does not dismiss the card. Wait a few seconds, then
       "Show me around", and on each card let the line finish and wait two
@@ -88,7 +88,7 @@ Then:
 **From the notes on this pass** (fixed 2026-11-18, none of it heard yet).
 Desktop, hosted GPT speech recognition:
 
-- [ ] **Mute mid-line.** Ask for four sentences, click mute a second into
+- [x] **Mute mid-line.** Ask for four sentences, click mute a second into
       the first, and touch nothing until she has finished: no skip. One go is
       enough, because the log settles it either way (a mute 1.4 s into a
       sentence closed the mic there and Ethan skipped at "on" 3 s later):
@@ -120,19 +120,27 @@ Desktop, hosted GPT speech recognition:
       question: answered. Say a sentence that is no request: `Heard "…"`
       shows it on one line, cut to the pill. On hosted recognition, leave the
       screen quiet for three minutes: the mic is still lit.
+- [ ] **Right after an answer.** Say "change focus to parts", and as the
+      answer ends say "change focus to body" at your own pace: only Body is
+      checked (a lost "change" adds it beside Parts, which is what happened
+      three times in twelve on 2026-11-18). The same with "change vibe to
+      playful", then "change vibe to loving". Then "begin session": it
+      starts. With a Bluetooth speaker in reach, a few answers through it:
+      no `Heard "…"` pill carrying the end of the app's own line (the mic
+      now hears 0.4 s after the voice stops, `SPEECH_TAIL_MS`).
 
 **Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
 
-- [ ] **Sounds.** Begin a noting session on Harper: the opening sound and the
+- [/] **Sounds.** Begin a noting session on Harper: the opening sound and the
       chime are heard.
-- [ ] **Harper.** In exploration, ask "tell me in three or four sentences
+- [x] **Harper.** In exploration, ask "tell me in three or four sentences
       what we'll do" and talk over the second: she stops within a beat,
       nothing more plays, and the bubble ends where you cut in. Press the
       keyboard's Play/Pause during a line: nothing happens.
-- [ ] **Google UK English Female** (what a signed-out "Use a free voice"
+- [?] **Google UK English Female** (what a signed-out "Use a free voice"
       gets). Let one reply play without speaking: it plays whole. Talk over
       the next: the same as Harper.
-- [ ] **Ava**, or another macOS voice. A reply plays in whole sentences, not
+- [fail] **Ava**, or another macOS voice. A reply plays in whole sentences, not
       cut after each first word. Talking over her does nothing, which is
       expected (`bargeInDetectorFits`).
 
