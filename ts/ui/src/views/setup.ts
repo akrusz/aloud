@@ -744,8 +744,8 @@ export async function mountSetupView(
     let cloudUnwatch: (() => void) | null = null;
 
     function updateVoiceButtonLabel(): void {
-        // One button per tab panel (exploration + felt sense), all painting the
-        // same app-level default voice.
+        // One button per tab panel (exploration, felt sense, noting's
+        // introduction voice), all painting the same app-level default voice.
         const btns = root.querySelectorAll<HTMLButtonElement>('[data-default-voice]');
         if (btns.length === 0) return;
         const selectedName = stripVoicePrefix(setup.voice);
@@ -2929,7 +2929,7 @@ function renderSetupHTML(
                     title="${escapeHtml(t('Add another participant to the noting circle (up to 4)'))}">${t('+ Add participant')}</button>
             </div>
 
-            <div class="setup-extras-row setup-extras-row-noting">
+            <div class="setup-extras-row">
                 <div class="noting-option-row">
                     <label class="noting-option">
                         <input type="checkbox" id="user-turn-cue">
@@ -2938,6 +2938,15 @@ function renderSetupHTML(
                     <div class="noting-option-sound">
                         <button type="button" id="user-turn-cue-sound-btn" class="btn btn-secondary btn-small sound-pick-btn" data-sound="chime">${t('Chime')}</button>
                         <button type="button" id="user-turn-cue-sound-preview" class="participant-sound-preview btn btn-secondary btn-small" title="${escapeHtml(t('Play sound'))}" aria-label="${escapeHtml(t('Play sound'))}">&#9654;</button>
+                    </div>
+                </div>
+                <!-- The session's voice, as on the other tabs: in a circle it
+                     reads the opener (and the timer's notices). -->
+                <div class="form-group">
+                    <label>${t('Introduction voice')}</label>
+                    <button type="button" id="noting-voice-btn" class="setup-voice-btn" data-default-voice>${t('Default')}</button>
+                    <div class="no-voices-banner inline hidden" role="alert" data-no-voices>
+                        <p>${t('No speech voices found.')} <a href="#" data-nav="settings" data-nav-anchor="settings-tts">${t('Set up TTS in Settings')}</a>.</p>
                     </div>
                 </div>
                 ${renderClockButton('noting')}

@@ -281,6 +281,7 @@ export const ZH: Record<string, string> = {
     "Install Ollama": "安装 Ollama",
     "Installed": "已安装",
     "Intention": "意图",
+    "Introduction voice": "开场白声音",
     "I’ll set this up myself": "我自己来设置",
     "Just Listen": "只是聆听",
     "Kasina orb": "凝视光球",

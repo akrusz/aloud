@@ -1946,13 +1946,14 @@ body:has(.session-container) {
     flex: 1;
 }
 
-/* Setup: a two-up row pairing a wide unlabelled control with a normal field -
+/* Setup: a row pairing an unlabelled control with labelled fields -
    "Special requests" beside Guidance Level under Exploration, the
-   turn-cue options beside the Session clock under Noting.
+   turn-cue option beside Introduction voice and the Session clock under
+   Noting.
 
-   Bottom-aligned: the field carries a label above its control and its wide
-   neighbour doesn't, so aligning tops would leave the two controls sitting on
-   different lines. */
+   Bottom-aligned: a field carries a label above its control and its
+   unlabelled neighbour doesn't, so aligning tops would leave the controls
+   sitting on different lines. */
 .setup-extras-row {
     display: flex;
     align-items: flex-end;
@@ -1976,9 +1977,6 @@ body:has(.session-container) {
    the buttons go under the label. Both lines are two text lines high, so
    either way the bottom one centres on the clock button beside it with the
    lift below. */
-.setup-extras-row-noting {
-    justify-content: space-between;
-}
 .setup-extras-row .noting-option-row {
     flex: 0 0 calc((100% - 2rem) / 3);
     min-width: 0;
