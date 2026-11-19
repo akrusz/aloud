@@ -107,9 +107,12 @@ the server image installs with `--omit=dev` and died on a missing binary until
 that moved (`ce07963`).
 
 Cloud-mic sits have their own Android quirk, outside the plugin: the WebView's
-echo-cancelled capture holds the app in communication mode for the life of the
-process and plays TTS on the voice-call stream (the rocker reads Call - known,
-`meditation-pal-0ecr`). The audio service drops the WebView's route request
+echo-cancelled capture holds the app in communication mode while it is open
+(leaving it about 1 s after the last capture stops, measured 2026-11-19) and
+plays TTS on the voice-call stream (the rocker reads Call - known,
+`meditation-pal-0ecr`). Each switch mutes or moves the sound playing, so a
+session's capture opens before its first sound and closes after its last
+([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)). The audio service drops the WebView's route request
 while the app is backgrounded, so after a lock/unlock playback fell back to the
 earpiece; `MainActivity` re-requests a route on resume, on mode change and when
 a device comes or goes (`meditation-pal-wxj5`). It asks in the WebView's own

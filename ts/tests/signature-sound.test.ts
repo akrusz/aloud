@@ -242,44 +242,49 @@ describe('the opening, with a mic being opened', () => {
     });
 });
 
-describe('the opening on Android, where the mic opens after it', () => {
-    // An echo-cancelled mic starts call mode there, and Android mutes media
-    // playback for 2s when a call starts: the opening's first second or so.
+describe('the opening on Android', () => {
+    // The mic opens first there too. An echo-cancelled mic starts call mode,
+    // and Android mutes media playback for 2 s as it starts.
     beforeEach(() => {
         vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Linux; Android 16; CPH2655) wv' });
     });
 
-    it('plays the sound at once, then opens the mic, and is over once the mic is up', async () => {
+    it('opens the mic first, and starts the sound once call mode has stopped muting media', async () => {
         let micUp = (): void => {};
         const openMic = vi.fn(() => new Promise<void>((r) => (micUp = r)));
         const opening = track(sound.playOpening('bloom', openMic));
         await settle();
-        expect(played()).toHaveLength(1);
-        expect(openMic).not.toHaveBeenCalled();
-        lastEl().end();
-        await settle();
         expect(openMic).toHaveBeenCalledOnce();
-        expect(opening.over).toBe(false);
+        expect(played()).toEqual([]);
         micUp();
-        await settle();
-        expect(opening.over).toBe(true);
+        await vi.advanceTimersByTimeAsync(2190);
+        expect(played()).toEqual([]);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(played()).toHaveLength(1);
+        expect(opening.over).toBe(false);
     });
 
-    it('opens no mic for a session that ends inside its opening', async () => {
-        const openMic = vi.fn(() => Promise.resolve());
-        const opening = track(sound.playOpening('bloom', openMic));
+    it('waits only the short beat for a mic opened beside one of ours, which switches nothing', async () => {
+        const mic = await import('../ui/src/mic-check.js');
+        mic.noteCaptureOpened({} as MediaStream, () => true);
+        let micUp = (): void => {};
+        void sound.playOpening('bloom', () => new Promise<void>((r) => (micUp = r)));
         await settle();
-        sound.playClosing('bloom');
-        await vi.advanceTimersByTimeAsync(1000);
-        expect(opening.over).toBe(true);
-        expect(openMic).not.toHaveBeenCalled();
+        micUp();
+        await vi.advanceTimersByTimeAsync(590);
+        expect(played()).toEqual([]);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(played()).toHaveLength(1);
     });
 
     it("opens the mic first while the last session's close still holds one", async () => {
+        const mic = await import('../ui/src/mic-check.js');
         void sound.playOpening('bloom');
         await settle();
         lastEl().end();
         await settle();
+        // The last session's capture, kept until its close is over.
+        mic.noteCaptureOpened({} as MediaStream, () => true);
         void sound.playClosing('bloom');
         await settle();
         let micUp = (): void => {};
@@ -342,13 +347,110 @@ describe('the close', () => {
         const close = track(sound.playClosing('marimba'));
         await settle();
         expect(opening.over).toBe(true);
-        expect(close.over).toBe(true);
         expect(played()).toHaveLength(1);
         await vi.advanceTimersByTimeAsync(100);
         expect(el.volume).toBeLessThan(1);
         expect(el.paused).toBe(false);
+        // Over once the faded opening is quiet: the mic is held until then.
+        expect(close.over).toBe(false);
         await vi.advanceTimersByTimeAsync(200);
         expect(el.paused).toBe(true);
+        expect(close.over).toBe(true);
+    });
+});
+
+describe("the close, and the recognizer's mic", () => {
+    function engine() {
+        const keeps: Array<{ settled: boolean }> = [];
+        return {
+            keeps,
+            stop: vi.fn(async (options?: { keepMicUntil?: Promise<unknown> }) => {
+                const state = { settled: false };
+                keeps.push(state);
+                void options?.keepMicUntil?.then(() => (state.settled = true));
+            }),
+            start: () => ({ async *[Symbol.asyncIterator]() {} }),
+        };
+    }
+
+    it('stops listening at once and keeps the mic until the close has played out', async () => {
+        void sound.playOpening('handpan');
+        await settle();
+        lastEl().end();
+        await settle();
+        const stt = engine();
+        void sound.playClosing('handpan', stt);
+        expect(stt.stop).toHaveBeenCalledOnce();
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(stt.keeps[0]!.settled).toBe(false);
+        lastEl().end();
+        await settle();
+        expect(stt.keeps[0]!.settled).toBe(true);
+    });
+
+    it('lets it go at once with no sound picked, or for a session ended before its opening', async () => {
+        const quiet = engine();
+        void sound.playClosing('none', quiet);
+        await settle();
+        expect(quiet.keeps[0]!.settled).toBe(true);
+
+        void sound.playOpening('bloom', () => new Promise(() => {}));
+        await settle();
+        const early = engine();
+        void sound.playClosing('bloom', early);
+        await settle();
+        expect(early.keeps[0]!.settled).toBe(true);
+        expect(played()).toEqual([]);
+    });
+
+    it('lets it go when the close cannot play', async () => {
+        failing = true;
+        const stt = engine();
+        void sound.playClosing('ripples', stt);
+        await settle();
+        expect(stt.keeps[0]!.settled).toBe(true);
+    });
+});
+
+describe('the capture held at Begin (mic-check.ts holdCaptureForSession)', () => {
+    async function held() {
+        const mic = await import('../ui/src/mic-check.js');
+        const state = { settled: false };
+        void mic.holdCaptureForSession().then(() => (state.settled = true));
+        return { mic, state };
+    }
+
+    it('is let go at once for a session with no mic of ours to open', async () => {
+        const { state } = await held();
+        void sound.playOpening('bloom');
+        await settle();
+        expect(state.settled).toBe(true);
+    });
+
+    it("is kept while the session's mic opens, and let go once it hears", async () => {
+        const { mic, state } = await held();
+        void sound.playOpening('bloom', () => Promise.resolve());
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(state.settled).toBe(false);
+        mic.noteCaptureHearing();
+        await settle();
+        expect(state.settled).toBe(true);
+    });
+
+    it("is let go when the session's mic fails to open", async () => {
+        const { state } = await held();
+        void sound.playOpening('bloom', () => Promise.reject(new Error('NotReadableError')));
+        await settle();
+        expect(state.settled).toBe(true);
+    });
+
+    it('is let go when the session ends', async () => {
+        const { state } = await held();
+        void sound.playOpening('bloom', () => new Promise(() => {}));
+        await settle();
+        void sound.playClosing('bloom');
+        await settle();
+        expect(state.settled).toBe(true);
     });
 });
 

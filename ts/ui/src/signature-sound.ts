@@ -11,9 +11,11 @@
  * cut off by one.
  */
 
+import type { SttEngine } from '../../src/platform/stt.js';
 import { pulseNavOrb } from './orb-pulse.js';
 import { assetPath } from './route-base.js';
 import { diag } from './diag.js';
+import { captureLive, endCaptureHandover } from './mic-check.js';
 import { playSound, preloadSound, primeSounds, type Sound } from './sound-player.js';
 
 /** [id, label], in menu order. An id names its two files, so renaming one
@@ -46,6 +48,11 @@ const LOAD_DEADLINE_MS = 1500;
  *  the opening plays (see playOpening). By ear, not measured: the drop-out it
  *  avoids was "some fraction of a second". */
 const MIC_SETTLE_MS = 600;
+/** The same on Android when that mic switched call mode on: the audio policy
+ *  mutes media playback for 2 s as call mode starts (2.0 s measured on a
+ *  phone, 2026-11-19), and the elements primed at the Begin click opened their
+ *  output before the switch. A little over, as the mute ends on a ramp. */
+const CALL_MODE_SETTLE_MS = 2200;
 /** A mic that hasn't opened by now doesn't hold the opening any longer. */
 const MIC_OPEN_CAP_MS = 1500;
 
@@ -136,26 +143,7 @@ function play(sound: SignatureSound, half: SignatureHalf): Promise<void> {
     });
 }
 
-/**
- * Whether the opening plays before the mic opens, rather than after. On
- * Android an echo-cancelled mic puts the app in call mode, which mutes media
- * playback for 2s when it starts and drops the app's outputs for ~0.5s when it
- * ends. When the opening played through Web Audio, a media track, it came in a
- * second or so late on any session whose mic started call mode
- * (meditation-pal-x4n9); the voice's lines, opened after the switch as call
- * audio, weren't muted. Played first, the opening stays clear of the switch.
- * It now plays on an element, whose track takes its usage when it opens, as
- * the voice's do (read in the Chromium source, not yet heard on a device), so
- * before the mic it is media, as it was.
- *
- * Not while the last session's close is sounding: its mic is held until the
- * close is over (SttStopOptions.keepMicUntil), so call mode is already on, and
- * the opening cutting the close lets that mic go. Opening this session's mic
- * first keeps call mode on through the handover; the other way round it ends
- * under the opening and starts again at its tail.
- */
-function micOpensAfterOpening(): boolean {
-    if (sounding?.half === 'close') return false;
+function onAndroid(): boolean {
     return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
 }
 
@@ -171,31 +159,28 @@ async function waitForMic(micOpening: Promise<unknown>): Promise<void> {
  *
  * `openMic` opens the recognizer's capture stream, where it opens one now
  * (SttEngine.prime); a recognizer that opens the mic only when it listens
- * passes nothing, and the sound starts at once. Opening an echo-cancelled mic
- * disturbs sound already playing, so the two take turns. Mostly the sound
- * waits for the mic and a beat more: the OS rebuilds its audio output (voice
- * processing on macOS), and a sound playing through that drops out for a
- * fraction of a second (heard on MacBook speakers, 2026-10-12). On Android
- * the mic mostly waits for the sound instead (micOpensAfterOpening).
+ * passes nothing, and the sound starts at once. The mic opens first and the
+ * sound waits for it and a beat more, on every platform: the session's
+ * capture is open across everything the session makes audible
+ * (dev-docs/audio-output.md). Opening an echo-cancelled mic disturbs sound
+ * already playing: macOS rebuilds its audio output (voice processing), a drop
+ * of a fraction of a second (MacBook speakers, 2026-10-12), and Android
+ * switches to call mode, which mutes the media stream for 2 s and moves later
+ * sound to the call stream. A mic opened beside one of ours already open (the
+ * setup screen's, held by Begin; the last session's, held through its close)
+ * switches nothing, so only the short settle applies.
  */
 export async function playOpening(
     sound: SignatureSound,
     openMic?: () => Promise<unknown> | undefined
 ): Promise<void> {
     const mine = ++sessionTicket;
-    if (micOpensAfterOpening()) {
-        if (sound !== 'none') {
-            void objectUrl(fileUrl(sound, 'close')).catch(() => {});
-            pulseNavOrb('session');
-            await play(sound, 'open');
-        }
-        // Ended (or restarted) during the sound: that session gets no mic.
-        if (sessionTicket !== mine) return;
-        const micOpening = openMic?.();
-        if (micOpening) await waitForMic(micOpening);
-        return;
-    }
+    const cold = !captureLive();
     const micOpening = openMic?.();
+    // A capture held across Begin (holdCaptureForSession) goes once this one
+    // hears; with none to open, or one that fails, nothing will hear.
+    if (micOpening) void micOpening.catch(endCaptureHandover);
+    else endCaptureHandover();
     if (sound === 'none') {
         if (micOpening) await waitForMic(micOpening);
         return;
@@ -204,7 +189,7 @@ export async function playOpening(
     if (micOpening) {
         openingWaiting = mine;
         await waitForMic(micOpening);
-        await sleep(MIC_SETTLE_MS);
+        await sleep(cold && onAndroid() ? CALL_MODE_SETTLE_MS : MIC_SETTLE_MS);
         if (openingWaiting === mine) openingWaiting = 0;
         // Ended (or restarted) while it waited.
         if (sessionTicket !== mine) return;
@@ -213,19 +198,32 @@ export async function playOpening(
     await play(sound, 'open');
 }
 
-/** A session ends. One that ends inside its own opening, or before it began,
- *  only loses the opening: it was too short to have a close. Resolves when the
- *  close is over (at once when none plays): the mic is held open until then
- *  (SttStopOptions.keepMicUntil). */
-export function playClosing(sound: SignatureSound): Promise<void> {
+/**
+ * A session ends. One that ends inside its own opening, or before it began,
+ * only loses the opening: it was too short to have a close. Resolves when the
+ * close is over (at once when none plays, once faded when the opening is cut).
+ *
+ * `stt` stops listening now and keeps its capture open until then
+ * (SttStopOptions.keepMicUntil), so the mic closes after the last sound and
+ * never under it. The engine lets the stream go when this settles however it
+ * ends, and by its own cap should it never settle.
+ */
+export function playClosing(sound: SignatureSound, stt?: SttEngine | null): Promise<void> {
     ++sessionTicket;
+    endCaptureHandover();
+    const over = closingSound(sound);
+    void stt?.stop({ keepMicUntil: over });
+    return over;
+}
+
+function closingSound(sound: SignatureSound): Promise<void> {
     if (openingWaiting) {
         openingWaiting = 0;
         return Promise.resolve();
     }
     if (sounding?.half === 'open') {
         cutSounding();
-        return Promise.resolve();
+        return faded;
     }
     if (sound !== 'none') pulseNavOrb('home');
     return play(sound, 'close');

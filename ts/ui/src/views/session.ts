@@ -906,7 +906,14 @@ export async function mountSessionView(
         }
     }
     // Swapped by an in-session voice change; the outer `tts` wrapper reads it.
-    const firstVoice = await buildTts(setup.voice);
+    let firstVoice: Awaited<ReturnType<typeof buildTts>>;
+    try {
+        firstVoice = await buildTts(setup.voice);
+    } catch (err) {
+        // The opening has opened the mic, and no endSession will ever close it.
+        void playClosing(signatureSound, stt);
+        throw err;
+    }
     let activeTts = firstVoice.tts;
     voiceCancelled = firstVoice.echoCancelled;
     rederiveListening();
@@ -3914,9 +3921,8 @@ export async function mountSessionView(
         micBtn.classList.remove('opening');
         void tts.cancel();
         // Listening stops now; the mic itself is let go once the closing sound
-        // is over, or macOS cuts a hole in the sound (SttStopOptions).
-        const closeOver = playClosing(signatureSound);
-        void stt?.stop({ keepMicUntil: closeOver });
+        // is over, so it never closes under it.
+        void playClosing(signatureSound, stt);
         // Relax Ollama's keep_alive to the short default: the model idles out
         // soon (not the full 30m) but stays warm for an immediate restart.
         if (provider instanceof OllamaProvider) void provider.relaxKeepAlive();

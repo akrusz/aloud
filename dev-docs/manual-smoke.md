@@ -62,9 +62,13 @@ The answer should name `x-provider-key`.
 **Phone**, a build from `main` against production, sounds first: no sound has
 played on a phone since the move to `<audio>` elements.
 
-- [ ] **Android sounds.** The opening plays before the first line, not late.
-      The close and a noting chime are audible; with the mic open they follow
-      the Call volume now, so check they sit sensibly against the voice.
+- [ ] **Android sounds.** On aloud cloud speech the mic opens first at Begin,
+      and the opening follows it whole about two seconds later (from a
+      listening setup screen, sooner); the first line starts at its first
+      word. The close plays whole at one level and the mic indicator goes off
+      only after it. The close and a noting chime follow the Call volume, so
+      check they sit sensibly against the voice
+      ([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
 - [ ] **iPhone sounds.** A chime does not cut the voice. Ending a session
       inside its opening sound stops the sound at once, with no loud click. A
       chime or preview with no mic open sounds even with the silent switch on.
@@ -457,8 +461,8 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       and it is not transcribed as a turn. The iOS app played neither until
       the status-0 fix in `fetchBytes` (`signature-sound.ts`), so an iPhone is
       their first real hearing. On Android on aloud cloud speech, expect the
-      close to follow the Call volume slider and the opening the Media one
-      ([audio-output.md](audio-output.md) → "Phones").
+      close to follow the Call volume slider, and note which slider the
+      opening follows ([audio-output.md](audio-output.md) → "Phones").
 - [ ] **A chime doesn't cut speech.** On the setup screen, start a voice
       preview and preview the noting chime while it speaks: both are heard and
       the voice carries on. Expected on an iPhone: a preview with no mic open

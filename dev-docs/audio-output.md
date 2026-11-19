@@ -75,14 +75,46 @@ which is why speech was on Web Audio until wk4u. Elements had been playing on
 desktop daily since (setup clips, the Begin prime) with no such request in the
 system log. If the dialog returns, this is the cause.
 
+## The mic around a session's sounds
+
+A session's capture is open across everything the session makes audible:
+
+- **Begin.** Nothing plays until the session's capture is open (`playOpening`
+  in `signature-sound.ts` opens the mic, then waits a beat). A capture that
+  was listening on the setup screen stops listening but stays open until the
+  session's own can hear beside it (`holdCaptureForSession` in
+  `ui/src/mic-check.ts`, from `beginFromSetup` in `views/setup.ts` and a
+  spoken "begin" in `voice-start.ts`), so the OS never sees the mic close
+  between the two. Begin opens no probe stream once a mic has opened on the
+  page (`micForBegin`).
+- **End.** `playClosing` stops listening at once and keeps the capture open,
+  read by nothing, until the close has played out, or until a cut opening has
+  faded; then it closes (`SttStopOptions.keepMicUntil`). Every way a session
+  ends goes through it, a mount that fails after the opening included.
+- **Mute** really closes the capture, as before.
+
+Why, measured on an Android phone (2026-11-19, hosted STT and voice): the
+WebView puts the app in call mode exactly while a getUserMedia capture is open
+and leaves it about 1 s after the capture stops, and gives each player the
+usage of the mode it opened in (media without a capture, call with one). At a
+switch the players already running are muted for 2 s (call mode starting) or
+torn down and reopened on the other stream (call mode ending). A mic opened
+after the opening muted the first line's first two seconds; a mic closed
+during the close made it waver; a mic closed and reopened at Begin left the
+volume keys on the media stream. On Android a mic that switched call mode on
+holds the opening `CALL_MODE_SETTLE_MS` (2.2 s) instead of `MIC_SETTLE_MS`,
+since the elements primed at the Begin click opened before the switch. On
+macOS the same opens and closes rebuild the audio output (meditation-pal-uz8t).
+
 ## Phones
 
-Read in the WebKit and Chromium sources, not yet heard on a device:
+Read in the WebKit and Chromium sources, partly measured on Android (above):
 
-- **Android.** A track's usage is fixed when it opens. The opening plays before
-  the mic (`micOpensAfterOpening` in `signature-sound.ts`) and stays media. The
-  close, and a chime under aloud cloud STT, open while call mode is on, so they
-  play as call audio: the Call volume slider, the communication route.
+- **Android.** A track's usage is fixed when it opens. A session's sounds
+  start while call mode is on, so they play as call audio: the Call volume
+  slider, the communication route. A chime under aloud cloud STT too. Whether
+  the opening reuses a media player the Begin click's prime opened, or gets a
+  new call one, has not been read off a phone yet.
 - **iPhone.** An audible element with no mic open puts the audio session in the
   playback category: a chime or a preview with no mic open ignores the silent
   switch and stops other apps' music, where Web Audio alone was ambient.

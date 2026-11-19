@@ -108,35 +108,41 @@ capture is voice processing, which rebuilds the audio output when it starts
 and again a couple of seconds after it stops. Three rules keep the two apart
 (heard and fixed on the desktop app, MacBook speakers, 2026-10-12):
 
-- **Opening starts after the mic is up.** `playOpening` takes the engine's
-  `prime()` and starts the sound once the mic is up plus `MIC_SETTLE_MS`.
-  Started first, it dropped out for a fraction of a second as the mic arrived.
-  Android is the other way round (`micOpensAfterOpening`): the mic puts the
-  app in call mode, and Android mutes media playback for 2s when a call
-  starts, so the sound plays first and the mic opens after it. The exception
-  is a Begin during the last session's close, whose held mic keeps call mode
-  on: the mic opens first there, so letting the old one go doesn't end call
-  mode under the opening (meditation-pal-x4n9). Either way the session never
-  primes the mic itself, and the greeting waits for both.
+- **Opening starts after the mic is up**, on every platform. `playOpening`
+  takes the engine's `prime()` and starts the sound once the mic is up plus
+  `MIC_SETTLE_MS`. Started first, it dropped out for a fraction of a second as
+  the mic arrived. Android used to play it first and open the mic after, since
+  call mode mutes media for 2s as it starts; the mic then opened under the
+  greeting instead and cut its first two seconds (measured 2026-11-19,
+  [audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)). There
+  a mic that switched call mode on now holds the sound `CALL_MODE_SETTLE_MS`.
+  A mic opened beside one of ours already open (the setup screen's, held by
+  Begin; the last session's, held through its close, meditation-pal-x4n9)
+  switches nothing. The session never primes the mic itself, and the greeting
+  waits for both.
 - **The listen loop and barge-in ignore the opening.** Both wait out
   `openingSounding` in `session.ts`. The echo canceller is cold at session
   start, so the sound reaches the mic near full strength, and the default pair
   is tonal enough that the recognizer hears vowels: it started turns and hushed
   the greeting.
-- **The capture stream is held until the close finishes.** `stop({ keepMicUntil })`
-  (`SttStopOptions`) stops listening at once but holds the capture stream until
-  the closing sound is over. Released at End, the output was rebuilt mid-sound.
+- **The capture stream is held until the close finishes.** `playClosing`
+  takes the engine and stops it with `keepMicUntil` (`SttStopOptions`):
+  listening stops at once, the capture stream is held until the closing sound
+  is over (a cut opening, until it has faded). Released at End, the output was
+  rebuilt mid-sound.
 
-Begin's mic check opens no probe stream when the setup screen's listener was
-just live (`micForBegin` in `mic-check.ts`, see
-[voice-commands.md](voice-commands.md#mic-pre-flight)), which took one open and
-close out of the moment before the opening.
+Begin opens no probe stream once a mic has opened on the page (`micForBegin`
+in `mic-check.ts`, see [voice-commands.md](voice-commands.md#mic-pre-flight)),
+and a listening setup screen's capture is held until the session's own hears
+(`holdCaptureForSession`), so the mic neither closes nor reopens around the
+opening.
 
 Until `ensureCaptureGraph` became single-flight (2026-10-12) every session
 start leaked a capture stream, which kept voice processing running between
 sessions and hid all three. If session-start echo (meditation-pal-8h1x) looks
 worse than it used to, that is a place to look: the canceller now starts cold
-every session.
+every session, except one begun from a listening setup screen, whose capture is
+still open as the session's opens.
 
 ## Mute and the voice picker
 
