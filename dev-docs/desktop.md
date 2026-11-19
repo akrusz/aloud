@@ -130,6 +130,11 @@ Endpoints:
   clips" switch: writes one `.wav` or `.json` of a capture to
   `<app-data>/stt-clips/<dir>/`, since a webview can't download a blob. Path
   segments go through `safe_session_id`. UI side: `ui/src/stt-clip-recorder.ts`.
+- `/app/v1/mic-permission` - the system's mic grant (`mic_authorization`:
+  AVFoundation's status on macOS, `unknown` elsewhere), read before the setup
+  screen listens so that listening never raises the prompt itself. WKWebView
+  says `prompt` until the page has captured once in a launch, whatever the
+  grant is ([voice-commands.md](voice-commands.md#the-mic)).
 - `/app/v1/google-oauth` - desktop Google sign-in via the loopback PKCE flow
   (the webview can't run the web GIS popup); hands the result to aloud cloud's
   `/cloud/v1/auth/google/desktop`.
