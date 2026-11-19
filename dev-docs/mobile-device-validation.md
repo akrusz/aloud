@@ -32,7 +32,7 @@ specific manufacturer's stack.
   - (browser web-speech is *not* offered on native - the native plugin is better.)
 - **TTS**
   - `browser` - the WebView's `speechSynthesis`, i.e. the **native system voices**. **Free.** The start gate's "Use a free voice" pick when the voice is a session's only cloud leg (`bestFreeVoice`, `cloud-gate.ts`).
-  - hosted voices (Azure / Google / Inworld) via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`). A fresh setup's default, as everywhere: the server-flagged voice, Harper (`defaultVoicePick`).
+  - hosted voices (Azure / Google / Inworld) via `/cloud/v1`. **Costs credits** (TTS is the dominant cost line - bead `b7i`). A fresh setup's default, as everywhere: the server-flagged voice, Harper, or in a zh app the `zhNative` one, Xiaoyue (`defaultVoicePick`).
 
 ## STT validation - device buckets
 
