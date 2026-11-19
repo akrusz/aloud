@@ -1150,7 +1150,7 @@ input[type="range"].slider-stops {
    stop. --slider-thumb here has to match the thumb's width too (the phone
    layout block). */
 .slider-numbered {
-    --slider-thumb: 18px;
+    --slider-thumb: 26px;
     position: relative;
     display: flex;
     /* The input's own margin, out here so the numbers' box is the input's. */
@@ -1160,15 +1160,24 @@ input[type="range"].slider-stops {
 .slider-numbered > input[type="range"].slider-stops {
     margin: 0;
     background-image: none;
+    /* .slider-stops sets its own on the input, which the thumb would read. */
+    --slider-thumb: inherit;
+    /* Tall enough for a number that can be read at arm's length. */
+    height: 20px;
+    border-radius: 10px;
 }
 
 /* Stated, not left to the engine, so the thumb's centre is where the number is. */
 .slider-numbered > input[type="range"]::-webkit-slider-thumb {
     box-sizing: border-box;
+    width: var(--slider-thumb);
+    height: var(--slider-thumb);
     background: var(--accent-fill);
 }
 .slider-numbered > input[type="range"]::-moz-range-thumb {
     box-sizing: border-box;
+    width: var(--slider-thumb);
+    height: var(--slider-thumb);
     background: var(--accent-fill);
 }
 
@@ -1180,7 +1189,7 @@ input[type="range"].slider-stops {
     align-items: center;
     pointer-events: none;
     /* px like the track it sits in, which text scale does not grow. */
-    font-size: 10px;
+    font-size: 14px;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--text-secondary);
@@ -6237,10 +6246,10 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         --slider-thumb: 24px;
     }
     .slider-numbered {
-        --slider-thumb: 24px;
+        --slider-thumb: 28px;
     }
     .slider-numbers {
-        font-size: 12px;
+        font-size: 15px;
     }
 
     /* Fields at body size on phone. This is 15px here, under the 16px that
