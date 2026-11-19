@@ -374,6 +374,8 @@ Guidance and responses:
     Balanced.
     Somewhat directing.
     Following.
+    Guidance four.                           → the fourth stop
+    Set the guidance level to 2.
     Shorter responses.
     Talk less.
     Keep your replies brief.
@@ -419,6 +421,7 @@ Must do nothing (✗):
     加上开阔。
     去掉慈悲。
     多一点引导。
+    引导三。
     回应简短。
     我的意图是好好休息。
     开阔。                                   → off (added above)
