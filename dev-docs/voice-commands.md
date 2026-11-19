@@ -445,9 +445,10 @@ speaking, it lights at once and starts hearing when the line is over
 (`runVoiceSync` paints it before it waits; `micShows` is what a second tap
 reads).
 
-**Waiting to hear is a look of On, not a fourth state.** Lit while the
-recognizer can't hear, the ring gives way to a slow pulse (`.waiting`; a
-dashed rim under reduced motion), since words said then are lost
+**Waiting to hear is a look of On, not a fourth state.** While the
+recognizer can't hear, the mic is grey with a slow breath in place of the
+ring (`.waiting`; a dashed rim under reduced motion), the look the session's
+mic has while it opens after an unmute, since words said then are lost
 (`listenOnSetup` `onHearing`, `micHearing` in `views/setup.ts`). That is the
 mic opening, which on macOS sends digital silence for a second or more, and
 the recognizer stopped for a line and its tail, an answer, or between turns.

@@ -2363,13 +2363,27 @@ body:has(.session-container) {
     transition: box-shadow 0.1s ease-out;
 }
 
-/* Unmuted, but the mic is still opening and hears nothing yet (views/session.ts
-   setStatus, "Opening the mic…"): grey and unslashed, no level ring, then lit. */
+/* On, but hearing nothing yet: the session's mic opening after an unmute
+   (views/session.ts setStatus, "Opening the mic…"), and the setup mic opening
+   or stopped for a line and its tail (.voice-start-mic.waiting, below). Grey
+   and unslashed, with a slow breath in place of the level ring, so it reads
+   as coming and not as off; then lit. */
 .btn-voice.active.opening {
     background: var(--bg-secondary);
     border-color: var(--border);
     color: var(--text-muted);
-    box-shadow: none;
+    animation: mic-coming 1.4s ease-in-out infinite;
+}
+@keyframes mic-coming {
+    0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-muted) 18%, transparent); }
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-muted) 30%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .btn-voice.active.opening {
+        animation: none;
+        box-shadow: none;
+        border-style: dashed;
+    }
 }
 
 .btn-tts {
@@ -5389,16 +5403,16 @@ input[type="range"].preview-range {
     --mic-level: 0 !important;
 }
 
-/* Lit, but the recognizer can't hear yet (views/setup.ts paintVoiceMic,
-   micHearing): the mic opening, or stopped for a line and its tail. A slow
+/* On, but the recognizer can't hear yet (views/setup.ts paintVoiceMic,
+   micHearing): the mic opening, or stopped for a line and its tail. The
+   session mic's opening look (.btn-voice.active.opening): grey, with a slow
    breath in place of the level ring, which could show a voice nothing is
-   taking in. Glyph and fill stay as lit, so it never reads as asleep. */
+   taking in. It keeps its sound waves, where asleep shows "z z". */
 .voice-start-mic.active.waiting {
-    animation: voice-mic-waiting 1.4s ease-in-out infinite;
-}
-@keyframes voice-mic-waiting {
-    0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--warm) 18%, transparent); }
-    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--warm) 30%, transparent); }
+    background: var(--bg-input);
+    border-color: var(--hairline, var(--border));
+    color: var(--text-muted);
+    animation: mic-coming 1.4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
     .voice-start-mic.active.waiting {
