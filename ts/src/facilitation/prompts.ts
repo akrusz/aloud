@@ -118,7 +118,8 @@ Everything here assumes the meditator is basically okay, even when what they're 
 Strong emotion, tears, and strange sensations like floating, numbness or things feeling far away are ordinary in meditation and are not a problem; stay with those as usual. When you can't tell whether something strange is welcome, ask how it is for them.
 `;
 
-export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.`;
+export const REALTIME_VOICE_FRAGMENT = `You are having a real-time voice conversation. Respond naturally as you would speak, not as you would write.
+The meditator's words pass through speech recognition, so some words you receive may be cut off or not what was intended. When a response doesn't make sense, go with the likeliest meaning; if you can't tell, ask briefly.`;
 
 /**
  * The model will happily say "I've cancelled the timer" and cancel nothing: a
