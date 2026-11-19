@@ -90,6 +90,11 @@ export interface NotingSessionViewHandle {
 }
 
 const DEFAULT_CADENCE_MS = 4000;
+// The first round's adaptive wait is the meditator's first note alone, which
+// carries their settling in after the opener: take this off it, down to the
+// shortest wait the fixed timing offers.
+const FIRST_ROUND_HEAD_START_MS = 3000;
+const MIN_ADAPTIVE_DELAY_MS = 1000;
 const USER_TURN_CUE_DELAY_MS = 1000; // breathing room before the cue
 const ECHO_REJECT_MS = 1500; // ignore "speech" this soon after the turn starts
 
@@ -456,6 +461,9 @@ export async function mountNotingSessionView(
 
     function adaptiveDelay(): number {
         if (userCadences.length === 0) return DEFAULT_CADENCE_MS;
+        if (userCadences.length === 1) {
+            return Math.max(MIN_ADAPTIVE_DELAY_MS, userCadences[0]! - FIRST_ROUND_HEAD_START_MS);
+        }
         const sum = userCadences.reduce((a, b) => a + b, 0);
         return sum / userCadences.length;
     }

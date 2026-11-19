@@ -115,3 +115,14 @@ It bends three of the rules above for that session only, and saves none of it:
 
 The sit queues a one-time "Shape your next session" card for the next visit to
 setup (`markSessionStarted`), which is where the tour gets offered again.
+
+## Noting
+
+A noting circle has no check-ins. Its pace is how long each participant waits
+before noting (`participantTurn` in `ui/src/views/noting-session.ts`): its own
+seconds on Fixed timing, or on Adaptive the mean of the meditator's last five
+turns, each timed from "Your turn" to the transcript (`userCadences`,
+`adaptiveDelay`). The first round has only the meditator's first turn to go
+on, and that one carries their settling in after the opener, so it waits
+`FIRST_ROUND_HEAD_START_MS` (3s) less, never under `MIN_ADAPTIVE_DELAY_MS`
+(1s, the shortest Fixed timing).
