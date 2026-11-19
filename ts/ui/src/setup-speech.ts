@@ -21,6 +21,7 @@ import {
 } from '../../src/facilitation/index.js';
 import { createTtsForVoice } from './adapters/tts-picker.js';
 import { assetPath } from './route-base.js';
+import { previewVoice, stopPreview } from './voice-picker.js';
 import manifestJson from './voice-clips.json';
 
 interface ClipEntry {
@@ -117,7 +118,14 @@ export interface SetupSpeaker {
     say(lines: readonly SpokenSetupLine[], as?: { voice?: string }): Promise<void>;
     /** Say one line by its id. */
     sayLine(id: SetupLineId, as?: { voice?: string }): Promise<void>;
-    /** Cut off whatever is playing; its say() resolves. */
+    /** Play a voice's sample (voice-picker.ts previewVoice): the answer to
+     *  "set the voice to Zoe". A line replaces it and stop() cuts it off, as
+     *  for any line. Rejects where the voice can't play, so the caller can
+     *  say why. */
+    sample(name: string, engine?: string): Promise<void>;
+    /** Cut off whatever is playing or on its way; its say() resolves. Leaves
+     *  nothing in the browser's speech queue: Begin calls this, and a line
+     *  still queued there would play over the session's opening. */
     stop(): void;
     /** What was last said and when it ended, for the listener's echo check. */
     lastSpoken(): { text: string; endedAt: number } | null;
@@ -126,6 +134,8 @@ export interface SetupSpeaker {
 export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
     let playing: HTMLAudioElement | null = null;
     let cancelLocal: (() => void) | null = null;
+    // A voice's sample is under way (sample()).
+    let sampling = false;
     let generation = 0;
     let last: { text: string; endedAt: number } | null = null;
 
@@ -215,10 +225,26 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
         }
     }
 
+    async function sample(name: string, engine?: string): Promise<void> {
+        const mine = ++generation;
+        stopPlayback();
+        if (opts.muted?.()) return;
+        sampling = true;
+        try {
+            await previewVoice(name, opts.rate(), engine);
+        } finally {
+            if (mine === generation) sampling = false;
+        }
+    }
+
     function stopPlayback(): void {
         playing?.pause();
         playing = null;
         cancelLocal?.();
+        if (sampling) {
+            sampling = false;
+            stopPreview();
+        }
     }
 
     return {
@@ -228,9 +254,15 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
             const voice = as.voice ?? houseVoiceFor(opts.voiceId(), opts.houseVoice(), language) ?? '';
             return say([{ id, text: setupLineText(id, language, { name: voice }) }], as);
         },
+        sample,
         stop: () => {
             generation++;
             stopPlayback();
+            // Whatever is left in speechSynthesis's queue goes too, a sample
+            // still on its way included. A sample that outlived the setup
+            // screen played over the session's opening sound (Chrome,
+            // 2026-11-18).
+            stopPreview();
         },
         lastSpoken: () => last,
     };

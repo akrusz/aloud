@@ -676,6 +676,9 @@ export function updateVoiceSelection(
 }
 
 let activePreviewEngine: TtsEngine | null = null;
+// Bumped by every stopPreview(), the one at the start of each preview
+// included: a preview whose number has moved on was stopped or replaced.
+let previewGeneration = 0;
 
 /**
  * Speak the preview phrase through the right engine for a voice. `voiceName` is
@@ -684,7 +687,7 @@ let activePreviewEngine: TtsEngine | null = null;
  *
  * Rejects on a real failure (not signed in, out of credits, server unreachable,
  * autoplay blocked) so the caller can say WHY a preview was silent. Cancelling
- * one preview by starting another resolves quietly.
+ * one preview by starting another resolves quietly, and so does stopPreview().
  */
 export async function previewVoice(
     voiceName: string,
@@ -692,8 +695,9 @@ export async function previewVoice(
     engine?: string
 ): Promise<void> {
     stopPreview();
+    const mine = previewGeneration;
+    let ttsEngine: TtsEngine | null = null;
     try {
-        let ttsEngine: TtsEngine;
         if (engine === 'aloud') {
             // Hosted voices preview through the PUBLIC, free endpoint - no
             // sign-in, no credits. Selecting one for a real session still goes
@@ -705,14 +709,18 @@ export async function previewVoice(
             const id = engine === 'browser' ? `browser:${voiceName}` : `server:${voiceName}`;
             ({ engine: ttsEngine } = await createTtsForVoice(id));
         }
+        // Stopped while its engine was being found (a Begin, another preview):
+        // stopPreview() had nothing to cancel yet, so it must not start now.
+        if (mine !== previewGeneration) return;
         activePreviewEngine = ttsEngine;
         const text =
             voiceName === 'Zarvox' ? 'Come. On. Fahoogwuhgods.' : t(PREVIEW_PHRASE);
         await ttsEngine.speak(text, rate !== undefined ? { rate } : undefined);
     } finally {
-        if (activePreviewEngine) {
+        // Only its own: a preview that replaced this one is active by now.
+        if (ttsEngine && activePreviewEngine === ttsEngine) {
             // Engines handle double-cancel safely.
-            void activePreviewEngine.cancel();
+            void ttsEngine.cancel();
             activePreviewEngine = null;
         }
     }
@@ -763,7 +771,9 @@ export function previewErrorMessage(err: unknown): string {
     return t("Couldn't play that voice preview. Check your connection and try again.");
 }
 
+/** Stop a preview playing or on its way, and empty the browser's speech queue. */
 export function stopPreview(): void {
+    previewGeneration++;
     if (activePreviewEngine) {
         void activePreviewEngine.cancel();
         activePreviewEngine = null;

@@ -159,6 +159,9 @@ Desktop, hosted GPT speech recognition:
 - [fail] **Ava**, or another macOS voice. A reply plays in whole sentences, not
       cut after each first word. Talking over her does nothing, which is
       expected (`bargeInDetectorFits`).
+- [ ] **A sample at Begin.** On the setup screen say "set the voice to Zoe"
+      (or another macOS voice) and click Begin before her sample is over: the
+      sample stops, and only the opening sound plays until her first line.
 
 **If that is clean:** merge `stt-incremental` into `main` and deploy the
 server from `main` before any client build (a new client on the old server

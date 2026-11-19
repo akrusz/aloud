@@ -384,6 +384,14 @@ hosted voice:
 - Where neither can speak (no clip, a browser tab that won't play without a
   gesture), the caption is the answer.
 
+A voice's sample, the answer to "set the voice to Ethan", plays through the
+same speaker (`SetupSpeaker.sample`, which runs voice-picker's
+`previewVoice`), so whatever stops a line stops it. Begin stops the speaker,
+and its `stop` also empties `speechSynthesis`'s queue: a sample still on its
+way at Begin played over the session's opening sound (Chrome, a macOS voice,
+2026-11-18). A preview stopped while its engine is still being found never
+starts (`previewGeneration` in `voice-picker.ts`).
+
 Clips are static files under `ui/public/voice-clips/`, listed in
 `ui/src/voice-clips.json` with the text each was rendered from. A line edited
 in `setup-lines.ts` without a re-render is simply not played (`clipFor`

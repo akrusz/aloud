@@ -1506,10 +1506,11 @@ export async function mountSetupView(
     }
 
     /** Play a voice's sample with the recognizer stopped, saying why on screen
-     *  when it can't be played. */
+     *  when it can't be played. Through the speaker, so whatever stops a line
+     *  (Begin above all) stops it too. */
     function previewByVoice(name: string): Promise<void> {
         return sayHeld(() =>
-            runPreview(name, setup.ttsRate, findVoice(name)?.engine).catch((err: unknown) => {
+            speaker.sample(name, findVoice(name)?.engine).catch((err: unknown) => {
                 showVoiceNote(previewErrorMessage(err), true);
             })
         );

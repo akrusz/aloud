@@ -4,7 +4,7 @@
  * clip rendered from words the line no longer has is not played.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../ui/src/voice-clips.json', () => ({
     default: {
@@ -46,6 +46,7 @@ import {
     houseVoices,
     isLocalVoice,
 } from '../ui/src/setup-speech.js';
+import { previewVoice } from '../ui/src/voice-picker.js';
 
 describe('houseVoices', () => {
     it('lists the voices of a language, the female one first', () => {
@@ -162,6 +163,123 @@ describe('a local voice', () => {
         found();
         await saying;
         expect(spoke).not.toHaveBeenCalled();
+    });
+});
+
+describe("a voice's sample", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    /** An engine whose speak() runs until cancelled. */
+    function engine() {
+        let finish: (() => void) | null = null;
+        const e = {
+            cancelled: 0,
+            spoke: 0,
+            speak: () => {
+                e.spoke++;
+                return new Promise<void>((resolve) => (finish = resolve));
+            },
+            cancel: async () => {
+                e.cancelled++;
+                finish?.();
+            },
+            listVoices: async () => [],
+        };
+        return e;
+    }
+    /** The browser's speech queue, as far as a cancel goes. */
+    function speechQueue() {
+        const cancel = vi.fn();
+        vi.stubGlobal('speechSynthesis', { cancel });
+        return cancel;
+    }
+    const speaker = () =>
+        createSetupSpeaker({ voiceId: () => 'browser:Zoe', houseVoice: () => null, language: () => 'en', rate: () => 160 });
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+
+    // "Set the voice to Zoe", then Begin: the sample played over the
+    // session's opening sound (Chrome, 2026-11-18). Begin stops the speaker.
+    it('is cut off by stop(), which leaves nothing in the speech queue', async () => {
+        const queue = speechQueue();
+        const zoe = engine();
+        vi.mocked(createTtsForVoice).mockResolvedValueOnce({ engine: zoe, voice: null });
+        const s = speaker();
+        const sampling = s.sample('Zoe', 'browser');
+        await tick();
+        expect(zoe.spoke).toBe(1);
+        queue.mockClear();
+        s.stop();
+        await sampling;
+        expect(zoe.cancelled).toBeGreaterThan(0);
+        expect(queue).toHaveBeenCalled();
+    });
+
+    it('never plays when stopped while its voice was still being found', async () => {
+        speechQueue();
+        const zoe = engine();
+        let found!: () => void;
+        vi.mocked(createTtsForVoice).mockReturnValueOnce(
+            new Promise((resolve) => (found = () => resolve({ engine: zoe, voice: null })))
+        );
+        const s = speaker();
+        const sampling = s.sample('Zoe', 'browser');
+        await tick();
+        s.stop();
+        found();
+        await sampling;
+        expect(zoe.spoke).toBe(0);
+    });
+
+    it('is replaced by a line, as one line is by the next', async () => {
+        speechQueue();
+        const zoe = engine();
+        const line = engine();
+        vi.mocked(createTtsForVoice)
+            .mockResolvedValueOnce({ engine: zoe, voice: null })
+            .mockResolvedValueOnce({ engine: line, voice: null });
+        const s = speaker();
+        const sampling = s.sample('Zoe', 'browser');
+        await tick();
+        const saying = s.say([{ id: 'mode-noting', text: 'Okay, noting mode.' }]);
+        await sampling;
+        expect(zoe.cancelled).toBeGreaterThan(0);
+        await tick();
+        expect(line.spoke).toBe(1);
+        s.stop();
+        await saying;
+    });
+});
+
+describe('previewVoice', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('leaves alone the preview that replaced it', async () => {
+        vi.stubGlobal('speechSynthesis', { cancel: vi.fn() });
+        const finishers: Array<() => void> = [];
+        const engines = [0, 1].map(() => {
+            const e = {
+                cancelled: 0,
+                speak: () => new Promise<void>((resolve) => finishers.push(resolve)),
+                // Like an engine whose speak() settles a moment after its cancel.
+                cancel: async () => {
+                    e.cancelled++;
+                    const finish = finishers.shift();
+                    setTimeout(() => finish?.(), 0);
+                },
+                listVoices: async () => [],
+            };
+            return e;
+        });
+        vi.mocked(createTtsForVoice)
+            .mockResolvedValueOnce({ engine: engines[0]!, voice: null })
+            .mockResolvedValueOnce({ engine: engines[1]!, voice: null });
+        const first = previewVoice('Zoe', 160, 'browser');
+        await new Promise((r) => setTimeout(r, 0));
+        void previewVoice('Ava', 160, 'browser');
+        await first;
+        await new Promise((r) => setTimeout(r, 0));
+        expect(engines[0]!.cancelled).toBeGreaterThan(0);
+        expect(engines[1]!.cancelled).toBe(0);
     });
 });
 
