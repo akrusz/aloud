@@ -121,10 +121,15 @@ export function setupListeningLimits(listener: SetupListener): SetupListeningLim
     };
 }
 
-/** After the app has finished speaking, before the recognizer listens again:
- *  room for the last syllable to leave the speaker (a Bluetooth one runs a
- *  couple of hundred milliseconds behind the page) and the room. */
-export const SPEECH_TAIL_MS = 450;
+/** After the app has finished speaking, before the recognizer listens again.
+ *  A setup clip's file ends 0.15s after its last sound (render-voice-clips.ts,
+ *  voice-clips/tail.ts), so the mic hears about 0.4s after the voice stops:
+ *  room for a Bluetooth speaker running a couple of hundred milliseconds
+ *  behind the page. What still leaks back is met by the capture's echo
+ *  cancellation, and a line's last words heard anyway are dropped
+ *  (looksLikeSpokenTail). Longer, and a request said at a natural pace after
+ *  an answer loses its first word. */
+export const SPEECH_TAIL_MS = 250;
 
 /**
  * Whether the recognizer can hear right now (`onHearing`), for the mic beside

@@ -504,7 +504,7 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
   step of the tour, stops it first (`hold`). Listening resumes
   `SPEECH_TAIL_MS` after the line ends, and a clip's file ends 0.15s after its
-  last sound, so the mic hears again about 0.6s after the voice stops. Until
+  last sound, so the mic hears again about 0.4s after the voice stops. Until
   2026-11-18 the files carried up to 0.9s of the provider's silence on top,
   and a request said at a natural pace after an answer lost its first word
   ("Change focus to body" arrived as "Focus to body", which adds instead of

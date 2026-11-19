@@ -1451,7 +1451,7 @@ export async function mountSetupView(
         quietRingDuring(speaking);
         // Not `speaking`: the listener waits a tail of its own after a request
         // it understood (listenOnSetup), and the two stacked left the mic deaf
-        // for 900 ms after a question.
+        // for two tails after a question.
         return said;
     }
 
