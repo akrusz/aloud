@@ -15,6 +15,7 @@ import {
     COMMON_OPENERS,
     MINIMAL_OPENERS,
     HOLD_REENTRY_LINES,
+    CLAUDE_STALLED_APOLOGIES,
     FOCUS_OPENERS,
     QUALITY_OPENERS,
 } from '../src/facilitation/prompts.js';
@@ -23,6 +24,7 @@ import {
     ZH_COMMON_OPENERS,
     ZH_MINIMAL_OPENERS,
     ZH_HOLD_REENTRY_LINES,
+    ZH_CLAUDE_STALLED_APOLOGIES,
     ZH_FOCUS_OPENERS,
     ZH_QUALITY_OPENERS,
     ZH_TIMER_APPROACH_FALLBACKS,
@@ -91,6 +93,7 @@ pool('Felt sense openers 体会模式开场', FELT_SENSE_OPENERS, ZH_FELT_SENSE_
 pool('Felt sense check-ins 体会模式问候', FELT_SENSE_CHECK_INS, ZH_FELT_SENSE_CHECK_INS);
 pool('Noting check-ins 标记模式问候', NOTING_CHECK_IN_PROMPTS, ZH_NOTING_CHECK_IN_PROMPTS);
 pool('Noting opener 标记模式开场', NOTING_STATIC_OPENERS, ZH_NOTING_STATIC_OPENERS);
+pool('Claude subscription not answering 订阅版 Claude 无法回应', CLAUDE_STALLED_APOLOGIES, ZH_CLAUDE_STALLED_APOLOGIES);
 // Rendered once as clips in the house voices, so a change here also needs
 // `npm run clips:render`.
 pool(

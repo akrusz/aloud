@@ -65,6 +65,10 @@ export const ZH_EMPTY_REPLY_FALLBACKS: readonly string[] = [
     '我在，慢慢来。',
     '你现在注意到了什么？',
 ];
+export const ZH_CLAUDE_STALLED_APOLOGIES: readonly string[] = [
+    '抱歉，看来我的用量到上限了。我们晚些时候再继续吧。',
+    '抱歉，我现在暂时没法回应。我们过一会儿再试试吧。',
+];
 export const ZH_CHECK_IN_PROMPTS: readonly string[] = [
     '我还在这里陪着你。',
     '你准备好了就说，我在。',

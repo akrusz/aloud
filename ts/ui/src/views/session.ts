@@ -63,6 +63,7 @@ import {
     sessionLanguageOf,
     localizePool,
     EMPTY_REPLY_FALLBACKS,
+    CLAUDE_STALLED_APOLOGIES,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
@@ -2736,9 +2737,8 @@ export async function mountSessionView(
                     // a spent usage limit or an expired login.
                     const limit = /usage limit|rate limit/i.test(msg);
                     const auth = /oauth|authentication|api key|log ?in/i.test(msg);
-                    const apology = limit
-                        ? "Sorry, looks like I've hit a usage limit. Let's pick this up later."
-                        : "Sorry, I'm having trouble responding right now. Let's try again in a moment.";
+                    const apologies = localizePool(CLAUDE_STALLED_APOLOGIES, sessionLanguageOf(sessionLanguage));
+                    const apology = apologies[limit ? 0 : 1]!;
                     showErrorToast(
                         limit
                             ? t('Claude subscription usage limit reached. It resets after a few hours, or pick another model in Settings.')

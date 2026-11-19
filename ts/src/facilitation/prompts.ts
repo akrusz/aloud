@@ -16,6 +16,7 @@ import {
     ZH_LANGUAGE_FRAGMENT,
     ZH_CHECK_IN_PROMPTS,
     ZH_EMPTY_REPLY_FALLBACKS,
+    ZH_CLAUDE_STALLED_APOLOGIES,
     ZH_HOLD_REENTRY_LINES,
     ZH_COMMON_OPENERS,
     ZH_MINIMAL_OPENERS,
@@ -446,6 +447,13 @@ export const EMPTY_REPLY_FALLBACKS: readonly string[] = [
     'Mhm.',
     "I'm here. Take your time.",
     'What are you noticing now?',
+];
+
+/** Spoken when the local Claude CLI fails every retry (claude_proxy_stalled),
+ *  and [1] is its toast too. Positional: [0] a spent usage limit, [1] anything else. */
+export const CLAUDE_STALLED_APOLOGIES: readonly string[] = [
+    "Sorry, looks like I've hit a usage limit. Let's pick this up later.",
+    "Sorry, I'm having trouble responding right now. Let's try again in a moment.",
 ];
 
 export const COMMON_OPENERS: readonly string[] = [
@@ -941,6 +949,7 @@ export class PromptBuilder {
 // the pairing can't race initialization).
 registerZhPool(CHECK_IN_PROMPTS, ZH_CHECK_IN_PROMPTS);
 registerZhPool(EMPTY_REPLY_FALLBACKS, ZH_EMPTY_REPLY_FALLBACKS);
+registerZhPool(CLAUDE_STALLED_APOLOGIES, ZH_CLAUDE_STALLED_APOLOGIES);
 registerZhPool(HOLD_REENTRY_LINES, ZH_HOLD_REENTRY_LINES);
 registerZhPool(COMMON_OPENERS, ZH_COMMON_OPENERS);
 registerZhPool(MINIMAL_OPENERS, ZH_MINIMAL_OPENERS);
