@@ -33,7 +33,8 @@ From the last round's notes, none of it holding the release:
 - Answers on the setup screen came "with some delays, but overall fine".
   Not looked into.
 - Asked for, done after the merge and unseen by Alex: the
-  session's mic button showing that it is opening, an "Introduction voice"
+  session's mic button showing that it is opening and the setup mic matching
+  it (grey, with a slow breath), an "Introduction voice"
   control and a two-line "Play a sound on your turn" on the noting tab, and
   a shorter first round of adaptive noting.
 - Editing noting participants by voice is hard (`meditation-pal-86z1`).
