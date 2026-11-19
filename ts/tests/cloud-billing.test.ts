@@ -14,6 +14,7 @@ import {
     declineGift,
 } from '../ui/src/cloud-billing.js';
 import { setCloudAuthBackend } from '../ui/src/cloud-auth.js';
+import { setUiLang } from '../ui/src/i18n.js';
 import type { KvStorage } from '../src/platform/storage.js';
 
 class MemoryKv implements KvStorage {
@@ -44,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    setUiLang('en');
 });
 
 describe('fetchPacks', () => {
@@ -63,6 +65,12 @@ describe('fetchPacks', () => {
     it('throws a friendly message on a non-OK response', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
         await expect(fetchPacks()).rejects.toThrow(/couldn't load credit packs/i);
+    });
+
+    it('words that message in the language current when it fails', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+        setUiLang('zh');
+        await expect(fetchPacks()).rejects.toThrow('无法加载积分包（500）。');
     });
 });
 

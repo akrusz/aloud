@@ -8,6 +8,7 @@
 
 import { cloudUrl } from './cloud-base.js';
 import { getCloudToken } from './cloud-auth.js';
+import { t } from './i18n.js';
 
 /** Mirrors the server's CreditPack (ts/server/src/billing/stripe.ts). */
 export interface CreditPack {
@@ -52,7 +53,7 @@ export interface BillingPacks {
  *  Throws on non-OK so the caller can surface "couldn't load packs". */
 export async function fetchPacks(): Promise<BillingPacks> {
     const res = await fetch(cloudUrl('/me/packs'));
-    if (!res.ok) throw new Error(`Couldn't load credit packs (${res.status}).`);
+    if (!res.ok) throw new Error(t("Couldn't load credit packs ({status}).", { status: res.status }));
     const data = (await res.json()) as {
         packs?: CreditPack[];
         x402?: X402Capability;
@@ -77,7 +78,7 @@ export async function startCheckout(
     giftToEmail?: string
 ): Promise<string> {
     const token = await getCloudToken();
-    if (!token) throw new Error('Sign in to buy credits.');
+    if (!token) throw new Error(t('Sign in to buy credits.'));
     const res = await fetch(cloudUrl('/billing/checkout'), {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -94,12 +95,12 @@ export async function startCheckout(
     if (!res.ok) {
         const msg =
             res.status === 503 || res.status === 500
-                ? 'Purchasing is temporarily unavailable. Please try again later.'
-                : `Couldn't start checkout (${res.status}).`;
+                ? t('Purchasing is temporarily unavailable. Please try again later.')
+                : t("Couldn't start checkout ({status}).", { status: res.status });
         throw new Error(msg);
     }
     const data = (await res.json()) as { checkoutUrl?: string };
-    if (!data.checkoutUrl) throw new Error('Checkout did not return a URL.');
+    if (!data.checkoutUrl) throw new Error(t('Checkout did not return a URL.'));
     return data.checkoutUrl;
 }
 
@@ -129,7 +130,7 @@ export interface GiftView {
 
 async function authed(path: string, init?: RequestInit): Promise<Response> {
     const token = await getCloudToken();
-    if (!token) throw new Error('Sign in required.');
+    if (!token) throw new Error(t('Sign in required.'));
     return fetch(cloudUrl(path), {
         ...init,
         headers: { ...(init?.headers ?? {}), authorization: `Bearer ${token}` },
@@ -159,13 +160,13 @@ export async function fetchGiftInbox(): Promise<GiftInbox> {
 /** Accept a gift; its clouds are credited to the signed-in account. */
 export async function acceptGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/accept`, { method: 'POST' });
-    if (!res.ok) throw new Error('This gift is no longer available.');
+    if (!res.ok) throw new Error(t('This gift is no longer available.'));
 }
 
 /** Decline a gift; it bounces back to the buyer as a returned gift. */
 export async function declineGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/decline`, { method: 'POST' });
-    if (!res.ok) throw new Error('This gift is no longer available.');
+    if (!res.ok) throw new Error(t('This gift is no longer available.'));
 }
 
 /** A bounced gift the signed-in BUYER can re-gift or claim. Mirrors the server's
@@ -197,7 +198,7 @@ export async function regiftReturned(id: string, email: string): Promise<void> {
         body: JSON.stringify({ email }),
     });
     if (!res.ok) {
-        let msg = 'Could not re-gift this.';
+        let msg = t('Could not re-gift this.');
         try {
             msg = ((await res.json()) as { error?: { message?: string } }).error?.message ?? msg;
         } catch {
@@ -210,5 +211,5 @@ export async function regiftReturned(id: string, email: string): Promise<void> {
 /** Claim a returned gift to the signed-in account's own balance. */
 export async function claimReturnedGift(id: string): Promise<void> {
     const res = await authed(`/gifts/${encodeURIComponent(id)}/claim`, { method: 'POST' });
-    if (!res.ok) throw new Error('This gift is no longer available.');
+    if (!res.ok) throw new Error(t('This gift is no longer available.'));
 }

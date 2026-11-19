@@ -7,6 +7,7 @@
  */
 
 import { recordToastError } from './error-log.js';
+import { t } from './i18n.js';
 
 const TOAST_DURATION_MS = 5000;
 const FADE_MS = 300;
@@ -60,7 +61,7 @@ let savedEl: HTMLDivElement | null = null;
 let savedHideTimer: number | undefined;
 
 /** Small transient "Saved!" acknowledgment for auto-applying forms. */
-export function showSavedTick(message = 'Saved!'): void {
+export function showSavedTick(message = t('Saved!')): void {
     if (typeof document === 'undefined') return;
     if (!savedEl || !savedEl.isConnected) {
         savedEl = document.createElement('div');

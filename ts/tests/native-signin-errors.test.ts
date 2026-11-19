@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { describeAuthError, nativeAuthErrorMessage } from '../ui/src/native-signin.js';
+import { setUiLang } from '../ui/src/i18n.js';
+
+afterEach(() => setUiLang('en'));
 
 describe('nativeAuthErrorMessage', () => {
     it('names the code when the plugin gives no message', () => {
@@ -50,6 +53,16 @@ describe('nativeAuthErrorMessage', () => {
         expect(
             nativeAuthErrorMessage({ code: 'USER_CANCELLED', message: 'Google Sign-In cancelled by user' }, 'Google')
         ).toBe(line);
+    });
+
+    it('speaks the language set when the error happens, not when the module loaded', () => {
+        setUiLang('zh');
+        expect(nativeAuthErrorMessage({ code: 10 }, 'Google')).toBe(
+            'Google 登录失败（代码 10）。请重试，或使用下方的邮箱登录。'
+        );
+        expect(nativeAuthErrorMessage({ code: '12501' }, 'Google')).toBe('登录未完成。');
+        setUiLang('en');
+        expect(nativeAuthErrorMessage({ code: '12501' }, 'Google')).toBe("Sign-in didn't complete.");
     });
 
     it('describeAuthError renders a plugin rejection instead of [object Object]', () => {

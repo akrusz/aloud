@@ -23,6 +23,7 @@ import {
     type AuthResponse,
 } from './cloud-auth.js';
 import { appUrl } from './app-base.js';
+import { t } from './i18n.js';
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
@@ -89,9 +90,9 @@ function loadGis(): Promise<GoogleAccountsId> {
         script.onload = () => {
             const id = (window as GisWindow).google?.accounts?.id;
             if (id) resolve(id);
-            else reject(new Error('Google Identity Services loaded but is unavailable'));
+            else reject(new Error(t('Google Identity Services loaded but is unavailable')));
         };
-        script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+        script.onerror = () => reject(new Error(t('Failed to load Google Identity Services')));
         document.head.appendChild(script);
     });
     return scriptPromise;
@@ -102,7 +103,7 @@ function loadGis(): Promise<GoogleAccountsId> {
 function makeCallback(handlers: SignInHandlers): (r: CredentialResponse) => void {
     return (response) => {
         if (!response.credential) {
-            handlers.onError?.(new Error('Google sign-in returned no credential'));
+            handlers.onError?.(new Error(t('Google sign-in returned no credential')));
             return;
         }
         googleSignIn(response.credential)
@@ -182,7 +183,7 @@ export function renderDesktopGoogleSignInButton(
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn btn-secondary signin-google-desktop-btn';
-    btn.textContent = 'Continue with Google';
+    btn.textContent = t('Continue with {provider}', { provider: 'Google' });
     btn.addEventListener('click', () => void runDesktopGoogleSignIn(btn, handlers));
     container.appendChild(btn);
     return true;
@@ -196,7 +197,7 @@ async function runDesktopGoogleSignIn(
     if (!clientId) return;
     const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Waiting for your browser…';
+    btn.textContent = t('Waiting for your browser…');
     try {
         // The embedded server runs the browser dance and returns the code,
         // blocking until the user finishes or it times out.
@@ -207,7 +208,7 @@ async function runDesktopGoogleSignIn(
         });
         if (!res.ok) {
             const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
-            throw new Error(msg || `Google sign-in failed (${res.status}).`);
+            throw new Error(msg || t('Google sign-in failed ({status}).', { status: res.status }));
         }
         const out = (await res.json()) as {
             code: string;

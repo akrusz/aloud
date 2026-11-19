@@ -35,6 +35,7 @@ import {
     type AuthResponse,
 } from './cloud-auth.js';
 import { isCapacitor, capacitorPlatform } from './is-desktop.js';
+import { t } from './i18n.js';
 
 function googleIosClientId(): string {
     return import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID ?? '';
@@ -101,6 +102,8 @@ function ensureInit(): Promise<SocialLogin> {
     return initPromise;
 }
 
+// English catalog keys here and in missingToken: t() where they're used, since
+// the language can change after this module loads.
 const SIGNIN_INCOMPLETE = "Sign-in didn't complete.";
 
 /** Compact, greppable rendering of a plugin rejection for adb logcat - the raw
@@ -144,13 +147,13 @@ export function nativeAuthErrorMessage(err: unknown, provider: string): string {
     // them apart from a message the plugin writes. True either way, and a
     // breadcrumb when it wasn't a cancel (meditation-pal-7bi9).
     if (/cancel|dismiss|abort/i.test(text) || code === '12501' || code === '1001') {
-        return SIGNIN_INCOMPLETE;
+        return t(SIGNIN_INCOMPLETE);
     }
 
     if (text) return code && !text.includes(code) ? `${text} (code ${code})` : text;
     return code
-        ? `${provider} sign-in failed (code ${code}). Try again, or use email below.`
-        : `${provider} sign-in failed. Try again, or use email below.`;
+        ? t('{provider} sign-in failed (code {code}). Try again, or use email below.', { provider, code })
+        : t('{provider} sign-in failed. Try again, or use email below.', { provider });
 }
 
 interface NativeProvider {
@@ -224,7 +227,7 @@ async function renderNativeButton(
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `btn btn-secondary ${provider.buttonClass}`;
-    btn.textContent = `Continue with ${provider.name}`;
+    btn.textContent = t('Continue with {provider}', { provider: provider.name });
     btn.addEventListener('click', () => void runNativeSignIn(provider, btn, handlers));
     container.appendChild(btn);
     return true;
@@ -237,7 +240,7 @@ async function runNativeSignIn(
 ): Promise<void> {
     const original = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Signing in…';
+    btn.textContent = t('Signing in…');
     try {
         let idToken: string | null | undefined;
         try {
@@ -249,7 +252,7 @@ async function runNativeSignIn(
             handlers.onError?.(new Error(nativeAuthErrorMessage(err, provider.name)));
             return;
         }
-        if (!idToken) throw new Error(provider.missingToken);
+        if (!idToken) throw new Error(t(provider.missingToken));
         handlers.onSignedIn(await provider.exchange(idToken));
     } catch (err) {
         handlers.onError?.(err instanceof Error ? err : new Error(String(err)));

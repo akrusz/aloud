@@ -16,6 +16,7 @@ import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
 import { isDevBypass } from './app-mode.js';
+import { t } from './i18n.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
 const TOKEN_KEY = 'server:token';
@@ -208,7 +209,9 @@ export async function deleteAccount(): Promise<void> {
         headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
-        throw new Error((await serverErrorMessage(res)) || `Could not delete the account (${res.status}).`);
+        throw new Error(
+            (await serverErrorMessage(res)) || t('Could not delete the account ({status}).', { status: res.status })
+        );
     }
     await signOutLocally();
 }
@@ -227,7 +230,9 @@ export async function signOutEverywhere(): Promise<void> {
         headers: { authorization: `Bearer ${token}` },
     });
     if (!res.ok && res.status !== 401) {
-        throw new Error((await serverErrorMessage(res)) || `Could not sign out everywhere (${res.status}).`);
+        throw new Error(
+            (await serverErrorMessage(res)) || t('Could not sign out everywhere ({status}).', { status: res.status })
+        );
     }
     await signOutLocally();
 }
@@ -290,10 +295,10 @@ async function postAuthAndCache(
     return body;
 }
 
+const cloudSignInFailed = (status: number): string => t('aloud cloud sign-in failed ({status}).', { status });
+
 const googleSignInError = (status: number): string =>
-    status === 401
-        ? 'Google sign-in was rejected. Please try again.'
-        : `aloud cloud sign-in failed (${status}).`;
+    status === 401 ? t('Google sign-in was rejected. Please try again.') : cloudSignInFailed(status);
 
 /** POST /cloud/v1/auth/google: exchange a Google ID token for a session
  *  (meditation-pal-rfb). The server verifies against Google's JWKS and signs in,
@@ -318,9 +323,7 @@ export function desktopGoogleSignIn(args: {
  *  (meditation-pal-s75). Same connect semantics as Google. */
 export function appleSignIn(idToken: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/apple', { idToken }, (status) =>
-        status === 401
-            ? 'Apple sign-in was rejected. Please try again.'
-            : `aloud cloud sign-in failed (${status}).`
+        status === 401 ? t('Apple sign-in was rejected. Please try again.') : cloudSignInFailed(status)
     );
 }
 
@@ -333,16 +336,14 @@ export function emailSignup(
     emailUpdates = false
 ): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/signup', { email, password, emailUpdates }, () =>
-        'Could not create the account. Please try again.'
+        t('Could not create the account. Please try again.')
     );
 }
 
 /** POST /cloud/v1/auth/email/login. */
 export function emailLogin(email: string, password: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/login', { email, password }, (status) =>
-        status === 401
-            ? 'Incorrect email or password.'
-            : `aloud cloud sign-in failed (${status}).`
+        status === 401 ? t('Incorrect email or password.') : cloudSignInFailed(status)
     );
 }
 
@@ -352,8 +353,8 @@ export function emailLogin(email: string, password: string): Promise<AuthRespons
 export function setCloudPassword(password: string): Promise<AuthResponse> {
     return postAuthAndCache('/auth/email/set-password', { password }, (status) =>
         status === 401
-            ? 'Please sign in again to set a password.'
-            : `Could not set the password (${status}).`
+            ? t('Please sign in again to set a password.')
+            : t('Could not set the password ({status}).', { status })
     );
 }
 
@@ -367,7 +368,7 @@ export async function setEmailUpdates(optIn: boolean): Promise<AccountView> {
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ emailUpdates: optIn }),
     });
-    if (!res.ok) throw new Error(`Could not save the preference (${res.status}).`);
+    if (!res.ok) throw new Error(t('Could not save the preference ({status}).', { status: res.status }));
     await adoptRefreshedToken(res);
     return (await res.json()) as AccountView;
 }

@@ -13,6 +13,7 @@
  */
 
 import { appleClientId, appleSignIn, type AuthResponse } from './cloud-auth.js';
+import { t } from './i18n.js';
 
 const APPLE_JS_SRC =
     'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
@@ -57,9 +58,9 @@ function loadAppleJs(): Promise<AppleAuthApi> {
         script.onload = () => {
             const auth = (window as AppleWindow).AppleID?.auth;
             if (auth) resolve(auth);
-            else reject(new Error('Sign in with Apple loaded but is unavailable'));
+            else reject(new Error(t('Sign in with Apple loaded but is unavailable')));
         };
-        script.onerror = () => reject(new Error('Failed to load Sign in with Apple'));
+        script.onerror = () => reject(new Error(t('Failed to load Sign in with Apple')));
         document.head.appendChild(script);
     });
     return scriptPromise;
@@ -93,14 +94,14 @@ export async function renderAppleSignInButton(
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'apple-signin-button';
-    btn.innerHTML = `<span aria-hidden="true"></span>Continue with Apple`;
+    btn.innerHTML = `<span aria-hidden="true"></span>${t('Continue with {provider}', { provider: 'Apple' })}`;
     btn.addEventListener('click', () => {
         btn.disabled = true;
         auth
             .signIn()
             .then((res) => {
                 const idToken = res.authorization?.id_token;
-                if (!idToken) throw new Error('Apple sign-in returned no identity token');
+                if (!idToken) throw new Error(t('Apple sign-in returned no identity token'));
                 return appleSignIn(idToken);
             })
             .then(handlers.onSignedIn)
