@@ -106,7 +106,6 @@ import { startMicMeter } from '../mic-meter.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { createLocalSetupReader, readsSetupLocally } from '../setup-local-reader.js';
 import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
-import { heardNote } from '../heard-note.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -1599,7 +1598,7 @@ export async function mountSetupView(
         if (!actions) {
             // What came to nothing is shown as heard, so a mishearing reads
             // as one and not as a mic that isn't working.
-            const said = heardNote(text);
+            const said = text.trim().replace(/[.。!?！？…]+$/u, '');
             if (said) showVoiceNote(t('Heard "{text}"', { text: HEARD_SLOT }), true, said);
             return false;
         }
