@@ -187,6 +187,23 @@ export function bargesInOnOwnStream(o: {
 export const PLAYBACK_TAIL_MS = 250;
 
 /**
+ * Before a turn opens after a line in a voice echo cancellation can't remove:
+ * wait until PLAYBACK_TAIL_MS past its end, then have a capture engine keep
+ * only the onset audio it heard after that. Its stream stays open between
+ * turns and the turn opens with the last two seconds it heard
+ * (WhisperPcmSttEngine.keepOnsetTail), which can be her last words.
+ */
+export async function waitOutUncancelledVoice(
+    endedAt: number,
+    onset: { keepOnsetTail(ms: number): void } | null,
+    now: () => number = Date.now
+): Promise<void> {
+    const wait = endedAt + PLAYBACK_TAIL_MS - now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    onset?.keepOnsetTail(now() - endedAt - PLAYBACK_TAIL_MS);
+}
+
+/**
  * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
  * listener fires, tts.cancel() resolves the in-flight speak(). Pure
  * pass-through otherwise, and for a voice echo cancellation can't remove

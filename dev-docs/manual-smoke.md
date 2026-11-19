@@ -164,6 +164,10 @@ Desktop, hosted GPT speech recognition:
       and none of her words come back as your turn; answer her two or three
       times. Talking over her still does nothing, and an answer begun just
       after she stops arrives whole.
+- [ ] **Noting on Zoe, Parakeet.** Untick "Play a sound on your turn" and
+      begin a noting session with a participant in a macOS voice. Say each
+      note as soon as it is your turn: none comes back with the participant's
+      word, or the opener's last words, in front of it.
 - [ ] **A sample at Begin.** On the setup screen say "set the voice to Zoe"
       (or another macOS voice) and click Begin before her sample is over: the
       sample stops, and only the opening sound plays until her first line.

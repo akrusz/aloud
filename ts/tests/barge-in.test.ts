@@ -1,6 +1,12 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { bargesInOnOwnStream, voiceEchoCancelled, wrapTtsWithBargeIn } from '../ui/src/barge-in.js';
+import {
+    PLAYBACK_TAIL_MS,
+    bargesInOnOwnStream,
+    voiceEchoCancelled,
+    waitOutUncancelledVoice,
+    wrapTtsWithBargeIn,
+} from '../ui/src/barge-in.js';
 import { BrowserTtsEngine } from '../ui/src/adapters/browser-tts.js';
 import type { TtsEngine, TtsOptions, TtsVoice } from '../src/platform/index.js';
 
@@ -107,5 +113,38 @@ describe('bargesInOnOwnStream', () => {
     it('is never on for a recognizer with no stream of ours', () => {
         expect(bargesInOnOwnStream({ backend: 'web-speech', ...desk, voiceEchoCancelled: true })).toBe(false);
         expect(bargesInOnOwnStream({ backend: 'capacitor', ...desk, voiceEchoCancelled: true })).toBe(false);
+    });
+});
+
+describe('waitOutUncancelledVoice', () => {
+    afterEach(() => vi.useRealTimers());
+
+    const onsetBuffer = () => {
+        const kept: number[] = [];
+        return { kept, keepOnsetTail: (ms: number) => void kept.push(ms) };
+    };
+
+    // A noting turn opening 100ms after a participant's line in a voice the
+    // OS speaks: nothing of the line, or of its tail, may open the note.
+    it('opens the turn only past the tail, with no onset from before it', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(10_000);
+        const onset = onsetBuffer();
+        let open = false;
+        const waiting = waitOutUncancelledVoice(Date.now() - 100, onset).then(() => (open = true));
+        await vi.advanceTimersByTimeAsync(PLAYBACK_TAIL_MS - 101);
+        expect(open).toBe(false);
+        expect(onset.kept).toEqual([]);
+        await vi.advanceTimersByTimeAsync(1);
+        await waiting;
+        expect(onset.kept).toEqual([0]);
+    });
+
+    it('keeps what was heard after the tail of a line long over, at once', async () => {
+        const onset = onsetBuffer();
+        const now = () => 20_000;
+        await waitOutUncancelledVoice(15_000, onset, now);
+        expect(onset.kept).toEqual([5_000 - PLAYBACK_TAIL_MS]);
+        await waitOutUncancelledVoice(15_000, null, now);
     });
 });

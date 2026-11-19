@@ -43,6 +43,8 @@ import { loadAppSettings, saveAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { createSttForChoice, sttChoiceForMode } from '../adapters/stt-picker.js';
+import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
+import { voiceEchoCancelled, waitOutUncancelledVoice } from '../barge-in.js';
 import { isWebMode } from '../app-mode.js';
 import { narratorSilencedForCloud } from '../cloud-gate.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
@@ -425,6 +427,9 @@ export async function mountNotingSessionView(
     let muted = false;
     let torn = false;
     let waitTimer: ReturnType<typeof setTimeout> | null = null;
+    // When the last line in a voice echo cancellation can't remove (a voice
+    // the OS speaks: voiceEchoCancelled) ended, if one has spoken.
+    let uncancelledEndedAt: number | null = null;
 
     function participantName(index: number): string {
         const p = participants[index];
@@ -533,6 +538,14 @@ export async function mountNotingSessionView(
      *  silence/error). */
     async function listenOnce(): Promise<string> {
         if (!stt) return '';
+        // After a voice the OS speaks the mic heard every word at full level,
+        // and a Whisper engine opens the turn with the two seconds before it:
+        // a note said soon after a participant's (or after the opener) would
+        // come back with their last words in it.
+        if (uncancelledEndedAt !== null) {
+            await waitOutUncancelledVoice(uncancelledEndedAt, stt instanceof WhisperPcmSttEngine ? stt : null);
+            if (torn || paused) return '';
+        }
         let partialEl: HTMLElement | null = null;
         let finalText = '';
         try {
@@ -686,13 +699,16 @@ export async function mountNotingSessionView(
         // TTS off: the circle runs silently, labels still appear and turns
         // still advance.
         if (!ttsEnabled) return;
+        let tts: TtsEngine | null = null;
         try {
-            const tts = await ttsFor(voiceId);
+            tts = await ttsFor(voiceId);
             await tts.speak(text, { rate: setup.ttsRate });
         } catch (err) {
             // TTS is optional (the circle continues text-only), but hosted
             // billing/auth failures get a toast instead of vanishing.
             surfaceCloudError(err);
+        } finally {
+            if (tts && !voiceEchoCancelled(tts)) uncancelledEndedAt = Date.now();
         }
     }
 
