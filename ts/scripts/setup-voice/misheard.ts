@@ -7,17 +7,17 @@
 import type { SetupAction } from '../../src/facilitation/setup-command.js';
 
 export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, expect: 'begin' | SetupAction[]]> = [
-    ["拜拜~","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 2x
-    ["詞:碧。","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["師傅","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["左面","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["收音咧","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["準備","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["上来","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["剩下。","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["随便。","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["请问，","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
-    ["请问。","慈悲",[{"kind":"quality","quality":"compassionate","on":true}]], // 1x
+    ["拜拜~","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 2x
+    ["詞:碧。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["師傅","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["左面","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["收音咧","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["準備","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["上来","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["剩下。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["随便。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["请问，","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
+    ["请问。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
     ["乾水","跟随",[{"kind":"guidance","to":0}]], // 2x
     ["，均衡，","跟随",[{"kind":"guidance","to":0}]], // 2x
     ["乾脆","跟随",[{"kind":"guidance","to":0}]], // 1x
@@ -80,15 +80,15 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["飞机。","切换到体会",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["切换，体会，","切换到体会",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["便欢迎赵集会，","切换到体会",[{"kind":"mode","mode":"felt_sense"}]], // 1x
-    ["不妃离。","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["很肥膩","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["不便宜!","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["沒被逼","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["好美","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["補廢力","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["主导，","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["剩下的一颗。","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
-    ["同时,","不费力",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
+    ["不妃离。","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["很肥膩","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["不便宜!","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["沒被逼","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["好美","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["補廢力","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["主导，","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["剩下的一颗。","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
+    ["同时,","不费力",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
     ["我的衣服是放鬆","我的意图是放松",[{"kind":"intention","text":"放松"}]], // 2x
     ["我這意圖寫法說","我的意图是放松",[{"kind":"intention","text":"放松"}]], // 1x
     ["我就一圖寫放鬆","我的意图是放松",[{"kind":"intention","text":"放松"}]], // 1x
@@ -151,22 +151,22 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Wanna...","one hour",[{"kind":"length","minutes":60}]], // 1x
     ["One other.","one hour",[{"kind":"length","minutes":60}]], // 1x
     ["Wanna.","one hour",[{"kind":"length","minutes":60}]], // 1x
-    ["Pops.","parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 2x
-    ["Paraps","parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
-    ["Bye!","parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
-    ["Perhaps.","parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
-    ["Pockets.","parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
+    ["Pops.","parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 2x
+    ["Paraps","parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
+    ["Bye!","parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
+    ["Perhaps.","parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
+    ["Pockets.","parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
     ["on check cards.","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
     ["uncheck pass","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
     ["unjacked parts","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
     ["On check cards.","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
     ["Uncheck paths.","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
     ["Project parts.","uncheck parts",[{"kind":"focus","focus":"inner_parts","on":false}]], // 1x
-    ["Maple.","playful",[{"kind":"quality","quality":"playful","on":true}]], // 2x
-    ["leafle.","playful",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["navel.","playful",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["Naples.","playful",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["Play full.","playful",[{"kind":"quality","quality":"playful","on":true}]], // 1x
+    ["Maple.","playful",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 2x
+    ["leafle.","playful",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["navel.","playful",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["Naples.","playful",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["Play full.","playful",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
     ["Maple and spacious.","playful and spacious",[{"kind":"quality","quality":"playful","on":true},{"kind":"quality","quality":"spacious","on":true}]], // 2x
     ["lethal and spacious.","playful and spacious",[{"kind":"quality","quality":"playful","on":true},{"kind":"quality","quality":"spacious","on":true}]], // 1x
     ["Playful and space shuttle.","playful and spacious",[{"kind":"quality","quality":"playful","on":true},{"kind":"quality","quality":"spacious","on":true}]], // 1x
@@ -274,10 +274,10 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["主要身體","只要身体",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"body_sensations","on":true}]], // 2x
     ["主要身体。","只要身体",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
     ["主要身体，","只要身体",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
-    ["去吧","轻松",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["謝謝","轻松",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["二十分钟，","轻松",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["感觉不错，","轻松",[{"kind":"quality","quality":"playful","on":true}]], // 1x
+    ["去吧","轻松",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["謝謝","轻松",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["二十分钟，","轻松",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
+    ["感觉不错，","轻松",[{"kind":"quality","quality":"playful","on":"toggle"}]], // 1x
     ["做好一些的。","多说一点",[{"kind":"verbosity","to":"up"}]], // 1x
     ["不要响我一点","多说一点",[{"kind":"verbosity","to":"up"}]], // 1x
     ["主导，","多说一点",[{"kind":"verbosity","to":"up"}]], // 1x
@@ -299,9 +299,9 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Let's play full.","less playful",[{"kind":"quality","quality":"playful","on":false}]], // 1x
     ["No play call.","no playful",[{"kind":"quality","quality":"playful","on":false}]], // 2x
     ["North Lefal.","no playful",[{"kind":"quality","quality":"playful","on":false}]], // 1x
-    ["Space Earth.","spacious",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
-    ["species","spacious",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
-    ["Species.","spacious",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
+    ["Space Earth.","spacious",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
+    ["species","spacious",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
+    ["Species.","spacious",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
     ["Clear the volumes.","clear the vibes",[{"kind":"clear","group":"quality"}]], // 1x
     ["Clear the vimes.","clear the vibes",[{"kind":"clear","group":"quality"}]], // 1x
     ["Clear the vioids.","clear the vibes",[{"kind":"clear","group":"quality"}]], // 1x
@@ -325,9 +325,9 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["提醒我去!","体会模式",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["你會不會選?","体会模式",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["提会，我许，","体会模式",[{"kind":"mode","mode":"felt_sense"}]], // 1x
-    ["太過","开阔",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
-    ["開箱","开阔",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
-    ["太过４","开阔",[{"kind":"quality","quality":"spacious","on":true}]], // 1x
+    ["太過","开阔",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
+    ["開箱","开阔",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
+    ["太过４","开阔",[{"kind":"quality","quality":"spacious","on":"toggle"}]], // 1x
     ["不要緊張","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
     ["主要请求，","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
     ["主要轻松。","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
@@ -343,11 +343,11 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Nothing.","noting",[{"kind":"mode","mode":"noting"}]], // 2x
     ["Open ending.","open-ended",[{"kind":"no-timer"}]], // 2x
     ["Let's make it open then do.","let's make it open-ended",[{"kind":"no-timer"}]], // 2x
-    ["Bogey.","body",[{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
-    ["Bobby.","body",[{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
-    ["Emotion.","emotions",[{"kind":"focus","focus":"emotions","on":true}]], // 2x
-    ["Inner paths.","inner parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
-    ["in our parts.","inner parts",[{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
+    ["Bogey.","body",[{"kind":"focus","focus":"body_sensations","on":"toggle"}]], // 1x
+    ["Bobby.","body",[{"kind":"focus","focus":"body_sensations","on":"toggle"}]], // 1x
+    ["Emotion.","emotions",[{"kind":"focus","focus":"emotions","on":"toggle"}]], // 2x
+    ["Inner paths.","inner parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
+    ["in our parts.","inner parts",[{"kind":"focus","focus":"inner_parts","on":"toggle"}]], // 1x
     ["Change the focus to balance.","change the focus to parts",[{"kind":"clear","group":"focus"},{"kind":"focus","focus":"inner_parts","on":true}]], // 2x
     ["Focus on emotions and paths.","focus on emotions and parts",[{"kind":"focus","focus":"emotions","on":true},{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
     ["Focus on emotions and heart.","focus on emotions and parts",[{"kind":"focus","focus":"emotions","on":true},{"kind":"focus","focus":"inner_parts","on":true}]], // 1x
@@ -372,8 +372,8 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["小伙伴中，","十分钟",[{"kind":"length","minutes":10}]], // 1x
     ["第一步小學","一个小时",[{"kind":"length","minutes":60}]], // 1x
     ["第一个小时，","一个小时",[{"kind":"length","minutes":60}]], // 1x
-    ["shut it!","身体",[{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
-    ["，计，","身体",[{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
+    ["shut it!","身体",[{"kind":"focus","focus":"body_sensations","on":"toggle"}]], // 1x
+    ["，计，","身体",[{"kind":"focus","focus":"body_sensations","on":"toggle"}]], // 1x
     ["多一點點到","多一点引导",[{"kind":"guidance","to":"up"}]], // 1x
     ["多一點點,搞!","多一点引导",[{"kind":"guidance","to":"up"}]], // 1x
     ["小意思啊,也在。","少一点引导",[{"kind":"guidance","to":"down"}]], // 1x
@@ -389,10 +389,10 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Let's do nothing.","let's do noting",[{"kind":"mode","mode":"noting"}]], // 1x
     ["Let's do a self-tent session.","let's do a felt sense session",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["Half and half and half.","half an hour",[{"kind":"length","minutes":30}]], // 1x
-    ["Bodhian Sensations.","body and sensations",[{"kind":"focus","focus":"body_sensations","on":true}]], // 1x
+    ["Bodhian Sensations.","body and sensations",[{"kind":"focus","focus":"body_sensations","on":"toggle"}]], // 1x
     ["Drop the motion.","drop emotions",[{"kind":"focus","focus":"emotions","on":false}]], // 1x
     ["Add clay foil.","add playful",[{"kind":"quality","quality":"playful","on":true}]], // 1x
-    ["And for goodness.","effortless",[{"kind":"quality","quality":"effortless","on":true}]], // 1x
+    ["And for goodness.","effortless",[{"kind":"quality","quality":"effortless","on":"toggle"}]], // 1x
     ["Turn off effort later.","turn off effortless",[{"kind":"quality","quality":"effortless","on":false}]], // 1x
     ["Drop the spacious vide","drop the spacious vibe",[{"kind":"quality","quality":"spacious","on":false}]], // 1x
     ["Less Dydons.","less guidance",[{"kind":"guidance","to":"down"}]], // 1x
@@ -402,5 +402,5 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["add label and shorter responses","add playful and shorter responses",[{"kind":"quality","quality":"playful","on":true},{"kind":"verbosity","to":"down"}]], // 1x
     ["Switch who felt sense.","switch to felt sense",[{"kind":"mode","mode":"felt_sense"}]], // 1x
     ["Clear mind, intention.","clear my intention",[{"kind":"intention","text":""}]], // 1x
-    ["感觉不会错","感觉不错",[{"kind":"quality","quality":"feeling_good","on":true}]], // 1x
+    ["感觉不会错","感觉不错",[{"kind":"quality","quality":"feeling_good","on":"toggle"}]], // 1x
 ];

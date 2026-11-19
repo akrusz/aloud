@@ -1,7 +1,7 @@
 SETUP-SCREEN SPEECH THROUGH LOCAL WHISPER (synthetic voices)
 Synthetic macOS voices through one recognizer: good for systematic mishearings and the
 prompt's effect, not a measure of accuracy in a real room with a real voice.
-Scored with the parser as of 2026-11-15T02:11:40.073Z.
+Scored with the parser as of 2026-11-19T07:10:39.077Z.
 
 en: ggml-base.en.bin; voices: Samantha (English (US)), Daniel (English (UK)), Rishi (English (India)), Ava (Premium), Moira (English (Ireland)), Reed (English (US)), Karen, Eddy (English (UK)), Tessa (English (South Africa))
   scope: core voices clean+noisy on every phrase; every third phrase far (one core voice) and one extra voice clean+noisy
@@ -13,7 +13,7 @@ zh: ggml-base.bin; voices: Tingting (Chinese (China mainland)), Eddy (Chinese (C
 rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 12 dB SNR);
        far (highpass=f=120,lowpass=f=3000,aecho=0.8:0.6:29|67|121|188:0.45|0.3|0.2|0.12; speech -36 dBFS, noise at 6 dB SNR)
 
-== 1. Parser on the written phrases (no audio): 0 of 241 not as labelled
+== 1. Parser on the written phrases (no audio): 0 of 251 not as labelled
 
 == 2. Command phrases: exact / wrong (a different change, or a begin) / missed
   lang room      n        no prompt: exact  wrong   miss     with prompt: exact  wrong   miss
