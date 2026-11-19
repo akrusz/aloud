@@ -32,7 +32,7 @@ From the last round's notes, none of it holding the release:
   voice's own fault at Azure (`meditation-pal-tapb`).
 - Answers on the setup screen came "with some delays, but overall fine".
   Not looked into.
-- Asked for, on `stt-incremental` after the merge and unseen by Alex: the
+- Asked for, done after the merge and unseen by Alex: the
   session's mic button showing that it is opening, an "Introduction voice"
   control and a two-line "Play a sound on your turn" on the noting tab, and
   a shorter first round of adaptive noting.
