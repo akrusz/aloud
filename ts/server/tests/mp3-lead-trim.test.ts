@@ -160,12 +160,44 @@ describe('leadFor', () => {
         expect(leadFor(resolveVoice('Leda'), 'Back to Exploration.')).toBeNull();
     });
 
-    it('expects one burst of a short input, and a short opening burst per early mark', () => {
+    it('expects one burst of a short input, and a short opening burst per short opening phrase', () => {
         expect(leadExpect("That's good.")).toBe('one-burst');
-        expect(leadExpect('Back to Exploration, which is the best place to start.')).toEqual({ shortOpenings: 0 });
         expect(leadExpect('Yes, I hear that there is some tension.')).toEqual({ shortOpenings: 1 });
-        expect(leadExpect('So \u2014 where were we, before the timer?')).toEqual({ shortOpenings: 1 });
         expect(leadExpect('Yes, yes, I hear that there is some tension.')).toEqual({ shortOpenings: 2 });
+        expect(leadExpect('So \u2014 where were we, before the timer?')).toEqual({ shortOpenings: 2 });
+        expect(leadExpect("That makes sense. What's the tightness like right now?")).toEqual({ shortOpenings: 1 });
+        expect(leadExpect('Take your time. Let it move on its own.')).toEqual({ shortOpenings: 1 });
+        expect(leadExpect('Does it feel firm, soft, or somewhere in between?')).toEqual({ shortOpenings: 2 });
+        expect(leadExpect('Back to Exploration, which is the best place to start.')).toEqual({ shortOpenings: 1 });
+        // A first phrase too long to come back under maxLeadS, and one with nothing after it.
+        expect(leadExpect('Where do you feel the clenching most? Stay with that spot.')).toEqual({ shortOpenings: 0 });
+        expect(leadExpect('Notice where the breath is easiest to feel.')).toEqual({ shortOpenings: 0 });
+    });
+
+    describe('takes behind a short opening phrase (Harper, raw takes of 2026-11-19)', () => {
+        /** Frames for [gain, seconds] spans, at Azure's 24 ms a frame. */
+        const shape = (...spans: [number, number][]) => concat(...spans.map(([gain, s]) => run(Math.round(s / 0.024), gain)));
+        const takeYourTime = 'Take your time. Let it move on its own.';
+        const cutBefore = (mp3: Uint8Array, frames: number) => mp3.length - (frames - KEEP) * 288;
+
+        it('keeps a good take whose short first sentence came back under maxLeadS, cut at that sentence', () => {
+            // "Okay. | Take your time. | Let it move on its own." (raw/C2-t1)
+            const good = shape([LEAD, 0.55], [QUIET, 0.79], [SPEECH, 0.98], [QUIET, 0.91], [SPEECH, 2.04]);
+            expect(trimLead(good, leadExpect(takeYourTime))!.length).toBe(cutBefore(good, 23 + 33));
+            // "Okay. | That makes sense. | What's the tightness..." (raw/C1-t4)
+            const sense = shape([LEAD, 0.43], [QUIET, 1.61], [SPEECH, 0.72], [QUIET, 1.32], [SPEECH, 2.4]);
+            expect(trimLead(sense, leadExpect("That makes sense. What's the tightness like right now?"))!.length).toBe(cutBefore(sense, 18 + 67));
+        });
+
+        it('still declines the lead said twice, a stall past the opening phrase, and a lead run into the text', () => {
+            const twice = shape([LEAD, 0.55], [QUIET, 0.79], [LEAD, 0.55], [QUIET, 0.79], [SPEECH, 0.98], [QUIET, 0.91], [SPEECH, 2.04]);
+            expect(trimLead(twice, leadExpect(takeYourTime))).toBeNull();
+            // "Take your time. | Let it | move on its own." (raw/C2-t3)
+            const stall = shape([LEAD, 0.53], [QUIET, 0.7], [SPEECH, 0.82], [QUIET, 0.84], [SPEECH, 0.65], [QUIET, 0.48], [SPEECH, 2.23]);
+            expect(trimLead(stall, leadExpect(takeYourTime))).toBeNull();
+            const runIn = shape([LEAD, 0.55], [SPEECH, 0.98], [QUIET, 0.91], [SPEECH, 2.04]);
+            expect(trimLead(runIn, leadExpect(takeYourTime))).toBeNull();
+        });
     });
 
     it('is what Azure bills, lead included', () => {

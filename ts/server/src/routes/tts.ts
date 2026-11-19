@@ -67,14 +67,25 @@ export function leadFor(resolved: ResolvedVoice, text: string): string | null {
  *  included, twice now and then (meditation-pal-1c9h). */
 const SHORT_INPUT_CHARS = 24;
 
+/** A phrase of at most this many letters and digits can be said in under
+ *  LEAD_TRIM.maxLeadS, and so comes back as a short burst of its own: behind
+ *  the lead, Harper said "Take your time." in 0.82-0.98s and "That makes
+ *  sense." in 0.72-1.06s, and her fastest speech runs about 50ms a letter
+ *  (2026-11-19). */
+const SHORT_PHRASE_CHARS = 20;
+
 /** What the speech behind the lead should look like for `text` (LeadExpect):
- *  one burst for a short input, otherwise as many short opening bursts as
- *  there are marks in its first two words, short of its last. */
+ *  one burst for a short input, otherwise one short opening burst for each
+ *  short phrase (SHORT_PHRASE_CHARS, up to a mark) it opens with, short of
+ *  its last. */
 export function leadExpect(text: string): LeadExpect {
     if (text.length < SHORT_INPUT_CHARS) return 'one-burst';
-    const words = text.trim().split(/\s+/);
-    const marks = words.slice(0, Math.min(2, words.length - 1)).filter((w) => /[,.;:!?\u2026\u2013\u2014]$/.test(w));
-    return { shortOpenings: marks.length };
+    const phrases = text.trim().split(/(?<=[,.;:!?\u2026\u2013\u2014])\s+/);
+    let shortOpenings = 0;
+    while (shortOpenings < phrases.length - 1 && (phrases[shortOpenings]!.match(/[\p{L}\p{N}]/gu)?.length ?? 0) <= SHORT_PHRASE_CHARS) {
+        shortOpenings++;
+    }
+    return { shortOpenings };
 }
 
 /** The rate actually synthesized: the caller's request scaled by the curated
