@@ -85,7 +85,8 @@ Then:
       meditate using your voice…", and after its line "By the way, you can
       say 'back' or 'next' to control this tour."
 
-**From the notes on this pass** (fixed 2026-11-18, none of it heard yet).
+**From the notes on this pass** (fixed 2026-11-18, none of it heard yet
+but the mute).
 Desktop, hosted GPT speech recognition:
 
 - [x] **Mute mid-line.** Ask for four sentences, click mute a second into
@@ -110,7 +111,8 @@ Desktop, hosted GPT speech recognition:
       around" and "Turn on the microphone". As the second voice finishes
       introducing itself, pick one at once. Every line starts on its first
       word at full level; the pick's answer may start a second or two late,
-      which is the mic settling. On the Bluetooth headset too, if it is in
+      which is the mic settling. Harper's "Hi, I'm Harper" has its "h" (the
+      clip was rendered again). On the Bluetooth headset too, if it is in
       reach (it was the route when Harper's first line came in quiet). The
       log settles it:
 
@@ -148,17 +150,26 @@ Desktop, hosted GPT speech recognition:
 **Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
 
 - [/] **Sounds.** Begin a noting session on Harper: the opening sound and the
-      chime are heard.
+      chime are heard. (2026-11-18: heard, but rough and with a skip, on a
+      Bluetooth headset that the desktop app's lit setup mic was holding in
+      call mode, `meditation-pal-n3m3`. Once more on the speakers, or with
+      the desktop app closed.)
 - [x] **Harper.** In exploration, ask "tell me in three or four sentences
       what we'll do" and talk over the second: she stops within a beat,
       nothing more plays, and the bubble ends where you cut in. Press the
       keyboard's Play/Pause during a line: nothing happens.
 - [?] **Google UK English Female** (what a signed-out "Use a free voice"
       gets). Let one reply play without speaking: it plays whole. Talk over
-      the next: the same as Harper.
+      the next: the same as Harper. (2026-11-18: the first line of one
+      session stopped half a second in, once, on Bluetooth, and no cause was
+      found. If it happens again send a bug report straight away: its log
+      now says whether barge-in cut the line, `[vad] wrapper barge-in`.)
 - [fail] **Ava**, or another macOS voice. A reply plays in whole sentences, not
       cut after each first word. Talking over her does nothing, which is
-      expected (`voiceEchoCancelled`).
+      expected (`voiceEchoCancelled`). (2026-11-18: on the browser's
+      recognizer she was fine. On Parakeet she answered her own first words,
+      and picked by voice her sample played over the opening sound; both
+      fixed, unheard, and checked by the three items below.)
 - [ ] **Zoe on hosted Parakeet.** Switch speech recognition to Parakeet and
       begin a session on Zoe (or another macOS voice). Every line plays whole
       and none of her words come back as your turn; answer her two or three
