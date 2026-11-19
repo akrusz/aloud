@@ -1865,7 +1865,7 @@ function renderLanguageSection(s: AppSettings): string {
                         <input type="checkbox" id="s-setup-voice"${s.setupVoice ? ' checked' : ''}>
                         <span>${t('Voice control on the setup screen')}</span>
                     </label>
-                    <span class="form-hint">${t('Speak naturally on the setup screen to configure or begin a session. The mic intelligently goes to sleep if idle.')}</span>
+                    <span class="form-hint">${t('Speak naturally on the setup screen to configure or begin a session. The mic may go to sleep if idle.')}</span>
                 </div>
             </div>
         </div>
