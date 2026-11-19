@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 
-import { bargeInDetectorFits, wrapTtsWithBargeIn } from '../ui/src/barge-in.js';
+import { bargesInOnOwnStream, voiceEchoCancelled, wrapTtsWithBargeIn } from '../ui/src/barge-in.js';
 import { BrowserTtsEngine } from '../ui/src/adapters/browser-tts.js';
 import type { TtsEngine, TtsOptions, TtsVoice } from '../src/platform/index.js';
 
@@ -40,23 +40,24 @@ describe('wrapTtsWithBargeIn', () => {
     });
 });
 
-describe('bargeInDetectorFits', () => {
+const voices = [
+    { name: 'Ava (Premium)', voiceURI: 'Ava (Premium)', localService: true },
+    { name: 'Zoe (Premium)', voiceURI: 'Zoe (Premium)', localService: true },
+    { name: 'Google UK English Female', voiceURI: 'Google UK English Female', localService: false },
+];
+const browserVoice = (name?: string) => new BrowserTtsEngine(name ? { defaultVoice: name } : {});
+
+describe('voiceEchoCancelled', () => {
     afterEach(() => vi.unstubAllGlobals());
 
-    const voices = [
-        { name: 'Ava (Premium)', voiceURI: 'Ava (Premium)', localService: true },
-        { name: 'Google UK English Female', voiceURI: 'Google UK English Female', localService: false },
-    ];
-    const browserVoice = (name?: string) => new BrowserTtsEngine(name ? { defaultVoice: name } : {});
-
-    it('keeps the detector away from a voice the OS speaks, and only from those', () => {
+    it('is false for a voice the OS speaks, and only for those', () => {
         vi.stubGlobal('speechSynthesis', { getVoices: () => voices });
-        expect(bargeInDetectorFits(browserVoice('Ava (Premium)'))).toBe(false);
-        expect(bargeInDetectorFits(browserVoice('Google UK English Female'))).toBe(true);
-        expect(bargeInDetectorFits(new RecordingTts())).toBe(true);
+        expect(voiceEchoCancelled(browserVoice('Ava (Premium)'))).toBe(false);
+        expect(voiceEchoCancelled(browserVoice('Google UK English Female'))).toBe(true);
+        expect(voiceEchoCancelled(new RecordingTts())).toBe(true);
         // The OS default speaks for both of these.
-        expect(bargeInDetectorFits(browserVoice())).toBe(false);
-        expect(bargeInDetectorFits(browserVoice('Not Installed'))).toBe(false);
+        expect(voiceEchoCancelled(browserVoice())).toBe(false);
+        expect(voiceEchoCancelled(browserVoice('Not Installed'))).toBe(false);
     });
 
     it('opens no mic beside an OS voice, and one beside a voice the browser plays', async () => {
@@ -72,5 +73,39 @@ describe('bargeInDetectorFits', () => {
         expect(getUserMedia).not.toHaveBeenCalled();
         await speaking('Google UK English Female');
         expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('bargesInOnOwnStream', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    const desk = { iosWeb: false, iosHeadphones: false };
+
+    // Zoe on hosted Parakeet in Chrome (2026-11-18): the stream barged in on
+    // her a word or two into each line and sent those words as the
+    // meditator's turn. Beside such a voice the mic closes while she speaks.
+    it('is off beside a voice the OS speaks, on a recognizer with its own stream', () => {
+        vi.stubGlobal('speechSynthesis', { getVoices: () => voices });
+        const zoe = voiceEchoCancelled(browserVoice('Zoe (Premium)'));
+        expect(bargesInOnOwnStream({ backend: 'server-whisper', ...desk, voiceEchoCancelled: zoe })).toBe(false);
+    });
+
+    it('stays on beside a voice echo cancellation hears', () => {
+        vi.stubGlobal('speechSynthesis', { getVoices: () => voices });
+        const google = voiceEchoCancelled(browserVoice('Google UK English Female'));
+        const hosted = voiceEchoCancelled(new RecordingTts());
+        expect(bargesInOnOwnStream({ backend: 'server-whisper', ...desk, voiceEchoCancelled: google })).toBe(true);
+        expect(bargesInOnOwnStream({ backend: 'server-whisper', ...desk, voiceEchoCancelled: hosted })).toBe(true);
+    });
+
+    it('keeps the iPhone rule: off on its speaker, on with headphones', () => {
+        const iphone = { backend: 'server-whisper' as const, iosWeb: true, voiceEchoCancelled: true };
+        expect(bargesInOnOwnStream({ ...iphone, iosHeadphones: false })).toBe(false);
+        expect(bargesInOnOwnStream({ ...iphone, iosHeadphones: true })).toBe(true);
+    });
+
+    it('is never on for a recognizer with no stream of ours', () => {
+        expect(bargesInOnOwnStream({ backend: 'web-speech', ...desk, voiceEchoCancelled: true })).toBe(false);
+        expect(bargesInOnOwnStream({ backend: 'capacitor', ...desk, voiceEchoCancelled: true })).toBe(false);
     });
 });

@@ -158,7 +158,12 @@ Desktop, hosted GPT speech recognition:
       the next: the same as Harper.
 - [fail] **Ava**, or another macOS voice. A reply plays in whole sentences, not
       cut after each first word. Talking over her does nothing, which is
-      expected (`bargeInDetectorFits`).
+      expected (`voiceEchoCancelled`).
+- [ ] **Zoe on hosted Parakeet.** Switch speech recognition to Parakeet and
+      begin a session on Zoe (or another macOS voice). Every line plays whole
+      and none of her words come back as your turn; answer her two or three
+      times. Talking over her still does nothing, and an answer begun just
+      after she stops arrives whole.
 - [ ] **A sample at Begin.** On the setup screen say "set the voice to Zoe"
       (or another macOS voice) and click Begin before her sample is over: the
       sample stops, and only the opening sound plays until her first line.

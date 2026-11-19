@@ -7,8 +7,10 @@ heuristics below are tuned for typical conversation volume.
 
 ## Three pathways
 
-The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
-`bargesInOnOwnStream`: server-Whisper, except on an iPhone's speaker):
+The path is chosen by STT backend, platform and voice (`bargesInOnOwnStream`
+in `ts/ui/src/barge-in.ts`, read by `ts/ui/src/views/session.ts`:
+server-Whisper, except on an iPhone's speaker and beside a voice the OS
+speaks):
 
 1. **Engine-driven (server-Whisper)** - `ts/ui/src/adapters/whisper-pcm-stt.ts`.
    The adapter keeps a continuous, echo-cancelled capture stream alive between
@@ -23,7 +25,7 @@ The path is chosen by STT backend and platform (`ts/ui/src/views/session.ts`,
    normal listen loop wakes (busy → false as the `speak()` promise resolves) and
    captures the user's next words. In practice users pause ~300ms after
    interrupting, which the listen loop more than makes up. Not beside a
-   `speechSynthesis` voice the OS speaks (Ava; `bargeInDetectorFits`,
+   `speechSynthesis` voice the OS speaks (Ava; `voiceEchoCancelled`,
    `BrowserTtsEngine.spokenByOs`): echo cancellation has no reference for it
    and the detector cut every sentence after its first word. Such a voice
    can't be interrupted. One the browser fetches and plays itself (Chrome's
@@ -68,10 +70,21 @@ recorded at all, as before.
    (`ui/src/audio-route.ts`), and the session switches mode when headphones
    come or go. iPhone Safari can't see the route, so it never barges in.
 
+   **A voice the OS speaks** (Ava, Zoe: `voiceEchoCancelled` is false) takes
+   this path on desktop too, on a recognizer with its own stream: the session
+   reads it when it builds the voice and again on a voice change. No echo
+   canceller has a reference for that voice, so on hosted Parakeet in Chrome
+   the stream barged in on Zoe a word or two into every line, and its onset
+   buffer sent those words as the meditator's turn, too few for the
+   transcript echo guard below: she answered herself over and over
+   (2026-11-18). Now the mic is closed while she speaks, and the next turn
+   opens `PLAYBACK_TAIL_MS` after her line ends (`micReopensAfterMs` in
+   `session.ts`), on Web Speech too. She can't be interrupted.
+
    On that path the engine's stream still hears the reply, so before each
    turn the listen loop keeps only the onset audio heard `PLAYBACK_TAIL_MS`
-   (250ms, a guess) after playback ended (`keepOnsetTail`): a word said during
-   the cooldown still reaches the turn (meditation-pal-qaqb). Two diag lines
+   (250ms in `barge-in.ts`, a guess) after playback ended (`keepOnsetTail`): a
+   word said during the cooldown still reaches the turn (meditation-pal-qaqb). Two diag lines
    measure what the guesses stand in for, sent from a phone with dev mode on
    ("Report a bug" carries the audio `diag` lines): `[vad] tts window` per
    reply (the echo level, which decides whether iPhones can barge in again)

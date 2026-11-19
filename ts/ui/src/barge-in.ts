@@ -16,6 +16,7 @@
 import type { TtsEngine, TtsOptions, TtsVoice } from '../../src/platform/index.js';
 import { audioContextCtor } from './audio-unlock.js';
 import { BrowserTtsEngine } from './adapters/browser-tts.js';
+import type { SttBackend } from './adapters/stt-picker.js';
 
 const FRAME_SIZE = 4096;
 const BARGE_IN_THRESHOLD = 0.04;
@@ -146,19 +147,50 @@ export interface BargeInTtsOptions extends BargeInListenerOptions {
 }
 
 /**
- * Whether the detector can run beside this engine's voice. Echo cancellation
- * only removes what the browser itself plays: a speechSynthesis voice the OS
- * speaks (Ava) reaches the detector's mic at full level and trips it on
- * every sentence's first word. Such a voice can't be interrupted.
+ * Whether echo cancellation takes this engine's voice out of our mics. It only
+ * removes what the browser itself plays: a speechSynthesis voice the OS speaks
+ * (Ava, Zoe) reaches every mic of ours at full level. Beside such a voice no
+ * barge-in detector can run (either one trips on every sentence's first
+ * word), and the mic is closed while she speaks and for PLAYBACK_TAIL_MS
+ * after: she can't be interrupted.
  */
-export function bargeInDetectorFits(engine: TtsEngine): boolean {
+export function voiceEchoCancelled(engine: TtsEngine): boolean {
     return !(engine instanceof BrowserTtsEngine && engine.spokenByOs());
 }
 
 /**
+ * Whether a session hears barge-in on the recognizer's own capture stream
+ * (voice-barge-in.md, the engine-driven path), and so keeps that stream
+ * listening while the facilitator speaks. Only server-Whisper has one. Not on
+ * an iPhone's speaker, whose echo canceller let the facilitator through
+ * (meditation-pal-hi6f), and not beside a voice echo cancellation can't
+ * remove: Zoe on hosted Parakeet barged in on herself a word or two into
+ * every line, and the stream's onset buffer sent those words as the
+ * meditator's turn, too short for the transcript echo guard (Chrome,
+ * 2026-11-18). There the mic closes while the facilitator speaks.
+ */
+export function bargesInOnOwnStream(o: {
+    backend: SttBackend;
+    iosWeb: boolean;
+    iosHeadphones: boolean;
+    voiceEchoCancelled: boolean;
+}): boolean {
+    return o.backend === 'server-whisper' && (!o.iosWeb || o.iosHeadphones) && o.voiceEchoCancelled;
+}
+
+/** How long after playback ends the mic still hears the facilitator: the
+ *  player's tail, a Bluetooth speaker running behind, then the room. Where
+ *  the mic is closed while the facilitator speaks, a capture engine opens the
+ *  turn with only what it heard after this, so a word said during a phone's
+ *  cooldown isn't lost (meditation-pal-qaqb). A guess until an iPhone's
+ *  "[vad] after playback" line measures it. */
+export const PLAYBACK_TAIL_MS = 250;
+
+/**
  * Wrap a TtsEngine so each speak() runs a BargeInListener alongside it. When the
  * listener fires, tts.cancel() resolves the in-flight speak(). Pure
- * pass-through otherwise, and for a voice the detector doesn't fit.
+ * pass-through otherwise, and for a voice echo cancellation can't remove
+ * (asked per utterance, since Chrome lists its voices late).
  */
 export function wrapTtsWithBargeIn(
     inner: TtsEngine,
@@ -166,7 +198,7 @@ export function wrapTtsWithBargeIn(
 ): TtsEngine {
     const wrapped: TtsEngine = {
         async speak(text: string, speakOpts?: TtsOptions): Promise<void> {
-            if (!bargeInDetectorFits(inner)) return inner.speak(text, speakOpts);
+            if (!voiceEchoCancelled(inner)) return inner.speak(text, speakOpts);
             const listener = new BargeInListener(options);
             await listener.start(() => {
                 void inner.cancel();

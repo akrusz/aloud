@@ -77,7 +77,12 @@ import {
 import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
 import { streamCompletionWithChunkedTts } from '../streaming-tts.js';
-import { wrapTtsWithBargeIn } from '../barge-in.js';
+import {
+    PLAYBACK_TAIL_MS,
+    bargesInOnOwnStream as streamBargesIn,
+    voiceEchoCancelled,
+    wrapTtsWithBargeIn,
+} from '../barge-in.js';
 import { ClaudeProxyHttpProvider } from '../adapters/claude-proxy-http.js';
 import {
     sessionModelLabel,
@@ -776,9 +781,17 @@ export async function mountSessionView(
     // words as the meditator's turn (meditation-pal-hi6f). There the mic closes
     // while the facilitator speaks, as on the built-in recognizer. Headphones
     // are fine, and the iOS app can tell (watched below); iPhone Safari can't.
+    // The same beside a voice the OS speaks, which no echo canceller hears
+    // (bargesInOnOwnStream in barge-in.ts): known once the voice is built.
     let iosHeadphonesOn = await iosHeadphones();
+    let voiceCancelled = true;
     const bargesInOnOwnStream = (backend: SttBackend): boolean =>
-        backend === 'server-whisper' && (!isIosWeb() || iosHeadphonesOn);
+        streamBargesIn({
+            backend,
+            iosWeb: isIosWeb(),
+            iosHeadphones: iosHeadphonesOn,
+            voiceEchoCancelled: voiceCancelled,
+        });
     let engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
     if (isIosWeb()) diag(`[vad] iPhone headphones: ${iosHeadphonesOn ? 'on' : 'off'}`);
     // Continuous capture (meditation-pal-57gl): on the engine-driven path the
@@ -819,7 +832,9 @@ export async function mountSessionView(
         wireWhisperBargeIn();
         return prev;
     }
-    async function buildTts(voiceId: string | null) {
+    /** The engine for a voice, and whether echo cancellation can take that
+     *  voice out of the mic (voiceEchoCancelled). */
+    async function buildTts(voiceId: string | null): Promise<{ tts: TtsEngine; echoCancelled: boolean }> {
         // Server-side synthesis is billable compute; fold chars into usage.
         const ttsOpts = { onServerSynthesize: (chars: number) => session.recordTts(chars) };
         let engine;
@@ -838,11 +853,11 @@ export async function mountSessionView(
         // facilitator's voice cancels its own TTS, and the extra stream starves
         // the platform's single recognizer (meditation-pal-x4h4, -oxmt). Phones
         // pause capture while busy anyway, so they skip it; server-whisper
-        // drives its own. The wrapper itself stands down beside a voice the OS
-        // speaks (bargeInDetectorFits).
+        // drives its own, or none beside a voice the OS speaks. The wrapper
+        // itself stands down beside such a voice (voiceEchoCancelled).
         const wrapBargeIn =
-            !engineDrivenBargeIn && sttBackend !== 'capacitor' && !isSingleOwnerMicPlatform();
-        return wrapBargeIn
+            sttBackend !== 'server-whisper' && sttBackend !== 'capacitor' && !isSingleOwnerMicPlatform();
+        const tts = wrapBargeIn
             ? wrapTtsWithBargeIn(engine, {
                   // The wrapper cancels the sentence it heard over; the abort
                   // keeps the reply's next ones from playing over the meditator.
@@ -854,6 +869,7 @@ export async function mountSessionView(
                   micDeviceId: appSettings.micDeviceId,
               })
             : engine;
+        return { tts, echoCancelled: voiceEchoCancelled(engine) };
     }
     // A voice that can't speak the session's language (a leftover English pick
     // starting a zh sit) gets swapped, for this session only, to the best voice
@@ -887,7 +903,10 @@ export async function mountSessionView(
         }
     }
     // Swapped by an in-session voice change; the outer `tts` wrapper reads it.
-    let activeTts = await buildTts(setup.voice);
+    const firstVoice = await buildTts(setup.voice);
+    let activeTts = firstVoice.tts;
+    voiceCancelled = firstVoice.echoCancelled;
+    rederiveListening();
 
     /** Rebuild the live engine when the user picks a new voice mid-session. */
     async function rebuildTts(voiceId: string | null): Promise<void> {
@@ -897,7 +916,26 @@ export async function mountSessionView(
         } catch {
             /* ignore */
         }
-        activeTts = next;
+        activeTts = next.tts;
+        // A voice the OS speaks closes the mic while it speaks, and one echo
+        // cancellation hears gives the stream its barge-in back.
+        voiceCancelled = next.echoCancelled;
+        rederiveListening();
+    }
+
+    /** Barge-in and continuous capture follow what they depend on (the
+     *  recognizer, iPhone headphones, the voice: bargesInOnOwnStream). Where
+     *  this stops the mic listening through lines, a turn already open under
+     *  one is the caller's to close. */
+    function rederiveListening(): void {
+        engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
+        continuousCapture = engineDrivenBargeIn;
+        const was = whisperEngine;
+        whisperEngine = continuousWhisper(stt);
+        // The engine still hears the speaker, so it must stop barging in.
+        if (!whisperEngine) was?.setBargeInHandler(null);
+        wireWhisperBargeIn();
+        if (!voiceCancelled) diag('[vad] the OS speaks this voice: no barge-in, mic closed while it speaks');
     }
 
     // Depth of in-flight speak() calls: while > 0 the facilitator's audio is
@@ -959,13 +997,15 @@ export async function mountSessionView(
     /** How long a paused recognizer waits after playback before reopening the
      *  mic, so a phone speaker's reverb isn't heard as the user. */
     const MIC_RESUME_COOLDOWN_MS = 700;
-    /** How long after playback ends the mic still hears the facilitator: the
-     *  player's tail, then the speaker's echo dying away. The cloud mic without
-     *  barge-in (iPhone) opens a turn with only what it heard after this, so a
-     *  word said during the cooldown isn't lost (qaqb). A guess until an
-     *  iPhone's "[vad] after playback" line measures it. */
-    const PLAYBACK_TAIL_MS = 250;
     const micCooldown = isSingleOwnerMicPlatform();
+    /** Where the mic is closed while the facilitator speaks, how long after
+     *  her last line it opens again. Phones wait out their speaker's reverb.
+     *  Beside a voice the OS speaks, the tail, which the mic hears at full
+     *  level: opened sooner, it would take her last word for a turn. On
+     *  desktop otherwise no wait, which would cost the start of a barge-in
+     *  (the wrapper's cancel reopens the mic mid-sentence). */
+    const micReopensAfterMs = (): number =>
+        micCooldown ? MIC_RESUME_COOLDOWN_MS : voiceCancelled ? 0 : PLAYBACK_TAIL_MS;
     function inEchoWindow(): boolean {
         return ttsSpeakingDepth > 0 || Date.now() - lastTtsEndedAt < ECHO_TEXT_WINDOW_MS;
     }
@@ -1626,13 +1666,7 @@ export async function mountSessionView(
     void watchIosHeadphones((on) => {
         if (torn || on === iosHeadphonesOn) return;
         iosHeadphonesOn = on;
-        engineDrivenBargeIn = bargesInOnOwnStream(sttBackend);
-        continuousCapture = engineDrivenBargeIn;
-        const was = whisperEngine;
-        whisperEngine = continuousWhisper(stt);
-        // The engine still hears the speaker, so it must stop barging in.
-        if (!whisperEngine) was?.setBargeInHandler(null);
-        wireWhisperBargeIn();
+        rederiveListening();
         // Unplugged mid-reply: the open turn would hear the speaker. Close it
         // as for an unprompted line; the listen loop reopens it after playback.
         if (!continuousCapture && sttCapturing && (busy || ttsSpeakingDepth > 0)) void stt?.stop();
@@ -2784,13 +2818,11 @@ export async function mountSessionView(
                 // Then let the last of the facilitator's audio die away before
                 // reopening the mic - the acoustic half of the echo guard, and
                 // the only half that works when the recognizer mangles what it
-                // leaked (meditation-pal-oxmt). Phones only: it's their speaker
-                // that reverberates, and the wait costs the start of a barge-in,
-                // which on desktop reopens the mic mid-sentence.
-                while (micCooldown && !continuousCapture && !torn && !muted) {
+                // leaked (meditation-pal-oxmt). See micReopensAfterMs.
+                while (micReopensAfterMs() > 0 && !continuousCapture && !torn && !muted) {
                     const since = Date.now() - lastTtsEndedAt;
-                    if (ttsSpeakingDepth === 0 && since >= MIC_RESUME_COOLDOWN_MS) break;
-                    await sleep(Math.max(50, MIC_RESUME_COOLDOWN_MS - since));
+                    if (ttsSpeakingDepth === 0 && since >= micReopensAfterMs()) break;
+                    await sleep(Math.max(50, micReopensAfterMs() - since));
                 }
                 if (torn || muted) break;
 
