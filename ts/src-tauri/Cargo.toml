@@ -56,7 +56,7 @@ rand = "0.10"
 piper-rs = "0.2"
 # Used by /api/providers to detect total system RAM for the Ollama
 # recommendation system (which model tier fits this machine).
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
 # Crash breadcrumbs (src/crash.rs): unix signal handlers + dladdr. Already in
 # the tree via tauri; listed for direct use.
 libc = "0.2"
