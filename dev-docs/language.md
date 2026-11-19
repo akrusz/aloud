@@ -14,7 +14,10 @@ per-session pick): English or `中文` (beta). It drives three layers at once.
   identity, `pickTimerFallback` indexes by position), so a new or reworded
   English entry needs its zh counterpart in the same position.
 - Exception: `COMMAND_LINES` (`voice-command.ts`) carry their zh inline
-  (`zhOr`), because most of them take a number.
+  (`zhOr`), because most of them take a number. So do the setup screen's
+  spoken lines (`SETUP_LINES` in `setup-lines.ts`, an `en` and a `zh` per
+  line), and a zh edit there needs its house-voice clips re-rendered
+  (`npm run clips:render`, [voice-commands.md](voice-commands.md#who-speaks)).
 
 ## Speech recognition
 
