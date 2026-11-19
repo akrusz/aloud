@@ -159,8 +159,11 @@ export async function synthesizeWithInworld(
     return Uint8Array.from(Buffer.from(body.audioContent, 'base64'));
 }
 
+/** For element text only, never an attribute value: quotes and apostrophes
+ *  are legal there as they are, and Azure bills an escape at its expanded
+ *  length (a contraction's &apos; is six characters). */
 function xmlEscape(s: string): string {
-    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
+    return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 }
 
 /**
@@ -172,7 +175,7 @@ function xmlEscape(s: string): string {
  * Exported alongside billedChars because Azure's bill is NOT text.length
  * (learn.microsoft.com text-to-speech "Billable characters"):
  *   - everything inside <speak>…</speak> bills, including markup like the
- *     prosody tags and expanded XML escapes (&apos; is 6 chars), but NOT the
+ *     prosody tags and expanded XML escapes (&amp; is 5 chars), but NOT the
  *     <speak>/<voice> wrapper tags themselves;
  *   - each CJK character bills as TWO characters.
  * The route must gate and debit on THIS count, not the plain text length, or a

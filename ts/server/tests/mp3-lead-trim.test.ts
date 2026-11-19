@@ -232,7 +232,7 @@ describe('synthFor with a lead (Harper)', () => {
         const extra: number[] = [];
         const out = await synthFor(config, harper)!("That's good.", 1, (c) => extra.push(c));
         expect(ssml).toHaveLength(3);
-        expect(ssml[2]).toContain("softvoice\">That&apos;s good.</mstts");
+        expect(ssml[2]).toContain("softvoice\">That's good.</mstts");
         expect(extra).toEqual([azureBilledChars("Okay. That's good.", 1, 'softvoice'), azureBilledChars("That's good.", 1, 'softvoice')]);
         expect(out).toEqual(withGain(concat(AZURE_LEAD_SILENCE_MP3, plain), harper.gainDb!));
     });

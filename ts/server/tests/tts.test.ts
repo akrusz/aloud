@@ -544,8 +544,12 @@ describe('upstream timeout (meditation-pal-3sm6)', () => {
 
 describe('azureBilledChars', () => {
     it('bills XML escapes at their expanded length', () => {
-        // "I'll" → "I&apos;ll": 4 chars of text, 9 billed.
-        expect(azureBilledChars("I'll", 1)).toBe(9);
+        // "R&D" → "R&amp;D": 3 chars of text, 7 billed.
+        expect(azureBilledChars('R&D', 1)).toBe(7);
+    });
+
+    it('leaves apostrophes and quotes as they are, at one character each', () => {
+        expect(azureBilledChars(`I'll say "yes"`, 1)).toBe(14);
     });
 
     it('bills the prosody wrapper when rate is not 1', () => {
