@@ -67,7 +67,11 @@ any error (NO_MATCH, SPEECH_TIMEOUT, BUSY). The patch emits `listeningState:
 stock maps the API 31+ codes such as SERVER_DISCONNECTED to "Didn't
 understand", which reads as silence); `CapacitorSttEngine` keys its startup
 watchdog and silence handling on them. Note the stock `'started'` event is
-`onBeginningOfSpeech` - user speech, not launch.
+`onBeginningOfSpeech` - user speech, not launch. Since 2026-11-14 the patch
+also adds a `biasPhrases` start option, the setup screen's vocabulary:
+`contextualStrings` on iOS (so it patches the iOS source too) and
+`EXTRA_BIASING_STRINGS` on Android 13+. Neither has run on a phone
+([voice-commands.md](voice-commands.md#the-mic)).
 
 The Android session model (`meditation-pal-lbl5`, 2026-09-06) is the bigger
 patch. Stock destroyed and recreated the `SpeechRecognizer` on every `start()`
