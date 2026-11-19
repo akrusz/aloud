@@ -165,10 +165,14 @@ const COMMANDS: Record<VoiceCommandId, JudgeQuestion> = {
         ["I don't want to see the time.", '隐藏时钟。'],
         'Cancelling the timer itself.'
     ),
+    // repeatLastLine can only replay the latest line, whole. A request for an
+    // earlier one, or one part of one, is the model's: it has the log.
     repeat: ask(
-        'Is the meditator asking the facilitator to repeat what it just said?',
+        "Is the meditator asking to hear the facilitator's latest line again, as a whole?",
         ["Sorry, I didn't catch that.", '再说一遍。'],
-        'Asking for more detail or a different explanation.'
+        'Pointing at an earlier line ("the one before that", "what you said before I spoke") or one part of a line ("how did that end?"). Asking for more detail or a different explanation.',
+        [],
+        'A plain request for the line just said.'
     ),
     respond_sooner: ask(
         'Is the meditator asking the app to reply sooner after they finish speaking?',
@@ -180,7 +184,7 @@ const COMMANDS: Record<VoiceCommandId, JudgeQuestion> = {
     wait_longer: ask(
         'Is the meditator asking the app to wait longer before replying, or complaining of being cut off?',
         ['You keep cutting me off.', '等我说完再回应。'],
-        'Asking for a period of silence, or for the facilitator to just listen.'
+        'Asking for a moment, a period of silence, or for the facilitator to just listen. Missing what the facilitator said.'
     ),
     mute: ask(
         'Is the meditator telling the app to mute or turn off the microphone?',

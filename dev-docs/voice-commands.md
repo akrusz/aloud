@@ -639,7 +639,10 @@ Defined in `voice-command.ts`, with the asks in `voice-command-specs.ts`:
 - **Speak slower / faster.**
 - **Set / extend / cancel the timer, time check.** Jev says *that* a timer was
   asked for; `parseTimerRequest` pulls the minutes.
-- **Repeat the last line.**
+- **Repeat the last line.** `repeatLastLine` (`views/session.ts`) replays the
+  facilitator's latest line, off the record, so the ask takes only a plain
+  "say that again". A request for an earlier line or one part of a line ("the
+  line before that", "how did that end?") goes to the model, which has the log.
 - **Reply sooner / wait longer.** One rung on `PAUSE_LADDER`, applied live
   through the optional `SttEngine.setPauseWindow` and saved to
   `silenceBaseMs` / `silenceMaxMs`.

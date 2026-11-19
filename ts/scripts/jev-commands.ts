@@ -45,6 +45,11 @@ const CORPUS: Case[] = [
     ['Put the clock back up.', ['show_clock']],
     ['What did you just say?', ['repeat']],
     ['One more time, please.', ['repeat']],
+    ['Sorry, what was that?', ['repeat']],
+    ['What was the last thing you said?', ['repeat']],
+    ['Could you say that again?', ['repeat']],
+    ['刚才你说什么?', ['repeat']],
+    ['没听清,能再说一次吗?', ['repeat']],
     ['You take forever to answer.', ['respond_sooner']],
     ["You keep jumping in before I'm done.", ['wait_longer']],
     ['Mute the microphone please.', ['mute']],
@@ -99,6 +104,18 @@ const CORPUS: Case[] = [
     ['I need some silence.', []],
     // A question for the facilitator, not "repeat".
     ['Can you say more about that?', []],
+    // An earlier line, or one part of a line: the model has the log and can
+    // quote it, where "repeat" only replays the latest line. The first three
+    // are from a session (2026-11-18).
+    ['Actually, before I said thanks, what was the last thing you said?', []],
+    ['No, the line before that. The how did you end that?', []],
+    ["No, when you said yes, joy spread out. I didn't catch the end of that thing you said.", []],
+    ['What did you say before that?', []],
+    ['Hang on, what did you say before I told you about my sister?', []],
+    ['What was that first thing you suggested?', []],
+    ['Can you repeat the part about my hands?', []],
+    ['不是这句,是前面那句。', []],
+    ['你刚才说到肚子的时候,后面说了什么?', []],
 ];
 
 /** `end_session` on "I want this to be over" (~0.64) is the known, accepted
@@ -120,6 +137,14 @@ const ENDING: JudgeBefore = {
 const TIMER: JudgeBefore = {
     meditator: 'I keep wondering how long I have been here, and whether I set the timer.',
     facilitator: 'The timer is yours to set whenever you like. What is here now?',
+};
+/** The 2026-11-18 session, where "repeat" replayed the wrong line three times.
+ *  Each wanted the facilitator's line from before the thanks. */
+const THANKS: JudgeBefore = { meditator: 'Yeah, thanks. Thank you.', facilitator: "You're welcome. Just notice what's there now." };
+const MISQUOTED: JudgeBefore = {
+    meditator:
+        'Oh, just want to make sure I heard you right. Before I said, yeah, thanks, what was the last thing you said?',
+    facilitator: 'I said: "Just notice what\'s there now."',
 };
 
 const POINTING_BACK: BackCase[] = [
@@ -173,6 +198,17 @@ const POINTING_BACK: BackCase[] = [
     [
         { meditator: 'I wish I could just turn my thoughts off.', facilitator: 'What would that be like?' },
         'Can you do that for me?',
+        [],
+    ],
+    [THANKS, 'Actually, before I said thanks, what was the last thing you said?', []],
+    [MISQUOTED, 'No, the line before that. The how did you end that?', []],
+    [MISQUOTED, "No, when you said yes, joy spread out. I didn't catch the end of that thing you said.", []],
+    [
+        {
+            meditator: 'Where else could I look?',
+            facilitator: 'You could check your hands, your belly, or the back of your neck.',
+        },
+        'Wait, what was the first one?',
         [],
     ],
 ];
