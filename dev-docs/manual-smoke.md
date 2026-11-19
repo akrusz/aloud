@@ -34,33 +34,33 @@ minutes.
 Setup, on local Whisper:
 
 - [x] **Launch.** The wordmark is in its own face.
-- [ ] **It hears you and not itself.** The mic beside Begin is lit with no
+- [x] **It hears you and not itself.** The mic beside Begin is lit with no
       click. Say "add playful": the box checks and "Playful is on." is spoken.
       Then "following", "balanced", "noting": each is answered once and
       nothing fires a second time.
 
 One session on hosted GPT speech recognition, in this order:
 
-- [ ] **Begin, mic lit.** The opening sound plays before her first line, as
+- [x] (used Ethan and Harper) **Begin, mic lit.** The opening sound plays before her first line, as
       far under her voice as before, with no drop-out, and the first line is
       whole (Begin skips its mic probe now when a capture is live).
-- [ ] **Incremental, by ear.** Two long turns with a pause mid-sentence in
+- [x] **Incremental, by ear.** Two long turns with a pause mid-sentence in
       each, and make the first thing you say one of them: each arrives as one
       turn, nothing dropped or doubled at the pause, no period and capital
       where you only paused, and the reply no slower than usual. Then answer
       with one word ("seven"): it arrives as a turn.
-- [ ] **Barge-in.** Ask for a few sentences and talk over the second. She
+- [?] **Barge-in.** Ask for a few sentences and talk over the second. She
       stops, the rest never plays, and the bubble ends at the sentence you cut
       into. Ask "what was the last thing you said?": she knows only the part
       you heard. Across the whole session she never interrupts herself and
       your turns never arrive with her words in them (the echo thresholds
       were tuned on the old Web Audio path).
-- [ ] **Media key.** Press F8 while she is speaking: the line carries on.
-- [ ] **Silence, then the frightened line.** Ask for silence and say yes to
+- [x] **Media key.** Press F8 while she is speaking: the line carries on.
+- [x] **Silence, then the frightened line.** Ask for silence and say yes to
       the bid. Think out loud once: it stays quiet. Say "I feel like I'm
       disappearing and it's scaring me": she comes back and tells you plainly
       to open your eyes and look around.
-- [ ] **"End the session", "yes".** The closing sound plays, History has the
+- [x] **"End the session", "yes".** The closing sound plays, History has the
       session with a summary, and the setup mic is lit again.
 
 Then:
@@ -83,6 +83,30 @@ Then:
       meditate using your voice…", and after its line "By the way, you can
       say 'back' or 'next' to control this tour."
 
+**From the notes on this pass** (fixed 2026-11-18, none of it heard yet).
+Desktop, hosted GPT speech recognition:
+
+- [ ] **Mute mid-line.** Mute with the button a second or two into a long
+      reply: the rest plays with no skip, across its sentences, and the
+      menu-bar mic indicator goes off a moment after she finishes. Muted with
+      nothing playing, it goes off at once. (A mute 1.4 s into a sentence was
+      what made Ethan skip at "on".)
+- [ ] **Unmute.** The status reads "Opening the mic…" for a second or so, then
+      "Listening…". Start speaking as it changes: the first word arrives
+      whole ("Actually" came back "She").
+- [ ] **Voice picker mid-session.** Open it during a reply and play a preview:
+      neither has a hole in it, and after closing the next thing said is heard
+      from its first word.
+- [ ] **Repeat.** "Say that again": the last line is spoken again. "What did
+      you say before that?": your words stay on screen and she answers in a
+      new line. (The local server has the new ask now, production after the
+      deploy.)
+- [ ] **Setup.** The guidance stops read 1 to 5 with the current one on the
+      thumb, in dark mode and in Firefox too. "Guidance four" moves it and is
+      answered. Special requests folded over text shows a dot and its first
+      words. "End the session" in a session asks "Would you like to end the
+      session now?".
+
 **Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
 
 - [ ] **Sounds.** Begin a noting session on Harper: the opening sound and the
@@ -100,8 +124,8 @@ Then:
 
 **If that is clean:** merge `stt-incremental` into `main` and deploy the
 server from `main` before any client build (a new client on the old server
-falls back to full passes, and Harper's lead, the voice levels and the Chinese
-voice names are the server's). Then:
+falls back to full passes, and Harper's lead, the voice levels, the Chinese
+voice names and the narrower repeat command are the server's). Then:
 
 ```bash
 curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
