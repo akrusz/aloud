@@ -105,6 +105,7 @@ import { startMicMeter } from '../mic-meter.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { createLocalSetupReader, readsSetupLocally } from '../setup-local-reader.js';
 import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
+import { heardExcerpt } from '../heard-excerpt.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -1567,13 +1568,10 @@ export async function mountSetupView(
         const actions = parseSetupCommand(text) ?? (await judgedSetupCommand(text));
         if (!isLiveMount() || beginning) return false;
         if (!actions) {
-            // A few words that came to nothing are shown as heard, so a
-            // mishearing reads as one and not as a mic that isn't working.
-            // Anything longer is the room, and stays off the screen.
-            const said = text.trim().replace(/[.。!?！？]+$/u, '');
-            if (said && said.split(/\s+/).length <= UNMATCHED_NOTE_MAX_WORDS && said.length <= 40) {
-                showVoiceNote(t('Heard "{text}"', { text: said }), true);
-            }
+            // What came to nothing is shown as heard, so a mishearing reads
+            // as one and not as a mic that isn't working.
+            const said = heardExcerpt(text);
+            if (said) showVoiceNote(t('Heard "{text}"', { text: said }), true);
             return false;
         }
         return act(actions);
@@ -2571,9 +2569,6 @@ const VOICE_NOTE_FADE_MS = 500;
 const VOICE_NOTE_GAP_PX = 16;
 const VOICE_NOTE_EDGE_PX = 16;
 const VOICE_NOTE_MIN_ROOM_PX = 150;
-
-/** Something heard and not understood is shown back only this short. */
-const UNMATCHED_NOTE_MAX_WORDS = 6;
 
 /** The fields the app asks for out loud, the next thing said being the answer. */
 type AskedField = 'intention' | 'special-request';

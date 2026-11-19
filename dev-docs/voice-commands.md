@@ -266,6 +266,11 @@ the voice picker is up it shows inside the picker's own layer, bottom center:
 the bar is under the picker's dimming. A clear that only made room is not announced; more than
 three lines become one "Okay, all set."
 
+Something heard that came to nothing is shown back the same way, as `Heard
+"…"`: its first few words (`heardExcerpt`, `ui/src/heard-excerpt.ts`), so a
+mishearing reads as one and not as a dead mic. Past a dozen words it is the
+room talking and nothing shows.
+
 ### The judge tier
 
 What the parser can't place goes to Jev, where this setup may ask it at all
