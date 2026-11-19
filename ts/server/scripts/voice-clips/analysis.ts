@@ -72,7 +72,8 @@ export interface ClipAnalysis {
     onsetRiseMs: number | null;
 }
 
-function windowDb(samples: Float32Array, sampleRate: number, windowMs: number): number[] {
+/** RMS level of each `windowMs` window of `samples`, in dBFS. */
+export function windowDb(samples: Float32Array, sampleRate: number, windowMs: number): number[] {
     const size = Math.max(1, Math.round((sampleRate * windowMs) / 1000));
     const out: number[] = [];
     for (let start = 0; start < samples.length; start += size) {

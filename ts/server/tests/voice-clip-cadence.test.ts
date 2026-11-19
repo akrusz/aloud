@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { analyzePcm } from '../scripts/voice-clips/analysis.js';
 import { PAUSE_CAP_S, capPauses, findPauses, pauseMarks } from '../scripts/voice-clips/cadence.js';
+import { TAIL, cutMp3Tail, soundEndS, trailingSilenceS, trimTail, withoutHeader } from '../scripts/voice-clips/tail.js';
 import { missingWords, repeatedWords, transcriptFaults, words } from '../scripts/voice-clips/transcript.js';
 
 const RATE = 24_000;
@@ -61,6 +63,83 @@ describe('setup clip cadence', () => {
     it('leaves a clip with no long pause as it is', () => {
         const x = clip(lead, { say: 1 }, { pause: 0.5 }, { say: 1 }, { pause: 0.3 }, { say: 1 }, lead);
         expect(capPauses(x, RATE, TEXT)).toBe(x);
+    });
+});
+
+describe('setup clip tail', () => {
+    /** Noise at `db` dBFS RMS: a final "f" or "s", or at -90 a provider's silence. */
+    function hiss(seconds: number, db: number): Float32Array {
+        const rms = 10 ** (db / 20);
+        let seed = 1;
+        return Float32Array.from({ length: Math.round(seconds * RATE) }, () => {
+            seed = (seed * 1103515245 + 12345) % 2 ** 31;
+            return (seed / 2 ** 31 - 0.5) * rms * Math.sqrt(12);
+        });
+    }
+    const join = (...parts: Float32Array[]) => Float32Array.from(parts.flatMap((p) => Array.from(p)));
+    // 0.2s lead, a word, its quiet "f" for 0.2s, then 0.7s of a provider's silence.
+    const take = (fDb: number) => join(clip(lead, { say: 1 }), hiss(0.2, fDb), hiss(0.7, -90));
+
+    it('keeps a final fricative the gate would call silence, and cuts what follows to TAIL.keepS', () => {
+        const x = take(-52);
+        expect(analyzePcm(x, RATE).bursts.at(-1)!.endS).toBeCloseTo(1.2, 2);
+        expect(soundEndS(x, RATE)).toBeCloseTo(1.4, 2);
+        const y = trimTail(x, RATE);
+        expect(y.length / RATE).toBeCloseTo(1.4 + TAIL.keepS, 2);
+        expect(trailingSilenceS(y, RATE)).toBeCloseTo(TAIL.keepS, 2);
+        expect(y).toEqual(x.subarray(0, y.length));
+    });
+
+    it('judges the floor at the level the clip will be encoded at', () => {
+        const x = take(-66);
+        expect(soundEndS(x, RATE)).toBeCloseTo(1.2, 2);
+        expect(soundEndS(x, RATE, 12)).toBeCloseTo(1.4, 2);
+        expect(trimTail(x, RATE, 12).length / RATE).toBeCloseTo(1.4 + TAIL.keepS, 2);
+    });
+
+    it('leaves a clip that already ends soon after its voice, and a silent one, as they are', () => {
+        const short = clip(lead, { say: 1 }, { pause: 0.1 });
+        expect(trimTail(short, RATE)).toBe(short);
+        const silent = hiss(1, -90);
+        expect(trimTail(silent, RATE)).toBe(silent);
+        expect(trailingSilenceS(silent, RATE)).toBeCloseTo(1, 5);
+    });
+
+    /** 48 kbps MPEG-2 mono frames at 24 kHz, as the clips are encoded: 144
+     *  bytes and 24ms each. `info` makes the first one a Xing/Info header. */
+    function stream(frames: number, { info = false } = {}): Uint8Array {
+        const id3 = [0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 4, 1, 2, 3, 4];
+        const out = new Uint8Array(id3.length + frames * 144).fill(0x55);
+        out.set(id3);
+        for (let k = 0; k < frames; k++) out.set([0xff, 0xf3, 0x64, 0xc4], id3.length + k * 144);
+        if (info) out.set([...'Info'].map((c) => c.charCodeAt(0)), id3.length + 13);
+        return out;
+    }
+
+    it('cuts an MP3 on whole frames, TAIL.keepS to one frame more after the sound', () => {
+        const mp3 = stream(90); // 2.16s, a short line's length
+        const out = cutMp3Tail(mp3, 1.47)!;
+        const kept = (out.length - 14) / 144;
+        expect(Number.isInteger(kept)).toBe(true);
+        expect(kept * 0.024 - 1.47).toBeGreaterThanOrEqual(TAIL.keepS);
+        expect(kept * 0.024 - 1.47).toBeLessThan(TAIL.keepS + 0.024);
+        expect(out).toEqual(mp3.subarray(0, out.length));
+    });
+
+    it('leaves an MP3 with nothing to cut, and refuses one it cannot walk or that has a header', () => {
+        const mp3 = stream(90);
+        expect(cutMp3Tail(mp3, 2.1)).toBe(mp3);
+        expect(cutMp3Tail(mp3, 0)).toBe(mp3);
+        expect(cutMp3Tail(Uint8Array.from([...mp3, 1, 2, 3]), 1.47)).toBeNull();
+        expect(cutMp3Tail(stream(91, { info: true }), 1.47)).toBeNull();
+    });
+
+    it('drops a Xing/Info header frame so the stream can be cut', () => {
+        const mp3 = stream(90);
+        const headed = stream(91, { info: true });
+        expect(withoutHeader(mp3)).toBe(mp3);
+        expect(withoutHeader(headed)).toEqual(mp3.subarray(0, mp3.length));
+        expect(cutMp3Tail(withoutHeader(headed), 1.47)!.length).toBe(cutMp3Tail(mp3, 1.47)!.length);
     });
 });
 

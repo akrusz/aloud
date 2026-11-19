@@ -6,12 +6,14 @@
  *
  *   npm run clips:render -- --dry-run    # what would render and what it costs; no provider calls
  *   npm run clips:render:yes             # render what is missing or stale (= clips:render -- --yes)
- *   npm run clips:check                  # exit 1 if any clip is missing or stale (pre-release)
+ *   npm run clips:check                  # exit 1 if any clip is missing, stale or ends in long silence (pre-release)
+ *   npm run clips:render -- --trim       # cut the silence after each clip's voice, from the files; no provider calls
  *   npm run clips:render -- --voice Harper --only mode-noting,timer-off --force --yes
  *
  * Flags: --voice <name>[,<name>], --only <line-id>[,<line-id>], --force
  * (re-render current clips too), --yes (without it a run prints the estimate
- * and stops before spending), --no-gate (skip the quality gate; no ffmpeg).
+ * and stops before spending), --no-gate (skip the quality gate; no ffmpeg),
+ * --trim (a run of its own, like --check and --dry-run).
  *
  * Cheap to re-run: a clip whose manifest entry has the line's current text,
  * whose file name carries the current (text, voice id, style, gain) hash and
@@ -38,7 +40,11 @@
  * the line re-renders. Each re-roll is billed, so the estimate is a floor.
  *
  * Before the 48 kbps encode, every pause longer than its punctuation can
- * carry is shortened (voice-clips/cadence.ts).
+ * carry is shortened (voice-clips/cadence.ts), and the silence after the last
+ * sound is cut to TAIL.keepS (voice-clips/tail.ts), since the setup screen's
+ * mic stays shut until a clip's file ends. --check lists a clip that ends in
+ * more than TAIL.maxS of silence; --trim cuts the ones on disk on whole MP3
+ * frames, with no synthesis (a stream it can't walk is re-encoded).
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -55,6 +61,7 @@ import { CURATED_VOICES, resolveVoice, type ResolvedVoice } from '../src/provide
 import { billedCharsFor, synthFor } from '../src/routes/tts.js';
 import { GATE, analyzePcm, clipFaults, secondsPerCharNorm, wordCount, type ClipAnalysis } from './voice-clips/analysis.js';
 import { capPauses, findPauses } from './voice-clips/cadence.js';
+import { TAIL, cutMp3Tail, soundEndS, trailingSilenceS, trimTail, withoutHeader } from './voice-clips/tail.js';
 import { MIN_HEARD_WORDS, findWhisper, transcriptFaults, transcribe, words } from './voice-clips/transcript.js';
 import {
     emptyManifest,
@@ -92,6 +99,7 @@ type SynthFn = NonNullable<ReturnType<typeof synthFor>>;
 interface Args {
     dryRun: boolean;
     check: boolean;
+    trim: boolean;
     force: boolean;
     yes: boolean;
     gate: boolean;
@@ -100,7 +108,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-    const args: Args = { dryRun: false, check: false, force: false, yes: false, gate: true, voices: null, only: null };
+    const args: Args = { dryRun: false, check: false, trim: false, force: false, yes: false, gate: true, voices: null, only: null };
     const list = (v: string | undefined, flag: string): string[] => {
         const items = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
         if (!items.length) fail(`${flag} needs a value`);
@@ -116,6 +124,9 @@ function parseArgs(argv: string[]): Args {
                 break;
             case '--check':
                 args.check = true;
+                break;
+            case '--trim':
+                args.trim = true;
                 break;
             case '--force':
                 args.force = true;
@@ -137,7 +148,7 @@ function parseArgs(argv: string[]): Args {
                 fail(`unknown argument "${raw}"`);
         }
     }
-    if (args.dryRun && args.check) fail('--dry-run and --check are separate runs; pick one');
+    if ([args.dryRun, args.check, args.trim].filter(Boolean).length > 1) fail('--dry-run, --check and --trim are separate runs; pick one');
     return args;
 }
 
@@ -287,6 +298,34 @@ function relevelled(from: { file: string; deltaDb: number }): Uint8Array | null 
     return moved === bytes ? null : moved;
 }
 
+/** The clips on disk with more silence after the voice than TAIL.maxS. */
+function longTails(ffmpeg: string, targets: readonly ClipTarget[]): { target: ClipTarget; silenceS: number }[] {
+    return targets
+        .map((target) => ({ target, silenceS: trailingSilenceS(decodeMp3(ffmpeg, readFileSync(clipPath(target.file))), DECODE_RATE) }))
+        .filter((t) => t.silenceS > TAIL.maxS);
+}
+
+/** Each clip on disk cut to TAIL.keepS after its voice, on whole frames, or
+ *  re-encoded where the stream can't be walked and runs long. The file keeps
+ *  its name, which hashes what was rendered, not the bytes. */
+function trimOnDisk(ffmpeg: string, targets: readonly ClipTarget[]): void {
+    let trimmed = 0;
+    for (const target of targets) {
+        const bytes = withoutHeader(new Uint8Array(readFileSync(clipPath(target.file))));
+        const pcm = decodeMp3(ffmpeg, bytes);
+        const end = soundEndS(pcm, DECODE_RATE);
+        const before = pcm.length / DECODE_RATE - end;
+        const cut = cutMp3Tail(bytes, end);
+        const out = cut ?? (before > TAIL.maxS ? encodeClip(ffmpeg, trimTail(pcm, DECODE_RATE)) : bytes);
+        if (out === bytes) continue;
+        writeFileSync(clipPath(target.file), out);
+        const after = trailingSilenceS(decodeMp3(ffmpeg, out), DECODE_RATE);
+        console.log(`  ${label(target).padEnd(32)} ${before.toFixed(2)}s -> ${after.toFixed(2)}s${cut ? '' : ' (re-encoded)'}`);
+        trimmed++;
+    }
+    console.log(`\n${trimmed} of ${targets.length} clip${targets.length === 1 ? '' : 's'} trimmed.`);
+}
+
 /** A burst limit or a network blip, worth another go; an account refusal
  *  (bad key, spent quota) or a bad request is not. */
 function isTransient(err: unknown): boolean {
@@ -432,16 +471,31 @@ async function main(): Promise<void> {
 
     if (args.check) {
         const orphans = orphanFiles(manifest, clipsOnDisk());
+        const ffmpeg = findFfmpeg();
+        const tails = ffmpeg ? longTails(ffmpeg, targets.filter((t) => t.status === 'current')) : [];
         const problems = pending.length + pruned.removed.length + orphans.length;
-        console.log(`Setup clips (${scope}): ${pending.length ? `${pending.length} missing or stale` : 'all current'}.`);
+        const status = [
+            pending.length ? `${pending.length} missing or stale` : 'all current',
+            ...(tails.length ? [`${tails.length} with over ${TAIL.maxS}s of silence after the voice`] : []),
+        ];
+        console.log(`Setup clips (${scope}): ${status.join(', ')}.`);
         for (const t of pending) console.log(`  ${t.status.padEnd(7)} ${label(t).padEnd(32)} ${t.why}`);
         for (const r of pruned.removed) console.log(`  extra   ${r}`);
         for (const f of orphans) console.log(`  orphan  ${f}`);
+        for (const { target, silenceS } of tails) console.log(`  tail    ${label(target).padEnd(32)} ${silenceS.toFixed(2)}s`);
+        if (!ffmpeg) console.log('  (no ffmpeg: the silence after each voice was not checked)');
         printSuspects(suspects, manifest);
-        if (problems) {
-            console.log('\nFix with: npm run clips:render:yes');
-            process.exit(1);
-        }
+        if (problems) console.log('\nFix with: npm run clips:render:yes');
+        if (tails.length) console.log('\nTrim with: npm run clips:render -- --trim (from the files, no cost)');
+        if (problems || tails.length) process.exit(1);
+        return;
+    }
+
+    if (args.trim) {
+        const ffmpeg = findFfmpeg();
+        if (!ffmpeg) fail('ffmpeg not found (brew install ffmpeg); --trim decodes each clip to find where its voice ends.');
+        console.log(`Setup clips (${scope}): the silence after each voice cut to ${TAIL.keepS}s, from the files.`);
+        trimOnDisk(ffmpeg, targets.filter((t) => t.status === 'current'));
         return;
     }
 
@@ -576,7 +630,10 @@ async function main(): Promise<void> {
         mkdirSync(dirname(clipPath(target.file)), { recursive: true });
         const pcm = ffmpeg ? capPauses(decodeMp3(ffmpeg, best.bytes), DECODE_RATE, target.text) : null;
         const gain = ffmpeg && pcm ? levelGain(ffmpeg, pcm, target.voice.sessionLufs ?? CLIP_LUFS) : null;
-        writeFileSync(clipPath(target.file), ffmpeg && pcm ? encodeClip(ffmpeg, pcm, gain ?? 0) : best.bytes);
+        writeFileSync(
+            clipPath(target.file),
+            ffmpeg && pcm ? encodeClip(ffmpeg, trimTail(pcm, DECODE_RATE, gain ?? 0), gain ?? 0) : best.bytes
+        );
         const faults = faultsOf(best, target.text, norm);
         manifest.voices[target.voice.name]!.clips[target.lineId] = {
             file: target.file,

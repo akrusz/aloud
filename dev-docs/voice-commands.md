@@ -391,7 +391,12 @@ compares the text), and the hash in the file name makes a re-rendered line a
 new URL. `npm run clips:render` (`server/scripts/render-voice-clips.ts`)
 renders what changed, prices the run first, and checks each clip for the two
 faults these voices have (a short line said twice, a first word cut),
-re-rendering up to four times; `-- --check` lists what is missing or stale.
+re-rendering up to four times. Every clip ends 0.15s after its last sound
+(`server/scripts/voice-clips/tail.ts`, `TAIL`): the providers pad a take with
+up to 0.9s of silence, and the mic stays shut until the file ends (below).
+`-- --check` lists what is missing or stale and any clip ending in more than
+0.25s of silence; `-- --trim` cuts those on disk on whole MP3 frames, with no
+synthesis.
 Clips play at the speed setting by playback rate with pitch kept, except on a
 styled voice, which ignores the speed setting in a session too.
 
@@ -498,7 +503,12 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
 - **It does not hear the app.** A request is answered with the recognizer
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
   step of the tour, stops it first (`hold`). Listening resumes
-  `SPEECH_TAIL_MS` after the line. As a backstop, something heard within a few
+  `SPEECH_TAIL_MS` after the line ends, and a clip's file ends 0.15s after its
+  last sound, so the mic hears again about 0.6s after the voice stops. Until
+  2026-11-18 the files carried up to 0.9s of the provider's silence on top,
+  and a request said at a natural pace after an answer lost its first word
+  ("Change focus to body" arrived as "Focus to body", which adds instead of
+  replacing). As a backstop, something heard within a few
   seconds of a line that is nothing but that line's last few words is dropped
   (`looksLikeSpokenTail`, asked through `isEcho` before anything else, "begin"
   included). No spoken line ends on a request, "begin" least of all
