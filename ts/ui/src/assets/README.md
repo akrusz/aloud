@@ -57,3 +57,12 @@ The same cloud as a picture, written by the same run of
 `scripts/cloud-glyph-font.py`, so the two can't drift. For a cloud drawn large
 on its own (the "What are ☁?" dialog, `clouds-explainer.ts`): the font's
 biggest bitmap is 96px, and a larger text ☁ would be that bitmap scaled up.
+
+## knewave-v15.woff2
+
+Knewave, the typeface of the "aloud." wordmark (`@font-face` in `app-base.css`).
+
+| | |
+|---|---|
+| Source | Google Fonts, Knewave v15 (font version 1.001), by Tyler Finck |
+| License | SIL Open Font License 1.1 - `knewave-OFL.txt` here, and in [THIRD-PARTY-NOTICES.md](../../../../THIRD-PARTY-NOTICES.md) |
