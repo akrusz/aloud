@@ -145,8 +145,12 @@ simulated failures only in dev builds, behind the same compile-time gate as
 their params. A release build therefore honors only `?debug=` and
 `?previewUpdate`, typed or not.
 
-Three switches also live there with no URL twin:
+Four switches also live there with no URL twin:
 
+- **Setup welcome card** (`devQueueWelcome` in `tour/index-guide.ts`, one
+  sessionStorage read): opens the setup page on the first-run card or the
+  after-a-first-session one, with the tour behind it, and resets nothing, so
+  a card can be seen again without clearing app data.
 - **Cloud mic without echo cancellation** (`isAecOffDebug`, `dev-mode.ts`,
   localStorage `aloud:debugAecOff`) opens the next session's PCM capture with
   `echoCancellation: false` - the Android call-stream measurement; judge it by
@@ -179,8 +183,8 @@ Three switches also live there with no URL twin:
   regardless. See [silence-mode.md](silence-mode.md).
 
 Dev mode is also what turns the diagnostic console lines on in a release build
-(`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[judge]`,
-`[command]`. Dev builds always print them. They carry character counts, never
+(`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[stt-text]`,
+`[judge]`, `[command]`. Dev builds always print them. They carry character counts, never
 transcript text. Failures stay on `console.warn`/`error`, which is what the
 bug-report block records. With dev mode on, "Report a bug" also carries the
 last 40 audio lines (`[vad]`, `[stt-*]`, `[echo-guard]`, `[signature]`,
@@ -268,6 +272,13 @@ cd ts && npx tsx evals/protocol-eval.ts
 # after touching a judge question, example or threshold.
 cd ts && npm run jev:ab                # silence classifiers vs the Haiku prompts
 cd ts && npm run jev:commands          # every spoken-command ask, through the gate
+cd ts && npm run jev:setup             # the setup screen's judge tier (voice-commands.md)
+
+# Setup screen by voice (local, free): rescore the synthetic-speech corpus
+# against the parser after touching setup-command.ts (it rewrites
+# results/summary.txt and misheard.ts, so commit them), and check the clips
+cd ts && npx tsx scripts/setup-voice/run.ts --summary-only
+npm run clips:check          # every setup line has a current clip per house voice
 
 # STT replay (by hand, NOT in CI - real provider calls, cents; sends a saved
 # "Save my speech clips" capture to each model named, see Developer mode above)
