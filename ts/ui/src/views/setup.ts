@@ -1,7 +1,7 @@
 /**
  * Setup view - pre-session configuration.
  *
- * Three mode tabs (exploration / noting / felt sense) over a shared
+ * Three mode tabs (exploration / felt sense / noting) over a shared
  * provider + model + speech-recognition row, a voice picker, and Begin.
  */
 
