@@ -1608,26 +1608,36 @@ export async function mountSetupView(
     /** Make the changes and say them back. */
     async function act(actions: readonly SetupAction[]): Promise<boolean> {
         const outcomes = applyActions(actions);
-        // Closed before it is said to be: the mic shows off while the line plays.
-        if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) closeVoiceStart();
+        // Closed before it is said to be: the mic shows off while the line
+        // plays. Its stream is kept until the line is over: let go now, the
+        // output is rebuilt a second or two later, inside "Okay, the mic is off."
+        let lineOver = (): void => {};
+        if (outcomes.some((outcome) => outcome.kind === 'stop-listening')) {
+            closeVoiceStart(new Promise<void>((resolve) => (lineOver = resolve)));
+        }
         // The judge's reading of "could I pick a different voice?".
         if (outcomes.some((outcome) => outcome.kind === 'voice-picker')) await applyPick({ kind: 'voice-picker', open: true });
         if (outcomes.some((outcome) => outcome.kind === 'special-request-ask')) {
             requestsOpenedToAsk = openSpecialRequests() || requestsOpenedToAsk;
         }
-        await answer(outcomes);
+        try {
+            await answer(outcomes);
+        } finally {
+            lineOver();
+        }
         // After the question, so the wait for an answer starts when it ends.
         const ask = outcomes.find((outcome) => outcome.kind === 'intention-ask' || outcome.kind === 'special-request-ask');
         if (ask) awaitAnswer(ask.kind === 'intention-ask' ? 'intention' : 'special-request');
         return true;
     }
 
-    /** Close the mic until it is tapped again. */
-    function closeVoiceStart(): void {
+    /** Close the mic until it is tapped again. With `keepMicUntil` the
+     *  listener stops now and lets its stream go when that settles. */
+    function closeVoiceStart(keepMicUntil?: Promise<unknown>): void {
         const listening = voiceStart;
         voiceStart = null;
         voiceStartClosed = true;
-        if (listening) void listening.handle.stop().then(() => syncVoiceStart());
+        if (listening) void listening.handle.stop(keepMicUntil ? { keepMicUntil } : undefined).then(() => syncVoiceStart());
         else void syncVoiceStart();
     }
 

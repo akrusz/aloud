@@ -539,7 +539,9 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   so the last echo-cancelled capture never closes under a line. One tab
   switch sets off several syncs, and the newest takes the handover over; one
   that builds nothing with no newer sync behind it lets the mic go, as do
-  Begin and the mic being closed.
+  Begin and the mic being closed. "Stop listening" keeps the stream through
+  its own answer ("Okay, the mic is off.") and lets it go when the line is
+  over (`act` and `closeVoiceStart` in `views/setup.ts`).
 - **A line waits for a mic opened cold.** Opening an echo-cancelled capture
   with no other capture of ours open starts voice processing on macOS, which
   rebuilds the audio output, and switches a Bluetooth headset from music to
