@@ -51,8 +51,10 @@ One session on hosted GPT speech recognition, in this order:
       with one word ("seven"): it arrives as a turn.
 - [?] **Barge-in.** Ask for a few sentences and talk over the second. She
       stops, the rest never plays, and the bubble ends at the sentence you cut
-      into. Ask "what was the last thing you said?": she knows only the part
-      you heard. Across the whole session she never interrupts herself and
+      into. Ask "what was the last thing you said?": she says again only the
+      part you heard, and your question leaves the screen (that is the repeat
+      command reading her line back out of the log, so what you hear is what
+      the log kept). Across the whole session she never interrupts herself and
       your turns never arrive with her words in them (the echo thresholds
       were tuned on the old Web Audio path).
 - [x] **Media key.** Press F8 while she is speaking: the line carries on.
@@ -86,11 +88,17 @@ Then:
 **From the notes on this pass** (fixed 2026-11-18, none of it heard yet).
 Desktop, hosted GPT speech recognition:
 
-- [ ] **Mute mid-line.** Mute with the button a second or two into a long
-      reply: the rest plays with no skip, across its sentences, and the
-      menu-bar mic indicator goes off a moment after she finishes. Muted with
-      nothing playing, it goes off at once. (A mute 1.4 s into a sentence was
-      what made Ethan skip at "on".)
+- [ ] **Mute mid-line.** Ask for four sentences, click mute a second into
+      the first, and touch nothing until she has finished: no skip. One go is
+      enough, because the log settles it either way (a mute 1.4 s into a
+      sentence closed the mic there and Ethan skipped at "on" 3 s later):
+
+      ```bash
+      /usr/bin/log show --last 3m --style compact --predicate 'process == "com.apple.WebKit.GPU" AND (eventMessage CONTAINS "CoreAudioCaptureSource::end(" OR eventMessage CONTAINS "ObjC::play(" OR eventMessage CONTAINS "didEnd(")' | sed -E 's/^[0-9-]+ //; s/ Df .*\] / /' | cut -c1-80
+      ```
+
+      The `CoreAudioCaptureSource::end` line comes after the last `didEnd`,
+      not between a `play` and its `didEnd`.
 - [ ] **Unmute.** The status reads "Opening the mic…" for a second or so, then
       "Listening…". Start speaking as it changes: the first word arrives
       whole ("Actually" came back "She").
@@ -102,10 +110,16 @@ Desktop, hosted GPT speech recognition:
       new line. (The local server has the new ask now, production after the
       deploy.)
 - [ ] **Setup.** The guidance stops read 1 to 5 with the current one on the
-      thumb, in dark mode and in Firefox too. "Guidance four" moves it and is
+      thumb, in light mode and in Firefox too. "Guidance four" moves it and is
       answered. Special requests folded over text shows a dot and its first
       words. "End the session" in a session asks "Would you like to end the
       session now?".
+- [ ] **Setup mic.** At launch it breathes for a second, then goes steady
+      with the ring: say "add playful" as it steadies and it is heard whole.
+      "Set my intention", then "never mind" as the mic steadies after the
+      question: answered. Say a sentence that is no request: `Heard "…"`
+      shows it on one line, cut to the pill. On hosted recognition, leave the
+      screen quiet for three minutes: the mic is still lit.
 
 **Chrome**, `npm run web:dev`, browser recognizer, speakers. Four minutes.
 
