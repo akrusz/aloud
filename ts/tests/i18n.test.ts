@@ -52,7 +52,7 @@ describe('zh catalog hygiene', () => {
      * key must still appear somewhere in the source (ui, core, index.html).
      * On failure, either re-key the entry to the new English wording or
      * delete it. Matching tries the raw key plus its escaped-in-source forms
-     * (\' \" \n), since keys are compared against file text, not parsed ASTs.
+     * (\' \" \n &amp;), since keys are compared against file text, not parsed ASTs.
      */
     it('every catalog key still exists in the source (no orphans)', () => {
         const here = dirname(fileURLToPath(import.meta.url));
@@ -83,6 +83,7 @@ describe('zh catalog hygiene', () => {
                 key.replaceAll('"', '\\"'),
                 escaped.replaceAll('"', '\\"'),
                 decap,
+                key.replaceAll('&', '&amp;'),
             ];
         };
         // A multi-line key may be assembled from concatenated per-line

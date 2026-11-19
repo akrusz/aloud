@@ -75,14 +75,14 @@
              boot, app.ts (settleBootOrb) fades it out and fades the small idle
              orb into the top bar. Styled entirely by the imported stylesheet's
              .orb/.orb-kasina rules (a blocking <link>, so painted first). -->
-        <div class="orb orb-kasina" id="boot-orb" role="status" aria-label="Loading aloud"></div>
+        <div class="orb orb-kasina" id="boot-orb" role="status" aria-label="Loading aloud" data-i18n-attrs="aria-label"></div>
         <!-- In the Tauri desktop shell the nav doubles as the window title bar.
              Dragging is wired in JS (tauri-chrome.ts) with a movement threshold
              so the whole bar — including over links/logo — drags the window
              while plain clicks still pass through. -->
         <nav class="nav">
             <div class="nav-start">
-                <a href="#" class="nav-brand" id="aboutLink" title="About aloud.">aloud.</a>
+                <a href="#" class="nav-brand" id="aboutLink" title="About aloud." data-i18n-attrs="title">aloud.</a>
             </div>
             <!-- nav-center is populated by the session view (orb + hamburger).
                  Idle pages leave it empty. -->
@@ -122,7 +122,7 @@
              the active class is synced in app.ts:setActiveNav. The bottom-nav
              is hidden during an active session (body[data-session-active]);
              mid-session mobile controls are a follow-up (floating hamburger). -->
-        <nav class="bottom-nav" aria-label="Primary">
+        <nav class="bottom-nav" aria-label="Primary" data-i18n-attrs="aria-label">
             <a href="#" data-nav="setup" class="bottom-nav-link">
                 <svg class="bottom-nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
                 <span class="bottom-nav-label" data-i18n>Session</span>
@@ -146,7 +146,7 @@
              the nav pill: hidden until has-update flags the brand, then opens
              About. Session-only End/History land with the in-session hamburger
              follow-up. -->
-        <div class="mobile-more-sheet hidden" id="mobileMoreSheet" role="dialog" aria-label="More options" aria-modal="true">
+        <div class="mobile-more-sheet hidden" id="mobileMoreSheet" role="dialog" aria-label="More options" aria-modal="true" data-i18n-attrs="aria-label">
             <div class="mobile-more-backdrop" data-mobile-more-close></div>
             <div class="mobile-more-panel">
                 <button type="button" class="mobile-more-action mobile-more-end" id="moreEnd" data-session-only>
@@ -202,7 +202,7 @@
                     <div class="about-app-name"><a href="https://aloud.rest" target="_blank" rel="noopener">aloud.</a></div>
                     <div class="about-version" id="aboutVersion"></div>
                     <div class="about-update hidden" id="aboutUpdate"></div>
-                    <div class="about-author">By Alex Krusz</div>
+                    <div class="about-author" data-i18n>By Alex Krusz</div>
                     <div class="about-links">
                         <a href="https://krusz.net" target="_blank" rel="noopener">krusz.net</a>
                         <a href="https://github.com/akrusz" target="_blank" rel="noopener">GitHub</a>
@@ -214,13 +214,13 @@
                     <div class="about-links about-donate">
                         <a href="https://ko-fi.com/alexkrusz" target="_blank" rel="noopener">Ko-fi</a>
                         <a href="https://venmo.com/Alex-Krusz" target="_blank" rel="noopener">Venmo</a>
-                        <span class="about-eth" title="Show crypto address & QR">krusz.eth</span>
+                        <span class="about-eth" title="Show crypto address & QR" data-i18n-attrs="title">krusz.eth</span>
                         <a href="mailto:lexkrusz@gmail.com?subject=aloud" data-i18n>Kind words</a>
                     </div>
                     <div class="about-crypto hidden" id="aboutCrypto">
-                        <img class="about-crypto-qr" src="%BASE_URL%krusz-eth-qr.svg" width="120" height="120" alt="QR code for the krusz.eth donation address" />
-                        <button type="button" class="about-crypto-addr" id="aboutCryptoAddr" title="Click to copy the full address">0x7895…E2Ca</button>
-                        <div class="about-crypto-note">ETH or stablecoins · Ethereum &amp; Base</div>
+                        <img class="about-crypto-qr" src="%BASE_URL%krusz-eth-qr.svg" width="120" height="120" alt="QR code for the krusz.eth donation address" data-i18n-attrs="alt" />
+                        <button type="button" class="about-crypto-addr" id="aboutCryptoAddr" title="Click to copy the full address" data-i18n-attrs="title">0x7895…E2Ca</button>
+                        <div class="about-crypto-note" data-i18n>ETH or stablecoins · Ethereum &amp; Base</div>
                     </div>
                 </div>
             </div>

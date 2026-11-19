@@ -815,4 +815,13 @@ export const ZH: Record<string, string> = {
     "Stop reading out loud": "停止朗读",
     "Heard \"{text}\"": "听到的是“{text}”",
     "Listening. Try \"twenty minutes\", or say \"begin\".": "正在聆听。可以试着说“二十分钟”，或者说“开始”。",
+    "Loading aloud": "正在加载 aloud",
+    "About aloud.": "关于 aloud",
+    "Primary": "主要",
+    "More options": "更多选项",
+    "By Alex Krusz": "由 Alex Krusz 制作",
+    "Show crypto address & QR": "显示加密货币地址和二维码",
+    "QR code for the krusz.eth donation address": "krusz.eth 捐赠地址的二维码",
+    "Click to copy the full address": "点击复制完整地址",
+    "ETH or stablecoins · Ethereum & Base": "ETH 或稳定币 · Ethereum 和 Base",
 };
