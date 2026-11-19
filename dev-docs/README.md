@@ -42,7 +42,7 @@ params, gotchas. It's the one to keep open.
 | [stepping-out.md](stepping-out.md) | A meditator who is frightened, ungrounded or in danger: the prompt section, the per-utterance trouble check behind it, and what each was measured to do. |
 | [silence-mode.md](silence-mode.md) | `[HOLD]` as a bid, the three silence classifiers, and the Jev judge in front of them. |
 | [pacing.md](pacing.md) | Check-ins (canned vs smart content, fixed vs `[WAIT]` timing), the spoken session timer, what a first sit ("Try right now") overrides, and a noting circle's pace. |
-| [voice-commands.md](voice-commands.md) | Mic pre-flight, the commands that need no judge ("mute", "end the session"), starting by voice, and the judge-backed spoken commands. |
+| [voice-commands.md](voice-commands.md) | Mic pre-flight, the commands that need no judge ("mute", "end the session"), voice on the setup screen (its requests, judge tier, house-voice clips, the spoken tour), and the judge-backed spoken commands. |
 | [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; the pathway depends on the STT backend and, on iPhone, headphones. |
 | [language.md](language.md) | English / 中文: the prompt fragment, zh pools, STT locale, and the `t()` catalog. |
 
