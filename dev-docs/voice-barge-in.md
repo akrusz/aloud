@@ -116,6 +116,26 @@ sessions and hid all three. If session-start echo (meditation-pal-8h1x) looks
 worse than it used to, that is a place to look: the canceller now starts cold
 every session.
 
+## Mute and the voice picker
+
+The same release rule holds mid-session. Muting, or opening the voice picker,
+stops listening at once but keeps the capture stream while a line plays or a
+reply is under way (`facilitatorQuiet` in `session.ts`, passed as
+`keepMicUntil`). A reply's sentences are separate `speak()` calls, and only
+`busy` spans the gaps between them. Let go mid-sentence, the line skipped
+about 3s later (desktop app, 2026-11-18). With nothing playing, the mute lets
+go at once and the OS mic indicator goes off. An unmute while the stream is
+kept takes it back (`micKept` in `whisper-pcm-stt.ts`). The voice picker keeps
+it for as long as it is open, so a preview has no hole in it, and hands it
+back to the listen loop on closing (`MODAL_MIC_HANDBACK_MS`).
+
+A capture opened afresh on macOS sends digital silence for over a second while
+voice processing sets up, and a word said then is lost ("Actually, can you"
+came back "She, can you"). So an unmute that opens the mic on a Whisper engine
+shows `Opening the mic…` until the first frame with sound in it
+(`whenHearing`, `SILENT_FRAME_RMS`), for at most `MIC_OPENING_STATUS_MAX_MS`.
+`whenLive` settles earlier, on the first of those silent frames.
+
 ## Detection
 
 A frame counts as a barge-in attempt when its **mic RMS energy exceeds the

@@ -94,6 +94,11 @@ const BARGE_IN_THRESHOLD = 0.03;
 // promise never settle. Longer than any line the setup screen speaks with the
 // mic kept (voice-start.ts hold): released under one, the line has a hole.
 const KEEP_MIC_CAP_MS = 60_000;
+// Below this RMS a frame is digital silence (whenHearing). A capture opened
+// afresh on macOS delivers that for over a second while the OS sets its echo
+// canceller up, and words said then are lost. Live room tone measured 7e-5 and
+// up on a MacBook (saved clips, 2026-11-18).
+const SILENT_FRAME_RMS = 1e-5;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
 
 // Per-device echo calibration. Continuous capture leaves the mic armed while
@@ -294,6 +299,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     private kept: { stream: MediaStream; waiting: number; cap?: ReturnType<typeof setTimeout> } | null = null;
     /** Waiting for the next frame the capture delivers (whenLive). */
     private liveWaiters: Array<() => void> = [];
+    /** Waiting for the next frame with sound in it (whenHearing). */
+    private hearingWaiters: Array<() => void> = [];
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
@@ -623,6 +630,9 @@ export class WhisperPcmSttEngine implements SttEngine {
         const frame = new Float32Array(data);
         const energy = frameRms(frame);
         const now = performance.now();
+        if (energy >= SILENT_FRAME_RMS && this.hearingWaiters.length > 0) {
+            for (const resolve of this.hearingWaiters.splice(0)) resolve();
+        }
 
         this.levelListener?.(energy);
 
@@ -1033,6 +1043,19 @@ export class WhisperPcmSttEngine implements SttEngine {
      *  mic stream is open and audio is reaching the engine. */
     whenLive(): Promise<void> {
         return new Promise((resolve) => this.liveWaiters.push(resolve));
+    }
+
+    /** Settles at the next frame with sound in it, while not stopped. Later
+     *  than whenLive on a capture opened afresh: its first frames are digital
+     *  silence (SILENT_FRAME_RMS), and only this says words will be heard. */
+    whenHearing(): Promise<void> {
+        return new Promise((resolve) => this.hearingWaiters.push(resolve));
+    }
+
+    /** A stop() kept the capture stream and it is still good: the next start()
+     *  takes it back, live at once, instead of opening the mic. */
+    get micKept(): boolean {
+        return !!this.kept && !streamNeedsRefresh(this.kept.stream);
     }
 
     /**

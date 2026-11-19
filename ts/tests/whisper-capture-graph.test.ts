@@ -39,9 +39,12 @@ class FakeContext {
     }
 }
 let lastProcessor: { onaudioprocess: ((e: unknown) => void) | null } | null = null;
-/** One frame of silence through the capture graph, as the audio thread delivers it. */
-function deliverFrame(): void {
-    lastProcessor?.onaudioprocess?.({ inputBuffer: { getChannelData: () => new Float32Array(4096) } });
+/** One frame through the capture graph, as the audio thread delivers it:
+ *  digital silence unless given a level. */
+function deliverFrame(level = 0): void {
+    lastProcessor?.onaudioprocess?.({
+        inputBuffer: { getChannelData: () => new Float32Array(4096).fill(level) },
+    });
 }
 
 beforeEach(() => {
@@ -188,6 +191,52 @@ describe('the capture graph', () => {
             expect(live).toBe(true);
             await engine.stop();
             await turn;
+        });
+
+        it('says when it hears: the first frame that is not digital silence', async () => {
+            // A capture opened afresh on macOS sends silence while the OS sets
+            // its echo canceller up. The session says the mic is opening until
+            // this settles, or the first word goes unheard (setMuted).
+            const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+            const engine = new WhisperPcmSttEngine();
+            let live = false;
+            let hearing = false;
+            void engine.whenLive().then(() => (live = true));
+            void engine.whenHearing().then(() => (hearing = true));
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            deliverFrame();
+            await Promise.resolve();
+            expect(live).toBe(true);
+            expect(hearing).toBe(false);
+            // Room tone, about the quietest a MacBook mic measured.
+            deliverFrame(1e-4);
+            await Promise.resolve();
+            expect(hearing).toBe(true);
+            await engine.stop();
+            await turn;
+        });
+
+        it('tells a session whether unmuting takes a kept stream back', async () => {
+            let over = (): void => {};
+            const engine = await listenThenStop(new Promise<void>((r) => (over = r)));
+            expect(engine.micKept).toBe(true);
+            const turn = (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+            await new Promise((r) => setTimeout(r, 30));
+            expect(opened).toHaveLength(1);
+            expect(engine.micKept).toBe(false);
+            await engine.stop();
+            await turn;
+
+            // Let go once what it was kept for is over: the next start opens the mic.
+            const again = await listenThenStop(new Promise<void>((r) => (over = r)));
+            over();
+            await new Promise((r) => setTimeout(r, 0));
+            expect(again.micKept).toBe(false);
         });
 
         it('opens a new stream where the kept one has died', async () => {

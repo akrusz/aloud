@@ -374,6 +374,7 @@ export const ZH: Record<string, string> = {
     "Opening": "开场",
     "Opening and Closing Sound": "开场与结束音",
     "Opening the download page…": "正在打开下载页面……",
+    "Opening the mic…": "正在打开麦克风……",
     "Operation failed": "操作失败",
     "Option {n}": "选项 {n}",
     "Options with ☁ require an account": "带 ☁ 的选项需要账户",

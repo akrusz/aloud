@@ -3067,12 +3067,34 @@ export async function mountSessionView(
         return stt ? listeningStatus() : t('Mic unavailable');
     }
 
+    /** Settles once the facilitator has nothing playing and no reply under
+     *  way, for a stop that keeps the mic until then (keepMicUntil): on macOS,
+     *  letting the mic go rebuilds the audio output a second or two later, and
+     *  a line playing then skips. A reply is several lines back to back, and
+     *  only `busy` spans the gaps between them. */
+    async function facilitatorQuiet(): Promise<void> {
+        // Looked at a task later, so a line started right after the stop (the
+        // spoken "Muted.") counts.
+        await sleep(0);
+        while (!torn && (ttsSpeakingDepth > 0 || (busy && ttsEnabled))) await sleep(100);
+    }
+
+    /** How long a closed voice modal waits for the listen loop to take the
+     *  kept mic back before letting it go. */
+    const MODAL_MIC_HANDBACK_MS = 3000;
+
+    /** Past this the unmuted status line stops saying the mic is opening,
+     *  so a mic that never sends sound can't leave it stuck there. */
+    const MIC_OPENING_STATUS_MAX_MS = 5000;
+
     /** Mic on/off. Unmuting is button-only - a muted mic hears no way back. */
     function setMuted(next: boolean): void {
         if (!stt || next === muted) return;
         if (next) {
             muted = true;
-            void stt.stop();
+            // Listening stops now; the mic itself is let go once the
+            // facilitator is quiet, at once when it already is.
+            void stt.stop({ keepMicUntil: facilitatorQuiet() });
             stopMeter();
             setMicButtonState();
             setStatus(t('Muted'));
@@ -3081,9 +3103,22 @@ export async function mountSessionView(
             setMicButtonState();
             // The listen loop resumes without re-announcing, so clear the
             // 'Muted' status here or it sticks.
-            setStatus(
-                silenceMode ? holdingStatus() : listeningStatus()
-            );
+            const ready = (): string => (silenceMode ? holdingStatus() : listeningStatus());
+            // A mic opened afresh hears only digital silence for a second or
+            // more (whenHearing), and a word said then is lost. A kept stream
+            // taken back is live at once.
+            const opensMic = stt instanceof WhisperPcmSttEngine && !stt.micKept ? stt : null;
+            if (opensMic) {
+                const text = t('Opening the mic…');
+                setStatus(text);
+                void Promise.race([opensMic.whenHearing(), sleep(MIC_OPENING_STATUS_MAX_MS)]).then(() => {
+                    // Anything that replaced it meanwhile (muted again, a
+                    // reply, a mic error) stands.
+                    if (!torn && statusEl.textContent === text) setStatus(ready());
+                });
+            } else {
+                setStatus(ready());
+            }
             resumeCapture();
         }
     }
@@ -3204,8 +3239,13 @@ export async function mountSessionView(
         syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, setup.ttsRate);
         modal.classList.remove('hidden');
         // Park the listen loop (see voiceModalOpen) and stop in-flight capture.
+        // The mic is kept through any line still playing (setMuted) and until
+        // the modal is closed: let go under a preview, the preview skips, and
+        // closing would open the mic afresh, deaf for its first second.
         voiceModalOpen = true;
-        void stt?.stop();
+        let modalOver = (): void => {};
+        const modalClosed = new Promise<void>((resolve) => (modalOver = resolve));
+        void stt?.stop({ keepMicUntil: Promise.all([facilitatorQuiet(), modalClosed]) });
 
         const onListClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -3247,6 +3287,11 @@ export async function mountSessionView(
             // own; restart it if it had exited.
             voiceModalOpen = false;
             if (stt && !muted && !torn && !listenLoopRunning) void listenLoop();
+            // Not before the loop has taken the kept mic back, or it is let
+            // go a moment ahead of being opened again.
+            const resuming = stt instanceof WhisperPcmSttEngine && !muted && !torn ? stt : null;
+            if (resuming) void Promise.race([resuming.whenLive(), sleep(MODAL_MIC_HANDBACK_MS)]).then(modalOver);
+            else modalOver();
             listEl.removeEventListener('click', onListClick);
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
