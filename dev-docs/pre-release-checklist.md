@@ -17,7 +17,10 @@ check each of these still reflects reality:
   meta description carries its own tagline, so it drifts from the hero), and the
   mobile-status platform line ("iOS and Android are in closed beta").
 - **`docs/privacy/index.html`** - data-flow descriptions, provider examples,
-  on-device claims, "last updated" date. It also names what the **site** itself
+  on-device claims, "last updated" date. "Who runs each aloud cloud model" is a
+  table of every hosted facilitator, speech model and voice by who runs it,
+  plus the background models, so a catalog change usually lands there. It
+  says when the setup screen's mic closes by itself, and names what the **site** itself
   loads from a third party (today the YouTube video, on play only), so a new
   embed on a `docs/` page needs an entry here.
 - **`docs/terms/index.html`** - anything the product now does with money or
@@ -105,6 +108,13 @@ check each of these still reflects reality:
   command's acknowledgment needs both languages written here. Its `help` line
   is a *sample* of the commands, and the full list lives in the session info
   panel - keep the two honest about what actually exists.
+- **`ts/src/facilitation/setup-lines.ts`** - `SETUP_LINES`, what the setup
+  screen says out loud, en and zh inline: the answers to spoken requests, the
+  `help` line, and the spoken tour, which describes each mode and the commands
+  it takes. A renamed mode, a changed tab order or a new command can make a
+  tour line wrong. Each line is also a **generated** clip per house voice
+  (`ts/ui/public/voice-clips/`, manifest `ts/ui/src/voice-clips.json`); see
+  "Edited a spoken setup line" below.
 - **`ts/ui/src/voice-command-hints.ts`** - the one-time status-line nudges that
   teach the commands ("You can just say …"). A command that loses its by-hand
   control, or a reworded command, goes here too.
@@ -143,12 +153,18 @@ check each of these still reflects reality:
   review notes).
 - **Added/removed a hosted STT or TTS provider** → `.env.example` + the
   `ts-server.md` env table and audition table, `pricing/providers.ttsRateFor`
-  and the estimate labels, and the **privacy policy's subprocessor list**
-  (it names the voice/speech vendors, not just the LLM ones).
+  and the estimate labels, and the **privacy policy's "Who runs each aloud
+  cloud model" table** (it names the voice/speech vendors, not just the LLM
+  ones). A hosted STT model reaches the picker only through `HOSTED_STT` in
+  `ui/src/adapters/stt-picker.ts` (its label, the languages it is offered in,
+  a seed rate).
 - **Added/removed/renamed a hosted voice** (`voice-catalog.ts`) → the privacy
-  policy names the voices spoken by a provider it singles out (today the four
-  Inworld ones, because of data retention); a voice joining or leaving that
-  provider means updating the policy.
+  policy's model table names every hosted voice under its provider, so any
+  voice in or out means an edit there. A `house` voice says its name in the
+  tour, so renaming one also touches `formerly` on its entry (saved picks and
+  older clients), `voice-names.ts` for a zh voice (what it is called, shown
+  and heard as), the setup lines that carry the name and their clips, and
+  `voice-commands.md`.
 - **Added/removed/renamed an opening and closing sound** (`SIGNATURE_SOUNDS` in
   `ui/src/signature-sound.ts`) → its two files (the id names them; `PRESETS` in
   `assets/promo/signature-candidates/app_copies.py` writes them), the label's
@@ -156,7 +172,8 @@ check each of these still reflects reality:
   and `design-push.md` where it names the default. A retired id needs no
   migration: `resolveSignatureSound` falls to the default.
 - **Changed where barge-in works** (an STT backend, a platform, the iPhone's
-  headphones check in `bargesInOnOwnStream`) → the setup STT notes
+  headphones check in `bargesInOnOwnStream`, a voice echo cancellation can't
+  remove in `voiceEchoCancelled`) → the setup STT notes
   (`setup-stt-quality-note`, `setup-stt-iphone-note` in `ui/src/views/setup.ts`)
   and their zh, the known issue on `docs/mobile-beta/`, "Known and accepted"
   in `store-submission-checklist.md`, and `voice-barge-in.md`.
@@ -173,17 +190,20 @@ check each of these still reflects reality:
   takes only these), README's "work everywhere" tip, `voice-commands.md`, and a
   rerun of `node ts/scripts/voice-loop-check.mjs`.
 - **Added/changed something sayable on the setup screen** (`setup-command.ts`:
-  a `SetupAction`, a phrase, a `HEARD_AS` entry) → its zh pattern in the same
-  file, `setupVocabulary` (what the recognizers are told to expect; never
-  "begin"), the action in `ui/src/setup-actions.ts` and its outcome's line in
-  `setup-lines.ts`, the Jev asks in `setup-command-specs.ts` and a rerun of
-  `npm run jev:setup`, the read-aloud sheet in `manual-smoke.md`, and a rerun
-  of `node ts/scripts/voice-loop-check.mjs`.
+  a `SetupAction`, a phrase, a `HEARD_AS` entry; or the tour's words in
+  `tour-command.ts`) → its zh pattern in the same file, `setupVocabulary`
+  (what the recognizers are told to expect; never "begin"), the action in
+  `ui/src/setup-actions.ts` and its outcome's line in `setup-lines.ts`, the
+  Jev asks in `setup-command-specs.ts` and a rerun of `npm run jev:setup`,
+  `npx tsx scripts/setup-voice/run.ts --summary-only` from `ts/` (local and
+  free; commit the `misheard.ts` and `results/summary.txt` it rewrites, which
+  `jev:setup` scores against), the read-aloud sheet in `manual-smoke.md`,
+  and a rerun of `node ts/scripts/voice-loop-check.mjs`.
 - **Edited a spoken setup line** (`SETUP_LINES` in `setup-lines.ts`, en or zh)
   → `npm run clips:render` (it renders only what changed and prices the run
   first; a line edited without it is silently not played on hosted voices),
   listen to anything it lists as suspect, commit the new clips with the
-  manifest, and `npm run clips:render -- --check` before a release. The same
+  manifest, and `npm run clips:check` before a release. The same
   after changing which voices are flagged `house` in `voice-catalog.ts`, or a
   house voice's `gainDb` (the render re-levels its clips from their files,
   free; until it runs and the server deploys, the setup screen and the
@@ -191,12 +211,17 @@ check each of these still reflects reality:
 - **Changed when the mic listens** (e.g. voice control opening it on setup,
   before a session) → the iOS mic purpose string in `ios/App/App/Info.plist`
   (`NSMicrophoneUsageDescription`, today "to hear what you say", with no
-  "when"; quoted in `mobile.md`; the desktop twin is `src-tauri/Info.plist`) and the privacy policy's "Your voice" section.
+  "when"; quoted in `mobile.md`; the desktop twin is `src-tauri/Info.plist`) and
+  the privacy policy's "Where your data goes". **Changed how the setup mic
+  closes by itself** (`setupListeningLimits` in `ui/src/voice-start.ts`) → that
+  section's setup-screen paragraph and the Settings hint under "Voice control on
+  the setup screen" (`views/settings.ts`) and its zh: both say when it sleeps.
 - **Added or demoted a hosted model** (`pricing/providers.ts` `MODELS`) → the
   housekeeping list in that file's header. A curated model of the same line
   as a demoted or delisted one takes over its saved picks (`lineSuccessor` in
   `ui/src/model-picker.ts`), so decide `noAutoUpgrade`; any site or store copy
-  naming models; `evals/models.ts`.
+  naming models; the privacy policy's model table when a family, a background
+  model or who hosts one changes; `evals/models.ts`.
 - **Edited any user-facing English string** → see `zh.ts` in Part A. The
   translation is keyed on the English text; changing the text un-translates it.
 - **Changed platform support** (e.g. mobile ships) → the "coming soon" lines on the
@@ -228,7 +253,7 @@ check each of these still reflects reality:
   (`grant_keys`, kept after deletion), the privacy policy's "Abuse prevention"
   and retention lines and `docs/delete-account/`.
 - **Changed what a judge request carries** (`judgeState`, `JudgeContext`) → the
-  privacy policy's classification-model paragraphs say exactly what the check
+  privacy policy's "Voice commands and background functionality" says exactly what the check
   is shown, separately for aloud cloud and for opt-in / own-key sessions, and
   so does the in-app consent line (`VOICE_COMMANDS_CONSENT`).
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
