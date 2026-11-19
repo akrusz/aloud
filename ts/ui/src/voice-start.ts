@@ -11,14 +11,16 @@
  * - It never raises a permission prompt by itself. Where the microphone is
  *   known to be granted it just listens; where that can't be known, the status
  *   line offers to (one tap, which is also where a prompt belongs).
- * - It closes by itself (`setupListeningLimits`). Where listening is paid for
- *   (hosted speech recognition), or the recognizer is a phone's, that is by
- *   the clock: VOICE_START_WINDOW_MS after the last request it understood,
- *   and VOICE_START_MAX_OPEN_MS after it opened, whatever was said. Local
- *   Whisper and the browser's recognizer cost nothing to leave open in a quiet
- *   room, so there it has no clock. Everywhere it closes on a run of things
- *   heard that were not requests: a room that is talking, and not to the app.
- *   The mic beside Begin shows which, and a tap opens it again.
+ * - It closes by itself (`setupListeningLimits`). On a phone that is by the
+ *   clock: VOICE_START_WINDOW_MS after the last request it understood, and
+ *   VOICE_START_MAX_OPEN_MS after it opened, whatever was said. On a desktop
+ *   there is no clock, since a quiet room costs nothing on any recognizer
+ *   (speech is found on the device, and only speech is sent). Everywhere it
+ *   closes on a run of things heard that were not requests: a room that is
+ *   talking, and not to the app. Hosted recognition pays for each of those,
+ *   so its run is shorter and counts faster once the room has gone
+ *   VOICE_START_WINDOW_MS with nothing asked. The mic beside Begin shows
+ *   which, and a tap opens it again.
  * - It is cheap. Whatever recognizer the session would use is the one that
  *   listens, hosted speech recognition included, but under LOBBY_STT: short
  *   utterances, one transcription each. "Begin" is matched locally and
@@ -61,11 +63,19 @@ export const VOICE_START_MAX_OPEN_MS = 600_000;
 export const VOICE_START_LOCAL_UNHEARD = 30;
 
 /**
- * The same count where the clock runs too (hosted recognition, a phone's own):
- * a room that is talking closes the mic before the window does. Lower, since
- * each thing heard there is a clip sent off the device.
+ * The same count for hosted recognition and a phone's own. Lower, since each
+ * thing heard there is a clip sent off the device.
  */
-export const VOICE_START_CLOCKED_UNHEARD = 20;
+export const VOICE_START_SENT_UNHEARD = 20;
+
+/**
+ * What one thing heard that was not a request counts for on hosted
+ * recognition at a desktop, once VOICE_START_WINDOW_MS has gone by with
+ * nothing asked: by then a talking room is not talking to the app, and four
+ * more clips close the mic. There is no clock there, so a quiet room stays
+ * open however long.
+ */
+export const VOICE_START_LATE_UNHEARD_COST = 5;
 
 /** How the mic on the setup screen closes by itself, for a recognizer. */
 export interface SetupListeningLimits {
@@ -73,22 +83,42 @@ export interface SetupListeningLimits {
     maxOpenMs: number;
     /** Things heard in a row that were not requests; Infinity for no limit. */
     unheardLimit: number;
+    /** This long after the last request understood (or the mic opening), one
+     *  of those counts for `lateUnheardCost`. */
+    lateAfterMs: number;
+    lateUnheardCost: number;
 }
 
+/** What is listening on the setup screen, as far as closing by itself goes:
+ *  `free` is local Whisper or the browser's recognizer (a browser is a desktop
+ *  browser here; phones use the app), `hosted` is hosted recognition at a
+ *  desktop, `phone` is any recognizer on a phone. */
+export type SetupListener = 'free' | 'hosted' | 'phone';
+
 /**
- * `free`: listening costs nothing and the machine is a desktop: local Whisper,
- * or the browser's own recognizer (a browser is a desktop browser here; phones
- * use the app). The rest keep the clock as well: hosted recognition is paid
- * for by the second, and a phone's recognizer is not built to be left running.
+ * Only a phone keeps the clock: its recognizer is not built to be left
+ * running, and an open mic there has costs of its own (call audio on Android).
+ * At a desktop a quiet room costs nothing, hosted recognition included, so
+ * what closes the mic is the room talking.
  */
-export function setupListeningLimits(free: boolean): SetupListeningLimits {
-    return free
-        ? { windowMs: Infinity, maxOpenMs: Infinity, unheardLimit: VOICE_START_LOCAL_UNHEARD }
-        : {
-              windowMs: VOICE_START_WINDOW_MS,
-              maxOpenMs: VOICE_START_MAX_OPEN_MS,
-              unheardLimit: VOICE_START_CLOCKED_UNHEARD,
-          };
+export function setupListeningLimits(listener: SetupListener): SetupListeningLimits {
+    const never = { windowMs: Infinity, maxOpenMs: Infinity };
+    const flat = { lateAfterMs: Infinity, lateUnheardCost: 1 };
+    if (listener === 'free') return { ...never, unheardLimit: VOICE_START_LOCAL_UNHEARD, ...flat };
+    if (listener === 'hosted') {
+        return {
+            ...never,
+            unheardLimit: VOICE_START_SENT_UNHEARD,
+            lateAfterMs: VOICE_START_WINDOW_MS,
+            lateUnheardCost: VOICE_START_LATE_UNHEARD_COST,
+        };
+    }
+    return {
+        windowMs: VOICE_START_WINDOW_MS,
+        maxOpenMs: VOICE_START_MAX_OPEN_MS,
+        unheardLimit: VOICE_START_SENT_UNHEARD,
+        ...flat,
+    };
 }
 
 /** After the app has finished speaking, before the recognizer listens again:
@@ -275,6 +305,9 @@ export interface ListenOnSetupOptions {
     maxOpenMs?: number;
     /** Close after this many things heard in a row that were not requests. */
     unheardLimit?: number;
+    /** SetupListeningLimits: when, and for how much, one of them counts more. */
+    lateAfterMs?: number;
+    lateUnheardCost?: number;
     now?: () => number;
 }
 
@@ -290,7 +323,11 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     const ceiling = now() + (opts.maxOpenMs ?? VOICE_START_MAX_OPEN_MS);
     let deadline = Math.min(now() + windowMs, ceiling);
     const unheardLimit = opts.unheardLimit ?? Infinity;
+    const lateAfterMs = opts.lateAfterMs ?? Infinity;
+    const lateUnheardCost = opts.lateUnheardCost ?? 1;
     let unheard = 0;
+    // The last request understood, or the mic opening.
+    let askedAt = now();
     let ended = false;
     // Settles when nothing is holding the recognizer stopped.
     let held: Promise<void> | null = null;
@@ -320,6 +357,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     const keepOpen = (): void => {
         deadline = Math.min(now() + windowMs, ceiling);
         unheard = 0;
+        askedAt = now();
     };
 
     const end = async (why: VoiceStartEnd, request?: BeginRequest, keepMicUntil?: Promise<unknown>): Promise<void> => {
@@ -419,7 +457,10 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                 }
             }
             // The room is talking, and not to the app.
-            if (heard && ++unheard >= unheardLimit) return void end('window');
+            if (heard) {
+                unheard += now() - askedAt >= lateAfterMs ? lateUnheardCost : 1;
+                if (unheard >= unheardLimit) return void end('window');
+            }
             // A recognizer that returns at once with nothing (no speech, or a
             // refusal it reports as an ordinary end) must not spin.
             if (!heard) await pause(300);

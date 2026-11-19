@@ -120,7 +120,7 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
-import { capacitorPlatform, isSingleOwnerMicPlatform } from '../is-desktop.js';
+import { capacitorPlatform, isCapacitor, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import {
     computeProviderMarker,
     fetchKeyPresence,
@@ -1202,8 +1202,7 @@ export async function mountSetupView(
     // "Begin", and changes to the setup said out loud. Runs only while this
     // screen is up and Begin itself is possible; opens by itself where the
     // mic is known to be granted and on a tap where it isn't; closes itself
-    // after VOICE_START_WINDOW_MS with nothing asked and when the screen goes
-    // away.
+    // as setupListeningLimits says and when the screen goes away.
     let voiceStart: {
         handle: VoiceStartHandle;
         choice: SttEngineChoice;
@@ -1754,8 +1753,9 @@ export async function mountSetupView(
             onBegin: (request) => void beginByVoice(request, beginBtn),
             onHeard: heardOnSetup,
             isEcho: heardOwnLine,
-            // Free to leave open on a desktop; the rest close by the clock.
-            ...setupListeningLimits(choice === 'whisper' || choice === 'web-speech'),
+            ...setupListeningLimits(
+                isCapacitor() ? 'phone' : choice === 'whisper' || choice === 'web-speech' ? 'free' : 'hosted'
+            ),
             ...(engine instanceof WhisperPcmSttEngine ? { whenHearing: () => engine.whenHearing() } : {}),
             onHearing: (state) => {
                 if (state === 'hearing') settleOwed();

@@ -22,7 +22,8 @@ import {
     micPermission,
     voiceStartBlocker,
     setupListeningLimits,
-    VOICE_START_CLOCKED_UNHEARD,
+    VOICE_START_LATE_UNHEARD_COST,
+    VOICE_START_SENT_UNHEARD,
     SPEECH_TAIL_MS,
     VOICE_START_MAX_OPEN_MS,
     VOICE_START_WINDOW_MS,
@@ -183,7 +184,7 @@ describe('listenOnSetup', () => {
         engine: SttEngine,
         alive: () => boolean = () => true,
         onHeard?: (text: string) => boolean | Promise<boolean>,
-        limits: Partial<SetupListeningLimits> = {}
+        limits: Partial<SetupListeningLimits> & { now?: () => number } = {}
     ) {
         const ends: VoiceStartEnd[] = [];
         const order: string[] = [];
@@ -255,7 +256,7 @@ describe('listenOnSetup', () => {
 
     it('stays open on a free desktop recognizer, however long nothing is said', async () => {
         const engine = scriptedEngine([]);
-        const { ends } = run(engine, () => true, undefined, setupListeningLimits(true));
+        const { ends } = run(engine, () => true, undefined, setupListeningLimits('free'));
         await vi.advanceTimersByTimeAsync(VOICE_START_MAX_OPEN_MS * 3);
         expect(ends).toEqual([]);
     });
@@ -263,29 +264,68 @@ describe('listenOnSetup', () => {
     it('closes there on a room that keeps talking, and a request starts the count over', async () => {
         const room = (n: number): string[] => Array.from({ length: n }, (_, i) => `the weather on channel ${i}`);
         const talk = scriptedEngine(room(3));
-        const first = run(talk, () => true, () => false, { ...setupListeningLimits(true), unheardLimit: 3 });
+        const first = run(talk, () => true, () => false, { ...setupListeningLimits('free'), unheardLimit: 3 });
         await vi.advanceTimersByTimeAsync(5_000);
         expect(first.ends).toEqual(['window']);
 
         const mixed = scriptedEngine([...room(2), 'twenty minutes', ...room(2)]);
-        const second = run(mixed, () => true, (text) => text === 'twenty minutes', { ...setupListeningLimits(true), unheardLimit: 3 });
+        const second = run(mixed, () => true, (text) => text === 'twenty minutes', { ...setupListeningLimits('free'), unheardLimit: 3 });
         await vi.advanceTimersByTimeAsync(10_000);
         expect(second.ends).toEqual([]);
     });
 
-    it("keeps the clock where listening is paid for, or the recognizer is a phone's", () => {
-        expect(setupListeningLimits(false)).toEqual({
+    it("keeps the clock on a phone, and nowhere else", () => {
+        expect(setupListeningLimits('phone')).toMatchObject({
             windowMs: VOICE_START_WINDOW_MS,
             maxOpenMs: VOICE_START_MAX_OPEN_MS,
-            unheardLimit: VOICE_START_CLOCKED_UNHEARD,
+            unheardLimit: VOICE_START_SENT_UNHEARD,
         });
+        expect(setupListeningLimits('hosted')).toMatchObject({ windowMs: Infinity, maxOpenMs: Infinity });
     });
 
-    it('closes there too on a room that keeps talking, well inside the window', async () => {
-        const room = Array.from({ length: VOICE_START_CLOCKED_UNHEARD }, (_, i) => `the weather on channel ${i}`);
-        const { ends } = run(scriptedEngine(room), () => true, () => false, setupListeningLimits(false));
+    it('closes a phone too on a room that keeps talking, well inside the window', async () => {
+        const room = Array.from({ length: VOICE_START_SENT_UNHEARD }, (_, i) => `the weather on channel ${i}`);
+        const { ends } = run(scriptedEngine(room), () => true, () => false, setupListeningLimits('phone'));
         await vi.advanceTimersByTimeAsync(VOICE_START_WINDOW_MS / 4);
         expect(ends).toEqual(['window']);
+    });
+
+    it('leaves hosted recognition open at a desktop while the room is quiet', async () => {
+        const { ends } = run(scriptedEngine([]), () => true, undefined, setupListeningLimits('hosted'));
+        await vi.advanceTimersByTimeAsync(VOICE_START_MAX_OPEN_MS * 3);
+        expect(ends).toEqual([]);
+    });
+
+    it('counts a thing heard there for one at first, and for more once nothing has been asked for a while', async () => {
+        const limits = setupListeningLimits('hosted');
+        const lateCloses = Math.ceil(VOICE_START_SENT_UNHEARD / VOICE_START_LATE_UNHEARD_COST);
+        const room = (n: number): string[] => Array.from({ length: n }, (_, i) => `the weather on channel ${i}`);
+
+        // Early, one short of the limit leaves it open.
+        const early = run(scriptedEngine(room(VOICE_START_SENT_UNHEARD - 1)), () => true, () => false, limits);
+        await vi.advanceTimersByTimeAsync(VOICE_START_WINDOW_MS / 4);
+        expect(early.ends).toEqual([]);
+
+        // Late, a few are enough.
+        const clock = { at: 0 };
+        const late = run(scriptedEngine(room(lateCloses)), () => true, () => false, {
+            ...limits,
+            now: () => clock.at,
+        });
+        clock.at = VOICE_START_WINDOW_MS + 1;
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(late.ends).toEqual(['window']);
+
+        // A request understood starts both the count and the wait over.
+        const asked = { at: 0 };
+        const talk = [...room(lateCloses - 1), 'twenty minutes', ...room(lateCloses)];
+        const again = run(scriptedEngine(talk), () => true, (text) => text === 'twenty minutes', {
+            ...limits,
+            now: () => asked.at,
+        });
+        asked.at = VOICE_START_WINDOW_MS + 1;
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(again.ends).toEqual([]);
     });
 
     it('closes the mic as soon as the setup screen is gone', async () => {

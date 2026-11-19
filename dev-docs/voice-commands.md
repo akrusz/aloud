@@ -267,10 +267,9 @@ the bar is under the picker's dimming. A clear that only made room is not announ
 three lines become one "Okay, all set."
 
 Something heard that came to nothing is shown back the same way, as `Heard
-"…"`, so a mishearing reads as one and not as a dead mic: one line, cut with
-an ellipsis to the room the pill has (`.voice-start-note.heard`). Past a dozen
-words it is the room talking and nothing shows (`heardNote`,
-`ui/src/heard-note.ts`).
+"…"`, so a mishearing reads as one and not as a dead mic: one line, whatever
+its length, cut with an ellipsis to the room the pill has
+(`.voice-start-note.heard`).
 
 ### The judge tier
 
@@ -471,22 +470,30 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
 - **It falls asleep by itself, by what listening costs**
   (`setupListeningLimits`). It also closes the moment the setup screen goes
   away.
-  - Hosted recognition and a phone's own: two minutes with nothing
-    asked (`VOICE_START_WINDOW_MS`), then asleep until tapped. Each request it
+  - On a phone, whatever the recognizer: two minutes with nothing asked
+    (`VOICE_START_WINDOW_MS`), then asleep until tapped. Each request it
     understands starts the two minutes over, up to ten minutes since it opened
-    (`VOICE_START_MAX_OPEN_MS`): nothing a television says keeps a microphone
-    open past that. A room that keeps talking closes it sooner:
-    `VOICE_START_CLOCKED_UNHEARD` things heard in a row that were not
-    requests.
-  - Local Whisper and the browser's recognizer: no clock. (A browser is taken
-    to be a desktop one; phones use the app.) A quiet room costs nothing
-    there, so it stays open as long as the screen is up. What does cost is a room that
-    keeps talking (Whisper transcribing a television, and each line the parser
-    can't place going to the judge where there is one, against the daily
-    allowance a session's voice commands share), so it closes after
-    `VOICE_START_LOCAL_UNHEARD` things heard in a row that were not requests,
-    about five minutes of unbroken talk. A request understood starts the count
-    over.
+    (`VOICE_START_MAX_OPEN_MS`). A room that keeps talking closes it sooner:
+    `VOICE_START_SENT_UNHEARD` things heard in a row that were not requests.
+  - At a desktop there is no clock on any recognizer. (A browser is taken to
+    be a desktop one; phones use the app.) Speech is found on the device and
+    only speech is sent, so a quiet room costs nothing and the mic stays open
+    as long as the screen is up. What costs is a room that keeps talking, and
+    that is counted:
+    - Local Whisper and the browser's recognizer (Whisper transcribing a
+      television, and each line the parser can't place going to the judge
+      where there is one, against the daily allowance a session's voice
+      commands share): `VOICE_START_LOCAL_UNHEARD` things heard in a row that
+      were not requests, about five minutes of unbroken talk.
+    - Hosted recognition, where each of those is a clip paid for:
+      `VOICE_START_SENT_UNHEARD`, and once two minutes have gone by with
+      nothing asked each one counts for five
+      (`VOICE_START_LATE_UNHEARD_COST`), so a television is closed on within
+      a few lines of the two-minute mark and four lines after it. It was on
+      the phone's clock until 2026-11-19: a quiet two minutes on the setup
+      screen put the mic to sleep.
+
+    A request understood starts the count, and the two minutes, over.
 - **It does not hear the app.** A request is answered with the recognizer
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
   step of the tour, stops it first (`hold`). Listening resumes
