@@ -266,6 +266,54 @@ describe('parseSetupCommand: guidance and responses', () => {
         ]);
     });
 
+    it('goes to a stop by the number drawn under it', () => {
+        expectAll([
+            ['guidance three', [{ kind: 'guidance', to: 2 }]],
+            ['Guidance level 3.', [{ kind: 'guidance', to: 2 }]],
+            ['set guidance to four', [{ kind: 'guidance', to: 3 }]],
+            ['set the guidance level to 2', [{ kind: 'guidance', to: 1 }]],
+            ['guidance one', [{ kind: 'guidance', to: 0 }]],
+            ['set the guidance to one', [{ kind: 'guidance', to: 0 }]],
+            ['okay, guidance five please', [{ kind: 'guidance', to: 4 }]],
+            ['guidance two please', [{ kind: 'guidance', to: 1 }]],
+            ['playful and guidance four', [{ kind: 'quality', quality: 'playful', on: true }, { kind: 'guidance', to: 3 }]],
+            ['guidance four and twenty minutes', [{ kind: 'length', minutes: 20 }, { kind: 'guidance', to: 3 }]],
+        ]);
+    });
+
+    it('hears "for" and "to" after guidance as the number, said on 2026-11-17', () => {
+        expectAll([
+            ['Guidance for', [{ kind: 'guidance', to: 3 }]],
+            ['Guidance five.', [{ kind: 'guidance', to: 4 }]],
+            ['Guidance to.', [{ kind: 'guidance', to: 1 }]],
+            ['guidance too', [{ kind: 'guidance', to: 1 }]],
+            ['guidance level for', [{ kind: 'guidance', to: 3 }]],
+            ['set guidance to for', [{ kind: 'guidance', to: 3 }]],
+            // Not where the word is doing its own job.
+            ['set the guidance to', null],
+            ['more guidance too', [{ kind: 'guidance', to: 'up' }]],
+            ['give me guidance too', null],
+            ['guidance for ten minutes', null],
+            // And numberAsWord still reads a "two" that comes before a value.
+            ['set the guidance two balanced', [{ kind: 'guidance', to: 2 }]],
+        ]);
+    });
+
+    it('takes no number but a stop, and none without guidance', () => {
+        expectAll([
+            ['guidance 0', null],
+            ['guidance six', null],
+            ['guidance twenty', null],
+            ['guidance five minutes', null],
+            ['guidance three more', null],
+            ['no guidance three', null],
+            ['the guidance one', null],
+            ['five', null],
+            ['level 3', null],
+            ['three', null],
+        ]);
+    });
+
     it('changes how much the facilitator says', () => {
         expectAll([
             ['shorter responses', [{ kind: 'verbosity', to: 'down' }]],
@@ -559,6 +607,14 @@ describe('parseSetupCommand: what a room says', () => {
             "let's sit with Grandma",
             'playfulness',
             'emotional',
+            'five',
+            'level three',
+            'number four',
+            'thanks for the guidance',
+            'guidance for beginners',
+            'I need guidance for',
+            'I have guidance too',
+            'the guidance is two',
         ]) {
             expect(parseSetupCommand(text), text).toBeNull();
         }
@@ -791,6 +847,16 @@ describe('parseSetupCommand: zh', () => {
             ['特別要求：說話慢一點', [{ kind: 'special-request', text: '說話慢一點' }]],
             ['清除特别要求', [{ kind: 'special-request', text: '' }]],
             ['特别要求大家注意安全', null],
+        ]);
+    });
+
+    it('takes a guidance stop by its number', () => {
+        expectAll([
+            ['引导三', [{ kind: 'guidance', to: 2 }]],
+            ['把引导调到四吧', [{ kind: 'guidance', to: 3 }]],
+            ['引导1', [{ kind: 'guidance', to: 0 }]],
+            ['引导六', null],
+            ['三', null],
         ]);
     });
 

@@ -92,8 +92,12 @@ into a list of `SetupAction`s:
   away whatever it was, two names ("playful and spacious") add both, "change
   the vibe to" / "only" replaces the set, "clear the vibes" empties it;
 - guidance, by step ("more guidance", "guide me less"), by stop
-  ("balanced", "somewhat directing") or by level ("set the guidance level to
-  medium": minimum, low, medium, high and maximum are the five stops);
+  ("balanced", "somewhat directing"), by level ("set the guidance level to
+  medium": minimum, low, medium, high and maximum are the five stops) or by
+  the number drawn on the stop ("guidance three", "set the guidance level to
+  4", 引导三; `guidanceStops`). After "guidance" a recognizer's "for" and "to"
+  are the number ("Guidance for.", 2026-11-17); a number without "guidance" is
+  not a request;
 - response length ("shorter responses", "keep your replies brief", "set
   response length to medium");
 - the intention ("my intention is to rest", "clear my intention"), kept in the
@@ -116,7 +120,8 @@ into a list of `SetupAction`s:
   set."), and folds the field shut again if the ask opened it and it is still
   empty. A bare label with words after it and no
   colon or comma ("special request keep it slow") is not read: a sentence can
-  open on those words;
+  open on those words. Folded shut over text, the field's row shows a dot and
+  as much of the text as fits (`paintRequestsPreview` in `views/setup.ts`);
 - check-ins on or off (felt sense);
 - "stop listening" / "mute" (puts the mic to sleep until tapped), and "what
   can I say?".

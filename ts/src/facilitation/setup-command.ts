@@ -589,11 +589,58 @@ function numberAsWord(words: string[]): string[] {
     });
 }
 
+/** The numbers drawn under the guidance slider's stops, 1 to 5. */
+const STOP_NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 };
+/** The number only in a request's own shape (`guidanceStops`): "one" is as
+ *  often the pronoun, and a recognizer writes "for" and "to" for four and two
+ *  ("Guidance for.", said on 2026-11-17). */
+const STOP_IF_ASKED: Record<string, number> = { one: 1, to: 2, too: 2, for: 4 };
+/** "To" as a recognizer may write it. */
+const TO_HEARD = new Set(['to', 'too', 'two', '2']);
+/**
+ * Stands in the words for a stop read by its number, followed by the stop
+ * (0 to 4). No word out of `tokens` has one, and nothing after this pass reads
+ * it as a number: "guidance two please" stays a stop, not numberAsWord's "to".
+ */
+const STOP_MARK = '#';
+
+/**
+ * "Guidance three", "set the guidance level to 4": a stop by its number. The
+ * number has to end its part of the request, polite words aside, and nothing
+ * but filler and "set" may come before "guidance" ("more guidance too" is a
+ * step).
+ * `STOP_IF_ASKED` counts only when "guidance" opens the part or a "to"
+ * already stands before it: "set the guidance to" is a sentence cut at a
+ * pause, "give me guidance too" asks for nothing, and "the guidance one"
+ * points at the slider.
+ */
+function guidanceStops(words: string[]): string[] {
+    const out = [...words];
+    words.forEach((word, at) => {
+        if (word !== 'guidance') return;
+        let start = at;
+        while (start > 0 && !JOINERS.has(words[start - 1]!)) start--;
+        let end = at + 1;
+        while (end < words.length && !JOINERS.has(words[end]!)) end++;
+        while (end > at + 1 && POLITE.has(words[end - 1]!)) end--;
+        if (end === at + 1) return;
+        const ahead = words.slice(start, at);
+        const between = words.slice(at + 1, end - 1);
+        const said = words[end - 1]!;
+        if (!ahead.every((w) => FILLER.has(w) || SETTERS.has(w) || POLITE.has(w))) return;
+        if (between.length > 2 || !between.every((w) => w === 'level' || TO_HEARD.has(w))) return;
+        const opens = ahead.every((w) => POLITE.has(w)) || between.some((w) => TO_HEARD.has(w));
+        const number = STOP_NUMBERS[said] ?? (opens ? STOP_IF_ASKED[said] : undefined);
+        if (number !== undefined) out[end - 1] = `${STOP_MARK}${number - 1}`;
+    });
+    return out;
+}
+
 function respell(words: string[]): string[] {
     // "On check parts" is Whisper's "uncheck parts"; "on check-ins" is not.
     let said = ` ${words.join(' ')} `.replace(/^ on check (?!in |ins |ends |inns )/, ' uncheck ');
     for (const [heard, meant] of RESPELLED) said = said.split(` ${heard} `).join(` ${meant} `);
-    return numberAsWord(said.trim().split(' ').filter(Boolean));
+    return numberAsWord(guidanceStops(said.trim().split(' ').filter(Boolean)));
 }
 
 /** One part of a request (between "and"s). Null when it isn't one. */
@@ -611,6 +658,7 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
     let hide = false;
     let show = false;
     const levels: Level[] = [];
+    const stops: number[] = [];
 
     for (const [i, item] of items.entries()) {
         if ('entry' in item) {
@@ -630,6 +678,7 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         else if (HIDES.has(word)) hide = true;
         else if (SHOWS.has(word)) show = true;
         else if (word in LEVELS) levels.push(LEVELS[word]!);
+        else if (word.startsWith(STOP_MARK)) stops.push(Number(word.slice(STOP_MARK.length)));
         else if (SETTERS.has(word)) setter = true;
         else if (ONLY.has(word)) only = true;
         else if (word in STEPS) {
@@ -677,10 +726,18 @@ function readClause(items: Item[], carried: Polarity | null): Clause | null {
         }
     }
 
+    // A stop by its number ("guidance three", marked by `guidanceStops`).
+    if (stops.length > 1) return null;
+    const stop = stops[0];
+    if (stop !== undefined) {
+        if (level !== undefined || negated || step || leads.length > 0) return null;
+        actions.push({ kind: 'guidance', to: stop });
+    }
+
     // Who leads. "More guidance", "guide me less", "more directing", or a
     // stop by its name ("following").
     if (leads.length > 1) return null;
-    if (level !== undefined) {
+    if (level !== undefined || stop !== undefined) {
         // Said above.
     } else if (leads.length === 1) {
         const lead = leads[0]!;
@@ -948,6 +1005,11 @@ const ZH_STEPS: ReadonlyArray<[RegExp, SetupAction]> = [
     [/^(?:显示)?(?:已用时间|冥想时间|用时)$/, { kind: 'clock-mode', mode: 'elapsed' }],
 ];
 
+/** 引导三, 引导调到三, 引导3: a guidance stop by the number under it. */
+const ZH_GUIDANCE_STOP_RE = /^引导(?:级别|程度)?(?:调到|调成|调为|设为|设成|改成|改为|到|为|是)?([1-5一二两三四五])(?:级|档)?$/u;
+const ZH_STOP_NUMBERS: Record<string, number> = {
+    一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
+};
 const ZH_INTENTION_RE = /^(?:请|把)?(?:我的|这次的?)?意图(?:是|设为|设成|改成|为)/u;
 /** "特别要求：慢一点", "我有个特别要求，慢一点": the bare label needs the
  *  separator, since a sentence can open on 特别要求 ("specially asked"). */
@@ -992,6 +1054,11 @@ function parseZh(utterance: string): SetupAction[] | null {
         );
         if (!part) continue;
 
+        const stop = ZH_GUIDANCE_STOP_RE.exec(part);
+        if (stop) {
+            actions.push({ kind: 'guidance', to: ZH_STOP_NUMBERS[stop[1]!]! - 1 });
+            continue;
+        }
         const step = ZH_STEPS.find(([re]) => re.test(part));
         if (step) {
             actions.push(step[1]);

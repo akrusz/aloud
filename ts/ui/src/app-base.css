@@ -1112,10 +1112,10 @@ input[type="range"]::-moz-range-thumb {
     border: 2px solid var(--bg-primary);
 }
 
-/* Tick dots for range inputs that snap to a few fixed stops (guidance,
-   check-in pace, participant reactivity). One repeating gradient tile per
-   interval, with a half-dot painted at EACH tile edge: the halves from
-   adjacent tiles meet at every seam to form full dots exactly at the snap
+/* Tick dots for range inputs that snap to a few fixed stops (participant
+   reactivity; .slider-numbered below draws numbers instead). One repeating
+   gradient tile per interval, with a half-dot painted at EACH tile edge: the
+   halves from adjacent tiles meet at every seam to form full dots at the snap
    positions, inset by half the thumb width so each dot sits under the
    thumb's center at that stop. --slider-segs = stops - 1. */
 input[type="range"].slider-stops {
@@ -1141,6 +1141,61 @@ input[type="range"].slider-stops {
 }
 .reactive-slider-wrap input[type="range"].slider-stops {
     --slider-segs: 2;
+}
+
+/* Numbers in place of the dots (guidance, check-in pace), so a stop can be
+   read and said ("guidance three"). Drawn over the input, so the current one
+   sits on the thumb. The row of zero-width spans runs between the thumb's
+   centre at either end, as the dots do, and space-between puts each on its
+   stop. --slider-thumb here has to match the thumb's width too (the phone
+   layout block). */
+.slider-numbered {
+    --slider-thumb: 18px;
+    position: relative;
+    display: flex;
+    /* The input's own margin, out here so the numbers' box is the input's. */
+    margin: 2px 0 -2px;
+}
+
+.slider-numbered > input[type="range"].slider-stops {
+    margin: 0;
+    background-image: none;
+}
+
+/* Stated, not left to the engine, so the thumb's centre is where the number is. */
+.slider-numbered > input[type="range"]::-webkit-slider-thumb {
+    box-sizing: border-box;
+    background: var(--accent-fill);
+}
+.slider-numbered > input[type="range"]::-moz-range-thumb {
+    box-sizing: border-box;
+    background: var(--accent-fill);
+}
+
+.slider-numbers {
+    position: absolute;
+    inset: 0 calc(var(--slider-thumb) / 2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    /* px like the track it sits in, which text scale does not grow. */
+    font-size: 10px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+}
+
+.slider-numbers > span {
+    display: flex;
+    justify-content: center;
+    width: 0;
+}
+
+/* On the thumb: a filled control's label. */
+.slider-numbers > span.is-current {
+    color: var(--accent-ink);
+    font-weight: 700;
 }
 
 .range-value {
@@ -1434,6 +1489,37 @@ input[type="range"].slider-stops {
     font-size: 0.9rem;
     color: var(--text-secondary);
     list-style: none;
+    /* One line: the preview below shrinks first, so the dot stays. */
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Folded shut over text the field holds, so a request left from last time
+   doesn't ride along unseen. */
+.requests-dot,
+.requests-preview {
+    display: none;
+}
+
+.advanced-settings.has-requests:not([open]) .requests-dot {
+    display: block;
+    flex: none;
+    width: 0.45em;
+    height: 0.45em;
+    margin-left: 0.45em;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.advanced-settings.has-requests:not([open]) .requests-preview {
+    display: block;
+    min-width: 0;
+    margin-left: 0.6em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-muted);
 }
 
 .advanced-settings summary::-webkit-details-marker {
@@ -1443,6 +1529,8 @@ input[type="range"].slider-stops {
 .advanced-settings summary::before {
     content: "+ ";
     color: var(--text-muted);
+    /* A flex item drops a trailing space. */
+    white-space: pre;
 }
 
 .advanced-settings[open] summary::before {
@@ -6147,6 +6235,12 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     /* Keep the stop dots under the bigger thumb's center. */
     input[type="range"].slider-stops {
         --slider-thumb: 24px;
+    }
+    .slider-numbered {
+        --slider-thumb: 24px;
+    }
+    .slider-numbers {
+        font-size: 12px;
     }
 
     /* Fields at body size on phone. This is 15px here, under the 16px that

@@ -508,6 +508,7 @@ export async function mountSetupView(
         if (!slider) return;
         slider.value = String(setup.dirStep);
         sayStop(slider, t('Following'), t('Directing'));
+        markStop(slider);
     }
 
     function setGuidance(step: number): void {
@@ -554,7 +555,19 @@ export async function mountSetupView(
         persist();
         const el = root.querySelector<HTMLTextAreaElement>('#custom-instructions');
         if (el) el.value = text;
+        paintRequestsPreview();
         openSpecialRequests();
+    }
+
+    /** Folded shut, the field still shows it holds something: a dot, and its
+     *  start as far as the row has room (CSS hides both while it is open). */
+    function paintRequestsPreview(): void {
+        const details = root.querySelector('#custom-instructions')?.closest('details');
+        const preview = details?.querySelector('.requests-preview');
+        if (!details || !preview) return;
+        const text = setup.customInstructions.replace(/\s+/g, ' ').trim();
+        details.classList.toggle('has-requests', text !== '');
+        preview.textContent = text;
     }
 
     /** True when the field was shut and this opened it. */
@@ -976,7 +989,10 @@ export async function mountSetupView(
         // stored value, timing only (SessionSetup.feltSensePaceStep).
         const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
         paceSlider.value = String(setup.feltSensePaceStep);
-        const sayPace = (): void => sayStop(paceSlider, t('Patient'), t('Attentive'));
+        const sayPace = (): void => {
+            sayStop(paceSlider, t('Patient'), t('Attentive'));
+            markStop(paceSlider);
+        };
         sayPace();
         paceSlider.addEventListener('input', () => {
             setup.feltSensePaceStep = Number(paceSlider.value);
@@ -996,9 +1012,11 @@ export async function mountSetupView(
 
         const customEl = root.querySelector<HTMLTextAreaElement>('#custom-instructions')!;
         customEl.value = setup.customInstructions;
+        paintRequestsPreview();
         customEl.addEventListener('input', () => {
             setup.customInstructions = customEl.value;
             persist();
+            paintRequestsPreview();
         });
 
         // Session clock. One control per mode panel, all showing the same
@@ -2591,6 +2609,20 @@ function sayStop(slider: HTMLInputElement, low: string, high: string): void {
     slider.setAttribute('aria-valuetext', stopText(Number(slider.value), Number(slider.max), low, high));
 }
 
+/** The numbers drawn over a stepped slider's stops, which can be said
+ *  ("guidance three"). Screen readers have the slider's own value text. */
+function stopNumbersHTML(count: number): string {
+    const numbers = Array.from({ length: count }, (_, i) => `<span>${i + 1}</span>`).join('');
+    return `<div class="slider-numbers" aria-hidden="true">${numbers}</div>`;
+}
+
+/** Light the number the thumb sits on. */
+function markStop(slider: HTMLInputElement): void {
+    slider.parentElement
+        ?.querySelectorAll('.slider-numbers > span')
+        .forEach((n, i) => n.classList.toggle('is-current', i === Number(slider.value)));
+}
+
 /** `value` runs 0..max, so a slider has max + 1 stops; they are counted from 1. */
 function stopText(value: number, max: number, low: string, high: string): string {
     if (value <= 0) return low;
@@ -2745,7 +2777,7 @@ function renderSetupHTML(
 
             <div class="setup-extras-row setup-extras-row-top">
                 <details class="advanced-settings">
-                    <summary>${t('Special requests')}</summary>
+                    <summary>${t('Special requests')}<span class="requests-dot" aria-hidden="true"></span><span class="requests-preview"></span></summary>
                     <div class="form-group">
                         <textarea id="custom-instructions" rows="3"
                             placeholder="${escapeHtml(t("e.g. keep it slow, don't mention breathing"))}"></textarea>
@@ -2758,7 +2790,10 @@ function renderSetupHTML(
                         <p>${t('If <a href="#" data-nav="settings" data-nav-anchor="settings-checkins"><strong>check-ins</strong></a> in Settings are set to Smart, this also affects how frequently the facilitator speaks during silence. ~12 minutes on low, <1 min on high.')}</p>
                     </div>
                     <!-- Named here: the label's own name takes in its "?" button. -->
-                    <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2" aria-label="${escapeHtml(t('Guidance Level'))}">
+                    <div class="slider-numbered">
+                        <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2" aria-label="${escapeHtml(t('Guidance Level'))}">
+                        ${stopNumbersHTML(dirTickCount + 1)}
+                    </div>
                     <div class="range-labels">
                         <span>${t('Following')}</span>
                         <span>${t('Directing')}</span>
@@ -2815,7 +2850,10 @@ function renderSetupHTML(
                     <label class="checkin-pace-label" for="checkin-enabled">
                         <input type="checkbox" id="checkin-enabled" checked>${t("Check in if I'm quiet")}</label>
                     <div class="slider-control" id="checkin-pace-control">
-                        <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1" aria-label="${escapeHtml(t('Check-in pace'))}">
+                        <div class="slider-numbered">
+                            <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1" aria-label="${escapeHtml(t('Check-in pace'))}">
+                            ${stopNumbersHTML(dirTickCount + 1)}
+                        </div>
                         <div class="range-labels">
                             <span>${t('Patient')}</span>
                             <span>${t('Attentive')}</span>
