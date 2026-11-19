@@ -30,9 +30,11 @@ export type VolumeProblem = 'off' | 'low';
  *  phone it was set on, where one step up is 0.125 and already fine). */
 export const LOW_VOLUME = 0.1;
 const POLL_MS = 2000;
-/** How long a session keeps looking, and keeps a "very low" banner up. Long
- *  enough for the mic to open and the first line to be spoken. */
+/** How long a session keeps looking. Long enough for the mic to open and the
+ *  first line to be spoken. */
 export const WATCH_MS = 60_000;
+/** How long "very low" stays up once it shows: a hint, read in a glance. */
+export const LOW_SHOWN_MS = 10_000;
 
 interface OutputVolumePlugin {
     level(): Promise<Partial<VolumeReading>>;
@@ -75,8 +77,9 @@ export interface VolumeNoticeEl {
 
 /**
  * Keep `el` saying what is wrong with the volume for the start of a session.
- * "Off" stays until it is turned up; "very low" is a hint, and goes when the
- * watch ends. `wanted` is whether the session speaks at all (its TTS toggle).
+ * "Off" stays until it is turned up; "very low" is a hint, up for LOW_SHOWN_MS
+ * from when it first shows and then gone for the session. `wanted` is whether
+ * the session speaks at all (its TTS toggle).
  * Returns the stop.
  */
 export function mountVolumeNotice(
@@ -88,6 +91,7 @@ export function mountVolumeNotice(
     const startedAt = Date.now();
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let lowSince: number | null = null;
 
     const look = async (): Promise<void> => {
         const reading = await read();
@@ -95,10 +99,14 @@ export function mountVolumeNotice(
         if (stopped || reading === null) return;
         const watching = Date.now() - startedAt < WATCH_MS;
         const found = opts.wanted?.() === false ? null : volumeProblem(reading);
-        const problem = found === 'low' && !watching ? null : found;
+        if (found === 'low' && watching) lowSince ??= Date.now();
+        const lowLeft = lowSince === null ? 0 : LOW_SHOWN_MS - (Date.now() - lowSince);
+        const problem = found === 'low' && lowLeft <= 0 ? null : found;
         el.textContent = problem ? describeVolumeProblem(problem) : '';
         el.classList.toggle('hidden', !problem);
-        if (watching || problem) timer = setTimeout(() => void look(), POLL_MS);
+        if (watching || problem) {
+            timer = setTimeout(() => void look(), problem === 'low' ? Math.min(POLL_MS, lowLeft) : POLL_MS);
+        }
     };
     void look();
 

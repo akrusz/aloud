@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
     LOW_VOLUME,
+    LOW_SHOWN_MS,
     WATCH_MS,
     mountVolumeNotice,
     volumeProblem,
@@ -94,7 +95,24 @@ describe('mountVolumeNotice', () => {
         stop();
     });
 
-    it('keeps "off" up past the watch, drops "low" at its end, and then stops looking', async () => {
+    it('shows "low" for ten seconds and not again, while "off" can still follow', async () => {
+        const el = banner();
+        let now = reading({ level: 0.05 });
+        const stop = mountVolumeNotice(el, { read: async () => now });
+        await vi.advanceTimersByTimeAsync(LOW_SHOWN_MS - 500);
+        expect(el.textContent).toBe('The volume is very low.');
+        await vi.advanceTimersByTimeAsync(600);
+        expect(el.hidden).toBe(true);
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(el.hidden).toBe(true);
+
+        now = reading({ level: 0, muted: true });
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(el.textContent).toBe('The volume is off.');
+        stop();
+    });
+
+    it('keeps "off" up past the watch, drops "low" well before its end, and then stops looking', async () => {
         const off = banner();
         const stopOff = mountVolumeNotice(off, { read: async () => reading({ level: 0, muted: true }) });
         const low = banner();
