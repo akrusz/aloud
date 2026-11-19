@@ -216,6 +216,39 @@ describe('listenOnSetup', () => {
         expect(order).toEqual(['end:begin', 'begin']);
     });
 
+    it('on "begin", keeps the mic stream open for the session where asked, until that settles', async () => {
+        // The session's capture opens beside it (mic-check.ts
+        // holdCaptureForSession): the OS never sees the mic close between.
+        const engine = scriptedEngine(["Let's begin."]);
+        const keeps: Array<Promise<unknown> | undefined> = [];
+        const stop = engine.stop.bind(engine);
+        engine.stop = (options?: SttStopOptions) => {
+            keeps.push(options?.keepMicUntil);
+            return stop();
+        };
+        let sessionHears = (): void => {};
+        const forSession = new Promise<void>((r) => (sessionHears = r));
+        const order: string[] = [];
+        listenOnSetup({
+            engine,
+            alive: () => true,
+            onBegin: () => order.push('begin'),
+            onEnd: (why) => order.push(`end:${why}`),
+            keepMicForBegin: () => forSession,
+        });
+        await vi.advanceTimersByTimeAsync(10);
+        expect(order).toEqual(['end:begin', 'begin']);
+        expect(keeps.length).toBeGreaterThanOrEqual(1);
+        expect(keeps.every((keep) => keep instanceof Promise)).toBe(true);
+        let letGo = false;
+        void Promise.all(keeps).then(() => (letGo = true));
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(letGo).toBe(false);
+        sessionHears();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(letGo).toBe(true);
+    });
+
     it('hands over what the request named', async () => {
         const engine = scriptedEngine(['Begin a twenty minute felt sense session.']);
         const { requests } = run(engine);

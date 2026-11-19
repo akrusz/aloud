@@ -110,6 +110,8 @@ import {
     acquireMicOnce,
     describeMicProblem,
     describeMicRequirement,
+    endCaptureHandover,
+    holdCaptureForSession,
     probeMic,
     type MicStatus,
 } from '../mic-check.js';
@@ -1762,6 +1764,7 @@ export async function mountSetupView(
             alive: () =>
                 isLiveMount() && beginBtn.isConnected && document.body.dataset['sessionActive'] === undefined,
             onBegin: (request) => void beginByVoice(request, beginBtn),
+            keepMicForBegin: holdCaptureForSession,
             onHeard: heardOnSetup,
             isEcho: heardOwnLine,
             ...setupListeningLimits(
@@ -1921,12 +1924,16 @@ export async function mountSetupView(
      * unlock need it).
      */
     function beginFromSetup(runSetup: SessionSetup, continueFrom: SessionState | null): void {
-        // The mic open on this screen closes, so the session opens its own.
-        // (When "begin" was heard, it already is.)
+        // The mic open on this screen stops listening but stays open until
+        // the session's own can hear beside it (holdCaptureForSession), along
+        // with any held for a listener being replaced. (When "begin" was
+        // heard, the listener has already stopped this way.)
+        const handover = holdCaptureForSession();
         const listening = voiceStart;
         voiceStart = null;
-        void listening?.handle.stop();
-        micHandover.release();
+        void listening?.handle.stop({ keepMicUntil: handover });
+        const replaced = micHandover.take();
+        if (replaced) void handover.then(replaced);
         speaker.stop();
         // And none may open while the session comes up: not one still being
         // built, not one a late probe asks for.
@@ -1934,9 +1941,10 @@ export async function mountSetupView(
         beginning = true;
         // Over when the session is up or the attempt was turned back (no mic,
         // sign-in dismissed). Only the second leaves this screen, and then it
-        // may listen again.
+        // may listen again, and no session will take the held mic over.
         void Promise.resolve(onBegin(runSetup, continueFrom)).finally(() => {
             beginning = false;
+            if (document.body.dataset['sessionActive'] === undefined) endCaptureHandover();
             void syncVoiceStart();
         });
     }
@@ -1964,8 +1972,9 @@ export async function mountSetupView(
         ]);
         await settingsSaved;
         // The mode switch may have closed the gate (a mode that needs a
-        // provider this setup doesn't have): then there is nothing to begin.
-        if (!isLiveMount() || !beginBtn.isConnected || beginBtn.disabled) return;
+        // provider this setup doesn't have): then there is nothing to begin,
+        // and nothing to keep the listener's mic for.
+        if (!isLiveMount() || !beginBtn.isConnected || beginBtn.disabled) return endCaptureHandover();
         // The same path as the click, queued continue and all. Not a click():
         // the tour's centered cards hold the page inert.
         beginNow();

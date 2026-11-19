@@ -32,7 +32,7 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 import { ensureMicPermission } from '../mic-permission.js';
-import { captureLive, noteCaptureClosing, noteCaptureOpened } from '../mic-check.js';
+import { captureLive, noteCaptureClosing, noteCaptureHearing, noteCaptureOpened } from '../mic-check.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
 import { recordSttClip } from '../stt-clip-recorder.js';
@@ -636,10 +636,11 @@ export class WhisperPcmSttEngine implements SttEngine {
         const frame = new Float32Array(data);
         const energy = frameRms(frame);
         const now = performance.now();
-        if (energy >= SILENT_FRAME_RMS && this.hearingWaiters.length > 0) {
+        if (energy >= SILENT_FRAME_RMS) {
             for (const resolve of this.hearingWaiters.splice(0)) resolve();
+            if (this.coldOpen) this.endColdOpen();
+            noteCaptureHearing();
         }
-        if (energy >= SILENT_FRAME_RMS && this.coldOpen) this.endColdOpen();
 
         this.levelListener?.(energy);
 

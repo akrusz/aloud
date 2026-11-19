@@ -201,10 +201,12 @@ describe("micForBegin - a capture of ours that just worked is Begin's answer", (
         expect(mic.micOpenedThisPage()).toBe(true);
     });
 
-    it('takes one closed a moment ago, and probes once that moment has passed', async () => {
+    it('takes one closed a moment ago, and asks the silent probe once that moment has passed', async () => {
         const mic = await freshModule();
-        // Unplugged since: only the probe can say so before the session.
-        stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotFoundError') } });
+        // Unplugged since: the device list, unhidden by the capture that
+        // worked, says so with no stream opened.
+        const getUserMedia = vi.fn(failingGetUserMedia('NotFoundError'));
+        stubNavigator({ mediaDevices: { getUserMedia, enumerateDevices: async () => [{ kind: 'audiooutput' }] } });
         const clock = vi.spyOn(performance, 'now');
         try {
             const s = stream();
@@ -215,6 +217,7 @@ describe("micForBegin - a capture of ours that just worked is Begin's answer", (
             expect(await mic.micForBegin()).toBe('ok');
             clock.mockReturnValue(10_001 + mic.RECENT_CAPTURE_MS);
             expect(await mic.micForBegin()).toBe('no-device');
+            expect(getUserMedia).not.toHaveBeenCalled();
         } finally {
             clock.mockRestore();
         }
@@ -222,12 +225,33 @@ describe("micForBegin - a capture of ours that just worked is Begin's answer", (
 
     it('takes nothing from a stream that had died before it closed', async () => {
         const mic = await freshModule();
-        stubNavigator({ mediaDevices: { getUserMedia: failingGetUserMedia('NotAllowedError') } });
+        const getUserMedia = vi.fn(failingGetUserMedia('NotAllowedError'));
+        stubNavigator({
+            mediaDevices: { getUserMedia, enumerateDevices: async () => [{ kind: 'audioinput' }] },
+            permissions: { query: async () => ({ state: 'denied' }) },
+        });
         const s = stream();
         mic.noteCaptureOpened(s, () => false);
         expect(await mic.micForBegin()).toBe('denied');
         mic.noteCaptureClosing(s);
         expect(await mic.micForBegin()).toBe('denied');
+        expect(getUserMedia).not.toHaveBeenCalled();
+    });
+
+    it('opens a probe stream only on the first Begin of a page', async () => {
+        const mic = await freshModule();
+        const getUserMedia = vi.fn(async () => ({ getTracks: () => [] }));
+        stubNavigator(healthyNav({ mediaDevices: { getUserMedia, enumerateDevices: async () => [{ kind: 'audioinput' }] } }));
+        const clock = vi.spyOn(performance, 'now');
+        try {
+            clock.mockReturnValue(10_000);
+            expect(await mic.micForBegin()).toBe('ok');
+            clock.mockReturnValue(100_000);
+            expect(await mic.micForBegin()).toBe('ok');
+            expect(getUserMedia).toHaveBeenCalledTimes(1);
+        } finally {
+            clock.mockRestore();
+        }
     });
 
     it('still gives a simulated failure to Begin under a live capture', async () => {
@@ -237,6 +261,48 @@ describe("micForBegin - a capture of ours that just worked is Begin's answer", (
         stubNavigator(healthyNav());
         mic.noteCaptureOpened(stream(), () => true);
         expect(await mic.micForBegin()).toBe('error');
+    });
+});
+
+describe("holdCaptureForSession - Begin keeps the setup screen's capture for the session's", () => {
+    async function freshModule() {
+        vi.resetModules();
+        return import('../ui/src/mic-check.js');
+    }
+    function watch(promise: Promise<void>): { settled: boolean } {
+        const state = { settled: false };
+        void promise.then(() => (state.settled = true));
+        return state;
+    }
+    afterEach(() => vi.useRealTimers());
+
+    it('is held until a capture of ours hears, and one at a time', async () => {
+        const mic = await freshModule();
+        const first = mic.holdCaptureForSession();
+        // A spoken "begin" holds it, then the Begin path asks again.
+        expect(mic.holdCaptureForSession()).toBe(first);
+        const state = watch(first);
+        await Promise.resolve();
+        expect(state.settled).toBe(false);
+        mic.noteCaptureHearing();
+        await Promise.resolve();
+        expect(state.settled).toBe(true);
+        expect(mic.holdCaptureForSession()).not.toBe(first);
+    });
+
+    it('is let go when asked, and by its cap at the latest', async () => {
+        vi.useFakeTimers();
+        const mic = await freshModule();
+        const asked = watch(mic.holdCaptureForSession());
+        mic.endCaptureHandover();
+        await Promise.resolve();
+        expect(asked.settled).toBe(true);
+
+        const capped = watch(mic.holdCaptureForSession());
+        await vi.advanceTimersByTimeAsync(mic.CAPTURE_HANDOVER_CAP_MS - 1);
+        expect(capped.settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(capped.settled).toBe(true);
     });
 });
 

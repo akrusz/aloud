@@ -279,9 +279,13 @@ export interface ListenOnSetupOptions {
     engine: SttEngine;
     /** False once the setup screen is gone; checked on every tick. */
     alive: () => boolean;
-    /** Runs after the mic has been released, so the session can open its own.
-     *  Carries what the request named beyond beginning: a mode, a length. */
+    /** Runs once listening has stopped. Carries what the request named beyond
+     *  beginning: a mode, a length. */
     onBegin: (request: BeginRequest) => void;
+    /** On "begin", the engine's own mic stream stays open until this settles,
+     *  so the session opens its capture beside it (mic-check.ts
+     *  holdCaptureForSession). Absent, the mic is released before onBegin. */
+    keepMicForBegin?: () => Promise<unknown>;
     /**
      * Anything heard that is not a request to begin. Runs with the recognizer
      * stopped, so whatever it says in answer is not heard; listening resumes
@@ -381,8 +385,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             await stopBetweenTurns().catch(() => undefined);
             void keepMicUntil.then(letMicGo, letMicGo);
         } else {
-            // Release the mic before anything else happens: on "begin" the
-            // session is about to open its own.
+            // Release the mic before anything else happens.
             await opts.engine.stop().catch(() => undefined);
             letMicGo();
             await listeningOver;
@@ -456,7 +459,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             if (failed) return void end('error');
             if (heard && opts.isEcho?.(heard)) heard = '';
             const request = heard ? parseBeginRequest(heard) : null;
-            if (request) return void end('begin', request);
+            if (request) return void end('begin', request, opts.keepMicForBegin?.());
             if (heard && opts.onHeard) {
                 let understood = false;
                 holds++;

@@ -20,7 +20,7 @@
  *                     and releases it immediately; in the Android app the
  *                     RECORD_AUDIO grant answers instead. Run from the Begin
  *                     handler, where the prompt has a user gesture behind it,
- *                     unless a capture of ours was just live (micForBegin).
+ *                     only until a mic has opened on this page (micForBegin).
  */
 
 import { ensureMicPermission } from './mic-permission.js';
@@ -200,20 +200,77 @@ export function captureLive(): boolean {
 export const RECENT_CAPTURE_MS = 3000;
 
 /**
- * Begin's mic check. A capture stream of ours that is live, or was a moment
- * ago (the setup screen's listener, closed by this same Begin), is the answer:
- * a probe would open and close the mic once more, and on macOS each open or
- * close of an echo-cancelled stream rebuilds the audio output under the
- * opening sound (meditation-pal-uz8t). Anything older, and a recognizer with
- * no stream of ours (the browser's, a phone's), goes to acquireMicOnce. Call
- * it before any await, so a prompt keeps the click's gesture.
+ * Begin's mic check, which opens no stream once one has opened on this page:
+ * a probe opens and closes the mic once more, and each open or close of an
+ * echo-cancelled stream rebuilds the audio output on macOS, under the opening
+ * sound (meditation-pal-uz8t), and switches call mode on Android. A capture of
+ * ours that is live, or was a moment ago (the setup screen's listener, held
+ * by this same Begin), is the answer. An older one leaves the silent probe,
+ * which can see a mic unplugged or blocked since (the device list is no longer
+ * hidden once a capture has worked), so a lost mic is still caught here and
+ * not inside the session, where noting would never say why. The page's first
+ * Begin goes to acquireMicOnce. Call it before any await, so a prompt keeps
+ * the click's gesture.
  */
 export function micForBegin(): Promise<MicStatus> {
-    const recent = captureLive() || performance.now() - lastLiveCaptureClosedAt <= RECENT_CAPTURE_MS;
-    // A simulated failure stands in for the hardware, which a live capture
-    // would otherwise vouch for.
-    if (recent && !getSimMic()) return Promise.resolve('ok');
-    return acquireMicOnce();
+    // A simulated failure stands in for the hardware, which a capture would
+    // otherwise vouch for (acquireMicOnce answers it without opening one).
+    if (getSimMic()) return acquireMicOnce();
+    if (captureLive() || performance.now() - lastLiveCaptureClosedAt <= RECENT_CAPTURE_MS) return Promise.resolve('ok');
+    return openedThisPage ? probeMic() : acquireMicOnce();
+}
+
+/**
+ * Begin's hand-over (views/setup.ts beginFromSetup, and voice-start.ts on a
+ * spoken "begin"). The setup screen's capture stops listening at Begin but
+ * stays open, as the listener's keepMicUntil, until the session's own capture
+ * can hear beside it, so the OS never sees the mic close between the two. On
+ * Android the WebView holds the app in call mode exactly while a capture is
+ * open, and each switch mutes or moves the sounds playing (measured on a
+ * phone, 2026-11-19: dev-docs/audio-output.md); on macOS the last close and
+ * the first open each rebuild the audio output.
+ */
+let handover: { until: Promise<void>; end: () => void } | null = null;
+
+/** The longest Begin keeps the setup screen's capture for a session whose own
+ *  never hears (a mic sending only silence, a sign-in left open). */
+export const CAPTURE_HANDOVER_CAP_MS = 10_000;
+
+/**
+ * Hold the capture being stopped at Begin: settles when a capture of ours
+ * next hears (noteCaptureHearing), when endCaptureHandover is called, or
+ * after CAPTURE_HANDOVER_CAP_MS, whichever is first. Asked again while one is
+ * pending, the same promise.
+ */
+export function holdCaptureForSession(): Promise<void> {
+    if (!handover) {
+        let settle!: () => void;
+        const until = new Promise<void>((resolve) => (settle = resolve));
+        const cap = setTimeout(endCaptureHandover, CAPTURE_HANDOVER_CAP_MS);
+        handover = {
+            until,
+            end: () => {
+                clearTimeout(cap);
+                settle();
+            },
+        };
+    }
+    return handover.until;
+}
+
+/** Let the capture held at Begin go: the session has no capture of ours, its
+ *  open failed, it ended, or the start was turned back. */
+export function endCaptureHandover(): void {
+    const ending = handover;
+    handover = null;
+    ending?.end();
+}
+
+/** A capture of ours delivered a frame with sound in it (whisper-pcm-stt.ts):
+ *  one held at Begin is no longer needed. A first frame is too soon, being
+ *  the silence a fresh capture sends while the OS sets it up. */
+export function noteCaptureHearing(): void {
+    if (handover) endCaptureHandover();
 }
 
 async function acquireMic(): Promise<MicStatus> {
