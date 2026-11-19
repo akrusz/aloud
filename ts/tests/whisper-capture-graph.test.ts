@@ -287,5 +287,132 @@ describe('the capture graph', () => {
             expect(await stopMidOpen()).toEqual([]);
             expect(opened.every((s) => s.stopped)).toBe(true);
         });
+
+        it('while the model loads: opens no mic at all', async () => {
+            // The setup screen stops a turn that has only just started for a
+            // line (voice-start.ts hold). Opened after that stop, the capture
+            // came up under the line, read by no turn.
+            const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+            const engine = new WhisperPcmSttEngine();
+            const events: unknown[] = [];
+            const done = (async () => {
+                for await (const event of engine.start()) events.push(event);
+            })();
+            await engine.stop();
+            await done;
+            await new Promise((r) => setTimeout(r, 60));
+            expect(events).toEqual([]);
+            expect(opened).toHaveLength(0);
+        });
+    });
+
+    describe('a capture opened cold', () => {
+        // With no other capture of ours open, the open starts macOS voice
+        // processing (and a Bluetooth headset's call audio), and a line
+        // started under it began late and quiet. The setup screen holds its
+        // lines until this settles (voice-start.ts hold).
+        async function freshEngine() {
+            // Other tests leave kept streams in the registry: start from none.
+            vi.resetModules();
+            const { WhisperPcmSttEngine } = await import('../ui/src/adapters/whisper-pcm-stt.js');
+            return { WhisperPcmSttEngine, engine: new WhisperPcmSttEngine() };
+        }
+        const listen = (engine: { start(): AsyncIterable<unknown> }) =>
+            (async () => {
+                for await (const _ of engine.start()) void _;
+            })();
+        const settledFlag = (promise: Promise<unknown> | null) => {
+            const state = { settled: false };
+            void promise?.then(() => (state.settled = true));
+            return state;
+        };
+
+        it('is coming up from the ask until its first frame with sound', async () => {
+            micDelayMs = 40;
+            const { engine } = await freshEngine();
+            expect(engine.coldOpening()).toBeNull();
+            const turn = listen(engine);
+            await new Promise((r) => setTimeout(r, 10));
+            // Asked for, not yet granted: already coming up.
+            const opening = engine.coldOpening();
+            expect(opening).toBeInstanceOf(Promise);
+            const state = settledFlag(opening);
+            await new Promise((r) => setTimeout(r, 50));
+            deliverFrame();
+            await Promise.resolve();
+            expect(state.settled).toBe(false);
+            deliverFrame(1e-4);
+            await Promise.resolve();
+            expect(state.settled).toBe(true);
+            expect(engine.coldOpening()).toBeNull();
+            await engine.stop();
+            await turn;
+        });
+
+        it('counts as settled a few seconds in on a mic that sends only silence', async () => {
+            vi.useFakeTimers();
+            try {
+                const { engine } = await freshEngine();
+                const turn = listen(engine);
+                await vi.advanceTimersByTimeAsync(100);
+                const state = settledFlag(engine.coldOpening());
+                deliverFrame();
+                await vi.advanceTimersByTimeAsync(2_000);
+                expect(state.settled).toBe(false);
+                await vi.advanceTimersByTimeAsync(2_000);
+                expect(state.settled).toBe(true);
+                // Once: the next line does not wait it out again.
+                expect(engine.coldOpening()).toBeNull();
+                await engine.stop();
+                await vi.advanceTimersByTimeAsync(1_000);
+                await turn;
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        it('is not cold beside a capture of ours that is still open, a kept one included', async () => {
+            const { WhisperPcmSttEngine, engine: old } = await freshEngine();
+            const oldTurn = listen(old);
+            await new Promise((r) => setTimeout(r, 30));
+            deliverFrame(1e-4);
+            // A listener replaced for another recognizer keeps its mic until
+            // the new one can hear (createMicHandover).
+            await old.stop({ keepMicUntil: new Promise(() => undefined) });
+            await oldTurn;
+            const next = new WhisperPcmSttEngine();
+            const turn = listen(next);
+            await new Promise((r) => setTimeout(r, 5));
+            expect(next.coldOpening()).toBeNull();
+            await new Promise((r) => setTimeout(r, 30));
+            expect(opened).toHaveLength(2);
+            expect(next.coldOpening()).toBeNull();
+            await next.stop();
+            await turn;
+        });
+
+        it('is over when the capture is let go, or never arrives', async () => {
+            micDelayMs = 40;
+            const { engine } = await freshEngine();
+            let turn = listen(engine);
+            await new Promise((r) => setTimeout(r, 50));
+            let state = settledFlag(engine.coldOpening());
+            await engine.stop();
+            await turn;
+            await Promise.resolve();
+            expect(state.settled).toBe(true);
+            expect(engine.coldOpening()).toBeNull();
+
+            // Stopped while the mic was still being granted.
+            turn = listen(engine);
+            await new Promise((r) => setTimeout(r, 10));
+            state = settledFlag(engine.coldOpening());
+            expect(engine.coldOpening()).toBeInstanceOf(Promise);
+            await engine.stop();
+            await turn;
+            await new Promise((r) => setTimeout(r, 60));
+            expect(state.settled).toBe(true);
+            expect(engine.coldOpening()).toBeNull();
+        });
     });
 });

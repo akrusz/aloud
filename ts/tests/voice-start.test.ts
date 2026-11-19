@@ -724,6 +724,87 @@ describe('listenOnSetup: whether the recognizer can hear', () => {
     });
 });
 
+describe('listenOnSetup: a line held for a capture opened cold', () => {
+    // A tour line started 137 ms after the mic opened cold began a fraction
+    // in and quiet, rising over a couple of seconds (desktop app,
+    // 2026-11-18): voice processing starting and a Bluetooth headset going
+    // to call audio, under the line.
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    /** Stands in for WhisperPcmSttEngine.coldOpening: coming up until
+     *  settle(), null after. */
+    function coldOpen(): { coldOpening: () => Promise<void> | null; settle: () => void } {
+        let settle!: () => void;
+        let opening: Promise<void> | null = new Promise<void>((resolve) => (settle = resolve));
+        return {
+            coldOpening: () => opening,
+            settle: () => {
+                opening = null;
+                settle();
+            },
+        };
+    }
+
+    function listen(engine: SttEngine, coldOpening?: () => Promise<void> | null) {
+        return listenOnSetup({
+            engine,
+            alive: () => true,
+            onBegin: () => undefined,
+            onEnd: () => undefined,
+            ...(coldOpening ? { coldOpening } : {}),
+        });
+    }
+
+    it('starts the line only once the capture has settled, the turn listening until then', async () => {
+        const engine = scriptedEngine([]);
+        const open = coldOpen();
+        const handle = listen(engine, open.coldOpening);
+        await vi.advanceTimersByTimeAsync(100);
+        const order: string[] = [];
+        void handle.hold(async () => void order.push(`line, stops ${engine.stops}`));
+        await vi.advanceTimersByTimeAsync(2_000);
+        // Not stopped: its frames are how the engine sees the first sound,
+        // and a stop as the capture opens would close it again.
+        expect(order).toEqual([]);
+        expect(engine.stops).toBe(0);
+        open.settle();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(order).toEqual(['line, stops 1']);
+    });
+
+    it('adds nothing where no capture is coming up, or the recognizer has none of ours', async () => {
+        for (const coldOpening of [() => null, undefined]) {
+            const engine = scriptedEngine([]);
+            const handle = listen(engine, coldOpening);
+            await vi.advanceTimersByTimeAsync(100);
+            let started = false;
+            void handle.hold(async () => void (started = true));
+            await vi.advanceTimersByTimeAsync(0);
+            expect(started).toBe(true);
+            await handle.stop();
+        }
+    });
+
+    it('keeps lines asked for while it waits in the order they were asked', async () => {
+        const engine = scriptedEngine([]);
+        const open = coldOpen();
+        const handle = listen(engine, open.coldOpening);
+        await vi.advanceTimersByTimeAsync(100);
+        const order: string[] = [];
+        void handle.hold(async () => void order.push('first'));
+        void handle.hold(async () => void order.push('second'));
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(order).toEqual([]);
+        open.settle();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(order).toEqual(['first', 'second']);
+        // And listens again after the last of them, not under it.
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 50);
+        expect(engine.starts).toBe(2);
+    });
+});
+
 describe('createMicHandover', () => {
     /** A handle that says what its stop kept the mic for. */
     function handle(): VoiceStartHandle & { kept: Array<Promise<unknown> | undefined> } {

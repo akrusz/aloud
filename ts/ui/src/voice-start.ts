@@ -267,7 +267,8 @@ export interface VoiceStartHandle {
     /**
      * Stop the recognizer while `during` runs (the app is speaking a line
      * nobody asked for, like a step of the tour), and listen again a moment
-     * after it settles. The mic can't hear what plays inside.
+     * after it settles. The mic can't hear what plays inside. A capture
+     * opened cold is let settle first (`coldOpening`).
      */
     hold<T>(during: () => Promise<T>): Promise<T>;
     /** Start the window over, as a request understood does. */
@@ -303,6 +304,13 @@ export interface ListenOnSetupOptions {
      * has started, the best the browser's and the phones' recognizers can say.
      */
     whenHearing?: () => Promise<void>;
+    /**
+     * A capture opened cold and still coming up, or null
+     * (WhisperPcmSttEngine coldOpening). A hold waits for it before it stops
+     * the recognizer and starts its line, so it must settle by itself. Absent,
+     * as for a recognizer with no capture stream of ours, nothing waits.
+     */
+    coldOpening?: () => Promise<void> | null;
     /** Each change of SetupHearing, which starts at `opening`. Not called once
      *  listening has ended. */
     onHearing?: (hearing: SetupHearing) => void;
@@ -396,6 +404,11 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         held = (before ?? Promise.resolve()).then(() => mine);
         const chained = held;
         holds++;
+        // Started under a capture opened cold, a line begins late and quiet.
+        // The turn runs on meanwhile: its frames are how the engine sees the
+        // first sound, and a stop now would close the capture as it opens.
+        const opening = opts.coldOpening?.();
+        if (opening) await opening.catch(() => undefined);
         await stopBetweenTurns().catch(() => undefined);
         try {
             return await during();

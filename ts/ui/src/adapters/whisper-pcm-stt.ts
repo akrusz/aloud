@@ -32,7 +32,7 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 import { ensureMicPermission } from '../mic-permission.js';
-import { noteCaptureClosing, noteCaptureOpened } from '../mic-check.js';
+import { captureLive, noteCaptureClosing, noteCaptureOpened } from '../mic-check.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
 import { recordSttClip } from '../stt-clip-recorder.js';
@@ -99,6 +99,10 @@ const KEEP_MIC_CAP_MS = 60_000;
 // canceller up, and words said then are lost. Live room tone measured 7e-5 and
 // up on a MacBook (saved clips, 2026-11-18).
 const SILENT_FRAME_RMS = 1e-5;
+// The longest a capture opened cold counts as settling (coldOpening), from
+// asking for it. The built-in mic sent silence for about 2s after one; a
+// Bluetooth headset first brings its call link up, which takes 1 to 3s.
+const COLD_OPEN_SETTLE_MAX_MS = 3500;
 const BARGE_IN_REQUIRED_CHUNKS = 3;
 
 // Per-device echo calibration. Continuous capture leaves the mic armed while
@@ -301,6 +305,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     private liveWaiters: Array<() => void> = [];
     /** Waiting for the next frame with sound in it (whenHearing). */
     private hearingWaiters: Array<() => void> = [];
+    /** A capture being opened with no other of ours open (coldOpening). */
+    private coldOpen: { settled: Promise<void>; end: () => void } | null = null;
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
@@ -633,6 +639,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (energy >= SILENT_FRAME_RMS && this.hearingWaiters.length > 0) {
             for (const resolve of this.hearingWaiters.splice(0)) resolve();
         }
+        if (energy >= SILENT_FRAME_RMS && this.coldOpen) this.endColdOpen();
 
         this.levelListener?.(energy);
 
@@ -894,6 +901,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // requests, so pre-flight it (no-op elsewhere, mic-permission.ts).
             await ensureMicPermission();
             if (stopped()) return;
+            if (!captureLive()) this.beginColdOpen();
             // echoCancellation matters more than usual here: this stream stays
             // live across turns, so it fills the onset pre-buffer WHILE TTS
             // plays. Without EC the pre-buffer captures the speakers, and a
@@ -927,10 +935,12 @@ export class WhisperPcmSttEngine implements SttEngine {
                     const detail =
                         err instanceof Error ? `${err.name}: ${err.message}` : String(err);
                     console.warn(`[stt-cloud] getUserMedia failed - ${detail}`);
+                    this.endColdOpen();
                     throw err;
                 });
             if (stopped()) {
                 for (const track of stream.getTracks()) track.stop();
+                this.endColdOpen();
                 return;
             }
             this.stream = stream;
@@ -1050,6 +1060,39 @@ export class WhisperPcmSttEngine implements SttEngine {
      *  silence (SILENT_FRAME_RMS), and only this says words will be heard. */
     whenHearing(): Promise<void> {
         return new Promise((resolve) => this.hearingWaiters.push(resolve));
+    }
+
+    /**
+     * A capture this engine is opening with no other capture of ours open
+     * beside it: settles at its first frame with sound in it, or
+     * COLD_OPEN_SETTLE_MAX_MS after it was asked for. Null when no such open
+     * is under way. On macOS that open starts voice processing, which rebuilds
+     * the audio output, and on a Bluetooth headset it switches to call audio;
+     * a line started meanwhile begins late and quiet (voice-start.ts hold).
+     * Opened beside another capture, neither happens.
+     */
+    coldOpening(): Promise<void> | null {
+        return this.coldOpen?.settled ?? null;
+    }
+
+    private beginColdOpen(): void {
+        this.endColdOpen();
+        let settle!: () => void;
+        const settled = new Promise<void>((resolve) => (settle = resolve));
+        const cap = setTimeout(() => this.endColdOpen(), COLD_OPEN_SETTLE_MAX_MS);
+        this.coldOpen = {
+            settled,
+            end: () => {
+                clearTimeout(cap);
+                settle();
+            },
+        };
+    }
+
+    private endColdOpen(): void {
+        const open = this.coldOpen;
+        this.coldOpen = null;
+        open?.end();
     }
 
     /** A stop() kept the capture stream and it is still good: the next start()
@@ -1229,6 +1272,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             // energy fallback in charge (acquireSilero swallows it), so only a
             // capture-graph failure is a hard error surfaced to the UI.
             await this.acquireSilero();
+            // Stopped while the model loaded: open nothing. A capture opened
+            // now is one no turn reads, under whatever plays next.
+            if (this.stopSeq !== seq) return;
             await this.ensureCaptureGraph();
         } catch (err) {
             if (this.stopSeq !== seq) return; // stopped mid-open: see below
@@ -1609,6 +1655,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             noteCaptureClosing(this.stream);
             for (const track of this.stream.getTracks()) track.stop();
             this.stream = null;
+            this.endColdOpen();
         }
     }
 }

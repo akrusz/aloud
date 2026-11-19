@@ -105,6 +105,22 @@ Desktop, hosted GPT speech recognition:
 - [ ] **Voice picker mid-session.** Open it during a reply and play a preview:
       neither has a hole in it, and after closing the next thing said is heard
       from its first word.
+- [ ] **Tour after the mic opens.** Tap the setup mic off (slashed), then
+      Settings → Developer → "Setup welcome card" → first run, "Show me
+      around" and "Turn on the microphone". As the second voice finishes
+      introducing itself, pick one at once. Every line starts on its first
+      word at full level; the pick's answer may start a second or two late,
+      which is the mic settling. On the Bluetooth headset too, if it is in
+      reach (it was the route when Harper's first line came in quiet). The
+      log settles it:
+
+      ```bash
+      /usr/bin/log show --last 3m --style compact --predicate 'process == "com.apple.WebKit.GPU" AND (eventMessage CONTAINS "CoreAudioCaptureSource::start(" OR eventMessage CONTAINS "ObjC::play(" OR eventMessage CONTAINS "didEnd(")' | sed -E 's/^[0-9-]+ //; s/ Df .*\] / /' | cut -c1-80
+      ```
+
+      No `CoreAudioCaptureSource::start` falls between a `play` and its
+      `didEnd`, and a `play` right after one comes a second or more later,
+      not 137 ms.
 - [ ] **Repeat.** "Say that again": the last line is spoken again. "What did
       you say before that?": your words stay on screen and she answers in a
       new line. (The local server has the new ask now, production after the

@@ -532,6 +532,28 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   switch sets off several syncs, and the newest takes the handover over; one
   that builds nothing with no newer sync behind it lets the mic go, as do
   Begin and the mic being closed.
+- **A line waits for a mic opened cold.** Opening an echo-cancelled capture
+  with no other capture of ours open starts voice processing on macOS, which
+  rebuilds the audio output, and switches a Bluetooth headset from music to
+  call audio. A line started then begins a fraction in and quiet, rising to
+  full over a couple of seconds: Harper's introduction 137 ms after a cold
+  open, on a Bluetooth headset (desktop app, 2026-11-18); with the mic
+  already open the same line was fine. So a line the screen speaks unasked
+  (`hold`, through `sayHeld` in `views/setup.ts`: the tour's lines) waits
+  for that capture's first frame with sound in it (`coldOpening` in
+  `whisper-pcm-stt.ts`), with the turn still listening, since its frames
+  are how the engine sees that sound. The wait
+  is once per open and ends at most `COLD_OPEN_SETTLE_MAX_MS` (3.5s) after
+  the mic was asked for: the built-in mic sent silence for about 2s after
+  one, and a Bluetooth call link takes 1 to 3s to come up. Nothing else
+  waits: a mic already hearing, one opened beside another capture of ours
+  (`captureLive` in `mic-check.ts`: a replaced listener's held mic, or a
+  session's held through its close), which changes nothing in the output,
+  and the browser's and the phones' recognizers, which have no capture of
+  ours. A turn stopped for a line before it has asked for the mic opens
+  none (`start` in `whisper-pcm-stt.ts`), so the line plays at once and the
+  mic opens after it; until 2026-11-18 it opened anyway, under the line.
+  Answers to a request need none of this: the capture has heard the request.
 - **Not where the recognizer would need a sign-in.** A hosted speech
   recognition pick with nobody signed in would refuse the first thing heard,
   and nothing on this screen may raise a sign-in, so there is no mic then
@@ -645,7 +667,10 @@ voices and would move them off it.
   it and closing all cut the line playing. "Turn on the microphone" has to: the
   mic only opens once the app has stopped speaking (`turnMicOn`). A stop that
   lands before a held line has begun still stops it (`tourLines` in
-  `views/setup.ts`): the line waits for the recognizer to stop first.
+  `views/setup.ts`): the line waits for the recognizer to stop first, and
+  for a mic opened cold to settle, which can be a few seconds (The mic,
+  above). A tap on the setup mic meanwhile switches voice mode off for the
+  held line too.
 - **A word waits for the line.** The recognizer is stopped while a line plays,
   so a word said over it is not heard at all. It listens again
   `SPEECH_TAIL_MS` after the line, and a word said then is acted on when the

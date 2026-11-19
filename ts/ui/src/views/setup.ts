@@ -1756,7 +1756,9 @@ export async function mountSetupView(
             ...setupListeningLimits(
                 isCapacitor() ? 'phone' : choice === 'whisper' || choice === 'web-speech' ? 'free' : 'hosted'
             ),
-            ...(engine instanceof WhisperPcmSttEngine ? { whenHearing: () => engine.whenHearing() } : {}),
+            ...(engine instanceof WhisperPcmSttEngine
+                ? { whenHearing: () => engine.whenHearing(), coldOpening: () => engine.coldOpening() }
+                : {}),
             onHearing: (state) => {
                 if (state === 'hearing') settleOwed();
                 if (voiceStart?.handle !== handle) return;
@@ -1961,7 +1963,8 @@ export async function mountSetupView(
     // ---- the tour's voice (tour/index-guide.ts TourVoice) ----------------
     let tourHeard: ((text: string) => boolean) | null = null;
 
-    /** Speak with the recognizer stopped, where one is running. */
+    /** Speak with the recognizer stopped, where one is running, and once a
+     *  mic it has just opened cold has settled (voice-start.ts hold). */
     function sayHeld(say: () => Promise<void>): Promise<void> {
         const tail = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS));
         const run = voiceStart ? voiceStart.handle.hold(say) : say().then(tail);
@@ -1971,15 +1974,21 @@ export async function mountSetupView(
     }
 
     // Bumped by the tour's stop(). A held line starts only once the recognizer
-    // has stopped, and a stop() that lands in between must still stop it:
-    // the speaker had nothing playing yet to cut.
+    // has stopped (and a mic opened cold has settled, up to a few seconds),
+    // and a stop() that lands in between must still stop it: the speaker had
+    // nothing playing yet to cut.
     let tourLines = 0;
     const tourVoice: TourVoice = {
         say: (id, as) => {
             const asked = tourLines;
-            // Voice mode off: captions only, whatever the tour asks.
+            // Voice mode off: captions only, whatever the tour asks. Asked
+            // again as it starts: a tap on the mic may have come meanwhile.
             if (!appSettings.setupVoice) return Promise.resolve();
-            return sayHeld(() => (asked === tourLines ? speaker.sayLine(id, as ? { voice: as } : {}) : Promise.resolve()));
+            return sayHeld(() =>
+                asked === tourLines && appSettings.setupVoice
+                    ? speaker.sayLine(id, as ? { voice: as } : {})
+                    : Promise.resolve()
+            );
         },
         stop: () => {
             tourLines++;

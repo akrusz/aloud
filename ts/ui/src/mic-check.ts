@@ -184,6 +184,12 @@ export function noteCaptureClosing(stream: MediaStream): void {
     if (live?.()) lastLiveCaptureClosedAt = performance.now();
 }
 
+/** Whether a capture stream of ours is open and live now, a kept one
+ *  included (SttStopOptions.keepMicUntil). */
+export function captureLive(): boolean {
+    return [...openCaptures.values()].some((live) => live());
+}
+
 /**
  * How recently a capture of ours must have been live for Begin to take it as
  * the answer. Long enough for a spoken "begin", whose listener closes before
@@ -203,9 +209,7 @@ export const RECENT_CAPTURE_MS = 3000;
  * it before any await, so a prompt keeps the click's gesture.
  */
 export function micForBegin(): Promise<MicStatus> {
-    const recent =
-        [...openCaptures.values()].some((live) => live()) ||
-        performance.now() - lastLiveCaptureClosedAt <= RECENT_CAPTURE_MS;
+    const recent = captureLive() || performance.now() - lastLiveCaptureClosedAt <= RECENT_CAPTURE_MS;
     // A simulated failure stands in for the hardware, which a live capture
     // would otherwise vouch for.
     if (recent && !getSimMic()) return Promise.resolve('ok');
