@@ -335,18 +335,26 @@ already: the client's sentence split needs an ASCII `.!?` and a space.
 The client (`streamCompletionWithChunkedTts`) gathers the reply's sentence
 chunks and sends them when the stream ends, unless it is still running
 `WHOLE_REPLY_WAIT_MS` (500ms) after the first chunk is complete: then what
-has arrived goes, and the rest follows as one more request at the end (or
-as soon as the first has played, for a stream slower than its audio). On the
+has arrived goes, and the rest follows as one more request at the end. A
+stream slower than its audio doesn't hold the rest to its end: what arrived
+goes as soon as the first has played, and a chunk that arrives with nothing
+playing goes at once. On the
 default Opus 5.5 a reply's text arrives in one burst after its thinking, so
 the wait almost never runs out; on Haiku 5.5, 98% of multi-chunk replies end
 inside it, on Sonnet 5.5 about three in four (estimated from reply latency
 against length in the session logs and soak runs). Requests stay under
 `MAX_WHOLE_REPLY_CHARS`. The bubble shows the whole request's text when it
-starts to play. A request that fails is said again a chunk at a time, inside
-what is left of the first one's network retry budget (`TtsOptions.retryFrom`),
-and so is the rest of that reply; only a failure there is reported. An older
-server sends no `wholeReply`, so a newer client keeps every voice a sentence
-per request.
+starts to play. A synthesis that fails is said again a chunk at a time, in
+order, inside what is left of the first one's network retry budget
+(`TtsOptions.retryFrom`), and so is the rest of that reply; only a failure
+there is reported. A clip that synthesized but would not play (an autoplay
+block, `TtsOptions.onSynthesized` tells them apart) is reported as a single
+chunk's is, not tried again chunk by chunk, which would bill every chunk for
+nothing. Only an engine that can say how far a stopped clip got
+(`TtsEngine.reportsMarks`) is given whole replies; a clip stopped without a
+hush keeps the chunks it reached, and the rest are said one at a time. An
+older server sends no `wholeReply`, so a newer client keeps every voice a
+sentence per request.
 
 Such a request carries `marks`, the character offsets of the client's
 sentence chunks after the first, and the response says in `X-Mark-Times`

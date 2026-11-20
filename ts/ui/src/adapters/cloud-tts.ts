@@ -168,6 +168,8 @@ function detachPlaybackHandlers(audio: HTMLAudioElement): void {
 let elementOwner: CloudTtsEngine | null = null;
 
 export class CloudTtsEngine implements TtsEngine {
+    /** Marks are reported from the element's position (reportMarks). */
+    readonly reportsMarks = true;
     private readonly voiceId: string;
     private readonly engine: string | undefined;
     private readonly endpointUrl: string;
@@ -325,6 +327,7 @@ export class CloudTtsEngine implements TtsEngine {
             throw err;
         }
         if (abort.signal.aborted) return;
+        options?.onSynthesized?.();
 
         const url = URL.createObjectURL(synth.blob);
         // The ONE shared element, primed by the Begin click - a per-utterance

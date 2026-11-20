@@ -1068,6 +1068,10 @@ export async function mountSessionView(
         listVoices() {
             return activeTts.listVoices();
         },
+        // Read per reply (streaming-tts.ts): the engine changes on a voice switch.
+        get reportsMarks(): boolean {
+            return activeTts.reportsMarks === true;
+        },
     } satisfies TtsEngine;
     // To the mic, the opening sound is the facilitator's audio like any spoken
     // line: hold the capture engine's echo gate up while it plays, or the live

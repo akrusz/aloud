@@ -44,6 +44,13 @@ describe('wrapTtsWithBargeIn', () => {
         wrapTtsWithBargeIn(inner).prefetch?.('Next sentence.');
         expect(prefetched).toEqual(['Next sentence.']);
     });
+
+    it('says it reports marks when the inner engine does, so whole replies survive the wrapper', () => {
+        expect(wrapTtsWithBargeIn(new RecordingTts()).reportsMarks).toBeFalsy();
+        const inner = new RecordingTts() as RecordingTts & TtsEngine;
+        inner.reportsMarks = true;
+        expect(wrapTtsWithBargeIn(inner).reportsMarks).toBe(true);
+    });
 });
 
 const voices = [

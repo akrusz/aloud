@@ -48,7 +48,11 @@ and `CloudTtsEngine` reports through `onMark`, synchronously inside
 to play. Without times from the server it falls back to the chunks' shares of
 the text over the clip's length, which put a cut on the wrong side of a chunk
 start several times as often. Every caller cancels before it reads
-`heard()`, so the count is in by then. The same cut runs when a
+`heard()`, so the count is in by then (`tests/session-cut-order.test.ts`).
+Only an engine that reports marks (`TtsEngine.reportsMarks`) gets a whole
+reply; a clip it stops without a hush (a voice switch, a preview taking the
+element) counts only the chunks reached, and the rest are said one at a time.
+The same cut runs when a
 newer turn or a command takes the floor mid-reply, before its own words are
 logged. A reply none of which was heard leaves no entry, and a `[HOLD]` bid on
 a cut reply is dropped, since its question comes last. So a false trigger

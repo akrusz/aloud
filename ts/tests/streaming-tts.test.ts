@@ -72,17 +72,24 @@ class RecordingTts implements TtsEngine {
     }
 }
 
-/** Records each utterance's options and prefetches too; `failWhen` makes
- *  the matching ones fail, as a synthesis error does, before any audio. */
+/** Records each utterance's options and prefetches too, and plays each out
+ *  at once, reporting every mark as CloudTtsEngine does. `failWhen` makes the
+ *  matching ones fail as a synthesis error does, before any audio;
+ *  `failPlayWhen` as a blocked play() does, after the synthesis. */
 class RecordingTtsWithOptions extends RecordingTts {
+    readonly reportsMarks: boolean = true;
     options: (TtsOptions | undefined)[] = [];
     prefetched: string[] = [];
     failWhen: ((text: string, opts?: TtsOptions) => boolean) | null = null;
+    failPlayWhen: ((text: string, opts?: TtsOptions) => boolean) | null = null;
     override async speak(text: string, opts?: TtsOptions): Promise<void> {
         this.spoken.push(text);
         this.options.push(opts);
         if (this.failWhen?.(text, opts)) throw new Error('TTS endpoint 502');
+        opts?.onSynthesized?.();
+        if (this.failPlayWhen?.(text, opts)) throw Object.assign(new Error('play() blocked'), { name: 'NotAllowedError' });
         opts?.onStart?.();
+        opts?.marks?.forEach((_, i) => opts.onMark?.(i));
     }
     prefetch(text: string): void {
         this.prefetched.push(text);
@@ -697,6 +704,7 @@ describe('wholeReply: a reply as one utterance (CloudVoice.wholeReply)', () => {
      *  finish(), reaching the first `reach` marks, as CloudTtsEngine reports
      *  them: inside cancel(), and all of them on playing out. */
     class MarkingTts extends RecordingTts {
+        readonly reportsMarks = true;
         options: (TtsOptions | undefined)[] = [];
         reach = 0;
         private playing: { opts: TtsOptions | undefined; end: () => void } | null = null;
@@ -737,9 +745,20 @@ describe('wholeReply: a reply as one utterance (CloudVoice.wholeReply)', () => {
         expect(result.heard()).toEqual({ text: whole, cut: false });
     });
 
+    /** Each utterance plays `ms`. */
+    class PlayingTts extends RecordingTtsWithOptions {
+        constructor(private readonly ms: number) {
+            super();
+        }
+        override async speak(text: string, opts?: TtsOptions): Promise<void> {
+            await super.speak(text, opts);
+            await new Promise((r) => setTimeout(r, this.ms));
+        }
+    }
+
     it('sends what it has when the stream runs past the wait, and the rest as one more at its end', async () => {
         vi.useFakeTimers();
-        const tts = new RecordingTtsWithOptions();
+        const tts = new PlayingTts(3000);
         const done = streamCompletionWithChunkedTts(
             new TimedStreamingProvider([`${A} `, 'Stay', WHOLE_REPLY_WAIT_MS + 300, ` with that spot for a little while. ${C}`]),
             tts,
@@ -753,9 +772,28 @@ describe('wholeReply: a reply as one utterance (CloudVoice.wholeReply)', () => {
         expect(tts.options[0]!.marks).toBeUndefined();
         await vi.advanceTimersByTimeAsync(400);
         const result = await done;
+        await vi.advanceTimersByTimeAsync(7000);
         await result.ttsDone;
         expect(tts.spoken).toEqual([A, `${B} ${C}`]);
         expect(tts.options[1]!.marks).toEqual([B.length + 1]);
+    });
+
+    it('sends a chunk at once when the stream is slower than the audio, rather than at the stream end', async () => {
+        vi.useFakeTimers();
+        // A plays 200ms from the wait; B lands long after, C later still.
+        const tts = new PlayingTts(200);
+        const done = streamCompletionWithChunkedTts(
+            new TimedStreamingProvider([`${A} `, 'S', 1500, 'tay with that spot for a little while. ', 'W', 3000, 'hat do you find there?']),
+            tts,
+            user,
+            { wholeReply: true }
+        );
+        await vi.advanceTimersByTimeAsync(1600);
+        // B went the moment it was complete, with the stream still running.
+        expect(tts.spoken).toEqual([A, B]);
+        await vi.advanceTimersByTimeAsync(4000);
+        await (await done).ttsDone;
+        expect(tts.spoken).toEqual([A, B, C]);
     });
 
     it('sends the next part early when the stream outlasts the part playing', async () => {
@@ -943,6 +981,125 @@ describe('wholeReply: a reply as one utterance (CloudVoice.wholeReply)', () => {
         await result.ttsDone;
         expect(tts.spoken).toEqual([whole]);
         expect(tts.options[0]!.marks).toEqual([A.length + 1, A.length + B.length + 2]);
+    });
+
+    it('says the chunks a clip stopped without a hush never reached, one at a time, and counts only what was reached', async () => {
+        // Stopped once B had started (an outside pause, a voice switch,
+        // another engine taking the element): the engine reports B's mark,
+        // then resolves.
+        class StoppedTts extends RecordingTtsWithOptions {
+            override async speak(text: string, opts?: TtsOptions): Promise<void> {
+                if (!opts?.marks) return super.speak(text, opts);
+                this.spoken.push(text);
+                this.options.push(opts);
+                opts.onSynthesized?.();
+                opts.onStart?.();
+                opts.onMark?.(0);
+            }
+        }
+        const tts = new StoppedTts();
+        const revealed: string[] = [];
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([`${A} `, `${B} `, C]), tts, user, {
+            wholeReply: true,
+            onSpeakStart: (t) => revealed.push(t),
+        });
+        await result.ttsDone;
+        // The rest of B is lost, as the rest of a sentence was before; C plays.
+        expect(tts.spoken).toEqual([whole, C]);
+        expect(revealed).toEqual([whole, C]);
+        expect(result.heard()).toEqual({ text: whole, cut: false });
+    });
+
+    it('a clip stopped before its audio began says every chunk one at a time', async () => {
+        class TakenTts extends RecordingTtsWithOptions {
+            override async speak(text: string, opts?: TtsOptions): Promise<void> {
+                if (!opts?.marks) return super.speak(text, opts);
+                this.spoken.push(text);
+            }
+        }
+        const tts = new TakenTts();
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([`${A} `, `${B} `, C]), tts, user, {
+            wholeReply: true,
+        });
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([whole, A, B, C]);
+    });
+
+    it('speaks a chunk at a time on an engine that cannot say how far a clip got', async () => {
+        class Blind extends RecordingTtsWithOptions {
+            override readonly reportsMarks = false;
+        }
+        const tts = new Blind();
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([`${A} `, `${B} `, C]), tts, user, {
+            wholeReply: true,
+        });
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([A, B, C]);
+    });
+
+    it('keeps the order when a chunk arrives after a failed utterance while another waits gathered', async () => {
+        vi.useFakeTimers();
+        // The reviewer's case: A goes alone at the wait and fails 150ms
+        // later; B is gathered behind it; C comes after the failure.
+        class FailFirst extends RecordingTtsWithOptions {
+            private calls = 0;
+            override async speak(text: string, opts?: TtsOptions): Promise<void> {
+                if (this.calls++ === 0) {
+                    this.spoken.push(text);
+                    await new Promise((r) => setTimeout(r, 150));
+                    throw new Error('TTS endpoint 502');
+                }
+                await super.speak(text, opts);
+                await new Promise((r) => setTimeout(r, 50));
+            }
+        }
+        const tts = new FailFirst();
+        const done = streamCompletionWithChunkedTts(
+            new TimedStreamingProvider([`${A} `, 600, `${B} `, 300, `${C} `, 300]),
+            tts,
+            user,
+            { wholeReply: true }
+        );
+        await vi.advanceTimersByTimeAsync(3000);
+        const result = await done;
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([A, A, B, C]);
+        expect(result.heard()).toEqual({ text: whole, cut: false });
+    });
+
+    it('speaks nothing for a turn whose stream threw while chunks were gathered', async () => {
+        vi.useFakeTimers();
+        class Throwing implements LLMProvider {
+            readonly model = 'fake';
+            async complete(): Promise<CompletionResult> {
+                return { text: '', finishReason: 'stop', tokensUsed: null };
+            }
+            async *completeStream(): AsyncIterable<StreamChunk> {
+                yield { text: `${A} `, done: false };
+                await new Promise((r) => setTimeout(r, 100));
+                throw new Error('stream dropped');
+            }
+        }
+        const tts = new RecordingTtsWithOptions();
+        const done = streamCompletionWithChunkedTts(new Throwing(), tts, user, { wholeReply: true });
+        const failed = expect(done).rejects.toThrow('stream dropped');
+        await vi.advanceTimersByTimeAsync(WHOLE_REPLY_WAIT_MS * 3);
+        await failed;
+        expect(tts.spoken).toEqual([]);
+    });
+
+    it('reports a clip whose play() failed after synthesis, and does not say its chunks again', async () => {
+        const tts = new RecordingTtsWithOptions();
+        tts.failPlayWhen = () => true;
+        const errors: unknown[] = [];
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([`${A} `, `${B} `, C]), tts, user, {
+            wholeReply: true,
+            onTtsError: (e) => errors.push(e),
+        });
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([whole]);
+        expect(errors).toHaveLength(1);
+        expect((errors[0] as Error).name).toBe('NotAllowedError');
     });
 
     it("leaves a voice without the flag a chunk per utterance, as an older server's voices are", async () => {

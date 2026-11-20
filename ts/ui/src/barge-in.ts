@@ -255,5 +255,6 @@ export function wrapTtsWithBargeIn(
     if (inner.prefetch) {
         wrapped.prefetch = (text, prefetchOpts) => inner.prefetch!(text, prefetchOpts);
     }
+    if (inner.reportsMarks) wrapped.reportsMarks = true;
     return wrapped;
 }

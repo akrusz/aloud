@@ -42,6 +42,12 @@ export interface TtsOptions {
      */
     onMark?: (index: number) => void;
     /**
+     * Fires once the utterance's audio is in hand, just before it plays, for
+     * an engine with a synthesis step: a failure after it is the playback's,
+     * not the synthesis's.
+     */
+    onSynthesized?: () => void;
+    /**
      * For an engine that re-sends a request lost to a dropped connection:
      * count its time budget from this moment (epoch ms), not from this
      * request's own first failure, when the same words were already tried.
@@ -57,6 +63,13 @@ export interface TtsEngine {
      * meaningful for engines with a synthesis round-trip; local engines omit it.
      */
     prefetch?(text: string, options?: TtsOptions): void;
+    /**
+     * Reports TtsOptions.marks through onMark, every one of them when an
+     * utterance plays out, so how far a stopped utterance got is known. The
+     * streaming bridge speaks a whole reply as one utterance only on such an
+     * engine. A wrapper forwards it.
+     */
+    reportsMarks?: boolean;
     /** Cancel any in-progress utterance. No-op when nothing is speaking. */
     cancel(): Promise<void>;
     listVoices(): Promise<TtsVoice[]>;

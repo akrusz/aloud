@@ -69,12 +69,15 @@ export interface StreamCompletionOptions extends CompletionOptions {
     ttsSignal?: AbortSignal;
     /**
      * Speak the reply as one utterance where it can (the hosted voice's
-     * CloudVoice.wholeReply), not one per chunk: the chunks gather until the
-     * stream ends, or until WHOLE_REPLY_WAIT_MS after the first is complete,
-     * when what is there goes and the rest follows as one more at the end.
+     * CloudVoice.wholeReply), not one per chunk, on an engine that reports
+     * marks (TtsEngine.reportsMarks; any other gets a chunk per utterance):
+     * the chunks gather until the stream ends, or until WHOLE_REPLY_WAIT_MS
+     * after the first is complete, when what is there goes and the rest
+     * follows as one more at the end, or sooner when nothing is playing.
      * Each utterance carries its chunk starts as TtsOptions.marks, and heard()
-     * keeps the chunks the engine reports reached. If one fails, its chunks
-     * and the rest of the reply are spoken one by one.
+     * keeps the chunks the engine reports reached; the ones a clip stopped
+     * without a hush never reached are said one at a time. If a synthesis
+     * fails, its chunks and the rest of the reply are said one at a time.
      */
     wholeReply?: boolean;
     /**
@@ -206,26 +209,54 @@ export async function streamCompletionWithChunkedTts(
             });
     }
 
-    // A whole reply (wholeReply): chunks gather here until the stream ends, or
-    // WHOLE_REPLY_WAIT_MS after the first one, and go out as one utterance.
+    /** Say `chunks` one at a time, in this queue entry, so nothing queued
+     *  later can get ahead of them. */
+    async function speakEach(chunks: string[], extra: TtsOptions = {}): Promise<void> {
+        const opts: TtsOptions = { ...ttsOptions, ...extra };
+        for (const chunk of chunks) if (!hushed()) tts.prefetch?.(chunk, opts);
+        for (const chunk of chunks) {
+            if (hushed()) return;
+            try {
+                await playChunk(chunk, opts);
+            } catch (err) {
+                reportTtsError(err);
+            }
+        }
+    }
+
+    // A whole reply (wholeReply), on an engine that can say how far a stopped
+    // utterance got (reportsMarks): chunks gather here until the stream ends,
+    // or WHOLE_REPLY_WAIT_MS after the first one, and go out as one utterance.
+    const together = !!wholeReply && tts.reportsMarks === true;
     let pending: string[] = [];
     let pendingChars = 0;
     let waitTimer: ReturnType<typeof setTimeout> | null = null;
     let sentAny = false;
     let streamOver = false;
-    // A whole-reply utterance failed: the rest of the reply goes a chunk at a time.
+    // Whole-reply utterances queued or playing.
+    let inFlight = 0;
+    // A whole-reply synthesis failed: the rest of the reply goes a chunk at a time.
     let chunkByChunk = false;
 
     function gather(text: string): void {
-        if (chunkByChunk) return speakChunk(text);
+        if (chunkByChunk) {
+            // What was gathered before the failure goes first.
+            sendGathered();
+            return speakChunk(text);
+        }
         if (pending.length && pendingChars + text.length + 1 > MAX_WHOLE_REPLY_CHARS) sendGathered();
         pending.push(text);
         pendingChars += text.length + 1;
-        if (!sentAny && !waitTimer) {
+        if (!sentAny) {
+            if (waitTimer) return;
             // Ask the gate now, as the per-sentence path does at its first
             // chunk, so the wait for the rest of the reply runs beside it.
             void maySpeak();
             waitTimer = setTimeout(sendGathered, WHOLE_REPLY_WAIT_MS);
+        } else if (!inFlight) {
+            // Nothing playing or queued: the stream is slower than the audio,
+            // so a chunk waiting for its end would be silence.
+            sendGathered();
         }
     }
 
@@ -251,42 +282,56 @@ export async function streamCompletionWithChunkedTts(
         for (let i = 1, at = 0; i < chunks.length; i++) marks.push((at += chunks[i - 1]!.length + 1));
         const opts: TtsOptions = marks.length ? { ...ttsOptions, marks } : { ...ttsOptions };
         tts.prefetch?.(text, opts);
-        // The chunks heard so far, in order. The bubble gets the whole text at
-        // the start (no timed reveal); the log keeps only the chunks heard.
+        // The chunks heard so far, in order, as the engine reports them. The
+        // bubble gets the whole text at the start (no timed reveal); the log
+        // keeps only the chunks heard.
         let started = 0;
         const startUpTo = (n: number): void => {
             if (!started && n > 0) onSpeakStart?.(text);
             while (started < n) startedChunks.push(chunks[started++]!);
         };
         const sentAt = Date.now();
-        ttsQueue = ttsQueue.then(async () => {
-            if (hushed() || !(await maySpeak()) || hushed()) return;
-            try {
-                await tts.speak(text, { ...opts, onStart: () => startUpTo(1), onMark: (i) => startUpTo(i + 2) });
-            } catch {
-                // A synthesis that failed never played. Its chunks are said one
-                // at a time instead, inside the time the first try's re-sends
-                // had (retryFrom), and so is the rest of the reply.
-                chunkByChunk = true;
-                const left = chunks.slice(started);
-                const retry: TtsOptions = { ...ttsOptions, retryFrom: sentAt };
-                for (const chunk of left) if (!hushed()) tts.prefetch?.(chunk, retry);
-                for (const chunk of left) {
-                    if (hushed()) return;
+        inFlight++;
+        ttsQueue = ttsQueue
+            .then(async () => {
+                try {
+                    if (hushed() || !(await maySpeak()) || hushed()) return;
+                    // An utterance ahead of this one failed: chunk by chunk.
+                    if (chunkByChunk) return await speakEach(chunks);
+                    let synthesized = false;
                     try {
-                        await playChunk(chunk, retry);
+                        await tts.speak(text, {
+                            ...opts,
+                            onSynthesized: () => (synthesized = true),
+                            onStart: () => startUpTo(1),
+                            onMark: (i) => startUpTo(i + 2),
+                        });
                     } catch (err) {
-                        reportTtsError(err);
+                        // A playback failure (an autoplay block) is reported as
+                        // for a single chunk; saying the chunks again would bill
+                        // them all for nothing.
+                        if (synthesized) return reportTtsError(err);
+                        // A synthesis that failed never played. Its chunks are
+                        // said one at a time instead, inside the time the first
+                        // try's re-sends had (retryFrom), and so is the rest of
+                        // the reply, what was gathered meanwhile queued behind.
+                        chunkByChunk = true;
+                        sendGathered();
+                        return await speakEach(chunks.slice(started), { retryFrom: sentAt });
                     }
+                    // Stopped short without a hush (an outside pause, a voice
+                    // switch, another engine taking the element): the chunks it
+                    // never reached are said one at a time, so what is lost is
+                    // the rest of one chunk, as before whole replies.
+                    if (!hushed() && started < chunks.length) await speakEach(chunks.slice(started));
+                } finally {
+                    inFlight--;
+                    // The stream outran this one's playback: what it has so
+                    // far goes now rather than at its end.
+                    if (pending.length && !streamOver) sendGathered();
                 }
-                return;
-            }
-            // Resolved unhushed: played out, as for a single chunk.
-            if (!hushed()) startUpTo(chunks.length);
-            // The stream outran by this one's playback: what it has so far
-            // goes now rather than at its end.
-            if (pending.length && !streamOver) sendGathered();
-        }).catch(reportTtsError);
+            })
+            .catch(reportTtsError);
     }
 
     function enqueueSpeak(text: string): void {
@@ -297,7 +342,7 @@ export async function streamCompletionWithChunkedTts(
         text = scrubControlTokens(text);
         if (!text.trim()) return;
         chunkCount++;
-        if (wholeReply) gather(text.trim());
+        if (together) gather(text.trim());
         else speakChunk(text);
     }
 
@@ -310,7 +355,7 @@ export async function streamCompletionWithChunkedTts(
         // caller parses the signals separately from the full text.
         const spoken = parseTurnSignals(result.text).cleanText;
         const done = { text: result.text, usage: usageFrom(result), finishReason: result.finishReason ?? null, heard };
-        if (wholeReply) {
+        if (together) {
             // One utterance still, but marked by chunk, so a cut keeps only
             // the chunks heard.
             const { complete, remainder } = splitOffSentences(spoken);
@@ -404,48 +449,59 @@ export async function streamCompletionWithChunkedTts(
         prefixChecked = true;
     }
 
-    for await (const chunk of provider.completeStream(messages, providerOpts)) {
-        // Superseded by a newer turn - stop consuming and return what we have.
-        if (signal?.aborted) {
-            brokenOff = true;
-            break;
-        }
-        if (chunk.text) {
-            fullText += chunk.text;
-            pendingTtsText += chunk.text;
-            if (onTextDelta) onTextDelta(fullText);
-
-            checkControlPrefix();
-            // Hold speech until the prefix decision is made, so a partial "[HOL"
-            // or "[NE" is never voiced.
-            if (!prefixChecked) continue;
-
-            // Checked against fullText, not the pending buffer: the leak's
-            // anchor is the sentence end before it, which a sentence split has
-            // usually already handed to TTS.
-            const leak = findRoleLeak(fullText);
-            if (leak >= 0) {
-                const keep = leak - (fullText.length - pendingTtsText.length);
-                enqueueSpeak(pendingTtsText.slice(0, Math.max(0, keep)));
-                pendingTtsText = '';
-                break; // stop consuming; the caller re-parses fullText anyway
+    try {
+        for await (const chunk of provider.completeStream(messages, providerOpts)) {
+            // Superseded by a newer turn - stop consuming and return what we have.
+            if (signal?.aborted) {
+                brokenOff = true;
+                break;
             }
+            if (chunk.text) {
+                fullText += chunk.text;
+                pendingTtsText += chunk.text;
+                if (onTextDelta) onTextDelta(fullText);
 
-            const split = splitOffSentences(pendingTtsText);
-            for (const sentence of split.complete) {
-                enqueueSpeak(sentence);
+                checkControlPrefix();
+                // Hold speech until the prefix decision is made, so a partial "[HOL"
+                // or "[NE" is never voiced.
+                if (!prefixChecked) continue;
+
+                // Checked against fullText, not the pending buffer: the leak's
+                // anchor is the sentence end before it, which a sentence split has
+                // usually already handed to TTS.
+                const leak = findRoleLeak(fullText);
+                if (leak >= 0) {
+                    const keep = leak - (fullText.length - pendingTtsText.length);
+                    enqueueSpeak(pendingTtsText.slice(0, Math.max(0, keep)));
+                    pendingTtsText = '';
+                    break; // stop consuming; the caller re-parses fullText anyway
+                }
+
+                const split = splitOffSentences(pendingTtsText);
+                for (const sentence of split.complete) {
+                    enqueueSpeak(sentence);
+                }
+                pendingTtsText = split.remainder;
             }
-            pendingTtsText = split.remainder;
-        }
-        if (chunk.done) {
-            usage = usageFrom(chunk);
-            finishReason = chunk.finishReason ?? null;
-            checkControlPrefix(true);
-            if (pendingTtsText.trim()) {
-                enqueueSpeak(pendingTtsText);
-                pendingTtsText = '';
+            if (chunk.done) {
+                usage = usageFrom(chunk);
+                finishReason = chunk.finishReason ?? null;
+                checkControlPrefix(true);
+                if (pendingTtsText.trim()) {
+                    enqueueSpeak(pendingTtsText);
+                    pendingTtsText = '';
+                }
             }
         }
+    } catch (err) {
+        // A turn that failed says nothing more: the wait must not fire later
+        // and speak what was gathered over whatever the caller does instead.
+        streamOver = true;
+        pending = [];
+        pendingChars = 0;
+        if (waitTimer) clearTimeout(waitTimer);
+        waitTimer = null;
+        throw err;
     }
     streamOver = true;
     sendGathered();

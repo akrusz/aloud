@@ -333,6 +333,27 @@ describe('CloudTtsEngine: a whole reply, marked by chunk', () => {
         expect(reached).toEqual([0]);
     });
 
+    it('says when the audio is in hand, so a failure after it is known to be the playback', async () => {
+        expect(engineFor('/marks/capability', null).reportsMarks).toBe(true);
+        const events: string[] = [];
+        await engineFor('/marks/synthesized', null).speak('Ready to play now.', {
+            onSynthesized: () => events.push('synthesized'),
+            onStart: () => events.push('start'),
+        });
+        expect(events).toEqual(['synthesized', 'start']);
+
+        const failing = new CloudTtsEngine({
+            voice: 'Harper',
+            endpointUrl: '/marks/failed',
+            usePost: true,
+            authProvider: async () => 't',
+            fetchImpl: (async () => new Response('', { status: 502 })) as unknown as typeof fetch,
+        });
+        let synthesized = false;
+        await expect(failing.speak('Never rendered.', { onSynthesized: () => (synthesized = true) })).rejects.toThrow('502');
+        expect(synthesized).toBe(false);
+    });
+
     it('sends no marks for a single chunk, and reads none an older server would not send', async () => {
         const engine = engineFor('/marks/none', null);
         await engine.speak('Just the one sentence here.');
