@@ -46,11 +46,11 @@ describe('tierFromReading', () => {
         expect(tierFromReading({ status: 'verificationRequired' })).toBeNull();
     });
 
-    it('is adult wherever nothing is shared, whatever else rides along', () => {
-        expect(tierFromReading({ status: 'notShared' })).toBe('adult');
-        expect(tierFromReading({ status: 'notRequired' })).toBe('adult');
-        expect(tierFromReading({ status: 'notShared', ageLower: 0, ageUpper: 12, consent: 'declined' })).toBe('adult');
-        expect(tierFromReading({ status: 'notRequired', ageLower: 13, ageUpper: 15, consent: 'pending' })).toBe('adult');
+    it('says nothing where nothing is shared, whatever else rides along', () => {
+        expect(tierFromReading({ status: 'notShared' })).toBeNull();
+        expect(tierFromReading({ status: 'notRequired' })).toBeNull();
+        expect(tierFromReading({ status: 'notShared', ageLower: 0, ageUpper: 12, consent: 'declined' })).toBeNull();
+        expect(tierFromReading({ status: 'notRequired', ageLower: 18, ageUpper: null })).toBeNull();
     });
 
     it("reads Play's ranges", () => {
@@ -78,16 +78,16 @@ describe('tierFromReading', () => {
         expect(tierFromReading(shared(21, null))).toBe('adult');
     });
 
-    it('is adult when shared with no bounds at all', () => {
-        expect(tierFromReading(shared(null, null))).toBe('adult');
-        expect(tierFromReading({ status: 'shared' })).toBe('adult');
-        expect(tierFromReading({ status: 'shared', consent: 'declined' })).toBe('adult');
+    it('says nothing when shared with no bounds at all', () => {
+        expect(tierFromReading(shared(null, null))).toBeNull();
+        expect(tierFromReading({ status: 'shared' })).toBeNull();
+        expect(tierFromReading({ status: 'shared', consent: 'declined' })).toBeNull();
     });
 
     it('reads anything but a finite number as no bound', () => {
         expect(tierFromReading({ status: 'shared', ageLower: NaN, ageUpper: 12 })).toBe('child');
         expect(tierFromReading({ status: 'shared', ageLower: 13, ageUpper: Infinity })).toBe('teen');
-        expect(tierFromReading({ status: 'shared', ageUpper: '12' as unknown as number })).toBe('adult');
+        expect(tierFromReading({ status: 'shared', ageUpper: '12' as unknown as number })).toBeNull();
     });
 
     it("reads a teen's parental consent, and nobody else's", () => {
@@ -221,7 +221,7 @@ describe('the boot decision', () => {
         const w = world({ stored: 'teen', readings: [answer.promise] });
         const gate = createAgeGate(w.deps);
         expect(await gate.boot()).toBe('teen');
-        answer.resolve({ status: 'notRequired' });
+        answer.resolve(shared(18, null));
         await settle();
         expect(w.kv.get('ageTier')).toBe('adult');
         expect(gate.tier()).toBe('adult');
@@ -229,7 +229,7 @@ describe('the boot decision', () => {
     });
 
     it('stores a flip from blocked to not, and reloads', async () => {
-        const w = world({ stored: 'child', readings: [{ status: 'notRequired' }] });
+        const w = world({ stored: 'child', readings: [shared(18, null)] });
         expect(await createAgeGate(w.deps).boot()).toBe('child');
         await settle();
         expect(w.kv.get('ageTier')).toBe('adult');
@@ -244,8 +244,14 @@ describe('the boot decision', () => {
         expect(w.reload).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps a stored tier when the store cannot answer, offline included', async () => {
-        for (const reading of [{ status: 'unavailable', detail: 'NETWORK_ERROR (-3)' } as AgeReading, null, new Error('boom')]) {
+    it('keeps a stored tier when the store says nothing: offline, a decline, sharing switched off', async () => {
+        for (const reading of [
+            { status: 'unavailable', detail: 'NETWORK_ERROR (-3)' } as AgeReading,
+            { status: 'notShared' } as AgeReading,
+            { status: 'notRequired' } as AgeReading,
+            null,
+            new Error('boom'),
+        ]) {
             const w = world({ stored: 'child', readings: [reading] });
             const gate = createAgeGate(w.deps);
             expect(await gate.boot()).toBe('child');
@@ -313,10 +319,21 @@ describe('the boot decision', () => {
             expect(w.reload).not.toHaveBeenCalled();
         });
 
-        it('boots adult and stores nothing when the store cannot answer', async () => {
-            const w = world({ readings: [{ status: 'unavailable', detail: 'APP_NOT_OWNED (-9)' }] });
+        it('boots adult when the store says nothing, and stores that so the next launch does not wait', async () => {
+            for (const reading of [{ status: 'unavailable', detail: 'APP_NOT_OWNED (-9)' }, { status: 'notRequired' }] as AgeReading[]) {
+                const w = world({ readings: [reading] });
+                const booted = createAgeGate(w.deps).boot();
+                await vi.advanceTimersByTimeAsync(0);
+                expect(await booted).toBe('adult');
+                expect(w.kv.get('ageTier')).toBe('adult');
+                expect(w.reload).not.toHaveBeenCalled();
+            }
+        });
+
+        it('stores nothing while the store has not answered at all', async () => {
+            const w = world({ readings: [new Promise<AgeReading | null>(() => {})] });
             const booted = createAgeGate(w.deps).boot();
-            await vi.advanceTimersByTimeAsync(0);
+            await vi.advanceTimersByTimeAsync(FIRST_CHECK_WAIT_MS);
             expect(await booted).toBe('adult');
             expect(w.kv.has('ageTier')).toBe(false);
         });
@@ -376,8 +393,8 @@ describe('the boot decision', () => {
         expect(w.notify).toHaveBeenCalledWith(
             'Google Play needs to confirm your age. You can do that in the Play Store app.'
         );
-        expect(w.kv.has('ageTier')).toBe(false);
-        expect([...w.kv.values()]).toEqual(['1']);
+        expect(w.kv.get('ageTier')).toBe('adult');
+        expect(w.kv.get('storeVerifyNoticeShown')).toBe('1');
 
         await createAgeGate(w.deps).boot();
         await settle();

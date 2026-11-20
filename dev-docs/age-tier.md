@@ -10,16 +10,20 @@ itself.
 | Store says | Tier | App does |
 |---|---|---|
 | 18+ | `adult` | full app |
-| nothing shared, declined, not required | `adult` | full app |
-| error, timeout, missing API, old OS, Play wants verification | unknown: the stored tier, else `adult` | as that tier |
+| nothing: not shared, declined, not required, an error, a timeout, a missing API, an old OS, Play wants verification | unknown: the stored tier, else `adult` | as that tier |
 | 13 to 17 | `teen` | full app; nothing reads `teen` yet |
 | a minor whose parent's approval of a "significant change" is pending / declined | `pendingConsent` / `deniedConsent` | blocking screen |
 | under 13 | `child` | blocking screen: no session, no mic |
 
 Bounds are inclusive and either may be missing (`tierFromReading`). `child`
-is an upper bound of 12 or less; `adult` is a lower bound of 18 or more, or no
-bounds at all. Anything else, a range straddling 13 included, is `teen`. Only a
+is an upper bound of 12 or less; `adult` is a lower bound of 18 or more.
+Anything else with a bound, a range straddling 13 included, is `teen`. Only a
 teen's consent is read: `child` stays `child`, `adult` ignores it.
+
+Only a shared range moves the tier. A decline is unknown, not `adult`:
+otherwise a child allowed to choose could tap "Don't share" and lift the block
+a shared range put there. So a block lasts until the store shares a range that
+says otherwise.
 
 ## Where it lives
 
@@ -46,7 +50,11 @@ teen's consent is read: `child` stays `child`, `adult` ignores it.
 - A stored tier is used at once, with the check running behind it. With none
   (first launch), boot waits for the check up to `FIRST_CHECK_WAIT_MS` (2500
   ms), then goes on with what is known.
-- Every answer is stored. One that flips blocked to not blocked, or back,
+- Every shared range is stored. When the store says nothing and nothing is
+  stored yet, `adult` is stored, so the many accounts that never share
+  anything wait on the store once and not on every launch. A stored `adult`
+  therefore means "nothing says otherwise", not a verified age.
+- An answer that flips blocked to not blocked, or back,
   against what is on screen reloads the page, and the reloaded boot starts
   from the stored tier, which is what keeps it from looping. A failed store
   write means no reload. A flip to blocked mid-session cuts the session short;
@@ -66,9 +74,9 @@ teen's consent is read: `child` stays `child`, `adult` ignores it.
   `[age-check] unavailable <error>` (a dev-mode `diag`, not kept for the
   report). The toast is the calm one, `showSuccessToast`, because an error
   toast's text goes to the error log. aloud cloud never hears any of it.
-- Fail open: an error, a timeout, a missing API or an old OS is unknown, which
-  is the stored tier, else `adult`. So a known under-13 account stays blocked
-  offline.
+- Fail open: nothing shared, an error, a timeout, a missing API or an old OS
+  is unknown, which is the stored tier, else `adult`. So a known under-13
+  account stays blocked offline.
 
 ## Native contract
 

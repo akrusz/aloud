@@ -6,9 +6,9 @@
  *
  * Only the tier is kept, under one KV key. The range, its bounds and the tier
  * are never logged, sent, or put where the bug report can read them (diag and
- * the error log). Not knowing (an error, a timeout, an old OS) falls back to the
- * tier stored on an earlier launch, else 'adult', so a known under-13 account
- * stays blocked offline.
+ * the error log). Not knowing (nothing shared, an error, a timeout, an old OS)
+ * falls back to the tier stored on an earlier launch, else 'adult', so a known
+ * under-13 account stays blocked offline or after declining to share.
  */
 
 import type { KvStorage } from '../../src/platform/storage.js';
@@ -59,18 +59,19 @@ export function isBlockingTier(tier: AgeTier): tier is BlockingTier {
 const bound = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /**
- * The tier a store reading means, or null where it says nothing (no reading, an
- * error, Play asking for verification). A minor not known to be under 13,
- * including a range that straddles 13, is 'teen'; only a teen's parental
- * consent is read.
+ * The tier a store reading means, or null where it says nothing: no reading, an
+ * error, Play asking for verification, and also nothing shared. A decline is
+ * not 'adult', or declining would lift the block a shared range put there. A
+ * minor not known to be under 13, including a range that straddles 13, is
+ * 'teen'; only a teen's parental consent is read.
  */
 export function tierFromReading(reading: AgeReading | null | undefined): AgeTier | null {
-    if (!reading || reading.status === 'unavailable' || reading.status === 'verificationRequired') return null;
-    if (reading.status !== 'shared') return 'adult';
+    if (reading?.status !== 'shared') return null;
     const lower = bound(reading.ageLower);
     const upper = bound(reading.ageUpper);
+    if (lower === null && upper === null) return null;
     if (upper !== null && upper <= 12) return 'child';
-    if ((lower !== null && lower >= 18) || (lower === null && upper === null)) return 'adult';
+    if (lower !== null && lower >= 18) return 'adult';
     if (reading.consent === 'pending') return 'pendingConsent';
     if (reading.consent === 'declined') return 'deniedConsent';
     return 'teen';
@@ -122,6 +123,7 @@ export interface AgeGate {
 
 export function createAgeGate(deps: AgeGateDeps): AgeGate {
     let shown: AgeTier = 'adult';
+    let hasStored = false;
     let inFlight: Promise<void> | null = null;
     let onBlockedChange: ((tier: BlockingTier) => void) | undefined;
 
@@ -145,6 +147,7 @@ export function createAgeGate(deps: AgeGateDeps): AgeGate {
     const store = async (tier: AgeTier): Promise<boolean> => {
         try {
             await deps.kv.set(TIER_KEY, tier);
+            hasStored = true;
             return true;
         } catch {
             return false;
@@ -152,7 +155,12 @@ export function createAgeGate(deps: AgeGateDeps): AgeGate {
     };
 
     const apply = async (fresh: AgeTier | null): Promise<void> => {
-        if (fresh === null) return;
+        if (fresh === null) {
+            // Most accounts never share anything. Without a stored tier every
+            // launch of theirs would wait on the store (FIRST_CHECK_WAIT_MS).
+            if (!hasStored) await store('adult');
+            return;
+        }
         const stored = await store(fresh);
         if (isBlockingTier(fresh) !== isBlockingTier(shown)) {
             // The reloaded boot starts from the stored tier, which is what
@@ -188,6 +196,7 @@ export function createAgeGate(deps: AgeGateDeps): AgeGate {
             } catch {
                 stored = null;
             }
+            hasStored = stored !== null;
             const fresh = check();
             if (stored) {
                 shown = stored;
