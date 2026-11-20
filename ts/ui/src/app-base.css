@@ -5722,6 +5722,21 @@ input[type="range"].preview-range {
     clip-path: polygon(0 0, 100% 0, calc(50% + 1px) 100%, calc(50% - 1px) 100%);
 }
 
+/* Over a phone's docked card while the section runs on under it
+   (index-guide.ts addMoreBelow). */
+.tour-more-below {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    padding: 0.4rem 0.6rem 0.3rem;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--accent);
+}
+
 .tour-actions {
     display: flex;
     gap: 0.5rem;
