@@ -143,6 +143,7 @@ import {
     autoStart as autoStartGuide,
     closeIfActive as closeGuideIfActive,
     resetAndStart as resetGuide,
+    tourMicFailed,
     type QuickStart,
     type TourVoice,
 } from '../tour/index-guide.js';
@@ -1111,6 +1112,7 @@ export async function mountSetupView(
                 return closeVoiceStart();
             }
             voiceStartClosed = false;
+            listenerRebuilds = 0;
             setSetupVoice(true);
             if (mic !== 'ask') return void syncVoiceStart();
             // The one place this feature may raise the permission prompt: a
@@ -1247,6 +1249,9 @@ export async function mountSetupView(
     let tourChoice: SttEngineChoice | null = null;
     /** The recognizer this screen listens with. */
     const listenerChoice = (): SttEngineChoice => tourChoice ?? sttSetupChoice();
+    // Rebuilds of a failed recognizer since the last request understood
+    // (LISTENER_REBUILDS).
+    let listenerRebuilds = 0;
     // What the mic beside Begin shows (paintVoiceMic). Lit can come before
     // the listener does: a mic switched on while the app speaks shows on at
     // once and starts listening when the line is over.
@@ -1786,7 +1791,15 @@ export async function mountSetupView(
                 isLiveMount() && beginBtn.isConnected && document.body.dataset['sessionActive'] === undefined,
             onBegin: (request) => void beginByVoice(request, beginBtn),
             keepMicForBegin: holdCaptureForSession,
-            onHeard: heardOnSetup,
+            // A listener about to be built again (onEnd) takes the failed
+            // one's mic over, so the OS sees no close and reopen between them.
+            keepMicOnError: () =>
+                listenerRebuilds < LISTENER_REBUILDS ? new Promise<void>((resolve) => micHandover.hold(resolve)) : undefined,
+            onHeard: async (text) => {
+                const understood = await heardOnSetup(text);
+                if (understood) listenerRebuilds = 0;
+                return understood;
+            },
             isEcho: heardOwnLine,
             ...setupListeningLimits(
                 isCapacitor() ? 'phone' : choice === 'whisper' || choice === 'web-speech' ? 'free' : 'hosted'
@@ -1796,6 +1809,7 @@ export async function mountSetupView(
                 : {}),
             onHearing: (state) => {
                 if (state === 'hearing') settleOwed();
+                if (state === 'hearing') tourMicFailed(false);
                 if (voiceStart?.handle !== handle) return;
                 micHearing = state;
                 if (micShows === 'listening') paintVoiceMic('listening');
@@ -1809,9 +1823,21 @@ export async function mountSetupView(
                 // The screen went away under a line: nobody is there to hear
                 // the rest of it, and the next screen's mic would.
                 if (why === 'stopped' && (!isLiveMount() || !beginBtn.isConnected)) speaker.stop();
+                // The recognizer failed: built again once before the mic
+                // sleeps, since a fault can be passing (a lost service, a
+                // dropped connection). Lit meanwhile, as one opening is.
+                if (why === 'error' && listenerRebuilds < LISTENER_REBUILDS && isLiveMount() && beginBtn.isConnected) {
+                    listenerRebuilds++;
+                    paintVoiceMic('listening');
+                    setTimeout(() => void syncVoiceStart(), LISTENER_REBUILD_AFTER_MS);
+                    return;
+                }
+                // Kept for a rebuild that is not coming (keepMicOnError).
+                if (why === 'error') micHandover.release();
                 // The window ran out or the recognizer failed: asleep until
                 // tapped. (A tap on the lit mic has already said so itself.)
                 if (why === 'window' || why === 'error') voiceStartClosed = true;
+                if (why === 'error') tourMicFailed(true);
                 paintVoiceMic(why === 'begin' ? 'hidden' : restingLook());
             },
         });
@@ -2075,10 +2101,12 @@ export async function mountSetupView(
             // Asleep wakes; off (the setting) stays off.
             if (!voiceStartClosed || !appSettings.setupVoice) return;
             voiceStartClosed = false;
+            listenerRebuilds = 0;
             void syncVoiceStart();
         },
         enableMic: () => {
             voiceStartClosed = false;
+            listenerRebuilds = 0;
             setSetupVoice(true);
             // Before any await, like Begin's own: the gesture is still behind it.
             const asked = mic === 'granted' ? Promise.resolve('ok' as const) : acquireMicOnce();
@@ -2731,6 +2759,12 @@ const MIC_OPENING_NOTE_AFTER_MS = 400;
  *  only ever the line's last few words, so the wait costs a real request
  *  almost nothing. */
 const SETUP_ECHO_WINDOW_MS = 4000;
+
+/** A recognizer that fails is built again this many times, after this long,
+ *  before the mic falls asleep. Counted from the last request understood, so
+ *  one that fails at every start is not rebuilt forever. */
+const LISTENER_REBUILDS = 1;
+const LISTENER_REBUILD_AFTER_MS = 1000;
 
 const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
     ['exploration', 'exploration-panel'],

@@ -155,6 +155,8 @@ let speechTurn = 0;
 let controlTipSaid = false;
 /** Whether this run has said what the three method cards are. */
 let methodsIntroSaid = false;
+/** The microphone stopped listening under the tour (tourMicFailed). */
+let micFailed = false;
 let quickStartPoll: ReturnType<typeof setInterval> | null = null;
 const QUICK_START_POLL_MS = 500;
 
@@ -368,7 +370,31 @@ function showCard(html: string, className?: string): void {
     document.body.classList.toggle('guide-spotlit', !centered);
     wireActions();
     addSoundToggle();
+    paintMicFailed();
     if (centered) holdPage(cardEl);
+}
+
+/**
+ * The setup view's microphone failed and has gone to sleep under the tour
+ * (true), or listens again (false). Said on every card meanwhile: the tour
+ * goes on reading itself out to someone who may be waiting to be heard, and
+ * on a phone the mic beside Begin is hidden under a section's card.
+ */
+export function tourMicFailed(failed: boolean): void {
+    micFailed = failed;
+    paintMicFailed();
+}
+
+function paintMicFailed(): void {
+    cardEl?.querySelector('.tour-mic-failed')?.remove();
+    if (!micFailed || !cardEl || !guideActive) return;
+    const note = document.createElement('div');
+    note.className = 'tour-tip tour-mic-failed';
+    note.setAttribute('role', 'status');
+    note.textContent = t("The microphone didn't respond. You can still continue by tapping.");
+    const footer = cardEl.querySelector('.tour-footer');
+    if (footer) footer.before(note);
+    else cardEl.appendChild(note);
 }
 
 const SPEAKER_ICON =
@@ -859,6 +885,7 @@ function startGuide(): void {
     spokenStep = -1;
     controlTipSaid = false;
     methodsIntroSaid = false;
+    micFailed = false;
     lastViewportWidth = window.innerWidth;
     createOverlay();
     window.addEventListener('resize', onResizeDebounced);

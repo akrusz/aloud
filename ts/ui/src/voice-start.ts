@@ -286,6 +286,11 @@ export interface ListenOnSetupOptions {
      *  so the session opens its capture beside it (mic-check.ts
      *  holdCaptureForSession). Absent, the mic is released before onBegin. */
     keepMicForBegin?: () => Promise<unknown>;
+    /** On a recognizer error, the same for a listener about to be built in
+     *  its place (views/setup.ts rebuilds a failed one once): the mic stays
+     *  open until this settles, or is released at once when it returns
+     *  nothing. */
+    keepMicOnError?: () => Promise<unknown> | undefined;
     /**
      * Anything heard that is not a request to begin. Runs with the recognizer
      * stopped, so whatever it says in answer is not heard; listening resumes
@@ -456,7 +461,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             if (ended) return;
             // Stopped from under it by a hold: that is not the recognizer failing.
             if (holds > 0) continue;
-            if (failed) return void end('error');
+            if (failed) return void end('error', undefined, opts.keepMicOnError?.());
             if (heard && opts.isEcho?.(heard)) heard = '';
             const request = heard ? parseBeginRequest(heard) : null;
             if (request) return void end('begin', request, opts.keepMicForBegin?.());
