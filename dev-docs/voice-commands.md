@@ -776,8 +776,10 @@ voices and would move them off it.
   Anything else is dropped, so nothing said over a line begins a session or
   changes the setup (the lines name "begin" and settings), and so is anything
   that could be the line itself come back past the canceller
-  (`looksLikePartOfLine`): "next" said over the line that teaches it is let
-  go. The bar is `BARGE_IN_THRESHOLD` (0.03 RMS) or more, and 0.1 through the
+  (`looksLikePartOfLine`), or the line before it if that ended in the last 4s
+  (`linesInTheRoom` in `setup-speech.ts`: a "Harper." begun in her
+  introduction can land during Ethan's): "next" said over the line that
+  teaches it is let go. The bar is `BARGE_IN_THRESHOLD` (0.03 RMS) or more, and 0.1 through the
   first run of lines after a capture opens (`ECHO_WARMUP_GATE`). The commands
   said at the phone on 2026-11-19 peaked at 0.022 to 0.050, so a quiet one
   over a line can still go unheard; the `[vad] tts window` line after each

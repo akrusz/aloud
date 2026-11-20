@@ -135,6 +135,26 @@ export interface SetupSpeaker {
     saying(): string | null;
 }
 
+/**
+ * The words that may still come back past the echo canceller, for a listener
+ * that hears through a line (voice-start.ts hold): the line playing, and the
+ * one before it if that ended within `windowMs`. An echo begun in one line can
+ * land after the next has started ("Harper." from "Hi, I'm Harper." heard
+ * while Ethan introduces himself).
+ */
+export function linesInTheRoom(
+    speaker: Pick<SetupSpeaker, 'saying' | 'lastSpoken'>,
+    windowMs: number,
+    now = Date.now()
+): string[] {
+    const lines: string[] = [];
+    const playing = speaker.saying();
+    if (playing) lines.push(playing);
+    const last = speaker.lastSpoken();
+    if (last && now - last.endedAt < windowMs && last.text !== playing) lines.push(last.text);
+    return lines;
+}
+
 export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
     let playing: HTMLAudioElement | null = null;
     let cancelLocal: (() => void) | null = null;

@@ -45,7 +45,9 @@ import {
     houseVoiceFor,
     houseVoices,
     isLocalVoice,
+    linesInTheRoom,
 } from '../ui/src/setup-speech.js';
+import { looksLikePartOfLine } from '../src/facilitation/echo-guard.js';
 import { previewVoice } from '../ui/src/voice-picker.js';
 
 describe('houseVoices', () => {
@@ -163,6 +165,63 @@ describe('a local voice', () => {
         found();
         await saying;
         expect(spoke).not.toHaveBeenCalled();
+    });
+});
+
+describe('linesInTheRoom', () => {
+    /** An engine whose speak() runs until finished or cancelled. */
+    function engine() {
+        let done: (() => void) | null = null;
+        const e = {
+            speak: () => new Promise<void>((resolve) => (done = resolve)),
+            cancel: async () => done?.(),
+            finish: () => done?.(),
+            listVoices: async () => [],
+        };
+        return e;
+    }
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    const HARPER = "Hi, I'm Harper. This is how I sound.";
+    const ETHAN = "And I'm Ethan. Say which of us you'd like, or tap our name.";
+
+    // A leaked "Harper." whose final lands once Ethan has begun, checked
+    // against Ethan's line alone, picked Harper.
+    it('holds the line playing and the one just before it', async () => {
+        const harper = engine();
+        const ethan = engine();
+        vi.mocked(createTtsForVoice)
+            .mockResolvedValueOnce({ engine: harper, voice: null })
+            .mockResolvedValueOnce({ engine: ethan, voice: null });
+        const s = createSetupSpeaker({ voiceId: () => 'server:piper', houseVoice: () => null, language: () => 'en', rate: () => 160 });
+        const first = s.say([{ id: 'voice-intro-first', text: HARPER }]);
+        await tick();
+        expect(linesInTheRoom(s, 4000)).toEqual([HARPER]);
+        harper.finish();
+        await first;
+        void s.say([{ id: 'voice-intro-second', text: ETHAN }]);
+        await tick();
+        const room = linesInTheRoom(s, 4000);
+        expect(room).toEqual([ETHAN, HARPER]);
+        expect(room.some((line) => looksLikePartOfLine('Harper.', line))).toBe(true);
+        expect(room.some((line) => looksLikePartOfLine('Next.', line))).toBe(false);
+        // Long enough after it, the line before is out of the room.
+        expect(linesInTheRoom(s, 4000, Date.now() + 5000)).toEqual([ETHAN]);
+        s.stop();
+    });
+
+    it('holds a line cut off by the next one', async () => {
+        const harper = engine();
+        const ethan = engine();
+        vi.mocked(createTtsForVoice)
+            .mockResolvedValueOnce({ engine: harper, voice: null })
+            .mockResolvedValueOnce({ engine: ethan, voice: null });
+        const s = createSetupSpeaker({ voiceId: () => 'server:piper', houseVoice: () => null, language: () => 'en', rate: () => 160 });
+        void s.say([{ id: 'voice-intro-first', text: HARPER }]);
+        await tick();
+        void s.say([{ id: 'voice-intro-second', text: ETHAN }]);
+        await tick();
+        expect(linesInTheRoom(s, 4000)).toEqual([ETHAN, HARPER]);
+        s.stop();
     });
 });
 

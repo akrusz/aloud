@@ -106,7 +106,14 @@ import { createSetupJudge } from '../setup-judge.js';
 import { startMicMeter } from '../mic-meter.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { createLocalSetupReader, readsSetupLocally } from '../setup-local-reader.js';
-import { clipFor, createSetupSpeaker, houseVoices, isLocalVoice, type SetupSpeaker } from '../setup-speech.js';
+import {
+    clipFor,
+    createSetupSpeaker,
+    houseVoices,
+    isLocalVoice,
+    linesInTheRoom,
+    type SetupSpeaker,
+} from '../setup-speech.js';
 import {
     acquireMicOnce,
     describeMicProblem,
@@ -1581,15 +1588,12 @@ export async function mountSetupView(
 
     /** Words begun while a tour line played, on a listener that hears through
      *  one (voice-start.ts hold): the tour's own commands act, and cut the
-     *  line as a tap would. Anything that could be the line itself, come back
-     *  past the echo canceller, is let go, and with the voice picker up (it
-     *  sits over the tour) the tour hears nothing. */
+     *  line as a tap would. Anything that could be the line itself, or the one
+     *  just before it, come back past the echo canceller, is let go, and with
+     *  the voice picker up (it sits over the tour) the tour hears nothing. */
     function heardOverTourLine(text: string): boolean {
         if (openVoicePicker) return false;
-        const recent = speaker.lastSpoken();
-        const line =
-            speaker.saying() ?? (recent && Date.now() - recent.endedAt < SETUP_ECHO_WINDOW_MS ? recent.text : null);
-        if (line && looksLikePartOfLine(text, line)) return false;
+        if (linesInTheRoom(speaker, SETUP_ECHO_WINDOW_MS).some((line) => looksLikePartOfLine(text, line))) return false;
         return tourHeard?.(text) ?? false;
     }
 
