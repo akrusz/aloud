@@ -130,6 +130,11 @@ in section 2.
 
 - [ ] **Store-billed packs** (StoreKit; Play Billing too, but Android's beta
       doesn't need it). **Required before iOS review**, see "Buying ☁".
+- [ ] **No Brazil**, both stores (decided 2026-11-20, `meditation-pal-p6ml.3`):
+      Play Console → the release's countries, and App Store Connect → Pricing
+      and Availability. Brazil's ECA Digital presumes a conversational AI is
+      covered and asks for a local legal representative, among other things.
+      Revisit if aloud gains Portuguese.
 - [ ] **Declared Age Range**, before 2027-01-01: enable the capability in
       Xcode (App target → Signing & Capabilities), which writes
       `com.apple.developer.declared-age-range` into `App.entitlements` and

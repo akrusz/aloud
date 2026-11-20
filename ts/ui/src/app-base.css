@@ -3817,6 +3817,14 @@ html:has(.nav-brand.has-update) .update-btn {
     font-size: 1.05rem;
 }
 
+.about-note {
+    max-width: 22rem;
+    margin: 0.75rem auto 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
 .about-donate-label {
     color: var(--text-muted);
     font-size: 1.1rem;

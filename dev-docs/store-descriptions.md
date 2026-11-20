@@ -38,7 +38,9 @@ You can keep your eyes closed the whole time. Just say "set a timer for ten minu
 
 Text-to-speech, speech-to-text, and an AI/LLM power some modes; you have full choice of providers. aloud cloud connects you to the providers we picked, with no extra setup. It costs us money to run, so it uses credits; you get some free just for signing in with Google. Or, if you have keys for OpenRouter or other providers, you can use those instead.
 
-**Per store:** that sentence names the store's own account. Play says "signing in with Google"; the App Store and TestFlight say "signing in with Apple". It is the one sign-in each build offers besides email, and email sign-up comes with no free credits.
+The facilitator is an AI, not a person. aloud may not be suitable for some minors.
+
+**Per store:** the sign-in sentence names the store's own account. Play says "signing in with Google"; the App Store and TestFlight say "signing in with Apple". It is the one sign-in each build offers besides email, and email sign-up comes with no free credits.
 
 ## TestFlight (App Store Connect → TestFlight → Test Information)
 

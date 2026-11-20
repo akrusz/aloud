@@ -681,7 +681,7 @@ function showWelcome(): void {
     html +=
         welcomeVariant === 'after-first-sit'
             ? '<h3>' + t('Set up your next session') + '</h3><p>' + t('Set the vibe, attention focus, and more.') + '</p>'
-            : '<p><span class="brand-mark">aloud.</span> ' + t('is a meditation facilitator that listens and responds to your experience in real time.') + '</p>' +
+            : '<p><span class="brand-mark">aloud.</span> ' + t('is an AI meditation facilitator that listens and responds to your experience in real time.') + '</p>' +
               // Written, never spoken, and ahead of the first sound either choice makes.
               '<p>' + t('aloud speaks out loud, so be sure sound is on.') + '</p>';
     html += '<div class="tour-choices">';
