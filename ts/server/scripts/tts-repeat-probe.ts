@@ -15,18 +15,23 @@
  * provider call (first byte, whole body). Run from ts/, the Whisper steps at
  * low priority:
  *
- *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts synth   --out <dir> [--env <.env>] [--rounds <n>] [--dry-run]
+ *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts synth   --out <dir> [--env <.env>] [--rounds <n>] [--variants <a,b>] [--dry-run]
  *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts analyze --out <dir> [--whisper-bin <path>]
  *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts recheck --out <dir> [--whisper-bin <path>]
+ *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts gaps    --out <dir>
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts report  --out <dir>
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts bill    [--sessions <dir>] [--since YYYY-MM-DD]
  *
  * recheck hears each burst of a take with more bursts than phrases, or a long
- * one, on its own. bill prices LINES, and the replies in the desktop app's
- * session logs, sent per chunk, first chunk alone and the rest as one, and
- * whole (billedCharsFor). The plan (voices, variants, lines, takes, spend
- * cap) is PLAN below, as last run (Harper and Ethan, batched replies,
- * 2026-11-19); edit it and run again: every step picks up where the last run
+ * one, on its own. gaps measures every silence of every take from the PCM
+ * alone, for the report's played-silence section. bill prices LINES, and the
+ * replies in the desktop app's session logs, sent per chunk, first chunk
+ * alone and the rest as one, and whole (billedCharsFor). A variant may also
+ * carry SSML the route would escape (a <break> between sentences, an
+ * mstts:silence, sentence elements, <voice> parameters), sent through the
+ * probe's own Azure call. The plan (voices, variants, lines, takes, spend
+ * cap) is PLAN below, as last run (Ethan per sentence against whole replies,
+ * 2026-11-20); edit it and run again: every step picks up where the last run
  * stopped. Synthesis is sequential with a pause, backs off on 429, and stops
  * before the cap, which covers every take in <dir>/takes.jsonl. Every take
  * is kept under <dir>/<variant>/.
@@ -41,6 +46,8 @@ import { parseTurnSignals } from '../../src/facilitation/index.js';
 import { splitOffSentences } from '../../ui/src/streaming-tts.js';
 import { loadConfig } from '../src/config.js';
 import { ttsRateFor } from '../src/pricing/providers.js';
+import { withGain } from '../src/providers/mp3-gain.js';
+import { withLeadSilence } from '../src/providers/mp3-lead-silence.js';
 import { TtsUpstreamError, azureBilledChars, isProviderAccountFailure } from '../src/providers/tts.js';
 import { resolveVoice, type ResolvedVoice } from '../src/providers/voice-catalog.js';
 import { billedCharsFor, leadFor, synthFor } from '../src/routes/tts.js';
@@ -69,6 +76,15 @@ interface Variant {
      *  sends a streamed reply, one synthesis per sentence chunk (chunks); or
      *  everything after its first chunk as one input (rest). */
     send?: Send;
+    /** SSML put between the sentences of each input (a <break>), or an
+     *  mstts:silence element ahead of its text: sent through the probe's own
+     *  Azure call (ssmlSynthFor), since the route escapes markup. */
+    between?: string;
+    silence?: string;
+    /** Each sentence of an input in its own SSML element (s, p). */
+    sentenceTag?: string;
+    /** A parameters attribute on <voice> (HD voices: temperature=0.5). */
+    voiceParams?: string;
     /** Line numbers (1-based); all when absent. */
     lines?: number[];
     takes: number;
@@ -83,25 +99,38 @@ const LINES = [
     'Where do you feel the clenching most? Stay with that spot for a little while.',
     'Some joy, and room around it. Nothing needs to happen with that. Just let it be there. Where is it in your body?',
     'Okay. Stay with that pressure for a moment. Does it feel firm, soft, or somewhere in between?',
+    // Longer replies, four to six sentences.
+    'Good. Let your attention rest on that warmth in your chest. Notice whether it stays in one place or moves. There is no need to hold on to it. What do you notice now?',
+    "Okay. Breathing in, feel the air at the nostrils. Breathing out, let the shoulders soften a little. If the mind wanders, that's fine. Just come back to the breath. How does it feel right now?",
+    "It sounds like there's a lot of restlessness in the body today, and that's okay. See if you can find the place where it's strongest, without trying to change it. Maybe it has a shape, or a temperature, or a movement to it. Tell me what you find when you're ready.",
 ];
 
 /** Lines split at their clause comma (the split variant). */
 const SPLITS: Record<number, string[]> = {};
 
 const PLAN: { voice: string; variants: Variant[]; capUsd: number; pauseMs: number } = {
-    voice: 'Harper',
+    voice: 'Ethan',
     variants: [
-        // As the client sends them today: the baseline. Its lead re-rolls
-        // billed 1.65x the plan in the first round, hence 5.
-        { label: 'harper-chunks', send: 'chunks', takes: 5 },
-        // The whole reply in one input: every sentence after the first sits
-        // where the lead cannot reach it. The cap stopped it at 25 or 26.
-        { label: 'harper-whole', send: 'whole', takes: 30 },
-        { label: 'ethan-whole', voice: 'Ethan', send: 'whole', takes: 3 },
+        // The two arms (2026-11-20, spread over an hour with --rounds 1 and
+        // --variants): as the client sends a reply today, and the whole reply
+        // in one input. Takes 1-3 of ethan-whole on L1-5 come from the
+        // 2026-11-19 harper-batch run. Chunks stopped at four to pay for
+        // pilot-temp.
+        { label: 'ethan-chunks', send: 'chunks', takes: 4 },
+        { label: 'ethan-whole', send: 'whole', lines: [1, 2, 3, 4, 5], takes: 14 },
+        { label: 'ethan-whole', send: 'whole', lines: [6, 7, 8], takes: 11 },
+        // Can the gap inside one input be set from the request? None of these
+        // capped it: 2.95s under a 300ms break, 4.84s under an exact 300ms
+        // sentence-boundary silence, 4.00s with each sentence in <s>, 3.44s at
+        // temperature 0.3 (HD voices take one on <voice>, unbilled; MAI
+        // accepts the attribute, whether it acts is unknown).
+        { label: 'pilot-break', send: 'whole', between: '<break time="300ms"/>', lines: [6, 4], takes: 2 },
+        { label: 'pilot-silence', send: 'whole', silence: '<mstts:silence type="Sentenceboundary-exact" value="300ms"/>', lines: [6, 4], takes: 2 },
+        { label: 'pilot-s', send: 'whole', sentenceTag: 's', lines: [6, 4], takes: 2 },
+        { label: 'pilot-temp', send: 'whole', voiceParams: 'temperature=0.3', lines: [4, 6, 7, 8], takes: 2 },
     ],
-    // Half a dollar for the job, less what one take's lead re-rolls can add
-    // past the check.
-    capUsd: 0.49,
+    // Half a dollar for the job, plus the $0.0323 the copied takes cost then.
+    capUsd: 0.49 + 0.0323,
     pauseMs: 1200,
 };
 
@@ -196,6 +225,48 @@ function resolvedFor(v: Variant): ResolvedVoice {
     return r;
 }
 
+/** The SSML body of an input under a markup variant (Variant.between,
+ *  silence), escaped and styled as providers/tts.ts azureSsmlBody does. */
+function ssmlInner(v: Variant, r: ResolvedVoice, text: string): string {
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+    const tag = (x: string) => (v.sentenceTag ? `<${v.sentenceTag}>${x}</${v.sentenceTag}>` : x);
+    const body = v.between || v.sentenceTag ? sentencesOf(text).map((x) => tag(esc(x))).join(v.between ? `${v.between} ` : '') : esc(text);
+    return (v.silence ?? '') + (r.style ? `<mstts:express-as style="${r.style}">${body}</mstts:express-as>` : body);
+}
+
+const markupVariant = (v: Variant) => !!(v.between || v.silence || v.sentenceTag || v.voiceParams);
+
+/** What an input bills, markup variants included (Azure bills everything
+ *  inside <voice>; English text, so no doubled characters). */
+function plannedChars(v: Variant, r: ResolvedVoice, input: string): number {
+    return markupVariant(v) ? ssmlInner(v, r, input).length : billedCharsFor(r, input, 1);
+}
+
+/** The route's Azure path (synthFor: no lead, the lead-silence pad, the
+ *  voice's gain) for a markup variant, which the route would escape. */
+function ssmlSynthFor(config: { azureSpeechKey?: string; azureSpeechRegion: string }, r: ResolvedVoice, v: Variant) {
+    const key = config.azureSpeechKey;
+    if (!key || r.provider !== 'azure' || r.lead) throw new Error('a markup variant needs an Azure key and a voice without a lead');
+    return async (text: string, _rate?: number, _extraBilled?: (chars: number) => void): Promise<Uint8Array> => {
+        const ssml =
+            `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">` +
+            `<voice name="${r.voiceId}"${v.voiceParams ? ` parameters="${v.voiceParams}"` : ''}>${ssmlInner(v, r, text)}</voice></speak>`;
+        let res: Response;
+        try {
+            res = await globalThis.fetch(`https://${config.azureSpeechRegion}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+                method: 'POST',
+                headers: { 'Ocp-Apim-Subscription-Key': key, 'content-type': 'application/ssml+xml', 'x-microsoft-outputformat': 'audio-24khz-96kbitrate-mono-mp3', 'user-agent': 'aloud-cloud-tts' },
+                body: ssml,
+            });
+        } catch (err) {
+            throw new TtsUpstreamError(`Azure TTS: ${String(err)}`, null);
+        }
+        if (!res.ok) throw new TtsUpstreamError(`Azure TTS ${res.status}: ${(await res.text()).slice(0, 200)}`, res.status);
+        const mp3 = withLeadSilence(new Uint8Array(await res.arrayBuffer()));
+        return r.gainDb ? withGain(mp3, r.gainDb) : mp3;
+    };
+}
+
 /** A reply as the client sends it: the sentence chunks splitOffSentences
  *  completes while it streams, then what is left at the end. */
 function clientChunks(text: string): string[] {
@@ -262,16 +333,19 @@ async function synthPhase(out: string, dryRun: boolean): Promise<void> {
     const rows = readRows(out);
     const done = new Set(rows.map((r) => r.file));
     const spentBefore = rows.reduce((s, r) => s + r.usd, 0);
+    // --variants a,b: only those labels this run (to space one out over time).
+    const only = arg('--variants')?.split(',');
+    const variants = PLAN.variants.filter((v) => !only || only.includes(v.label));
 
     let planned = 0;
-    for (const v of PLAN.variants) {
+    for (const v of variants) {
         const r = resolvedFor(v);
         const rate = ttsRateFor(r.provider, r.voiceId);
         let usd = 0;
         for (const line of linesOf(v)) {
             for (let take = 1; take <= v.takes; take++) {
                 if (done.has(join(v.label, `L${line}-t${take}.mp3`))) continue;
-                usd += inputsFor(v, line).reduce((s, t) => s + billedCharsFor(r, t, 1), 0) * rate;
+                usd += inputsFor(v, line).reduce((s, t) => s + plannedChars(v, r, t), 0) * rate;
             }
         }
         planned += usd;
@@ -291,7 +365,7 @@ async function synthPhase(out: string, dryRun: boolean): Promise<void> {
     // Each variant's missing takes in rounds, a take of every line per round
     // and the variants interleaved, so drift at the provider over the run
     // spreads across every line and variant, extensions of an old one too.
-    const missing = PLAN.variants.map((v) => {
+    const missing = variants.map((v) => {
         const takes: number[] = [];
         for (let take = 1; take <= v.takes; take++) {
             if (linesOf(v).some((line) => !done.has(join(v.label, `L${line}-t${take}.mp3`)))) takes.push(take);
@@ -300,18 +374,18 @@ async function synthPhase(out: string, dryRun: boolean): Promise<void> {
     });
     const rounds = Math.min(Number(arg('--rounds') ?? Infinity), Math.max(...missing.map((m) => m.length)));
     for (let round = 0; round < rounds; round++) {
-        for (const [vi, v] of PLAN.variants.entries()) {
+        for (const [vi, v] of variants.entries()) {
             const take = missing[vi]![round];
             if (take === undefined) continue;
             const resolved = resolvedFor(v);
-            const synth = synthFor(config, resolved);
+            const synth = markupVariant(v) ? ssmlSynthFor(config, resolved, v) : synthFor(config, resolved);
             if (!synth) throw new Error(`no ${resolved.provider} key`);
             const rate = ttsRateFor(resolved.provider, resolved.voiceId);
             for (const line of linesOf(v)) {
                 const file = join(v.label, `L${line}-t${take}.mp3`);
                 if (done.has(file)) continue;
                 const inputs = inputsFor(v, line);
-                const planned = inputs.reduce((s, t) => s + billedCharsFor(resolved, t, 1), 0);
+                const planned = inputs.reduce((s, t) => s + plannedChars(v, resolved, t), 0);
                 if (spent + planned * rate > PLAN.capUsd) throw new Error(`stopping before the cap at $${spent.toFixed(4)}`);
                 const started = performance.now();
                 const clips: Uint8Array[] = [];
@@ -320,7 +394,7 @@ async function synthPhase(out: string, dryRun: boolean): Promise<void> {
                     const part: PartRow = {
                         text: v.tail ? LINES[line - 1]! : input,
                         file: inputs.length > 1 ? join(v.label, `L${line}-t${take}-${'abcdefgh'[pi]}.mp3`) : file,
-                        billedChars: billedCharsFor(resolved, input, 1),
+                        billedChars: plannedChars(v, resolved, input),
                         ms: 0,
                         calls: [],
                         led: false,
@@ -567,6 +641,34 @@ interface Heard extends TakeRow {
     burstHeard?: (string | null)[];
     burstRepeated?: string[];
 }
+
+/** The sentences of `text` (0-based) that a word heard twice follows:
+ *  transcript.ts repeatedWords, each extra word placed after the line word
+ *  before it. */
+function repeatSentences(text: string, heard: string): number[] {
+    const want = words(text);
+    const starts: number[] = [];
+    let n = 0;
+    for (const s of sentencesOf(text)) {
+        starts.push(n);
+        n += words(s).length;
+    }
+    const found = new Set<number>();
+    for (const step of align(want, words(heard))) {
+        if (step.kind !== 'extra') continue;
+        const w = step.got;
+        const near = want.slice(Math.max(0, step.at - 3), step.at + 3).some((x) => x === w || (w.length >= 2 && x.startsWith(w)) || (w.length >= 3 && x.startsWith(w.slice(0, 3))));
+        if (!near) continue;
+        const before = Math.max(0, step.at - 1);
+        let k = 0;
+        while (k + 1 < starts.length && starts[k + 1]! <= before) k++;
+        found.add(k);
+    }
+    return [...found];
+}
+
+/** Set by main: where report finds gaps.json. */
+let outDir: string | undefined;
 
 /** Said again, as the sentences heard or the bursts heard alone. */
 const repeats = (h: Heard) => (h.repeated.length ? h.repeated : (h.burstRepeated ?? []));
@@ -874,6 +976,53 @@ async function recheckPhase(out: string): Promise<void> {
     report(Object.values(cache));
 }
 
+/** Every silence a take holds, sentence end or not, from the PCM alone (no
+ *  Whisper): per part, its head and tail and each pause inside its voiced
+ *  span (cadence.ts findPauses: 0.2s or more under -40 dB, matched to a mark
+ *  where one is near). */
+interface PartGaps {
+    headS: number;
+    tailS: number;
+    pauses: { s: number; kind: string; atS: number }[];
+}
+type GapsCache = Record<string, PartGaps[]>;
+
+/** What the client adds between two clips (ui adapters/cloud-tts.ts speak:
+ *  the ended event, the queue's next speak, a new src on the shared <audio>
+ *  element, play()). Not measured; an assumption for the per-sentence arm. */
+const HANDOVER_S = 0.1;
+
+function gapsPhase(out: string): void {
+    const ffmpeg = findFfmpeg();
+    const path = join(out, 'gaps.json');
+    const cache: GapsCache = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+    for (const row of readRows(out)) {
+        if (cache[row.file]) continue;
+        cache[row.file] = row.parts.map((part) => {
+            const pcm = decode(ffmpeg, new Uint8Array(readFileSync(join(out, part.file))));
+            const { a, inside } = insidePauses(pcm, part.text);
+            return {
+                headS: a.bursts[0]?.startS ?? a.durationS,
+                tailS: a.durationS - (a.bursts.at(-1)?.endS ?? 0),
+                pauses: inside.map((p) => ({ s: Math.round((p.endS - p.startS) * 1000) / 1000, kind: p.kind, atS: Math.round(p.startS * 100) / 100 })),
+            };
+        });
+    }
+    writeFileSync(path, JSON.stringify(cache));
+    console.log(`${Object.keys(cache).length} takes in ${path}`);
+}
+
+/** The silences of a take as played: each part's pauses, and between two
+ *  parts the first's tail, the next one's head and HANDOVER_S. */
+function playedSilences(parts: PartGaps[]): { s: number; kind: string }[] {
+    const out: { s: number; kind: string }[] = [];
+    parts.forEach((p, i) => {
+        if (i) out.push({ s: parts[i - 1]!.tailS + p.headS + HANDOVER_S, kind: 'join' });
+        out.push(...p.pauses.map((x) => ({ s: x.s, kind: x.kind })));
+    });
+    return out;
+}
+
 const f2 = (x: number) => x.toFixed(2);
 /** Median and the 10th to 90th percentile, and the extremes. */
 const spread = (xs: number[]) =>
@@ -890,7 +1039,12 @@ function rate(k: number, n: number): string {
 }
 
 function report(all: Heard[]): void {
-    const variants = [...new Set(all.map((h) => h.model))];
+    // In PLAN order, so each voice's first variant is its baseline.
+    const order = (m: string) => {
+        const i = PLAN.variants.findIndex((v) => v.label === m);
+        return i < 0 ? Infinity : i;
+    };
+    const variants = [...new Set(all.map((h) => h.model))].sort((a, b) => order(a) - order(b));
     const flagged: (Heard & { over: number; speechOver: number })[] = [];
     for (const variant of variants) {
         console.log(`\n== ${variant} ==`);
@@ -990,6 +1144,91 @@ function report(all: Heard[]): void {
         }
     }
 
+    // How long the listener waits between two sentences: inside an input
+    // (clean seams only), or between two clips plus HANDOVER_S.
+    const shares = (xs: number[]) => [1.5, 2, 3, 5].map((t) => `>${t}s ${rate(xs.filter((x) => x > t).length, xs.length)}`).join('  ');
+    console.log(`\n== the wait between two sentences: shares over 1.5/2/3/5s (Wilson 95%); a clip join is tail + head + ${HANDOVER_S}s handover (assumed) ==`);
+    for (const variant of variants) {
+        const ss = sentencesOfVariant(variant);
+        const inside = ss.filter((s) => s.pauseAfterS !== null).map((s) => s.pauseAfterS!);
+        const joins = all.filter((h) => h.model === variant).flatMap((h) => h.joinsS.map((j) => j + HANDOVER_S));
+        console.log(`${variant}:`);
+        if (inside.length) console.log(`  inside an input   ${spread(inside)}\n                    ${shares(inside)}`);
+        // Split by what today's client does at that sentence end: a clip join
+        // (what batching changes), or inside one chunk already (a short
+        // sentence merged into the next, MIN_TTS_SENTENCE_CHARS).
+        const joinAfter = (line: number, pos: number) => {
+            let n = 0;
+            return clientChunks(LINES[line - 1]!).some((c) => (n += sentencesOf(c).length) === pos);
+        };
+        const ends = ss.filter((s) => s.pauseAfterS !== null);
+        const atJoin = ends.filter((s) => joinAfter(s.line, s.pos)).map((s) => s.pauseAfterS!);
+        const inChunk = ends.filter((s) => !joinAfter(s.line, s.pos)).map((s) => s.pauseAfterS!);
+        if (atJoin.length && inChunk.length) {
+            console.log(`    where today's client joins two clips  ${spread(atJoin)}\n                    ${shares(atJoin)}`);
+            console.log(`    inside one chunk today                ${spread(inChunk)}\n                    ${shares(inChunk)}`);
+        }
+        if (joins.length) console.log(`  clip joins        ${spread(joins)}\n                    ${shares(joins)}`);
+        if (inside.length && joins.length) console.log(`  every sentence end ${spread([...inside, ...joins])}\n                    ${shares([...inside, ...joins])}`);
+    }
+
+    // Every silence as played, sentence end or not (gaps phase), and the
+    // longest in each reply.
+    const gaps: GapsCache = outDir && existsSync(join(outDir, 'gaps.json')) ? JSON.parse(readFileSync(join(outDir, 'gaps.json'), 'utf8')) : {};
+    if (Object.keys(gaps).length) {
+        console.log('\n== every silence of 0.2s or more as played (gaps phase, PCM only), and the longest in each reply ==');
+        for (const variant of variants) {
+            const takes = all.filter((h) => h.model === variant && gaps[h.file]);
+            if (!takes.length) continue;
+            const played = takes.map((h) => playedSilences(gaps[h.file]!));
+            const every = played.flat().map((x) => x.s);
+            const worst = played.map((xs) => Math.max(0, ...xs.map((x) => x.s)));
+            const byKind = (k: string) => played.flat().filter((x) => x.kind === k).map((x) => x.s);
+            console.log(`${variant}: ${takes.length} replies, ${every.length} silences (${(every.length / takes.length).toFixed(2)} a reply)`);
+            console.log(`  every silence     ${spread(every)}\n                    ${shares(every)}`);
+            for (const k of ['sentence', 'clause', 'word', 'join']) {
+                const xs = byKind(k);
+                if (xs.length) console.log(`    at a ${k.padEnd(8)} ${spread(xs)}  >2s ${xs.filter((x) => x > 2).length}`);
+            }
+            console.log(`  longest a reply   ${spread(worst)}\n                    replies with one ${shares(worst)}`);
+            for (let line = 1; line <= LINES.length; line++) {
+                const w = takes.map((h, i) => ({ h, w: worst[i]! })).filter((x) => x.h.line === line).map((x) => x.w);
+                if (w.length) console.log(`    L${line} (${sentencesOf(LINES[line - 1]!).length} sentences) n=${String(w.length).padStart(3)}  longest median ${f2(median(w))}  max ${f2(Math.max(...w))}  >2s ${w.filter((x) => x > 2).length}  >3s ${w.filter((x) => x > 3).length}  >5s ${w.filter((x) => x > 5).length}`);
+            }
+            const long = takes.flatMap((h, i) => played[i]!.filter((x) => x.s > 3).map((x) => `${h.file} ${f2(x.s)}s ${x.kind} ${h.at.slice(11, 19)}`));
+            if (long.length) console.log(`  over 3s: ${long.join('; ')}`);
+        }
+    }
+
+    // Said again: by take, and by sentence (the sentence a repeated word
+    // follows, from the part's hearing; a repeat found only in the burst
+    // recheck counts once, for a sentence unknown).
+    console.log('\n== said again: replies and sentences with a word or phrase heard twice (Whisper, bursts rechecked), Wilson 95% ==');
+    for (const variant of variants) {
+        const takes = all.filter((h) => h.model === variant);
+        let sentences = 0;
+        let hit = 0;
+        const at: string[] = [];
+        for (const h of takes) {
+            let pos = h.firstPos;
+            let found = 0;
+            for (const p of h.partsHeard) {
+                const n = p.sentences.length;
+                sentences += n;
+                const idx = p.heard === null ? [] : repeatSentences(p.text, p.heard);
+                found += idx.length;
+                at.push(...idx.map((i) => `${h.file}#${pos + i}`));
+                pos += n;
+            }
+            if (!found && h.burstRepeated?.length) {
+                found = 1;
+                at.push(`${h.file}#?`);
+            }
+            hit += found;
+        }
+        console.log(`${variant.padEnd(16)} replies ${rate(takes.filter((h) => repeats(h).length).length, takes.length).padEnd(24)} sentences ${rate(hit, sentences)}${at.length ? `  ${at.join(', ')}` : ''}`);
+    }
+
     console.log('\n== pace (s of speech per spoken char) and level (dBFS of the voiced windows) per sentence, median over takes ==');
     for (let line = 1; line <= LINES.length; line++) {
         const sents = sentencesOf(LINES[line - 1]!);
@@ -1058,9 +1297,32 @@ function report(all: Heard[]): void {
     console.log('\n== billed characters per reply: planned (billedCharsFor) and as billed, lead re-rolls included ==');
     for (const variant of variants) {
         const takes = all.filter((h) => h.model === variant);
-        const planned = takes.reduce((s, t) => s + t.parts.reduce((n, p) => n + billedCharsFor(resolvedFor(PLAN.variants.find((v) => v.label === variant) ?? { label: variant, takes: 0 }), p.text, 1), 0), 0);
+        const v = PLAN.variants.find((x) => x.label === variant) ?? { label: variant, voice: takes[0]!.voice, takes: 0 };
+        const planned = takes.reduce((s, t) => s + t.parts.reduce((n, p) => n + plannedChars(v, resolvedFor(v), p.text), 0), 0);
         const billed = takes.reduce((s, t) => s + t.billedChars, 0);
         console.log(`${variant.padEnd(16)} ${takes.length} takes, ${(planned / takes.length).toFixed(0)} planned, ${(billed / takes.length).toFixed(0)} billed a take (x${f2(billed / planned)}), $${takes.reduce((s, t) => s + t.usd, 0).toFixed(4)}`);
+    }
+    // One take of every line both variants have, at each one's mean billed.
+    const perLine = (variant: string, line: number) => {
+        const ts = all.filter((h) => h.model === variant && h.line === line);
+        return ts.length ? ts.reduce((s, t) => s + t.billedChars, 0) / ts.length : null;
+    };
+    for (const variant of variants) {
+        const voice = all.find((h) => h.model === variant)!.voice;
+        const base = variants.find((v) => all.find((h) => h.model === v)!.voice === voice)!;
+        if (base === variant) continue;
+        let a = 0;
+        let b = 0;
+        const lines: number[] = [];
+        for (let line = 1; line <= LINES.length; line++) {
+            const x = perLine(base, line);
+            const y = perLine(variant, line);
+            if (x === null || y === null) continue;
+            a += x;
+            b += y;
+            lines.push(line);
+        }
+        if (lines.length) console.log(`${variant} against ${base}, one take of L${lines.join(',L')}: ${a.toFixed(0)} -> ${b.toFixed(0)} billed chars (${b <= a ? '-' : '+'}${f2((100 * Math.abs(a - b)) / a)}%)`);
     }
 
     console.log('\n== flagged takes ==');
@@ -1139,6 +1401,10 @@ function billPhase(): void {
             const chunks = sum('chunks');
             const byCount = [1, 2, 3, 4].map((n) => `${n === 4 ? '4+' : n}: ${t.filter((x) => (n === 4 ? x.requests >= 4 : x.requests === n)).length}`).join(', ');
             console.log(`\n${voice}, ${label}: ${set.length} replies, ${(sum('requests') / set.length).toFixed(2)} requests a reply (${byCount})`);
+            // The clip joins a whole-reply request turns into the voice's own
+            // pause, and the sentence ends it then pauses at in all.
+            const sentenceEnds = set.reduce((s, text) => s + sentencesOf(text).length - 1, 0);
+            console.log(`  clip joins ${((sum('requests') - set.length) / set.length).toFixed(2)} a reply, sentence ends ${(sentenceEnds / set.length).toFixed(2)} a reply`);
             console.log(`  per chunk (today)      ${chunks} billed chars, tags ${((100 * sum('tags')) / chunks).toFixed(1)}%, lead ${((100 * sum('lead')) / chunks).toFixed(1)}%`);
             console.log(`  first alone + rest     ${sum('firstRest')}  (-${((100 * (chunks - sum('firstRest'))) / chunks).toFixed(1)}%)`);
             console.log(`  whole reply            ${sum('whole')}  (-${((100 * (chunks - sum('whole'))) / chunks).toFixed(1)}%)`);
@@ -1175,9 +1441,11 @@ async function main(): Promise<void> {
     if (phase === 'bill') return billPhase();
     const out = arg('--out');
     if (!out) throw new Error('--out <dir> is required');
+    outDir = out;
     if (phase === 'synth') await synthPhase(out, process.argv.includes('--dry-run'));
     else if (phase === 'analyze') await analyzePhase(out);
     else if (phase === 'recheck') await recheckPhase(out);
+    else if (phase === 'gaps') gapsPhase(out);
     else if (phase === 'report') report(Object.values(JSON.parse(readFileSync(join(out, 'heard.json'), 'utf8')) as Record<string, Heard>));
     else throw new Error('first argument: synth, analyze, recheck, report or bill');
 }
