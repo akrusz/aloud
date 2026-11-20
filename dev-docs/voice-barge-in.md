@@ -266,6 +266,16 @@ since a partial starts at a word or two and would otherwise show the
 facilitator's words as the meditator's until the rest arrived. Hiding a
 preview costs a real speaker nothing; their turn is still judged strictly.
 
+Otherwise a preview, once up, stays until the turn's own bubble takes its
+place or the turn is dropped (no words, the facilitator's echo, the mic muted;
+`createTurnPreview` in `turn-preview.ts`). A later pass that comes back
+wordless leaves it as it is. It used to come down the moment the final
+transcript arrived, but the turn's bubble goes up only once the turn is
+dispatched, and a short turn waits on the command judge first
+([voice-commands.md](voice-commands.md#how-an-utterance-is-checked)), so the
+words left the screen for a moment and came back (hosted Parakeet on Android,
+2026-11-19).
+
 ## What happens on trigger
 
 1. The detector calls `tts.cancel()`, which stops the underlying playback

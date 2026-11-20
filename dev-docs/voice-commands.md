@@ -808,7 +808,10 @@ Around that:
 - **Prefetch.** `CommandPrefetch` asks the judge on a settled partial
   transcript while the recognizer is still waiting out the pause, so the
   verdict is usually ready at submit. It only makes the answer early and never
-  acts before a matching final.
+  acts before a matching final. It asks once the words have sat unchanged for
+  350ms, and a final often lands within half a second of the last preview, so
+  the verdict can still be out; the turn then waits for it with its preview
+  bubble on screen ([voice-barge-in.md](voice-barge-in.md#transcript-echo-guard-last-line-of-defense)).
 - **Retry.** A failed command check is retried once: a timeout is not a no, the
   first call through a freshly started server runs ~1s (at its timeout's edge),
   and there is no LLM twin behind it. `RemoteJudge.warm()` and the server's

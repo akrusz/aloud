@@ -218,6 +218,7 @@ import {
 } from '../voice-picker.js';
 import { onBackdropClick } from '../modal-backdrop.js';
 import { sessionOllama } from '../setup-local-reader.js';
+import { createTurnPreview } from '../turn-preview.js';
 
 const HAIKU_MODEL = 'claude-haiku-5-5';
 
@@ -1661,9 +1662,26 @@ export async function mountSessionView(
         setStatus(listeningStatus());
     }
 
+    // The turn's preview bubble, held through dispatch until showUserTurn puts
+    // the turn's own bubble in its place (turn-preview.ts).
+    const preview = createTurnPreview<HTMLElement>({
+        add: (text) => appendMessage('user', text, true),
+        set: (bubble, text) => {
+            // The inner .message-content: setting textContent on the bubble
+            // wipes that wrapper.
+            const content = bubble.querySelector('.message-content');
+            if (content) content.textContent = text;
+            // Keep the growing partial in view: a multi-line in-progress
+            // bubble otherwise runs off the bottom of the transcript until
+            // the final replaces it.
+            conversation.scrollTop = conversation.scrollHeight;
+        },
+        remove: (bubble) => bubble.remove(),
+    });
+
     /** A meditator utterance on screen and in the soak tap (not in history). */
     function showUserTurn(text: string): void {
-        appendMessage('user', text);
+        preview.replaceWith(() => appendMessage('user', text));
         tapTurn('user', 'user', text);
     }
 
@@ -1810,7 +1828,6 @@ export async function mountSessionView(
     // True while the voice-picker modal is open: pause listening so the
     // mic doesn't transcribe a voice preview's own audio and "respond" to it.
     let voiceModalOpen = false;
-    let currentPartial: HTMLElement | null = null;
     let scoredVoices: ScoredVoice[] = [];
 
     // Live in-session balance (opt-in; meditation-pal-14s), read off the shared
@@ -2036,6 +2053,8 @@ export async function mountSessionView(
      *  model already has the line once, and a transcript with it twice reads as
      *  a glitch. */
     async function repeatLastLine(userText: string): Promise<void> {
+        // The ask is off the record too: its preview goes.
+        preview.clear();
         const last = [...session.getContextMessages()].reverse().find((m) => m.role === 'assistant')?.content;
         if (!last) {
             await speakCommandLine(userText, COMMAND_LINES.nothingToRepeat(sessionLanguageOf(sessionLanguage)));
@@ -2886,6 +2905,8 @@ export async function mountSessionView(
                     await sleep(Math.max(50, micReopensAfterMs() - since));
                 }
                 if (torn || muted) break;
+                // The last turn was dispatched without a bubble of its own.
+                preview.clear();
 
                 const cycleStart = Date.now();
                 let finalText = '';
@@ -2923,31 +2944,12 @@ export async function mountSessionView(
                             // Don't preview our own echo as the user's words: a
                             // partial bubble showing the facilitator's sentence
                             // breaks immersion even when the final is dropped.
-                            // Same for non-speech markers ("[NOISES]"): the
-                            // final would be dropped, so don't flash the bubble.
-                            if (
-                                previewIsEcho(event.text, event.startedDuringTts) ||
-                                isNonSpeechOnly(event.text)
-                            ) {
-                                currentPartial?.remove();
-                                currentPartial = null;
-                                continue;
-                            }
+                            // Non-speech markers ("[NOISES]") show nothing.
+                            const echo = previewIsEcho(event.text, event.startedDuringTts);
+                            preview.partial(event.text, echo);
+                            if (echo || isNonSpeechOnly(event.text)) continue;
                             commandPrefetch?.note(event.text);
                             if (troubleOnTurns || silenceMode) troublePrefetch.note(event.text);
-                            if (!currentPartial) {
-                                currentPartial = appendMessage('user', event.text, true);
-                            } else {
-                                // Update the inner .message-content: setting
-                                // textContent on the bubble wipes that wrapper.
-                                const content =
-                                    currentPartial.querySelector('.message-content');
-                                if (content) content.textContent = event.text;
-                                // Keep the growing partial in view: a multi-line
-                                // in-progress bubble otherwise runs off the bottom
-                                // of the transcript until the final replaces it.
-                                conversation.scrollTop = conversation.scrollHeight;
-                            }
                         } else if (event.type === 'final') {
                             finalText = event.text;
                             finalStartedDuringTts = event.startedDuringTts;
@@ -2981,10 +2983,9 @@ export async function mountSessionView(
                     tapEvent('audio', 'echo-dropped', { text: finalText.trim() });
                     finalText = '';
                 }
-                if (currentPartial) {
-                    currentPartial.remove();
-                    currentPartial = null;
-                }
+                // A turn to dispatch keeps its preview up until showUserTurn
+                // replaces it: dispatch can wait on the command judge first.
+                preview.final(!torn && !muted && !voiceModalOpen && !isNonSpeechOnly(finalText));
                 if (torn || muted) break;
                 // The voice modal opened mid-capture: discard what was heard
                 // (likely a preview) and wait it out.
@@ -3091,6 +3092,7 @@ export async function mountSessionView(
             }
         } finally {
             listenLoopRunning = false;
+            preview.clear();
         }
     }
 
