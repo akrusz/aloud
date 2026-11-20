@@ -23,6 +23,7 @@
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts report  --out <dir>
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts route   --out <dir> [--voices <a,b>] [--lines <1,4>] [--cap <usd>] [--env <.env>] [--dry-run]
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts bill    [--sessions <dir>] [--since YYYY-MM-DD] [--voices <a,b>]
+ *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts lead --out <dir> [--synth [--cap <usd>] [--env <.env>] [--dry-run]] [--whisper-bin <path>]
  *
  * recheck hears each burst of a take with more bursts than phrases, or a long
  * one, on its own. gaps measures every silence of every take from the PCM
@@ -30,6 +31,7 @@
  * sentence finder on the whole takes (providers/mp3-marks.ts; see marksPhase),
  * and --voicedGain, --minPauseS and --distanceCostS try other settings for
  * it. route sends replies through the metered route itself (routePhase).
+ * lead scores Harper's lead check on raw led takes (leadPhase).
  * bill prices LINES, and the replies in the desktop app's session logs, sent
  * per chunk, first chunk alone and the rest as one, and whole
  * (billedCharsFor). A variant may also
@@ -59,9 +61,10 @@ import { ttsRateFor } from '../src/pricing/providers.js';
 import { mp3Frames, withGain } from '../src/providers/mp3-gain.js';
 import { withLeadSilence } from '../src/providers/mp3-lead-silence.js';
 import { SENTENCE_MARKS, sentenceMarkTimes } from '../src/providers/mp3-marks.js';
-import { TtsUpstreamError, azureBilledChars, isProviderAccountFailure } from '../src/providers/tts.js';
+import { trimLead } from '../src/providers/mp3-lead-trim.js';
+import { TtsUpstreamError, azureBilledChars, isProviderAccountFailure, synthesizeWithAzure } from '../src/providers/tts.js';
 import { resolveVoice, type ResolvedVoice } from '../src/providers/voice-catalog.js';
-import { billedCharsFor, leadFor, synthFor } from '../src/routes/tts.js';
+import { billedCharsFor, leadExpect, leadFor, synthFor } from '../src/routes/tts.js';
 import { analyzePcm, clipFaults, phraseCount, spokenChars, windowDb } from './voice-clips/analysis.js';
 import { PAUSE_CAP_S, findPauses, pauseMarks } from './voice-clips/cadence.js';
 import { MIN_HEARD_WORDS, align, missingWords, repeatedWords, transcribe, words, type Whisper } from './voice-clips/transcript.js';
@@ -1634,6 +1637,142 @@ function billPhase(): void {
     }
 }
 
+/** Replies for the lead step: the probe lines that open on a consonant, then
+ *  made-up ones in the same register, each led, none with "okay" in it. */
+const LEAD_REPLIES: [string, string][] = [
+    ...[1, 2, 3, 4, 6].map((line): [string, string] => [`P${line}`, LINES[line - 1]!]),
+    ['M1', "That's a lot to hold. Let yourself rest for a moment. What feels most alive right now?"],
+    ['M2', "Breathing in, notice the belly rise. Breathing out, let it fall on its own. There's nothing you need to do."],
+    ['M3', "So there's a heaviness in the shoulders. Can you stay with it, just as it is? Notice its edges."],
+    ['M4', 'Thank you for sharing that. It makes sense that it feels tender. Where do you notice it in your body?'],
+    ['M5', 'Gently now, bring your attention to your hands. Notice any warmth, tingling, or stillness there.'],
+    ['M6', 'Mm, yes. Let that settle. What happens when you give it a little more room?'],
+    ['M7', "Sure, the mind keeps pulling toward the plan. That's fine. Each time you notice, come back to the breath."],
+    ['M8', "Perhaps there's some sadness under the tiredness. You don't have to name it. Just feel it, if you can."],
+    ['M9', 'Now let the attention widen to the whole body. Sounds, sensations, the breath, all of it at once.'],
+    ['M10', 'Wonderful. Stay with that ease for a few breaths. Let it spread wherever it wants to go.'],
+    ['M11', 'Can you feel where the breath is coolest? Maybe at the tip of the nose, or the back of the throat.'],
+    ['M12', 'Feel the weight of your body resting. Let the ground hold you. Nothing to fix right now.'],
+    ['M13', 'Hmm, the tightness moved to your jaw. Let the teeth part a little. How does that change it?'],
+    ['M14', 'Yes, that sounds like restlessness. Where is it strongest? See if you can let it be there without following it.'],
+    ['M15', "Take a slow breath in. Then a long breath out. Notice what's different now."],
+    ['M16', 'Doubt can be noticed too. What does it feel like, right in the body? Stay curious about it.'],
+    ['M17', "Take your time. There's no rush at all."],
+    ['M18', 'Just rest here for a while, with nothing to do.'],
+];
+
+/** The lead step's takes, in rounds: each reply whole and its first client
+ *  chunk as the route leads them, and twelve of them as "Okay. Okay. <reply>",
+ *  the lead said twice. */
+const LEAD_PLAN: { kind: 'whole' | 'chunk' | 'double'; takes: number; ids?: string[] }[] = [
+    { kind: 'whole', takes: 6 },
+    { kind: 'chunk', takes: 3 },
+    { kind: 'double', takes: 2, ids: ['P1', 'P2', 'P3', 'P4', 'P6', 'M1', 'M3', 'M5', 'M8', 'M10', 'M12', 'M15'] },
+];
+
+interface LeadRow {
+    file: string;
+    kind: string;
+    /** What leadExpect is given, and what Azure was sent. */
+    text: string;
+    sent?: string;
+    usd?: number;
+}
+
+/**
+ * How well the route's lead check (providers/mp3-lead-trim.ts trimLead, given
+ * routes/tts.ts leadExpect) tells a take it can cut from one it can't, on raw
+ * led takes: Azure's audio before any cut, kept in <dir>/<kind>/ and listed in
+ * <dir>/raw.jsonl. --synth renders LEAD_PLAN first (Harper; resumable, stops
+ * before --cap). Every take is cut where trimLead cuts, behind its first
+ * burst, and heard there with local Whisper, once (<dir>/judged.json): clean
+ * when no "okay" is left and the text's first word is heard first, else a
+ * fault. Reported per kind: the clean takes the check refuses (each a re-roll
+ * Azure bills) and the faults it passes (heard by the meditator).
+ */
+async function leadPhase(out: string): Promise<void> {
+    const harper = resolveVoice('Harper');
+    const log = join(out, 'raw.jsonl');
+    const readLeadRows = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as LeadRow) : []);
+    if (process.argv.includes('--synth')) {
+        const envFile = arg('--env') ?? resolve(import.meta.dirname, '..', '.env');
+        if (existsSync(envFile)) loadEnvFile(envFile);
+        const config = loadConfig();
+        if (!config.azureSpeechKey) throw new Error('no AZURE_SPEECH_KEY');
+        const jobs: Required<LeadRow>[] = [];
+        for (let take = 1; take <= Math.max(...LEAD_PLAN.map((p) => p.takes)); take++) {
+            for (const p of LEAD_PLAN.filter((p) => take <= p.takes)) {
+                for (const [id, reply] of LEAD_REPLIES.filter(([id]) => !p.ids || p.ids.includes(id))) {
+                    const text = p.kind === 'chunk' ? clientChunks(reply)[0]! : reply;
+                    if (p.kind === 'chunk' && text === reply) continue;
+                    const lead = leadFor(harper, text)!;
+                    const sent = p.kind === 'double' ? `${lead} ${lead} ${text}` : `${lead} ${text}`;
+                    jobs.push({ file: join(p.kind, `${id}-t${take}.mp3`), kind: p.kind, text, sent, usd: azureBilledChars(sent, 1, harper.style) * ttsRateFor('azure', harper.voiceId) });
+                }
+            }
+        }
+        const rows = readLeadRows();
+        const done = new Set(rows.map((r) => r.file));
+        const todo = jobs.filter((j) => !done.has(j.file));
+        let spent = rows.reduce((s, r) => s + (r.usd ?? 0), 0);
+        const cap = Number(arg('--cap') ?? 0.75);
+        console.log(`${jobs.length} takes, ${todo.length} to do, spent $${spent.toFixed(4)}, planned $${todo.reduce((s, j) => s + j.usd, 0).toFixed(4)} more, cap $${cap}`);
+        if (process.argv.includes('--dry-run')) return;
+        for (const j of todo) {
+            if (spent + j.usd > cap) throw new Error(`stopping before the cap at $${spent.toFixed(4)}`);
+            let mp3: Uint8Array | undefined;
+            for (let attempt = 0; !mp3; attempt++) {
+                try {
+                    mp3 = await synthesizeWithAzure(j.sent, harper.voiceId, 1, config.azureSpeechKey, config.azureSpeechRegion, harper.style);
+                } catch (err) {
+                    if (attempt >= 3 || !isTransient(err)) throw err;
+                    await sleep(2000 * 2 ** attempt);
+                }
+            }
+            mkdirSync(join(out, j.kind), { recursive: true });
+            writeFileSync(join(out, j.file), mp3);
+            appendFileSync(log, JSON.stringify(j) + '\n');
+            spent += j.usd;
+            console.log(`  ${j.file.padEnd(22)} $${spent.toFixed(4)}`);
+            await sleep(PLAN.pauseMs);
+        }
+    }
+
+    const rows = readLeadRows();
+    const judgedFile = join(out, 'judged.json');
+    const judged = (existsSync(judgedFile) ? JSON.parse(readFileSync(judgedFile, 'utf8')) : {}) as Record<string, { heardCut?: string | null }>;
+    let whisper: Whisper | undefined;
+    let ffmpeg = '';
+    const scored = [];
+    for (const r of rows) {
+        const mp3 = new Uint8Array(readFileSync(join(out, r.file)));
+        const cut = trimLead(mp3);
+        if (cut && !(r.file in judged)) {
+            whisper ??= whisperFor();
+            ffmpeg ||= findFfmpeg();
+            judged[r.file] = { heardCut: await hear(whisper, ffmpeg, cut) };
+            writeFileSync(judgedFile, JSON.stringify(judged, null, 1));
+        }
+        const heard = judged[r.file]?.heardCut;
+        if (!cut || !heard) {
+            // No cut to judge (the route refuses it whatever the check says), or Whisper heard nothing.
+            scored.push({ ...r, judged: false, fault: false, passed: false, heard });
+            continue;
+        }
+        const clean = !/\bokay\b/.test(words(heard).join(' ')) && align(words(r.text), words(heard))[0]?.kind === 'heard';
+        scored.push({ ...r, judged: true, fault: !clean, passed: trimLead(mp3, leadExpect(r.text)) !== null, heard });
+    }
+    for (const kind of [...new Set(scored.map((s) => s.kind))]) {
+        const these = scored.filter((s) => s.kind === kind && s.judged);
+        const faults = these.filter((s) => s.fault);
+        console.log(
+            `${kind.padEnd(14)} ${these.length} judged of ${scored.filter((s) => s.kind === kind).length}, ${faults.length} faults: ` +
+                `clean takes refused ${these.filter((s) => !s.fault && !s.passed).length} of ${these.length - faults.length}, faults passed ${faults.filter((s) => s.passed).length} of ${faults.length}`
+        );
+    }
+    for (const s of scored.filter((s) => s.judged && s.fault === s.passed)) console.log(`  ${s.fault ? 'PASSED' : 'refused'} ${s.file}: ${s.heard}`);
+}
+
 async function main(): Promise<void> {
     const phase = process.argv[2];
     if (phase === 'bill') return billPhase();
@@ -1646,8 +1785,9 @@ async function main(): Promise<void> {
     else if (phase === 'gaps') gapsPhase(out);
     else if (phase === 'marks') marksPhase(out);
     else if (phase === 'route') await routePhase(out);
+    else if (phase === 'lead') await leadPhase(out);
     else if (phase === 'report') report(Object.values(JSON.parse(readFileSync(join(out, 'heard.json'), 'utf8')) as Record<string, Heard>));
-    else throw new Error('first argument: synth, analyze, recheck, report or bill');
+    else throw new Error('first argument: synth, analyze, recheck, gaps, marks, route, lead, report or bill');
 }
 
 main().catch((err: unknown) => {
