@@ -31,6 +31,8 @@ export const LEAD_TRIM: {
     minGapS: number;
     gapWithinS: number;
     maxLeadS: number;
+    longestLeadS: number;
+    minLetterS: number;
     keepS: number;
 } = {
     /** A frame whose largest global_gain reaches this is loud enough... */
@@ -48,6 +50,13 @@ export const LEAD_TRIM: {
      *  sentence ran together (or the lead was lost) and a cut could take the
      *  sentence's opening. */
     maxLeadS: 1.0,
+    /** Longer than any "Okay." measured: 0.24-0.82s over 371 takes, the
+     *  second 0.34-0.67s when said twice (2026-11-16 and 11-20). A burst
+     *  behind the lead longer than this is not the lead again. */
+    longestLeadS: 0.85,
+    /** A little under her fastest speech: "That makes sense." came back in
+     *  0.72s at the quickest, 51ms a letter (2026-11-20). */
+    minLetterS: 0.045,
     /** Kept ahead of the sentence's first sound, which is often a faint
      *  inhale: the voice proper then starts 0.17-0.24s in (103 takes), about
      *  the margin mp3-lead-silence.ts gives a phone's output track, so this
@@ -90,12 +99,16 @@ function groups(voiced: readonly boolean[], minGap: number): [number, number][] 
 }
 
 /** What the sentence behind the lead should look like: one burst (a short
- *  input), or no more lead-length bursts ahead of a longer one than the text
- *  gives a pause a reason for (`shortOpenings`: one per mark in its first two
- *  words). A take with more is the lead said twice, or the voice stalling on
- *  an opening word, and is not used: a lost opening word is better than a
- *  lead that can be heard. */
-export type LeadExpect = 'one-burst' | { shortOpenings: number };
+ *  input), or an opening the lead said again could not pass for. Only the
+ *  first burst behind the lead can be a second lead, and only if it is
+ *  lead-sized (longestLeadS); then it must be long enough to say the text's
+ *  opening phrase (`openingLetters`, at minLetterS a letter), and there may be
+ *  no more lead-length bursts ahead of a longer one than the text gives a
+ *  pause a reason for (`shortOpenings`: one per short opening phrase). A take
+ *  that fails is the lead said twice, or a pause inside the opening that looks
+ *  just like it, and is not used: a lost opening word is better than a lead
+ *  that can be heard. */
+export type LeadExpect = 'one-burst' | { shortOpenings: number; openingLetters: number };
 
 /** Where the sentence's first sound starts behind the lead, as a frame
  *  index into the audio frames, or null when the gap is not there or the
@@ -116,7 +129,8 @@ export function sentenceStart(mp3: Uint8Array, frames: readonly Mp3Frame[], expe
     const lead = speech[0];
     if (!lead || speech.length < 2 || length(lead) > LEAD_TRIM.maxLeadS || lead[1] * s > LEAD_TRIM.gapWithinS) return null;
     if (expect === 'one-burst' && speech.length > 2) return null;
-    if (expect && expect !== 'one-burst') {
+    if (expect && expect !== 'one-burst' && length(speech[1]!) <= LEAD_TRIM.longestLeadS) {
+        if (length(speech[1]!) < expect.openingLetters * LEAD_TRIM.minLetterS) return null;
         let short = 0;
         while (1 + short < speech.length - 1 && length(speech[1 + short]!) <= LEAD_TRIM.maxLeadS) short++;
         if (short > expect.shortOpenings) return null;

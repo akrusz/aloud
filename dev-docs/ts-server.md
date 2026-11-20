@@ -278,10 +278,13 @@ cuts everything before the sentence off again without decoding: Azure's MP3 is
 constant bitrate, so a frame's `global_gain` tracks its level, and the cut lands
 on a frame boundary in the silence, 0.15s ahead of the sentence's first sound,
 with the first kept frame emptied so it needs nothing from the bit reservoir
-cut away. A trimmed clip skips the lead-silence pad. A take that isn't what the
-text predicts (`leadExpect`: a short input in one burst, otherwise no more
-lead-length bursts ahead of a longer one than there are marks in its first two
-words) is the lead said twice or a stall, and is rolled again once. If the
+cut away. A trimmed clip skips the lead-silence pad. A take that could be
+hiding the lead said twice is rolled again once (`leadExpect`, `LeadExpect`):
+a short input must come back in one burst; otherwise only the first burst
+behind the lead can be a second "Okay", and only while it is lead-sized
+(`LEAD_TRIM.longestLeadS`), so then it must be long enough for the text's
+opening phrase (`minLetterS` a letter) and no more lead-length bursts may come
+ahead of a longer one than the text has short opening phrases. If the
 second take fails the same check, or neither has a gap, the text is synthesized
 without the lead: it may lose its opening word, but a lead that can be heard
 is the worse fault, and wherever the two risks meet the code takes the lost
@@ -315,16 +318,30 @@ start; what changes is the pause between sentences: Harper a median 1.0s
 in the request shortens it (a `<break>`, `mstts:silence`, `<s>` and a voice
 temperature were all tried), and the dev heard the long ones and kept them.
 
-The lead goes once per request, and a whole reply rolls it a little more
-often than a sentence does: 5 of 65 led whole replies against 0 of 40 led
-chunks (2026-11-19, after the short-phrase fix), none spoken without it in
-the end. Whisper hears the three refused takes kept
-(`.probe-data/reply-batch/harper-lead`) as clean, one "Okay" and every word:
-`leadExpect` counts short bursts until the first long one, and a mid-clause
-pause early in a reply makes one more than the text gives a reason for, the
-same miss a sentence can have but with more of the reply in reach. A roll
-repeats the whole reply, so it costs about 4% of Harper's bill back. Left as
-it is: loosening the count risks a lead that can be heard.
+The lead goes once per request, and a roll repeats the whole request, so on
+a whole reply it costs a whole reply. It is not rolled more often there: on
+raw led takes of 23 replies (2026-11-20, the probe's `lead` step, takes in
+`.probe-data/harper-lead-whole`) the check of the day refused 6 of 138 whole
+replies and 3 of 63 of their first chunks sent alone. (The 5 of 65 against 0
+of 40 the day before set whole replies against mostly later sentences, which
+open differently; their 10 first chunks rolled 0 times.) Whisper heard every
+refused take clean when cut. What it refuses is a pause in the opening that
+leaves a lead-sized burst behind the lead ("Feel the weight | of your body
+resting.", 3 of 9 takes), which is just what the lead said twice looks like;
+and twelve of the replies sent as "Okay. Okay. <reply>" got 8 of 24 takes
+through, when the opening phrase came back long or ran on. Since 2026-11-20
+a first burst no lead could fill passes, the text having begun, and a lead-sized one too short for
+the opening phrase is refused: clean whole replies refused went from 6 to 4
+of 137 (10 to 9 of 240 with the first chunks and 40 older chunk-sized takes),
+so rolls are about 1.5% of Harper's bill by the reckoning that made 5 of 65
+about 4%, and the lead said twice got through 5 times in 24 instead of 8. A
+pause inside a long opening phrase is still refused (5 of the 9): the frame
+levels the check reads can't tell it from a second "Okay", and the doubled
+takes still let through are the same shape, a short opening phrase behind
+the second lead. One whole reply came back as "Okay. Hm. Gently now, ...",
+a filler of lead size ahead of a short opening phrase, which neither check
+catches (1 in 138). The `lead` step re-scores the saved takes after a change
+to the check, with no new synthesis.
 
 A voice to switch on needs the same measuring first (the repeat probe's
 `whole` and `chunks` sends). An unstyled voice pays no tags, though an Azure

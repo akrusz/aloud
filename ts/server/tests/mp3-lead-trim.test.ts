@@ -48,17 +48,17 @@ describe('trimLead', () => {
         const twice = concat(run(15, LEAD), run(30, QUIET), run(17, LEAD), run(30, QUIET), run(20, SPEECH));
         expect(trimLead(twice)!.length).toBe((112 - (45 - KEEP)) * 288);
         expect(trimLead(twice, 'one-burst')).toBeNull();
-        expect(trimLead(twice, { shortOpenings: 0 })).toBeNull();
-        // One mark early in the text allows one short burst, not two.
-        expect(trimLead(twice, { shortOpenings: 1 })).toEqual(trimLead(twice));
+        expect(trimLead(twice, { shortOpenings: 0, openingLetters: 3 })).toBeNull();
+        // One short opening phrase allows one short burst, not two.
+        expect(trimLead(twice, { shortOpenings: 1, openingLetters: 3 })).toEqual(trimLead(twice));
         expect(trimLead(LED, 'one-burst')).toEqual(trimLead(LED));
         // An opening burst longer than a lead, then a pause: a sentence.
         const clause = concat(run(15, LEAD), run(30, QUIET), run(45, SPEECH), run(30, QUIET), run(20, SPEECH));
-        expect(trimLead(clause, { shortOpenings: 0 })).toEqual(trimLead(clause));
+        expect(trimLead(clause, { shortOpenings: 0, openingLetters: 30 })).toEqual(trimLead(clause));
         expect(trimLead(clause, 'one-burst')).toBeNull();
         // "Yes, [pause] I hear you" said behind a doubled lead: two short bursts.
         const yes = concat(run(15, LEAD), run(30, QUIET), run(15, LEAD), run(30, QUIET), run(12, SPEECH), run(20, QUIET), run(45, SPEECH));
-        expect(trimLead(yes, { shortOpenings: 1 })).toBeNull();
+        expect(trimLead(yes, { shortOpenings: 1, openingLetters: 3 })).toBeNull();
     });
 
     it('treats a short dip inside the lead as part of it', () => {
@@ -114,17 +114,27 @@ describe('leadFor', () => {
     });
 
     it('expects one burst of a short input, and a short opening burst per short opening phrase', () => {
+        const short = (text: string) => {
+            const e = leadExpect(text);
+            return e === 'one-burst' ? e : e.shortOpenings;
+        };
         expect(leadExpect("That's good.")).toBe('one-burst');
-        expect(leadExpect('Yes, I hear that there is some tension.')).toEqual({ shortOpenings: 1 });
-        expect(leadExpect('Yes, yes, I hear that there is some tension.')).toEqual({ shortOpenings: 2 });
-        expect(leadExpect('So \u2014 where were we, before the timer?')).toEqual({ shortOpenings: 2 });
-        expect(leadExpect("That makes sense. What's the tightness like right now?")).toEqual({ shortOpenings: 1 });
-        expect(leadExpect('Take your time. Let it move on its own.')).toEqual({ shortOpenings: 1 });
-        expect(leadExpect('Does it feel firm, soft, or somewhere in between?')).toEqual({ shortOpenings: 2 });
-        expect(leadExpect('Back to Exploration, which is the best place to start.')).toEqual({ shortOpenings: 1 });
+        expect(short('Yes, I hear that there is some tension.')).toBe(1);
+        expect(short('Yes, yes, I hear that there is some tension.')).toBe(2);
+        expect(short('So \u2014 where were we, before the timer?')).toBe(2);
+        expect(short("That makes sense. What's the tightness like right now?")).toBe(1);
+        expect(short('Take your time. Let it move on its own.')).toBe(1);
+        expect(short('Does it feel firm, soft, or somewhere in between?')).toBe(2);
+        expect(short('Back to Exploration, which is the best place to start.')).toBe(1);
         // A first phrase too long to come back under maxLeadS, and one with nothing after it.
-        expect(leadExpect('Where do you feel the clenching most? Stay with that spot.')).toEqual({ shortOpenings: 0 });
-        expect(leadExpect('Notice where the breath is easiest to feel.')).toEqual({ shortOpenings: 0 });
+        expect(short('Where do you feel the clenching most? Stay with that spot.')).toBe(0);
+        expect(short('Notice where the breath is easiest to feel.')).toBe(0);
+    });
+
+    it('counts the letters of the opening phrase, up to its first mark', () => {
+        expect(leadExpect("That makes sense. What's the tightness like right now?")).toEqual({ shortOpenings: 1, openingLetters: 14 });
+        expect(leadExpect('Notice where the breath is easiest to feel.')).toEqual({ shortOpenings: 0, openingLetters: 35 });
+        expect(leadExpect('So \u2014 where were we, before the timer?')).toEqual({ shortOpenings: 2, openingLetters: 2 });
     });
 
     describe('takes behind a short opening phrase (Harper, raw takes of 2026-11-19)', () => {
@@ -150,6 +160,37 @@ describe('leadFor', () => {
             expect(trimLead(stall, leadExpect(takeYourTime))).toBeNull();
             const runIn = shape([LEAD, 0.55], [SPEECH, 0.98], [QUIET, 0.91], [SPEECH, 2.04]);
             expect(trimLead(runIn, leadExpect(takeYourTime))).toBeNull();
+        });
+    });
+
+    describe('whole replies (Harper, raw takes of 2026-11-20)', () => {
+        const shape = (...spans: [number, number][]) => concat(...spans.map(([gain, s]) => run(Math.round(s / 0.024), gain)));
+        const sense = "That makes sense. What's the tightness like right now? Take your time with it.";
+        const joy = 'Some joy, and room around it. Nothing needs to happen with that. Just let it be there. Where is it in your body?';
+
+        it('keeps a take whose first burst behind the lead is longer than any lead, whatever pauses follow it', () => {
+            // "Okay. | That makes sense. | What's the tightness | like right now?..." (whole/P1-t6)
+            const p1 = shape([LEAD, 0.6], [QUIET, 1.46], [SPEECH, 0.96], [QUIET, 1.18], [SPEECH, 0.84], [QUIET, 0.55], [SPEECH, 1.49], [QUIET, 1.06], [SPEECH, 1.18]);
+            expect(trimLead(p1, leadExpect(sense))).toEqual(trimLead(p1));
+            // "Okay. | Some joy, | and room | around it. | Nothing needs..." (L4-t4, rolled before)
+            const p4 = shape([LEAD, 0.5], [QUIET, 0.74], [SPEECH, 0.91], [QUIET, 0.5], [SPEECH, 0.58], [QUIET, 0.58], [SPEECH, 0.89], [QUIET, 0.72], [SPEECH, 1.58]);
+            expect(trimLead(p4, leadExpect(joy))).toEqual(trimLead(p4));
+        });
+
+        it('declines a second lead ahead of an opening phrase too long to fit in it', () => {
+            // "Okay. | Okay. | That makes sense. | What's the..." (double/P1-t1), passed before.
+            const p1 = shape([LEAD, 0.6], [QUIET, 0.65], [LEAD, 0.55], [QUIET, 1.56], [SPEECH, 1.27], [QUIET, 0.58], [SPEECH, 1.99]);
+            expect(trimLead(p1)).not.toBeNull();
+            expect(trimLead(p1, leadExpect(sense))).toBeNull();
+        });
+
+        it('still declines a pause inside a long opening phrase, which looks just like a second lead', () => {
+            // "Okay. | Feel the weight | of your body resting. | ..." (whole/M12-t1), and the lead said twice.
+            const feel = 'Feel the weight of your body resting. Let the ground hold you. Nothing to fix right now.';
+            const pause = shape([LEAD, 0.62], [QUIET, 0.91], [SPEECH, 0.65], [QUIET, 0.5], [SPEECH, 2.06], [QUIET, 0.72], [SPEECH, 1.97]);
+            const twice = shape([LEAD, 0.7], [QUIET, 0.96], [LEAD, 0.55], [QUIET, 0.94], [SPEECH, 2.26], [QUIET, 1.03], [SPEECH, 1.61]);
+            expect(trimLead(pause, leadExpect(feel))).toBeNull();
+            expect(trimLead(twice, leadExpect(feel))).toBeNull();
         });
     });
 

@@ -78,15 +78,14 @@ const SHORT_PHRASE_CHARS = 20;
 /** What the speech behind the lead should look like for `text` (LeadExpect):
  *  one burst for a short input, otherwise one short opening burst for each
  *  short phrase (SHORT_PHRASE_CHARS, up to a mark) it opens with, short of
- *  its last. */
+ *  its last, and the letters of its first phrase. */
 export function leadExpect(text: string): LeadExpect {
     if (text.length < SHORT_INPUT_CHARS) return 'one-burst';
     const phrases = text.trim().split(/(?<=[,.;:!?\u2026\u2013\u2014])\s+/);
+    const letters = (phrase: string) => phrase.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
     let shortOpenings = 0;
-    while (shortOpenings < phrases.length - 1 && (phrases[shortOpenings]!.match(/[\p{L}\p{N}]/gu)?.length ?? 0) <= SHORT_PHRASE_CHARS) {
-        shortOpenings++;
-    }
-    return { shortOpenings };
+    while (shortOpenings < phrases.length - 1 && letters(phrases[shortOpenings]!) <= SHORT_PHRASE_CHARS) shortOpenings++;
+    return { shortOpenings, openingLetters: letters(phrases[0]!) };
 }
 
 /** The rate actually synthesized: the caller's request scaled by the curated
