@@ -21,41 +21,49 @@ per-device STT/TTS quality matrix.
 
 What is left to hear or see before Android goes to open beta. The desktop and
 Chrome pass and most of the phone pass are done, and what they found is in
-Beads. The iPhone checks wait until after this release (sections 2 and 3
-hold them). Delete this section once it ships.
+Beads. The iPhone checks and the 中文 pass wait until after this release.
+Delete this section once it ships.
 
-**Deploy the server from `main`** first: whole replies for Harper and Ethan
-are the server's to switch on. A phone build from before the deploy still
-works, a sentence at a time.
+**Deploy the server from `main`** first: Harper's lead check changed
+(`meditation-pal-6ixc`). Whole replies have been live since the deploy of
+2026-11-19.
 
 On the Android phone, a build from `main` against production, on aloud cloud
-speech:
+speech, with dev mode on and the phone on USB so the diag lines and
+`dumpsys audio` can be read afterwards (the playback log rolls within a few
+minutes of a run):
 
 - [ ] **Harper's level.** In a session she is as loud as her tour lines and
       sits sensibly against the opening sound.
-- [ ] **Sounds** (`meditation-pal-grfo`: fixed, unheard). The opening plays
-      whole, the first line starts at its first word, and the close plays at
-      one level. The close wavered before the fix and nothing explains it
-      yet, so say so if it still does.
-- [ ] **Whole replies**, Harper and then Ethan, after the deploy
-      (`meditation-pal-6ixc`). A reply of several sentences starts about as
-      soon as it used to and the pauses between its sentences sound natural.
-      Talk over one partway through: it stops, and the transcript keeps the
-      sentences that were heard and no more.
-- [ ] **Barge-in and "yes"** (`meditation-pal-cs6y`), with dev mode on and
-      the diag capture running. Talk over three replies: each stops. End the
-      session by voice: "yes" is caught the first time.
-- [ ] **Volume banner.** One step above the bottom of the Call slider there
-      is no banner. Mute the mic mid-session: no banner unless the Media
-      volume really is low (it showed on a mute once, unconfirmed:
-      `meditation-pal-0ecr`).
-- [ ] **Parakeet, two turns**, for the `[stt-time]` lines: it felt slower to
-      answer than GPT (`meditation-pal-35nr`).
-- [ ] **中文.** With no voice picked, a session starts on 小月. With Grok
-      picked, it transcribes a turn. 小月 and 大海 preview in Chinese, and
-      "二十分钟" on setup is answered aloud. Coming from an English setup
-      the app keeps Harper and falls to GPT, which is
-      `meditation-pal-fz1k`.
+- [ ] **Sounds** (`meditation-pal-grfo`). The close holds one level to its
+      end: the setup screen's mic used to open under it. The first line of a
+      session is as crisp as the later ones (it was likely playing at 8 kHz).
+      If the opening seems to fade two seconds in, compare it with its
+      preview in Settings: the file itself drops there.
+- [ ] **Whole replies**, Harper and then Ethan (`meditation-pal-6ixc`). A
+      reply of several sentences starts about as soon as it used to and the
+      pauses between its sentences sound natural. Talk over one partway
+      through: it stops, and the transcript keeps the sentences that were
+      heard and no more.
+- [ ] **"Yes"** (`meditation-pal-cs6y`). Say "end the session", then a quick,
+      soft "yes" right as the question finishes: the close starts about two
+      seconds later. Again with "no", and with "hmm... yes", which still
+      waits the full pause.
+- [ ] **Preview bubbles**, on Parakeet. A few remarks of under 18 words: each
+      goes from preview to final without leaving the screen.
+- [ ] **Volume banner.** "The volume is very low." shows only when the volume
+      was at the bottom of the Call slider before Begin, about a second after
+      the mic opens, and never on a mute or later in the session.
+- [ ] **The tour, read aloud**, setup mic lit. Walk all of it by voice. The
+      noting line starts promptly and whole and "back" works from it. The
+      first word of every card is heard on first play (felt sense, and the
+      methods line after picking a voice, lost theirs). "Next" said clearly
+      over a line cuts it, though not over the first card's lines. No ?
+      panel opens. Afterwards tap the Noting tab: the mic keeps working.
+- [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
+      section card shows its ? text. On the methods card the page creeps
+      down after a moment at a pace you can read along with, Next stays where
+      it is, and one touch stops the creep.
 
 ---
 
