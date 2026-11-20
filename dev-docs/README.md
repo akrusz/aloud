@@ -26,6 +26,7 @@ params, gotchas. It's the one to keep open.
 | [mobile-signin-setup.md](mobile-signin-setup.md) | Console + config checklist for native Google/Apple sign-in. Code is done; this is the account-side setup. |
 | [mobile-device-validation.md](mobile-device-validation.md) | Per-device-category matrix for deciding whether free on-device STT/TTS is good enough to default to. |
 | [store-submission-checklist.md](store-submission-checklist.md) | The map from here to live on both stores. How-to lives in the two docs above. |
+| [age-tier.md](age-tier.md) | The app store's age signal (Play Age Signals, Apple's Declared Age Range) as a tier, and the screen that blocks the app under 13. |
 | [store-descriptions.md](store-descriptions.md) | Store listing copy. |
 
 ## Server & billing

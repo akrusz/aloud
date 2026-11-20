@@ -130,6 +130,13 @@ in section 2.
 
 - [ ] **Store-billed packs** (StoreKit; Play Billing too, but Android's beta
       doesn't need it). **Required before iOS review**, see "Buying ☁".
+- [ ] **Declared Age Range**, before 2027-01-01: enable the capability in
+      Xcode (App target → Signing & Capabilities), which writes
+      `com.apple.developer.declared-age-range` into `App.entitlements` and
+      registers it on the App ID. Until then the iOS age check answers
+      "unavailable" and every account counts as adult
+      ([age-tier.md](age-tier.md)). `scripts/ios-archive.sh` then refuses an
+      archive without it.
 - [ ] Reviewer note: noting works free with no account and by default never
       shows the sign-in modal; an AI companion switches it to the paid cloud
       path; give the demo account (heads off a 5.1.1 "why must I sign in").
