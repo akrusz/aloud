@@ -19,111 +19,43 @@ per-device STT/TTS quality matrix.
 
 ## This release (everything after v2.20.1)
 
-The desktop and Chrome pass over branch `stt-incremental` (`main` plus
-incremental transcription, the setup voice work and the move of every sound
-to `<audio>` elements) is done: every item passed by the night of 2026-11-18
-and the branch was merged into `main` then, unpushed. What is left is the
-server deploy, one listen after it, and the phone. Delete this section once
-it ships.
+What is left to hear or see before Android goes to open beta. The desktop and
+Chrome pass and most of the phone pass are done, and what they found is in
+Beads. The iPhone checks wait until after this release (sections 2 and 3
+hold them). Delete this section once it ships.
 
-From the last round's notes, none of it holding the release:
+**Deploy the server from `main`** first: whole replies for Harper and Ethan
+are the server's to switch on. A phone build from before the deploy still
+works, a sentence at a time.
 
-- Ethan repeated the end of a line twice in one session, which reads as the
-  voice's own fault at Azure (`meditation-pal-tapb`).
-- Answers on the setup screen came "with some delays, but overall fine".
-  Not looked into.
-- Asked for, done after the merge and unseen by Alex: the
-  session's mic button showing that it is opening and the setup mic matching
-  it (grey, with a slow breath), an "Introduction voice"
-  control and a two-line "Play a sound on your turn" on the noting tab, and
-  a shorter first round of adaptive noting.
-- Editing noting participants by voice is hard (`meditation-pal-86z1`).
-- On Google UK English Female the first line of one session stopped half a
-  second in, once, on Bluetooth, and not again. A bug report's log now says
-  whether barge-in cut a line (`[vad] wrapper barge-in`).
+On the Android phone, a build from `main` against production, on aloud cloud
+speech:
 
-**Deploy the server from `main`** before any client build (a new client on
-the old server falls back to full passes, and Harper's lead, the voice
-levels, the Chinese voice names and the narrower repeat command are the
-server's). Then:
-
-```bash
-curl -si -X OPTIONS https://aloud-cloud.fly.dev/app/v1/models \
-  -H 'Origin: https://aloud.rest' -H 'Access-Control-Request-Method: GET' \
-  -H 'Access-Control-Request-Headers: x-provider-key' | grep -i allow-headers
-```
-
-The answer should name `x-provider-key`.
-
-- [ ] **After the deploy, one listen.** In a session Harper is as loud as her
-      tour lines and sits sensibly against the opening sound (she is 4.5 dB
-      quieter than before).
-
-**Phone**, a build from `main` against production, sounds first: no sound has
-played on a phone since the move to `<audio>` elements.
-
-- [ ] **Android sounds.** On aloud cloud speech the mic opens first at Begin,
-      and the opening follows it whole about two seconds later (from a
-      listening setup screen, sooner); the first line starts at its first
-      word. The close plays whole at one level and the mic indicator goes off
-      only after it. The close and a noting chime follow the Call volume, so
-      check they sit sensibly against the voice
-      ([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
-- [ ] **iPhone sounds.** A chime does not cut the voice. Ending a session
-      inside its opening sound stops the sound at once, with no loud click. A
-      chime or preview with no mic open sounds even with the silent switch on.
-- [ ] **The lock-screen or headset play/pause button** does nothing to the
-      facilitator.
-- [ ] **Setup mic.** It starts slashed and music from another app keeps
-      playing. Tap it, say "twenty minutes" (the answer is audible; on an
-      iPhone it is not noticeably quieter or call-quality next to a session),
-      then "begin" (the first line is audible).
-- [ ] **Volume banner.** Turn the volume down or off before a session: the
-      banner says so. On iOS, first check the reading follows the volume
-      buttons at all.
-- [ ] **Touch targets.** Back on setup, tap Begin: a session starts, not the
-      "What are ☁?" panel. Tap the bottom edge of the model select: it opens.
-      Tap "Show all models" itself: it still toggles.
-- [ ] **Keyboard**, iOS (never run there). Tap the intention box and type:
-      Begin sits above the keys.
-- [ ] **GPT, two long turns with a pause in each.** Each arrives whole.
-- [ ] **Parakeet, two turns.** A 30-second stall means the production
-      OpenRouter key or host pin is wrong.
-- [ ] **Airplane mode while the reply dots show.** The status reads
-      "Connection lost - trying again" and the reply still lands (30 s now).
-- [ ] **中文.** With no voice picked, a session starts on 小月. Grok
-      transcribes a turn, 小月 and 大海 preview in Chinese, and "二十分钟" on
-      setup is answered aloud.
-- [ ] **Balance.** It moved for the session and not for the setup listening.
-
-**Dropped from the by-hand pass**, and what covers each instead:
-
-- Five long turns of incremental: `npm --prefix ts run soak:web --
-  --scenarios=pauses --stt=aloud-gpt-transcribe` reads nine lines with pauses
-  of 2 to 8 seconds through Chrome and scores each against what was said.
-- The setup voice's commands, voice mode's three states and the tour's
-  controls (tap mid-line, the mic toggled under a card, "stop listening",
-  the silent tour, "next" on the last card): `npm --prefix ts run voice:check`
-  and the `setup-command` tests. The room half of it stays above.
-- "Twenty minutes" on hosted GPT leaving the balance alone: the client sends
-  `setup=1` on every pass (`tests/whisper-pcm-setup-params.test.ts`,
-  `tests/stt-picker-setup.test.ts`) and the server charges nothing for a
-  short setup clip (`server/tests/stt.test.ts`).
-- The second tour pass in Ethan, and Harper against Ethan for loudness: the
-  levels are measured per clip at render (`sessionLufs`).
-- Settings wording and placement, the 中文 pass on desktop (Alex heard both
-  voices on 2026-11-18) and a saved voice that no longer exists: copy and
-  catalog, nothing a room changes.
-- Stepping out on Ollama: the code under it has not moved since the
-  2026-11-14 soak, and small models missing the rule is its own bead
-  (`meditation-pal-vwhf`).
-- In Chrome, the free-voice pick, the setup mic's first click and the BYOK
-  error screen: `tests/voice-picker.test.ts` pins the pick, and the other two
-  are layout and routing.
-- After the deploy, Opus 5 gone and 大海 for a saved Yunfan are pinned by
-  `tests/model-line.test.ts` and `server/tests/voices.test.ts`; the judge
-  line is read from the server's log.
-- Stepping out on a phone: it is the engine's, the same code as desktop.
+- [ ] **Harper's level.** In a session she is as loud as her tour lines and
+      sits sensibly against the opening sound.
+- [ ] **Sounds** (`meditation-pal-grfo`: fixed, unheard). The opening plays
+      whole, the first line starts at its first word, and the close plays at
+      one level. The close wavered before the fix and nothing explains it
+      yet, so say so if it still does.
+- [ ] **Whole replies**, Harper and then Ethan, after the deploy
+      (`meditation-pal-6ixc`). A reply of several sentences starts about as
+      soon as it used to and the pauses between its sentences sound natural.
+      Talk over one partway through: it stops, and the transcript keeps the
+      sentences that were heard and no more.
+- [ ] **Barge-in and "yes"** (`meditation-pal-cs6y`), with dev mode on and
+      the diag capture running. Talk over three replies: each stops. End the
+      session by voice: "yes" is caught the first time.
+- [ ] **Volume banner.** One step above the bottom of the Call slider there
+      is no banner. Mute the mic mid-session: no banner unless the Media
+      volume really is low (it showed on a mute once, unconfirmed:
+      `meditation-pal-0ecr`).
+- [ ] **Parakeet, two turns**, for the `[stt-time]` lines: it felt slower to
+      answer than GPT (`meditation-pal-35nr`).
+- [ ] **中文.** With no voice picked, a session starts on 小月. With Grok
+      picked, it transcribes a turn. 小月 and 大海 preview in Chinese, and
+      "二十分钟" on setup is answered aloud. Coming from an English setup
+      the app keeps Harper and falls to GPT, which is
+      `meditation-pal-fz1k`.
 
 ---
 
@@ -484,13 +416,14 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       it speaks - a slider labelled Call rather than Media is the diagnosis.
 - [ ] **The session says when the volume is off.** With the volume all the way
       down, begin a session on the speaker: "The volume is off." sits above the
-      status line and goes within a couple of seconds of turning it up. Two
-      steps up from the bottom it reads "The volume is very low.", and not at
-      all in headphones. On Android try it on aloud cloud speech too, where the
-      slider that counts is Call. On iOS, check the reading follows the buttons
-      at all: the plugin reads the app's own audio session while the WebView's
-      audio runs outside it (`output-volume.ts`, `OutputVolumePlugin`). Never
-      run on a device as of 2026-11-16.
+      status line and goes within a couple of seconds of turning it up. One
+      step up from the bottom it reads "The volume is very low." for ten
+      seconds, and not at all in headphones. On Android try it on aloud cloud
+      speech too, where the slider that counts is Call: it never reaches
+      zero, and only its bottom step reads as very low (`LOW_VOLUME`). On
+      iOS, check the reading follows the buttons at all: the plugin reads
+      the app's own audio session while the WebView's audio runs outside it
+      (`output-volume.ts`, `OutputVolumePlugin`). Never run on an iPhone.
 - [ ] **A dropped connection doesn't eat a turn.** On aloud cloud, switch on
       airplane mode just as an utterance submits and off again within ~20s:
       the turn still lands and gets a reply (`[stt] final pass retry` in the
