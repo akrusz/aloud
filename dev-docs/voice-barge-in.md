@@ -145,7 +145,10 @@ and again a couple of seconds after it stops. Three rules keep the two apart
   takes the engine and stops it with `keepMicUntil` (`SttStopOptions`):
   listening stops at once, the capture stream is held until the closing sound
   is over (a cut opening, until it has faded). Released at End, the output was
-  rebuilt mid-sound.
+  rebuilt mid-sound. Nothing opens under it either: the setup screen's
+  listener waits for the close to be over and takes the mic over from there
+  (`waitForClose`; on Android one opened under the close dropped its level,
+  [audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
 
 Begin opens no probe stream once a mic has opened on the page (`micForBegin`
 in `mic-check.ts`, see [voice-commands.md](voice-commands.md#mic-pre-flight)),

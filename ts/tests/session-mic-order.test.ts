@@ -216,17 +216,18 @@ describe('at Begin, nothing audible starts until the session capture is open', (
     });
 });
 
-describe('the session capture closes after the last sound, on every way out', () => {
-    async function sessionUnderway(): Promise<Engine> {
-        begin(null);
-        const { engine, opening } = startSession();
-        await advance(MIC_DELAY_MS + 600);
-        frame();
-        sounding('bloom-open.mp3').end();
-        await opening;
-        return engine;
-    }
+/** A session past its opening, its capture open. */
+async function sessionUnderway(): Promise<Engine> {
+    begin(null);
+    const { engine, opening } = startSession();
+    await advance(MIC_DELAY_MS + 600);
+    frame();
+    sounding('bloom-open.mp3').end();
+    await opening;
+    return engine;
+}
 
+describe('the session capture closes after the last sound, on every way out', () => {
     it('a normal end: listening stops at once, the capture closes once the close has played out', async () => {
         const engine = await sessionUnderway();
         void sound.playClosing('bloom', engine);
@@ -300,6 +301,66 @@ describe('the session capture closes after the last sound, on every way out', ()
         await advance(59_000);
         expect(events.at(-1)).toBe('play bloom-open.mp3');
         await advance(1_001);
+        expect(events.at(-1)).toBe('mic close 1');
+    });
+});
+
+describe("after a session, the setup screen's capture opens once the close is over", () => {
+    /** The setup screen coming up under the close and its listener waiting
+     *  for it, as views/setup.ts runVoiceSync does; the listener lets the
+     *  session's mic go once it hears (its onHearing). */
+    function setupWaiting(): { opened: Promise<Engine>; release: () => void } {
+        const close = sound.waitForClose();
+        if (!close) throw new Error('no close under way');
+        const opened = close.over.then(async () => {
+            const setup = new Engine();
+            await setup.prime();
+            return setup;
+        });
+        return { opened, release: close.release };
+    }
+
+    it('opens nothing under the close, and the session capture closes only once the setup capture hears', async () => {
+        const engine = await sessionUnderway();
+        void sound.playClosing('bloom', engine);
+        // Up 1.5 s in, after the session summary, as on the phone.
+        await advance(1_500);
+        const setup = setupWaiting();
+        await advance(2_000);
+        expect(events).toEqual(['mic open 1', 'play bloom-open.mp3', 'play bloom-close.mp3']);
+        sounding('bloom-close.mp3').end();
+        await advance(MIC_DELAY_MS);
+        await setup.opened;
+        expect(events).toEqual(['mic open 1', 'play bloom-open.mp3', 'play bloom-close.mp3', 'mic open 2']);
+        frame();
+        setup.release();
+        await advance(0);
+        expect(events.at(-1)).toBe('mic close 1');
+    });
+
+    it('finds nothing to wait for once the close is over', async () => {
+        const engine = await sessionUnderway();
+        void sound.playClosing('bloom', engine);
+        await advance(0);
+        sounding('bloom-close.mp3').end();
+        await advance(0);
+        expect(events.at(-1)).toBe('mic close 1');
+        expect(sound.waitForClose()).toBeNull();
+    });
+
+    it('a cut opening is waited out the same way', async () => {
+        begin(null);
+        const { engine } = startSession();
+        await advance(MIC_DELAY_MS + 601);
+        void sound.playClosing('bloom', engine);
+        const setup = setupWaiting();
+        await advance(100);
+        expect(events).toEqual(['mic open 1', 'play bloom-open.mp3']);
+        await advance(200 + MIC_DELAY_MS);
+        await setup.opened;
+        expect(events).toEqual(['mic open 1', 'play bloom-open.mp3', 'mic open 2']);
+        setup.release();
+        await advance(0);
         expect(events.at(-1)).toBe('mic close 1');
     });
 });

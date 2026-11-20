@@ -90,7 +90,14 @@ A session's capture is open across everything the session makes audible:
 - **End.** `playClosing` stops listening at once and keeps the capture open,
   read by nothing, until the close has played out, or until a cut opening has
   faded; then it closes (`SttStopOptions.keepMicUntil`). Every way a session
-  ends goes through it, a mount that fails after the opening included.
+  ends goes through it, a mount that fails after the opening included. The
+  setup screen comes up as a session ends, under the close (1.5 s in after a
+  session summary, at once without one), and its listener opens nothing until
+  the close is over; the session's capture then stays open until the
+  listener's hears (`waitForClose` in `signature-sound.ts`, held in
+  `createMicHandover` in `voice-start.ts`). The diag lines
+  `[signature] close: setup mic waited ...` and
+  `[signature] close: session mic let go at ...` show the order.
 - **Mute** really closes the capture, as before.
 
 Why, measured on an Android phone (2026-11-19, hosted STT and voice): the
@@ -106,15 +113,27 @@ holds the opening `CALL_MODE_SETTLE_MS` (2.2 s) instead of `MIC_SETTLE_MS`,
 since the elements primed at the Begin click opened before the switch. On
 macOS the same opens and closes rebuild the audio output (meditation-pal-uz8t).
 
+A capture opened beside ours switches no mode, but it starts a player: its
+capture graph's AudioContext plays silence into the destination to keep its
+processor pulled, and on Android that is a call-stream player of its own. The
+setup screen's listener opened one 1.5 s into a close, and the close dropped in
+level then and stayed down (phone, evening of 2026-11-19, the one player event
+under that close in `dumpsys audio`).
+
 ## Phones
 
 Read in the WebKit and Chromium sources, partly measured on Android (above):
 
 - **Android.** A track's usage is fixed when it opens. A session's sounds
   start while call mode is on, so they play as call audio: the Call volume
-  slider, the communication route. A chime under aloud cloud STT too. Whether
-  the opening reuses a media player the Begin click's prime opened, or gets a
-  new call one, has not been read off a phone yet.
+  slider, the communication route. A chime under aloud cloud STT too. Read off
+  a phone (2026-11-19, `dumpsys audio`): elements whose sound has the same
+  rate and channels share one output player, which keeps running 10 s past
+  their last sound. So the opening plays on the stereo player the Begin
+  click's prime started (with call usage when Begin came from a listening
+  setup screen), and a close that follows within 10 s on the same one. A
+  capture graph's AudioContext is a player of its own, stopped after 30 s of
+  silence.
 - **iPhone.** An audible element with no mic open puts the audio session in the
   playback category: a chime or a preview with no mic open ignores the silent
   switch and stops other apps' music, where Web Audio alone was ambient.

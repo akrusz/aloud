@@ -114,6 +114,9 @@ let faded: Promise<void> = Promise.resolve();
 let sessionTicket = 0;
 /** The ticket of an opening that is waiting for its mic, or 0. */
 let openingWaiting = 0;
+/** The close under way (waitForClose): over when it is, and the holds put on
+ *  the session's mic past it. */
+let closing: { over: Promise<void>; holds: Array<Promise<void>> } | null = null;
 
 function cutSounding(): void {
     if (!sounding) return;
@@ -205,15 +208,45 @@ export async function playOpening(
  *
  * `stt` stops listening now and keeps its capture open until then
  * (SttStopOptions.keepMicUntil), so the mic closes after the last sound and
- * never under it. The engine lets the stream go when this settles however it
+ * never under it, and past it for a capture that waited for it to open
+ * (waitForClose). The engine lets the stream go when that settles however it
  * ends, and by its own cap should it never settle.
  */
 export function playClosing(sound: SignatureSound, stt?: SttEngine | null): Promise<void> {
     ++sessionTicket;
     endCaptureHandover();
+    const t0 = performance.now();
     const over = closingSound(sound);
-    void stt?.stop({ keepMicUntil: over });
+    const me = { over, holds: [] as Array<Promise<void>> };
+    closing = me;
+    void over.then(() => {
+        if (closing === me) closing = null;
+    });
+    if (stt) {
+        const ours = captureLive();
+        // Read once the close is over: every hold taken while it played.
+        const micFree = over.then(() => Promise.all(me.holds));
+        void stt.stop({ keepMicUntil: micFree });
+        if (ours) void micFree.then(() => diag(`[signature] close: session mic let go at +${Math.round(performance.now() - t0)}ms`));
+    }
     return over;
+}
+
+/**
+ * For a capture that is about to open (the setup screen's listener, which
+ * comes up as a session ends): null when no close is under way. Otherwise
+ * that capture opens once `over` settles, not under the close: on Android its
+ * capture graph starts a call-stream player, and the close's level dropped as
+ * one did 1.5 s in (phone, 2026-11-19, dev-docs/audio-output.md). The
+ * session's mic stays open past the close until `release` is called, once the
+ * new capture hears, so the mic never closes between the two.
+ */
+export function waitForClose(): { over: Promise<void>; release: () => void } | null {
+    const current = closing;
+    if (!current) return null;
+    let release!: () => void;
+    current.holds.push(new Promise<void>((resolve) => (release = resolve)));
+    return { over: current.over, release };
 }
 
 function closingSound(sound: SignatureSound): Promise<void> {

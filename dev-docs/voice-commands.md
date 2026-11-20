@@ -547,6 +547,13 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   "Stop listening" keeps the stream through
   its own answer ("Okay, the mic is off.") and lets it go when the line is
   over (`act` and `closeVoiceStart` in `views/setup.ts`).
+- **It waits out a session's close.** The screen comes up as a session ends,
+  under its closing sound, and the listener opens only once the close is
+  over; the session's capture is held past it until the listener hears
+  (`waitForClose` in `signature-sound.ts`, put in `createMicHandover`). So a
+  "begin" said during the close is not heard. On Android a capture opened
+  under the close dropped its level
+  ([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
 - **A line waits for a mic opened cold.** Opening an echo-cancelled capture
   with no other capture of ours open starts voice processing on macOS, which
   rebuilds the audio output, and switches a Bluetooth headset from music to

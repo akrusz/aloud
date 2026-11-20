@@ -503,6 +503,10 @@ export interface MicHandover {
      *  held already and `owed`: what `handle`'s own listener had taken and was
      *  holding until it could hear, which it never will now. */
     stop(handle: VoiceStartHandle, owed?: (() => void) | null): Promise<void>;
+    /** Hold a mic kept by someone else along with these, let go with them:
+     *  the last session's, kept past its close (signature-sound.ts
+     *  waitForClose). */
+    hold(letGo: () => void): void;
     /** Every mic being held, now the caller's to let go. Null when none is. */
     take(): (() => void) | null;
     /** Let every mic being held go. */
@@ -527,6 +531,13 @@ export function createMicHandover(): MicHandover {
                 letGo();
             };
             return handle.stop({ keepMicUntil: over });
+        },
+        hold: (letGo) => {
+            const before = held;
+            held = () => {
+                before?.();
+                letGo();
+            };
         },
         take,
         release: () => take()?.(),

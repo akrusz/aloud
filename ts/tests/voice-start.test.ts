@@ -887,4 +887,28 @@ describe('createMicHandover', () => {
         await Promise.resolve();
         expect([heldA.settled, heldB.settled]).toEqual([true, true]);
     });
+
+    it("holds a mic kept elsewhere (the last session's, past its close) along with a replaced one", async () => {
+        const handover = createMicHandover();
+        const sessionMic = vi.fn();
+        handover.hold(sessionMic);
+        const old = handle();
+        await handover.stop(old);
+        const heldOld = settledFlag(old.kept[0]);
+        const letGo = handover.take();
+        await Promise.resolve();
+        expect([sessionMic.mock.calls.length, heldOld.settled]).toEqual([0, false]);
+        letGo?.();
+        await Promise.resolve();
+        expect([sessionMic.mock.calls.length, heldOld.settled]).toEqual([1, true]);
+    });
+
+    it('lets a mic held from elsewhere go when nothing takes it over', () => {
+        const handover = createMicHandover();
+        const sessionMic = vi.fn();
+        handover.hold(sessionMic);
+        handover.release();
+        expect(sessionMic).toHaveBeenCalledOnce();
+        expect(handover.take()).toBeNull();
+    });
 });

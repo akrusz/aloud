@@ -115,6 +115,8 @@ import {
     probeMic,
     type MicStatus,
 } from '../mic-check.js';
+import { waitForClose } from '../signature-sound.js';
+import { diag } from '../diag.js';
 import { watchWhisperReady, describeWhisperWait, whisperNotice, type WhisperStatus } from '../whisper-ready.js';
 import { t } from '../i18n.js';
 import { sessionStore, sharedKv } from '../state.js';
@@ -1730,6 +1732,17 @@ export async function mountSetupView(
         if (noRecognizer !== choice) paintVoiceMic('listening');
         await speechSettled();
         if (gen !== voiceStartGen) return;
+        // This screen comes up as a session ends, often under its close: the
+        // mic opens once the close is over, and the session's stays open past
+        // it until this listener can hear, held like a replaced listener's.
+        const close = waitForClose();
+        if (close) {
+            micHandover.hold(close.release);
+            const t0 = performance.now();
+            await close.over;
+            diag(`[signature] close: setup mic waited ${Math.round(performance.now() - t0)}ms for it`);
+            if (gen !== voiceStartGen) return;
+        }
         // The session's own recognizer, mic and language (and, for local
         // Whisper, the model setup has already warmed: naming another here
         // would make the shell swap models under the first turn), tuned for a
