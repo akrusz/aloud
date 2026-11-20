@@ -1822,22 +1822,29 @@ export async function mountSetupView(
             ...(engine instanceof WhisperPcmSttEngine
                 ? { whenHearing: () => engine.whenHearing(), coldOpening: () => engine.coldOpening() }
                 : {}),
-            // Hosted recognition's echo-cancelled capture hears through the
-            // tour's lines, as a session barges in on it (voice-barge-in.md),
-            // with the engine's bar raised above the line's echo. Not on an
-            // iPhone, whose canceller let the facilitator through
-            // (meditation-pal-hi6f).
+            // Hosted recognition's echo-cancelled capture runs on between
+            // turns and hears through the tour's lines, as a session's barges
+            // in on it (voice-barge-in.md), the engine's bar raised above a
+            // line's echo. Not on an iPhone, whose canceller let the
+            // facilitator through (meditation-pal-hi6f).
             ...(engine instanceof WhisperPcmSttEngine &&
             isHostedSttChoice(choice) &&
             !isIosWeb() &&
             capacitorPlatform() !== 'ios'
                 ? {
-                      overLines: {
-                          start: () => {
+                      // The full bar over every line: this engine is never
+                      // asked expectAnswer, which lowers it over a question's
+                      // tail in a session.
+                      continuous: {
+                          lineStarted: () => {
                               engine.noteVoicePlayback();
                               engine.setTtsActive(true);
                           },
-                          end: () => engine.setTtsActive(false),
+                          lineEnded: () => {
+                              engine.notePlaybackEnded();
+                              engine.setTtsActive(false);
+                          },
+                          keepOnsetTail: (ms: number) => engine.keepOnsetTail(ms),
                       },
                   }
                 : {}),

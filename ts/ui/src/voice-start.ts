@@ -270,7 +270,7 @@ export interface VoiceStartHandle {
      * after it settles. The mic can't hear what plays inside. A capture
      * opened cold is let settle first (`coldOpening`).
      *
-     * With `overLine`, on a listener that can (`ListenOnSetupOptions.overLines`),
+     * With `overLine`, on a listener that can (`ListenOnSetupOptions.continuous`),
      * the recognizer goes on hearing through the line instead. What is said
      * over it (begun while it played) goes to `overLine` alone, which returns
      * true when it acted: nothing said over a line begins a session or reaches
@@ -327,13 +327,19 @@ export interface ListenOnSetupOptions {
      */
     coldOpening?: () => Promise<void> | null;
     /**
-     * Present where the recognizer may go on hearing while the app says a
-     * line (`hold` with `overLine`): an echo-cancelled capture whose engine
-     * raises its speech bar above the line's echo while told one plays, and
-     * marks a turn begun meanwhile (`startedDuringTts` on its final). `start`
-     * and `end` bracket the lines. Absent, every line stops the recognizer.
+     * Present for an engine whose capture runs on between turns, as a
+     * session's does (WhisperPcmSttEngine on hosted recognition): an
+     * echo-cancelled capture that raises its speech bar above a line's echo
+     * while told one plays (`lineStarted` / `lineEnded`) and marks a turn
+     * begun meanwhile (`startedDuringTts` on its final). With it a turn ends
+     * without stopping the recognizer and the capture idles, unheard, until
+     * the next, so nothing is torn down and built again around the app's
+     * lines; each turn opens with only the last `SPEECH_TAIL_MS` the idle
+     * capture held (`keepOnsetTail`), not an answer just spoken; and a line
+     * held with `overLine` is heard through (one held without still stops
+     * it). Absent, the recognizer stops between turns and for every line.
      */
-    overLines?: { start(): void; end(): void };
+    continuous?: { lineStarted(): void; lineEnded(): void; keepOnsetTail(ms: number): void };
     /** Each change of SetupHearing, which starts at `opening`. Not called once
      *  listening has ended. */
     onHearing?: (hearing: SetupHearing) => void;
@@ -373,6 +379,10 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     // end after it has.
     const overLineHandlers: Array<(text: string) => boolean> = [];
     let lastOverLine: ((text: string) => boolean) | null = null;
+    // Waiting for the last line heard through to end (linesOver).
+    const linesOverWaiters: Array<() => void> = [];
+    const linesOver = (): Promise<void> =>
+        overLineHandlers.length === 0 ? Promise.resolve() : new Promise((resolve) => linesOverWaiters.push(resolve));
     // Between turns and under a line the recognizer stops but keeps its mic
     // stream, until listening is over. On macOS, letting an echo-cancelled
     // mic go rebuilds the audio output a second or two later, and a line
@@ -394,6 +404,17 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         setHearing('paused');
         return opts.engine.stop({ keepMicUntil: listeningOver });
     };
+    // A turn that has heard something: stopped, or where the capture runs on
+    // (`continuous`) left to idle. Stopped, the hosted engine closes its
+    // audio graph, and on Android a line begun within a second of that lost
+    // its first words (read from the timing on 2026-11-19, not measured).
+    const endTurn = (): Promise<void> => {
+        if (!opts.continuous) return stopBetweenTurns();
+        turnSeq++;
+        setHearing('paused');
+        return Promise.resolve();
+    };
+    let turnsBegun = 0;
 
     const keepOpen = (): void => {
         deadline = Math.min(now() + windowMs, ceiling);
@@ -425,13 +446,15 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     }, 500);
 
     const hold = async <T>(during: () => Promise<T>, overLine?: (text: string) => boolean): Promise<T> => {
-        const through = overLine ? opts.overLines : undefined;
+        // Without `overLine` (a voice's sample, a line in a local voice the
+        // OS may speak past the echo canceller) the recognizer stops.
+        const through = overLine ? opts.continuous : undefined;
         if (overLine && through) {
             const opening = opts.coldOpening?.();
             if (opening) await opening.catch(() => undefined);
             overLineHandlers.push(overLine);
             lastOverLine = overLine;
-            if (overLineHandlers.length === 1) through.start();
+            if (overLineHandlers.length === 1) through.lineStarted();
             try {
                 return await during();
             } finally {
@@ -439,7 +462,10 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                 // the line's last words.
                 await pause(SPEECH_TAIL_MS);
                 overLineHandlers.splice(overLineHandlers.indexOf(overLine), 1);
-                if (overLineHandlers.length === 0) through.end();
+                if (overLineHandlers.length === 0) {
+                    through.lineEnded();
+                    for (const resolve of linesOverWaiters.splice(0)) resolve();
+                }
             }
         }
         let release!: () => void;
@@ -472,6 +498,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             let failed = false;
             // Who hears this turn's words, if they were said over a line.
             let overLine: ((text: string) => boolean) | null = null;
+            if (turnsBegun++ > 0) opts.continuous?.keepOnsetTail(SPEECH_TAIL_MS);
             const turn = ++turnSeq;
             const canHear = opts.whenHearing?.().catch(() => undefined) ?? Promise.resolve();
             void Promise.race([canHear, pause(HEARING_WAIT_MAX_MS)]).then(() => {
@@ -487,12 +514,13 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                         // leaving the loop, while the engine still holds it;
                         // an engine forgets its recognizer once its iterator
                         // is closed, and stop() after that reaches nothing,
-                        // leaving a mic open that no one is reading.
+                        // leaving a mic open that no one is reading. (A
+                        // `continuous` capture is read between turns too.)
                         heard = event.text;
                         overLine =
                             overLineHandlers.at(-1) ??
-                            (opts.overLines && event.startedDuringTts ? lastOverLine : null);
-                        await stopBetweenTurns().catch(() => undefined);
+                            (opts.continuous && event.startedDuringTts ? lastOverLine : null);
+                        await endTurn().catch(() => undefined);
                         break;
                     }
                 }
@@ -502,7 +530,12 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             if (ended) return;
             // Stopped from under it by a hold: that is not the recognizer failing.
             if (holds > 0) continue;
-            if (failed) return void end('error', undefined, opts.keepMicOnError?.());
+            if (failed) {
+                // A turn heard through a line can fail under it: ended once
+                // the line is over, as the room's limit is below.
+                await linesOver();
+                return void end('error', undefined, opts.keepMicOnError?.());
+            }
             if (heard && opts.isEcho?.(heard)) heard = '';
             if (heard && overLine) {
                 if (overLine(heard)) {
@@ -511,7 +544,12 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                 }
                 // Not the line's to act on: the room, or the line itself.
                 unheard += now() - askedAt >= lateAfterMs ? lateUnheardCost : 1;
-                if (unheard >= unheardLimit) return void end('window');
+                // Closed once the lines are over, not under one: on Android
+                // the capture closing ends call mode beneath it.
+                if (unheard >= unheardLimit) {
+                    await linesOver();
+                    return void end('window');
+                }
                 continue;
             }
             const request = heard ? parseBeginRequest(heard) : null;

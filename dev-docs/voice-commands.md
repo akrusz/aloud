@@ -597,6 +597,28 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   "begin" said during the close is not heard. On Android a capture opened
   under the close dropped its level
   ([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
+- **Hosted recognition is not stopped at all between turns** (`continuous` in
+  `listenOnSetup`, wired in `views/setup.ts` for `WhisperPcmSttEngine` on a
+  hosted pick, except on an iPhone). A stop closes the engine's audio graph
+  as well as pausing it, and on Android that graph is a 48 kHz call-stream
+  player of its own: both lines Alex heard lose their first words (Harper's
+  felt sense card, "partway into the f", and Ethan's methods line, about
+  1.4s) began within a second of the graph being closed, and its next turn
+  started a new one, while the felt sense line played whole on the way back,
+  with no hosted capture left to close (2026-11-19; read from the code's
+  timing against the log, not measured). So a turn ends and the capture
+  idles, unheard, as a session's does between replies; an answer plays while
+  it idles, and the next turn opens on only the last `SPEECH_TAIL_MS` it held
+  (`keepOnsetTail`), not on the answer. The graph starts once per listener
+  (Chromium stops its silent player after about 30s) and closes when the
+  listener ends: at Begin, before the opening, its stream held as above. A
+  listener that a room talks shut, or that fails, while a line is heard
+  through ends once the line is over, not under it (`linesOver`). A
+  tour line in a house voice is heard through (below); a voice's sample, or a
+  line in a local voice the OS may speak past the canceller, still stops the
+  recognizer. The clips already open on 0.24 to 0.62s of the provider's
+  silence (median 0.36s), so leading silence long enough to cover 1.4s would
+  have added a second to every line on every platform.
 - **A line waits for a mic opened cold.** Opening an echo-cancelled capture
   with no other capture of ours open starts voice processing on macOS, which
   rebuilds the audio output, and switches a Bluetooth headset from music to
@@ -738,7 +760,7 @@ voices and would move them off it.
   held line too.
 - **A word over a line, on hosted recognition.** Hosted recognition's
   echo-cancelled capture goes on hearing while a tour line plays (`hold` with
-  `overLine` in `voice-start.ts`, `overLines` in `views/setup.ts`), its speech
+  `overLine` in `voice-start.ts`, `continuous` in `views/setup.ts`), its speech
   bar raised above the line's echo as in a session (`setTtsActive`,
   [voice-barge-in.md](voice-barge-in.md)). A turn said over a line, or begun
   over one and ended after it (`startedDuringTts`), goes to the tour alone

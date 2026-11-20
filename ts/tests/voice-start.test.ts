@@ -866,10 +866,10 @@ describe('listenOnSetup: a line held for a capture opened cold', () => {
     });
 });
 
-describe('listenOnSetup: hearing through a line (overLines)', () => {
-    // On hosted recognition's echo-cancelled capture "next" said over a tour
-    // line used to go unheard: every line stopped the recognizer (Android,
-    // 2026-11-19).
+describe('listenOnSetup: a capture that runs on between turns (continuous)', () => {
+    // On hosted recognition "next" said over a tour line went unheard, every
+    // line stopping the recognizer, and the stop closed the engine's audio
+    // graph as the line began (Android, 2026-11-19).
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
@@ -892,12 +892,15 @@ describe('listenOnSetup: hearing through a line (overLines)', () => {
             say(text: string, startedDuringTts = false): void {
                 push?.({ type: 'final', text, startedDuringTts });
             },
+            fail(): void {
+                push?.({ type: 'error', error: new Error('lost') });
+            },
         };
         return engine;
     }
 
-    function listen(engine: SttEngine, through = true) {
-        const bracket: string[] = [];
+    function listen(engine: SttEngine, continuous = true, extra: Partial<ListenOnSetupOptions> = {}) {
+        const calls: string[] = [];
         const heard: string[] = [];
         const ends: VoiceStartEnd[] = [];
         const begun: BeginRequest[] = [];
@@ -910,24 +913,33 @@ describe('listenOnSetup: hearing through a line (overLines)', () => {
                 return true;
             },
             onEnd: (why) => void ends.push(why),
-            ...(through ? { overLines: { start: () => void bracket.push('start'), end: () => void bracket.push('end') } } : {}),
+            ...extra,
+            ...(continuous
+                ? {
+                      continuous: {
+                          lineStarted: () => void calls.push('line'),
+                          lineEnded: () => void calls.push('line over'),
+                          keepOnsetTail: (ms: number) => void calls.push(`onset ${ms}`),
+                      },
+                  }
+                : {}),
         });
-        return { handle, bracket, heard, ends, begun };
+        return { handle, calls, heard, ends, begun };
     }
 
     it('keeps the recognizer running through a line, the engine told of it', async () => {
         const engine = liveEngine();
-        const { handle, bracket } = listen(engine);
+        const { handle, calls } = listen(engine);
         await vi.advanceTimersByTimeAsync(100);
         let done = false;
         void handle.hold(() => new Promise<void>((r) => setTimeout(r, 3_000)), () => false).then(() => (done = true));
         await vi.advanceTimersByTimeAsync(2_900);
         expect(engine.stops).toBe(0);
         expect(engine.starts).toBe(1);
-        expect(bracket).toEqual(['start']);
+        expect(calls).toEqual(['line']);
         await vi.advanceTimersByTimeAsync(100 + SPEECH_TAIL_MS + 50);
         expect(done).toBe(true);
-        expect(bracket).toEqual(['start', 'end']);
+        expect(calls).toEqual(['line', 'line over']);
     });
 
     it('hands what is said over the line to the line alone, and begins nothing', async () => {
@@ -951,8 +963,9 @@ describe('listenOnSetup: hearing through a line (overLines)', () => {
         expect(heard).toEqual([]);
         expect(begun).toEqual([]);
         expect(ends).toEqual([]);
-        // Listening on after each, still under the line.
+        // Listening on after each, still under the line, never stopped.
         expect(engine.starts).toBe(3);
+        expect(engine.stops).toBe(0);
     });
 
     it('still hands over an utterance begun over the line that ends after it', async () => {
@@ -978,14 +991,72 @@ describe('listenOnSetup: hearing through a line (overLines)', () => {
         expect(heard).toEqual(['twenty minutes']);
     });
 
-    it('stops the recognizer for a line as before where the listener cannot hear through one', async () => {
+    it('stops for a line held without a listener of its own, which the OS may speak past the canceller', async () => {
         const engine = liveEngine();
-        const { handle, bracket } = listen(engine, false);
+        const { handle, calls } = listen(engine);
         await vi.advanceTimersByTimeAsync(100);
-        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)), () => true);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 2_000)));
         await vi.advanceTimersByTimeAsync(500);
         expect(engine.stops).toBe(1);
-        expect(bracket).toEqual([]);
+        expect(calls).toEqual([]);
+    });
+
+    it('does not stop between turns, and opens each on only the last moment the capture held', async () => {
+        // The answer to a request plays while the capture idles: what it
+        // heard of it must not open the next turn.
+        const engine = liveEngine();
+        const { heard, calls } = listen(engine);
+        await vi.advanceTimersByTimeAsync(100);
+        engine.say('twenty minutes');
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 100);
+        expect(heard).toEqual(['twenty minutes']);
+        expect(engine.stops).toBe(0);
+        expect(engine.starts).toBe(2);
+        expect(calls).toEqual([`onset ${SPEECH_TAIL_MS}`]);
+    });
+
+    it('closes on a room that keeps talking over a line only once the line is over', async () => {
+        // Closed under it, the capture would end call mode beneath the line.
+        const engine = liveEngine();
+        const { handle, ends } = listen(engine, true, { unheardLimit: 2 });
+        await vi.advanceTimersByTimeAsync(100);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 3_000)), () => false);
+        await vi.advanceTimersByTimeAsync(200);
+        engine.say('the weather on channel one', true);
+        await vi.advanceTimersByTimeAsync(200);
+        engine.say('the weather on channel two', true);
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(ends).toEqual([]);
+        expect(engine.stops).toBe(0);
+        await vi.advanceTimersByTimeAsync(2_000 + SPEECH_TAIL_MS);
+        expect(ends).toEqual(['window']);
+    });
+
+    it('ends on a recognizer that fails under a line only once the line is over', async () => {
+        const engine = liveEngine();
+        const { handle, ends } = listen(engine);
+        await vi.advanceTimersByTimeAsync(100);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 2_000)), () => false);
+        await vi.advanceTimersByTimeAsync(200);
+        engine.fail();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(ends).toEqual([]);
+        expect(engine.stops).toBe(0);
+        await vi.advanceTimersByTimeAsync(1_500 + SPEECH_TAIL_MS);
+        expect(ends).toEqual(['error']);
+    });
+
+    it('stops the recognizer between turns and for a line as before without it', async () => {
+        const engine = liveEngine();
+        const { handle, calls } = listen(engine, false);
+        await vi.advanceTimersByTimeAsync(100);
+        engine.say('twenty minutes');
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 100);
+        expect(engine.stops).toBe(1);
+        void handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)), () => true);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.stops).toBe(2);
+        expect(calls).toEqual([]);
     });
 });
 
