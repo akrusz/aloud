@@ -33,6 +33,11 @@ speech, with dev mode on and the phone on USB so the diag lines and
 `dumpsys audio` can be read afterwards (the playback log rolls within a few
 minutes of a run):
 
+- [ ] **The store age check stays out of the way** (`meditation-pal-p6ml.9`).
+      The app opens as before, with no pause at launch after the first one.
+      With dev mode on, a build that Play did not install logs
+      `[age-check] unavailable APP_NOT_OWNED (-9)`: the plugin ran and failed
+      open.
 - [ ] **Harper's level.** In a session she is as loud as her tour lines and
       sits sensibly against the opening sound.
 - [ ] **Sounds** (`meditation-pal-grfo`). The close holds one level to its
