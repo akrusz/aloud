@@ -24,6 +24,7 @@ import { escapeHtml } from '../escape-html.js';
 import { isCapacitor, isTauri } from '../is-desktop.js';
 import { displayVoiceName, parseTourCommand, type OfferedVoice, type SetupLineId } from '../../../src/facilitation/index.js';
 import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
+import { opensPanel, readAlong, readAlongPxPerSecond, windowPage, wordCount } from './tour-scroll.js';
 
 const GUIDE_DONE_KEY = 'aloud-index-guide-done';
 const GUIDE_REMIND_KEY = 'aloud-index-guide-remind';
@@ -159,6 +160,11 @@ let controlTipSaid = false;
 let methodsIntroSaid = false;
 /** The microphone stopped listening under the tour (tourMicFailed). */
 let micFailed = false;
+/** A phone's read-along scroll under way (startReadAlong), and the step
+ *  whose read-along the person stopped: a redraw of the same card (a width
+ *  change) does not start it again. */
+let readAlongRun: { stop(): void } | null = null;
+let readAlongStoppedAt = -1;
 let quickStartPoll: ReturnType<typeof setInterval> | null = null;
 const QUICK_START_POLL_MS = 500;
 
@@ -340,6 +346,8 @@ function landFocus(): void {
 
 function cleanup(): void {
     stopQuickStartPoll();
+    stopReadAlong();
+    readAlongStoppedAt = -1;
     releasePage();
     speechTurn++;
     spokenStep = -1;
@@ -759,10 +767,12 @@ function showSection(section: Section): void {
 
     resetTarget();
 
-    // Not in the phone apps, where an open panel pushed the section's
-    // controls off the screen. Its ? still opens it.
+    // In the phone apps only for a tour not read aloud, whose cards have no
+    // other words: read aloud, an open panel pushed the section's controls
+    // off the screen. Its ? still opens it.
     const panel = document.getElementById('info-' + (section.panel || section.id));
-    if (panel && !isCapacitor()) panel.classList.remove('hidden');
+    const opened = panel !== null && opensPanel({ phone: isCapacitor(), readAloud: speaking() });
+    if (opened) panel.classList.remove('hidden');
 
     // Elevate the target above the overlay so its info panel is readable.
     target.classList.add('guide-elevated');
@@ -781,8 +791,41 @@ function showSection(section: Section): void {
             if (cardEl) placeCard(cardEl, target.getBoundingClientRect());
             linkDotToSpotlight(target);
             speakStep();
+            if (opened && panel && isCapacitor()) startReadAlong(target, panel);
         });
     });
+}
+
+/**
+ * A panel opened on a phone that runs the section past the card docked at
+ * the foot of the screen: the page scrolls on by itself at reading pace
+ * until it has all been shown (tour-scroll.ts readAlong). The card is fixed,
+ * so Next and Back stay where they are throughout.
+ */
+function startReadAlong(target: HTMLElement, panel: HTMLElement): void {
+    stopReadAlong();
+    const step = currentStep;
+    if (readAlongStoppedAt === step) return;
+    readAlongRun = readAlong(
+        windowPage(),
+        () => {
+            if (!cardEl || currentStep !== step) return null;
+            const panelBox = panel.getBoundingClientRect();
+            return {
+                readFrom: panelBox.top,
+                visibleTop: getNavHeight() - 16,
+                visibleBottom: cardEl.getBoundingClientRect().top - PADDING,
+                contentBottom: target.getBoundingClientRect().bottom + PADDING,
+                pxPerSecond: readAlongPxPerSecond(wordCount(panel.textContent ?? ''), panelBox.height),
+            };
+        },
+        () => (readAlongStoppedAt = step)
+    );
+}
+
+function stopReadAlong(): void {
+    readAlongRun?.stop();
+    readAlongRun = null;
 }
 
 /** The last card: the close, and where the mic is on offer, that all of it
@@ -801,10 +844,12 @@ function showDone(): void {
 function goToStep(index: number): void {
     const step = steps[index];
     if (!step) return;
+    stopReadAlong();
     if (index !== currentStep) {
         // The line for the step being left stops with it.
         speechTurn++;
         tourVoice?.stop();
+        readAlongStoppedAt = -1;
     }
     // The voices introduce themselves: with voice mode off (left off at the
     // mic step, or switched off since) their step is passed by, either way.

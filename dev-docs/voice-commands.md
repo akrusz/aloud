@@ -790,6 +790,15 @@ voices and would move them off it.
   for the rest of the tour. The last card's line, which says what to say, is
   read only where the mic is on (with the permission still to be asked, the
   other cards are read and that one is not).
+- **What a phone shows instead.** In the phone apps a section's `?` panel
+  opens only on a card not read aloud (voice mode off, or the card's speaker
+  switched off: `speaking()` in `tour/index-guide.ts`, read as each card goes
+  up, so a card muted or unmuted keeps the layout it was shown with). Read
+  aloud, the panel said what the line says and pushed the section's controls
+  off the screen. A panel that runs the section past the docked card is
+  shown by a slow scroll at reading pace that gives way to the person
+  ([style.md](style.md#tour-popup-styling), `readAlong` in
+  `tour/tour-scroll.ts`). Desktop and the web open every panel, as before.
 - **A tour starting wakes a mic that is asleep** (`TourVoice.reopen`), where
   nothing else keeps it shut (permission, a page not yet touched, hosted
   recognition signed out), and then offers no card to turn it on. With voice
