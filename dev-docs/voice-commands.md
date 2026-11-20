@@ -660,6 +660,13 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   ours. A turn stopped for a line before it has asked for the mic opens
   none (`start` in `whisper-pcm-stt.ts`), so the line plays at once and the
   mic opens after it; until 2026-11-18 it opened anyway, under the line.
+  Where the capture runs on (`continuous`) the turn is not stopped and opens
+  the mic under the line, so `coldOpening` can still be null as the line is
+  asked for: Harper's introduction, started 46 ms after the mic was asked
+  for, ran 4.59s for its 3.65s (desktop app, 2026-11-20). A line heard
+  through waits instead until the listener has first heard (`firstHeard` in
+  `listenOnSetup`, the first turn's `whenHearing`), at most
+  `HEARING_WAIT_MAX_MS`.
   Answers to a request need none of this: the capture has heard the request.
 - **Not where the recognizer would need a sign-in.** A hosted speech
   recognition pick with nobody signed in would refuse the first thing heard,

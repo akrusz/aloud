@@ -943,6 +943,36 @@ describe('listenOnSetup: a capture that runs on between turns (continuous)', () 
         expect(calls).toEqual(['line', 'line over']);
     });
 
+    it('starts its first line once the capture can hear, and later ones at once', async () => {
+        // Played as the capture opened, Harper's introduction ran 4.59s for
+        // 3.65s of audio (desktop app, 2026-11-20).
+        const engine = liveEngine();
+        const signal = hearingSignal();
+        const { handle } = listen(engine, true, { whenHearing: signal.whenHearing });
+        const started: string[] = [];
+        void handle.hold(async () => void started.push('first'), () => false);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(started).toEqual([]);
+        signal.hear();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(started).toEqual(['first']);
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 50);
+        void handle.hold(async () => void started.push('second'), () => false);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(started).toEqual(['first', 'second']);
+    });
+
+    it('starts its first line HEARING_WAIT_MAX_MS on at most, should the capture never hear', async () => {
+        const engine = liveEngine();
+        const { handle } = listen(engine, true, { whenHearing: () => new Promise<void>(() => undefined) });
+        let started = false;
+        void handle.hold(async () => void (started = true), () => false);
+        await vi.advanceTimersByTimeAsync(HEARING_WAIT_MAX_MS - 100);
+        expect(started).toBe(false);
+        await vi.advanceTimersByTimeAsync(100);
+        expect(started).toBe(true);
+    });
+
     it('hands what is said over the line to the line alone, and begins nothing', async () => {
         const engine = liveEngine();
         const { handle, heard, ends, begun } = listen(engine);

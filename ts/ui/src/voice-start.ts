@@ -299,7 +299,8 @@ export interface VoiceStartHandle {
      * opened cold is let settle first (`coldOpening`).
      *
      * With `overLine`, on a listener that can (`ListenOnSetupOptions.continuous`),
-     * the recognizer goes on hearing through the line instead. What is said
+     * the recognizer goes on hearing through the line instead, which waits
+     * until the listener has first heard (at most HEARING_WAIT_MAX_MS). What is said
      * over it (begun while it played) goes to `overLine` alone, which returns
      * true when it acted: nothing said over a line begins a session or reaches
      * `onHeard`, since a line can name "begin" or a setting.
@@ -439,7 +440,10 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     let letMicGo!: () => void;
     const listeningOver = new Promise<void>((resolve) => (letMicGo = resolve));
     let hearing: SetupHearing = 'opening';
+    let heardOnce!: () => void;
+    const firstHeard = new Promise<void>((resolve) => (heardOnce = resolve));
     const setHearing = (next: SetupHearing): void => {
+        if (next === 'hearing') heardOnce();
         // Until it has heard once, any wait is still the mic opening.
         if (ended || next === hearing || (next === 'paused' && hearing === 'opening')) return;
         hearing = next;
@@ -499,6 +503,9 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         // OS may speak past the echo canceller) the recognizer stops.
         const through = overLine ? opts.continuous : undefined;
         if (overLine && through) {
+            // The turn running beneath opens the capture after the line has
+            // been asked for, so coldOpening alone can still be null here.
+            await Promise.race([firstHeard, pause(HEARING_WAIT_MAX_MS)]);
             const opening = opts.coldOpening?.();
             if (opening) await opening.catch(() => undefined);
             overLineHandlers.push(overLine);
