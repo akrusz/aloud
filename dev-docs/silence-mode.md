@@ -28,6 +28,12 @@ one-utterance, no-history classifiers in `resume-intent.ts` gate the silence:
 
 `routeUtterance` (`silence-dispatch.ts`) owns the precedence between them.
 
+The reply to the bid is listened to as the answer to a question, as the end
+question's is: a plain yes or no ends the turn without the rest of the
+pause, and a soft word right after the question is heard
+([voice-commands.md](voice-commands.md#the-two-that-need-no-judge), Hearing
+the answer).
+
 The one thing that speaks inside a hold is the session timer's completion
 notice, which puts the hold back afterwards: [pacing.md](pacing.md#session-timer).
 

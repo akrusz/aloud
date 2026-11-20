@@ -48,6 +48,33 @@ ever a bid, and a wrong match gets asked "Would you like to end the session now?
 The answer is a small vocabulary where any no-word wins and one unknown word
 makes it an ordinary turn ("yes, I think my leg is asleep").
 
+**Hearing the answer.** On the Whisper engines (local Whisper, aloud cloud)
+the turn after the question is taken as its answer (`listenForAnswer` in
+`views/session.ts`, `expectAnswer` in `whisper-pcm-stt.ts`) for the
+question's 45 seconds, or until something with words is heard. Two things
+differ from a meditation turn, both after a "yes" on an Android phone was
+lost once and then waited 3.1s to be acted on (meditation-pal-cs6y):
+
+- It ends as soon as a speculative pass comes back as a plain yes or no
+  (`endConfirmReply`) with nothing said since: 0.75s of quiet plus the pass,
+  where a turn waits out the session's pause (3s and up). Anything else
+  ("hmm, yes") waits the full pause, so a hesitant reply is not cut in two.
+  The pass runs even with speculative passes off, and past two seconds of
+  speech it is a turn and turn rules apply (`ANSWER_MAX_SPEECH_MS`).
+- For a second after the question ends the mic holds the echo gate up
+  (`TTS_ACTIVE_HANGOVER_MS`), and a word had to clear the bar for speech over
+  the facilitator. Over that tail the bar is now set by how loud the question
+  itself was at the mic ([voice-barge-in.md](voice-barge-in.md#detection)), so
+  a soft "yes" said the moment the question ends opens the turn. While any
+  line plays the bar is as before: the facilitator's voice can't answer.
+
+A hold bid ("shall I be quiet?") is listened to the same way. The browser's
+and the phones' own recognizers end their turns themselves and get neither. A
+cough transcribed as only a marker leaves the question open. Each answer
+leaves `[vad] answer ...` lines (where it began after the question, or the
+loudest sound over the tail that didn't open it) and a `[turn] end-confirm`
+line (the verdict, who gave it, how long after the question it was heard).
+
 A noting circle has its own listen loop (`views/noting-session.ts`) and no
 judge at all, so these two are its whole command set: on the meditator's turn
 "mute" pauses the circle as the mic button does, and "end the session" asks,

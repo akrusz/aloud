@@ -1012,6 +1012,7 @@ export async function mountSessionView(
         // playback belongs to.
         const engine = echoListener();
         if (!engine) return;
+        engine.notePlaybackEnded();
         if (!continuousCapture) engine.watchPlaybackTail();
         ttsActiveOffTimer = setTimeout(() => {
             ttsActiveOffTimer = null;
@@ -1978,10 +1979,21 @@ export async function mountSessionView(
     // a "yes" to the facilitator five minutes later must not end the sit.
     const END_CONFIRM_WINDOW_MS = 45_000;
     let endConfirmUntil = 0;
+    /** When the end question finished playing, for the [turn] line. */
+    let endAskedAt = 0;
     // What a yes to the open question does. Plain "end the session" follows the
     // save-logs setting; "end without saving" / "end and save" override it for
     // this sit, the same two choices the End dialog offers by hand.
     let endConfirmSkipSave = false;
+
+    /** A yes/no question has just been spoken (the end question, a hold bid):
+     *  the Whisper engines take the next utterance as its answer (expectAnswer,
+     *  voice-commands.md). A plain yes or no ends the turn without the rest of
+     *  the meditation turn's pause; the browser's and the phones' recognizers
+     *  end their turns themselves. */
+    function listenForAnswer(): void {
+        echoListener()?.expectAnswer((text) => endConfirmReply(text) !== null, END_CONFIRM_WINDOW_MS);
+    }
 
     /** Supersede an in-flight reply so a command can speak. */
     function takeFloor(): void {
@@ -2197,7 +2209,14 @@ export async function mountSessionView(
                           ? COMMAND_LINES.endDiscardConfirm(lang)
                           : COMMAND_LINES.endSaveConfirm(lang);
                 // From the end of the question, not the start of speaking it.
-                return { line, after: () => (endConfirmUntil = Date.now() + END_CONFIRM_WINDOW_MS) };
+                return {
+                    line,
+                    after: () => {
+                        endAskedAt = Date.now();
+                        endConfirmUntil = endAskedAt + END_CONFIRM_WINDOW_MS;
+                        listenForAnswer();
+                    },
+                };
             }
             case 'repeat':
                 // Its own path (repeatLastLine): it speaks off the record.
@@ -2237,13 +2256,20 @@ export async function mountSessionView(
     /** The reply to "Would you like to end the session now?". True when it was
      *  consumed here; false sends it on as an ordinary utterance. */
     async function handleEndConfirm(userText: string): Promise<boolean> {
-        endConfirmUntil = 0;
+        // A cough is no answer: the question stays open for the one that comes.
         if (isNonSpeechOnly(userText)) return false;
+        endConfirmUntil = 0;
+        const heardAfterMs = Date.now() - endAskedAt;
         // The judge reads the reply where there is one. A plain yes or no is
         // also recognized outright (core end-command.ts): all a sit without
         // the judge has, and what one whose judge failed falls back to.
         let verdict = cloudJudge ? await classifyEndConfirm(cloudJudge, userText) : 'other';
-        if (verdict === 'other') verdict = endConfirmReply(userText) ?? 'other';
+        const judged = verdict !== 'other';
+        if (!judged) verdict = endConfirmReply(userText) ?? 'other';
+        diag(
+            `[turn] end-confirm: ${verdict} by ${judged ? 'judge' : 'words'}, ` +
+                `${userText.length} chars, heard ${(heardAfterMs / 1000).toFixed(1)}s after the question`
+        );
         tapEvent('note', `end-confirm:${verdict}`, { utterance: userText });
         if (torn) return true;
         if (verdict === 'yes') {
@@ -2729,6 +2755,7 @@ export async function mountSessionView(
             }
             if (superseded()) return;
             awaitingHoldConfirm = bid;
+            if (bid) listenForAnswer();
             tapFlags({ awaitingHoldConfirm });
             if (hold) tapEvent('signal', awaitingHoldConfirm ? 'hold-bid' : 'hold-bid-ignored');
             setStatus(idleStatus());

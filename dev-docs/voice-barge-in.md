@@ -215,6 +215,20 @@ On the engine-driven path two things sit on top of that energy test
   So for that one playback the gate is at least `ECHO_WARMUP_GATE` (0.1),
   armed per stream and opened by `noteVoicePlayback()` from
   `ttsPlaybackStarted`. Deliberate speech measured 0.17-0.28.
+- **A lower bar over the tail of a question.** The session holds the gate up
+  for `TTS_ACTIVE_HANGOVER_MS` (1s) past each line, and a turn can only open
+  there at the barge-in bar. After a yes/no question the app asked
+  (`expectAnswer`, [voice-commands.md](voice-commands.md#the-two-that-need-no-judge))
+  that tail's bar is `ANSWER_ECHO_MARGIN` (3) times the loudest the question
+  was at the mic, never under `ANSWER_BAR_FLOOR` (0.01) and never over the bar
+  it replaces. A sound's tail is no louder than the sound, so nothing over
+  that is the question's echo. On an Android phone's speaker the end question
+  peaked at 0.0007 at the mic and the soft "yes" after it at 0.033, one frame
+  over the 0.03 bar, and no turn opened (Silero's verdict trails the audio by
+  a frame or so, so one loud frame rarely carries it; meditation-pal-cs6y).
+  The bar holds in full while any line plays
+  (`noteVoicePlayback` to `notePlaybackEnded`, from `ttsPlaybackEnded`), and
+  barge-in keeps its own.
 
 The generic wrapper (`barge-in.ts`) has neither: it is the plain
 energy-over-threshold test described above.
@@ -285,6 +299,8 @@ and no watchdog/cooldown machinery is needed.
 | `ECHO_GATE_MARGIN` | 2.0 | `whisper-pcm-stt.ts` | Multiplier on the measured echo floor while TTS is audible |
 | `ECHO_GATE_MAX` | 0.035 | `whisper-pcm-stt.ts` | Cap on that gate, kept below real-speech level |
 | `ECHO_WARMUP_GATE` | 0.1 | `whisper-pcm-stt.ts` | Gate floor during a new capture stream's first voice playback |
+| `ANSWER_ECHO_MARGIN` | 3 | `whisper-pcm-stt.ts` | Over an asked question's tail, the bar as a multiple of the question's own echo peak |
+| `ANSWER_BAR_FLOOR` | 0.01 | `whisper-pcm-stt.ts` | The lowest that bar goes |
 | `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
 | `LEAD_KEEP_MS` | 500 | `whisper-pcm-stt.ts` | How much of that onset survives the pre-POST quiet trim (`submitPayload`), so the retained ramp isn't billed as room tone. Raise if a first word ever clips |
 

@@ -128,6 +128,22 @@ const ECHO_GATE_MAX = 0.035;
 // and the pre-buffer keeps the onset of a barge-in that clears it late.
 const ECHO_WARMUP_GATE = 0.1;
 
+// The answer to a question the facilitator just asked (expectAnswer). Over
+// the question's tail (the caller's echo hangover, setTtsActive) the bar for
+// the meditator's voice is the loudest the question itself was at the mic,
+// times ANSWER_ECHO_MARGIN, and never under ANSWER_BAR_FLOOR or over the bar
+// it replaces: a sound's tail is no louder than the sound, so anything over
+// that is not its echo. Held at BARGE_IN_THRESHOLD, a soft "yes" said just
+// after "Would you like to end the session now?" peaked at 0.033 under a
+// question whose echo peaked at 0.0007, and was lost (Android, aloud cloud,
+// 2026-11-19, meditation-pal-cs6y).
+const ANSWER_ECHO_MARGIN = 3;
+const ANSWER_BAR_FLOOR = 0.01;
+// An answer ends once a speculative pass reads as a whole one with no speech
+// since, instead of on the session's adaptive pause (3s and up). Past this
+// much speech it is a turn, not an answer, and turn rules apply.
+const ANSWER_MAX_SPEECH_MS = 2000;
+
 // Energy-only speech decision, active ONLY while the Silero session is
 // unavailable (create failed - 6z11): a frame is speech when it clears the max
 // of this static floor, 3x the adaptive noise floor, and the echo gates. Worse
@@ -392,6 +408,20 @@ export class WhisperPcmSttEngine implements SttEngine {
     private voiceWarmupArmed = false;
     private voiceWarmup = false;
     private warmupPeak = 0;
+    // A voice line is playing (noteVoicePlayback to notePlaybackEnded), the
+    // loudest frame the mic heard while it did, and when it last ended.
+    private lineSounding = false;
+    private lineEchoPeak = 0;
+    private lineEndedAt: number | null = null;
+    // expectAnswer: what reads as a whole answer, until when (performance
+    // clock), and what the mic heard over the question's tail before the
+    // answer's speech began (diagnostic).
+    private answer: {
+        isAnswer: (text: string) => boolean;
+        until: number;
+        tailPeak: number;
+        tailPeakAt: number;
+    } | null = null;
     // Per-playback echo stats, logged when playback ends (setTtsActive). Null
     // between replies. Diagnostic only - nothing reads it.
     private echoWatch: { frames: number; overGate: number; peak: number; sum: number } | null =
@@ -599,20 +629,85 @@ export class WhisperPcmSttEngine implements SttEngine {
         return Math.min(this.echoFloor * ECHO_GATE_MARGIN, ECHO_GATE_MAX);
     }
 
+    /** The echo gate as it stands: 0 with no TTS audible. */
+    private echoGateNow(): number {
+        if (!this.ttsActive) return 0;
+        const gate = this.echoGateLevel();
+        return this.voiceWarmup ? Math.max(gate, ECHO_WARMUP_GATE) : gate;
+    }
+
+    /** The energy a frame must clear to count as the meditator's voice while
+     *  the facilitator may be heard (barge-in grade), or 0 when the echo gate
+     *  is down and Silero's verdict decides alone. Lower over the tail of a
+     *  question an answer is expected to (ANSWER_ECHO_MARGIN). */
+    private speechBar(echoGate: number): number {
+        if (echoGate === 0) return 0;
+        const bar = Math.max(echoGate, BARGE_IN_THRESHOLD);
+        return this.answer && !this.lineSounding ? Math.min(bar, this.answerBar()) : bar;
+    }
+
+    private answerBar(): number {
+        return Math.max(ANSWER_BAR_FLOOR, this.lineEchoPeak * ANSWER_ECHO_MARGIN);
+    }
+
     /** Per-frame speech decision. With the model up: Silero's debounced
-     *  verdict, plus barge-in-grade energy while TTS plays (echo IS speech to
-     *  Silero, so speaker separation needs the energy reference - 8h1x).
-     *  Degraded (silero null): the energy gate over the adaptive noise floor. */
-    private isSpeechFrame(energy: number, echoGate: number): boolean {
-        if (this.silero) {
-            return (
-                this.silero.speaking &&
-                (echoGate === 0 || energy > Math.max(echoGate, BARGE_IN_THRESHOLD))
-            );
-        }
+     *  verdict, plus the energy bar while TTS plays (echo IS speech to Silero,
+     *  so speaker separation needs the energy reference - 8h1x). Degraded
+     *  (silero null): the energy gate over the adaptive noise floor. */
+    private isSpeechFrame(energy: number, bar: number): boolean {
+        if (this.silero) return this.silero.speaking && (bar === 0 || energy > bar);
         let threshold = Math.max(FALLBACK_ENERGY_THRESHOLD, this.noiseFloor * 3);
-        if (echoGate > 0) threshold = Math.max(threshold, echoGate, BARGE_IN_THRESHOLD);
+        if (bar > 0) threshold = Math.max(threshold, bar);
         return energy > threshold;
+    }
+
+    /** Speech so far is short enough to be the answer expectAnswer waits for. */
+    private answerSized(): boolean {
+        return this.answer !== null && this.lastSpeechMs - this.speechStartMs <= ANSWER_MAX_SPEECH_MS;
+    }
+
+    /** The submit decision: the turn's audio is complete, the final pass may
+     *  run. `how` marks a turn that ended as an answer (expectAnswer). */
+    private endUtterance(now: number, needed: number, how: 'pause' | 'answer'): void {
+        this.utteranceDone = true;
+        this.hintAtSubmit = this.lastHintChunk;
+        const speechDur = this.lastSpeechMs - this.speechStartMs;
+        diag(
+            `[vad] submit speech=${Math.round(speechDur)}ms ` +
+                `needed=${Math.round(needed)}ms silence=${Math.round(now - this.lastSpeechMs)}ms ` +
+                `peak=${this.peakEnergy.toFixed(3)} ` +
+                `echoFloor=${this.echoFloor.toFixed(4)} ` +
+                `dropped=${this.silero?.droppedChunks ?? 0} ` +
+                `dangling=${this.partialIncomplete} ` +
+                `mode=${this.silero ? 'silero' : `energy(floor=${this.noiseFloor.toFixed(4)})`}` +
+                (this.answer ? ` answer=${how === 'answer' ? 'early' : 'full-pause'}` : '')
+        );
+        // Energy + speech-prob traces, last 8s in 0.5s buckets (max per
+        // bucket, oldest first). The prob row shows what the model thought
+        // during the trailing "silence" - held speech vs a real pause; the
+        // energy row contextualizes the echo gate.
+        if (diagOn()) {
+            const tail = (pick: (h: { e: number; p: number }) => number, floor: number) => {
+                const buckets = new Array<number>(16).fill(floor);
+                for (const h of this.energyHistory) {
+                    const idx = Math.floor((now - h.t) / 500);
+                    if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, pick(h));
+                }
+                return buckets.reverse();
+            };
+            diag(
+                `[vad] tail 8s->now (max rms / 0.5s): ` +
+                    tail((h) => h.e, 0).map((b) => b.toFixed(3)).join(' ')
+            );
+            if (this.silero) {
+                diag(
+                    `[vad] tail 8s->now (max speech-prob / 0.5s): ` +
+                        tail((h) => h.p, -1)
+                            .map((v) => (v < 0 ? '----' : v.toFixed(2)))
+                            .join(' ')
+                );
+            }
+        }
     }
 
     /** Trailing silence that ends the turn. Adaptive: each ms of speech buys
@@ -661,11 +756,14 @@ export class WhisperPcmSttEngine implements SttEngine {
         // floor. Zero otherwise (no echo to reject), so a silent gap keeps the
         // normal sensitive thresholds. Capped below real-speech level, except
         // while the canceller warms up to the voice (ECHO_WARMUP_GATE).
-        let echoGate = this.ttsActive ? this.echoGateLevel() : 0;
-        if (this.voiceWarmup && this.ttsActive) {
-            echoGate = Math.max(echoGate, ECHO_WARMUP_GATE);
-            this.warmupPeak = Math.max(this.warmupPeak, energy);
+        const echoGate = this.echoGateNow();
+        if (this.voiceWarmup && this.ttsActive) this.warmupPeak = Math.max(this.warmupPeak, energy);
+        if (this.lineSounding) this.lineEchoPeak = Math.max(this.lineEchoPeak, energy);
+        if (this.answer && now >= this.answer.until) {
+            diag('[vad] answer: window closed with no answer');
+            this.answer = null;
         }
+        const speechBar = this.speechBar(echoGate);
 
         if (this.tailWatch) {
             this.tailWatch.push(energy);
@@ -731,7 +829,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // pre-buffer stays warm for the no-resume case. A cap cut never
             // resumes, so its frames go to the pre-buffer only: kept here too,
             // the ones before the final pass snapshots would be sent twice.
-            if (this.isSpeechFrame(energy, echoGate)) {
+            if (this.isSpeechFrame(energy, speechBar)) {
                 this.postSubmitSpeech = true;
                 this.lastSpeechMs = now;
                 this.peakEnergy = Math.max(this.peakEnergy, energy);
@@ -749,11 +847,18 @@ export class WhisperPcmSttEngine implements SttEngine {
         // The barge-in-grade energy bar during TTS (isSpeechFrame) prevents a
         // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS
         // clears a 0.015 floor before the echo EMA has calibrated.
-        if (this.isSpeechFrame(energy, echoGate)) {
+        if (this.isSpeechFrame(energy, speechBar)) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
                 this.startedWhileTtsActive = this.ttsActive;
                 this.speechStartMs = now;
+                if (this.answer) {
+                    const after = this.lineEndedAt === null ? '' : ` +${Math.round(now - this.lineEndedAt)}ms after the question,`;
+                    diag(
+                        `[vad] answer: speech began${after} rms=${energy.toFixed(4)} ` +
+                            `bar=${speechBar.toFixed(4)} tts=${this.ttsActive}`
+                    );
+                }
                 // Prepend the retained onset ramp, then clear it.
                 for (const f of this.preBuffer) {
                     this.chunks.push(f);
@@ -772,55 +877,19 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
             this.keepChunk(frame, energy);
-            const speechDur = this.lastSpeechMs - this.speechStartMs;
             const needed = this.submitWindowMs();
-            const silence = now - this.lastSpeechMs;
             // Hold the submit while a speculative pass resolves: it may be about
             // to extend `needed` (see specInFlight, kkiz).
-            if (silence >= needed && !this.specInFlight) {
-                this.utteranceDone = true;
-                this.hintAtSubmit = this.lastHintChunk;
-                diag(
-                    `[vad] submit speech=${Math.round(speechDur)}ms ` +
-                        `needed=${Math.round(needed)}ms silence=${Math.round(silence)}ms ` +
-                        `peak=${this.peakEnergy.toFixed(3)} ` +
-                        `echoFloor=${this.echoFloor.toFixed(4)} ` +
-                        `dropped=${this.silero?.droppedChunks ?? 0} ` +
-                        `dangling=${this.partialIncomplete} ` +
-                        `mode=${this.silero ? 'silero' : `energy(floor=${this.noiseFloor.toFixed(4)})`}`
-                );
-                // Energy + speech-prob traces, last 8s in 0.5s buckets (max per
-                // bucket, oldest first). The prob row shows what the model
-                // thought during the trailing "silence" - held speech vs a real
-                // pause; the energy row contextualizes the echo gate.
-                if (diagOn()) {
-                    const tail = (pick: (h: { e: number; p: number }) => number, floor: number) => {
-                        const buckets = new Array<number>(16).fill(floor);
-                        for (const h of this.energyHistory) {
-                            const idx = Math.floor((now - h.t) / 500);
-                            if (idx >= 0 && idx < 16) buckets[idx] = Math.max(buckets[idx]!, pick(h));
-                        }
-                        return buckets.reverse();
-                    };
-                    diag(
-                        `[vad] tail 8s->now (max rms / 0.5s): ` +
-                            tail((h) => h.e, 0).map((b) => b.toFixed(3)).join(' ')
-                    );
-                    if (this.silero) {
-                        diag(
-                            `[vad] tail 8s->now (max speech-prob / 0.5s): ` +
-                                tail((h) => h.p, -1)
-                                    .map((v) => (v < 0 ? '----' : v.toFixed(2)))
-                                    .join(' ')
-                        );
-                    }
-                }
-            }
+            if (now - this.lastSpeechMs >= needed && !this.specInFlight) this.endUtterance(now, needed, 'pause');
         } else if (this.ttsActive) {
             // Capturing, pre-speech, TTS audible - this energy is the device's
             // echo, not the user. Fold it into the echo floor so the gates above
             // can reject it.
             this.echoFloor = (1 - ECHO_EMA_ALPHA) * this.echoFloor + ECHO_EMA_ALPHA * energy;
+            if (this.answer && !this.lineSounding && energy > this.answer.tailPeak) {
+                this.answer.tailPeak = energy;
+                this.answer.tailPeakAt = now;
+            }
             this.pushPre(frame);
         } else {
             // Degraded mode only: quiet pre-speech frames with TTS silent are
@@ -1117,10 +1186,49 @@ export class WhisperPcmSttEngine implements SttEngine {
      *  until that playback ends (setTtsActive). */
     noteVoicePlayback(): void {
         this.tailWatch = null;
+        this.lineSounding = true;
+        this.lineEchoPeak = 0;
         if (!this.voiceWarmupArmed) return;
         this.voiceWarmupArmed = false;
         this.voiceWarmup = true;
         this.warmupPeak = 0;
+    }
+
+    /** The facilitator's audio has stopped (the caller's echo hangover may
+     *  still hold the gates up, setTtsActive). Until this is called after a
+     *  line, its tail keeps the full bar even for an expected answer. */
+    notePlaybackEnded(): void {
+        if (!this.lineSounding) return;
+        this.lineSounding = false;
+        this.lineEndedAt = performance.now();
+    }
+
+    /**
+     * The facilitator has just asked a yes/no question. The next utterance (or
+     * the one under way, if it has no speech yet) is taken as its answer for
+     * `forMs`, until an utterance with words ends:
+     * - Over the question's tail the bar for the meditator's voice drops to
+     *   what the question's own echo allows (ANSWER_ECHO_MARGIN), so a soft
+     *   word said right after it is not lost under the barge-in bar.
+     * - Speculative passes run on it even with speculation off, and the turn
+     *   ends as soon as one comes back as a whole answer (`isAnswer`) with no
+     *   speech since, rather than after the adaptive pause
+     *   (ANSWER_MAX_SPEECH_MS).
+     * Nothing else about the speech test moves: the bar holds while any line
+     * plays, and Silero still has to call it speech.
+     */
+    expectAnswer(isAnswer: (text: string) => boolean, forMs: number): void {
+        const now = performance.now();
+        this.answer = { isAnswer, until: now + forMs, tailPeak: 0, tailPeakAt: 0 };
+        const ended = this.lineSounding
+            ? 'question still playing'
+            : this.lineEndedAt === null
+              ? 'no question heard'
+              : `question ended ${Math.round(now - this.lineEndedAt)}ms ago`;
+        diag(
+            `[vad] answer expected for ${Math.round(forMs / 1000)}s: ${ended}, ` +
+                `its echo peak=${this.lineEchoPeak.toFixed(4)}, answer bar=${this.answerBar().toFixed(4)}`
+        );
     }
 
     /**
@@ -1148,6 +1256,16 @@ export class WhisperPcmSttEngine implements SttEngine {
                     `peak=${w.peak.toFixed(4)} mean=${(w.frames ? w.sum / w.frames : 0).toFixed(4)} ` +
                     `overGate=${w.overGate} gate=${gate.toFixed(4)} ` +
                     `echoFloor=${this.echoFloor.toFixed(4)} bargeIn=${BARGE_IN_THRESHOLD}`
+            );
+        }
+        // What the mic heard over the question's tail that did not open the
+        // answer: a word lost there shows as a loud frame here.
+        if (!active && this.answer && this.capturing && !this.speechStarted && this.lineEndedAt !== null) {
+            const a = this.answer;
+            diag(
+                `[vad] answer: none began over the question's tail; loudest=${a.tailPeak.toFixed(4)}` +
+                    (a.tailPeak > 0 ? ` at +${Math.round(a.tailPeakAt - this.lineEndedAt)}ms` : '') +
+                    ` bar=${this.speechBar(this.echoGateNow()).toFixed(4)}`
             );
         }
         if (!active && this.voiceWarmup) {
@@ -1403,15 +1521,18 @@ export class WhisperPcmSttEngine implements SttEngine {
                     // mirror the audio callback's adaptive `needed` so the pass
                     // fires just ahead of the submit decision.
                     const bufferedMs = (this.chunks.length * FRAME_SIZE * 1000) / nativeRate;
+                    // An expected answer is read at the first pause whatever
+                    // the settings: that pass is what can end it early.
+                    const answerSized = this.answerSized();
                     let specAfterMs = SPECULATIVE_SILENCE_MS;
-                    if (bufferedMs > this.opts.specEarlyMaxBufferMs) {
+                    if (bufferedMs > this.opts.specEarlyMaxBufferMs && !answerSized) {
                         specAfterMs = Math.max(
                             SPECULATIVE_SILENCE_MS,
                             this.submitWindowMs() - SPEC_TERMINAL_LEAD_MS
                         );
                     }
                     if (
-                        this.opts.speculation &&
+                        (this.opts.speculation || answerSized) &&
                         silence >= specAfterMs &&
                         !this.specInFlight &&
                         this.lastSpeechMs !== lastSpecSpeechMs &&
@@ -1453,6 +1574,15 @@ export class WhisperPcmSttEngine implements SttEngine {
                             // INCOMPLETE_CLAUSE_EXTRA_MS).
                             this.partialIncomplete = transcriptLooksIncomplete(text);
                             emittedPartial = true;
+                            // The answer expected, said whole, nothing said
+                            // since: the rest of the pause would only delay it.
+                            if (
+                                this.answerSized() &&
+                                this.lastSpeechMs === lastSpecSpeechMs &&
+                                this.answer!.isAnswer(text)
+                            ) {
+                                this.endUtterance(performance.now(), this.submitWindowMs(), 'answer');
+                            }
                             yield {
                                 type: 'partial',
                                 text,
@@ -1529,6 +1659,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                     yield { type: 'error', error: result.error };
                     return;
                 }
+                // Words answer the question; a cough leaves it open.
+                if (this.answer && !isNonSpeechOnly(result.text)) this.answer = null;
                 // seconds = every pass this turn sent, not the final alone
                 // (turnBilledSec).
                 yield {
