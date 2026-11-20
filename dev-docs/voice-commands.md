@@ -617,7 +617,11 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   timing against the log, not measured). So a turn ends and the capture
   idles, unheard, as a session's does between replies; an answer plays while
   it idles, and the next turn opens on only the last `SPEECH_TAIL_MS` it held
-  (`keepOnsetTail`), not on the answer. The graph starts once per listener
+  (`keepOnsetTail`), not on the answer. The engine is told the answer plays,
+  as for a tour line (`say` in `voice-start.ts`, from `sayLines`): its echo is
+  logged as a `[vad] tts window` and spends the capture's echo warm-up, and
+  its bar is down again as the next turn opens, as after a line heard
+  through. The graph starts once per listener
   (Chromium stops its silent player after about 30s) and closes when the
   listener ends: at Begin, before the opening, its stream held as above. A
   listener that a room talks shut, or that fails, while a line is heard

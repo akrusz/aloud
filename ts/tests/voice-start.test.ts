@@ -1046,6 +1046,50 @@ describe('listenOnSetup: a capture that runs on between turns (continuous)', () 
         expect(ends).toEqual(['error']);
     });
 
+    it('tells the engine of an answer said between turns, until a tail after it', async () => {
+        // "Okay, all set." plays with the capture running beneath it, as a
+        // tour line does, and is measured and gated the same way.
+        const engine = liveEngine();
+        let handle!: VoiceStartHandle;
+        const listening = listen(engine, true, {
+            onHeard: () => handle.say(() => new Promise<void>((r) => setTimeout(r, 2_000))).then(() => true),
+        });
+        handle = listening.handle;
+        const { calls } = listening;
+        await vi.advanceTimersByTimeAsync(100);
+        engine.say('twenty minutes');
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(calls).toEqual(['line']);
+        expect(engine.starts).toBe(1);
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 50);
+        expect(calls).toEqual(['line', 'line over', `onset ${SPEECH_TAIL_MS}`]);
+        expect(engine.starts).toBe(2);
+        expect(engine.stops).toBe(0);
+    });
+
+    it('tells the engine a line is over only when the last of an answer and a line heard through is', async () => {
+        const engine = liveEngine();
+        let handle!: VoiceStartHandle;
+        let tourLine: Promise<void> | null = null;
+        const listening = listen(engine, true, {
+            onHeard: async () => {
+                // A tap starts a tour line under the answer, and it runs on past it.
+                tourLine = handle.hold(() => new Promise<void>((r) => setTimeout(r, 3_000)), () => false);
+                await handle.say(() => new Promise<void>((r) => setTimeout(r, 1_000)));
+                return true;
+            },
+        });
+        handle = listening.handle;
+        const { calls } = listening;
+        await vi.advanceTimersByTimeAsync(100);
+        engine.say('twenty minutes');
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(calls.filter((c) => c.startsWith('line'))).toEqual(['line']);
+        await vi.advanceTimersByTimeAsync(1_000 + SPEECH_TAIL_MS + 50);
+        await tourLine;
+        expect(calls.filter((c) => c.startsWith('line'))).toEqual(['line', 'line over']);
+    });
+
     it('stops the recognizer between turns and for a line as before without it', async () => {
         const engine = liveEngine();
         const { handle, calls } = listen(engine, false);
@@ -1056,6 +1100,8 @@ describe('listenOnSetup: a capture that runs on between turns (continuous)', () 
         void handle.hold(() => new Promise<void>((r) => setTimeout(r, 1_000)), () => true);
         await vi.advanceTimersByTimeAsync(500);
         expect(engine.stops).toBe(2);
+        await handle.say(() => Promise.resolve());
+        await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 50);
         expect(calls).toEqual([]);
     });
 });
@@ -1068,6 +1114,7 @@ describe('createMicHandover', () => {
             kept,
             stop: async (options) => void kept.push(options?.keepMicUntil),
             hold: (during) => during(),
+            say: (during) => during(),
             keepOpen: () => undefined,
         };
     }

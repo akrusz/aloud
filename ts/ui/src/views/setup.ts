@@ -1468,10 +1468,12 @@ export async function mountSetupView(
         });
     }
 
-    /** Say lines, with their words on screen. */
+    /** Say lines, with their words on screen. A listener whose capture runs
+     *  on beneath them is told they play (voice-start.ts say). */
     function sayLines(lines: readonly SpokenSetupLine[]): Promise<void> {
         showVoiceNote(lines.map((line) => line.text).join(' '));
-        const said = speaker.say(lines);
+        const say = (): Promise<void> => speaker.say(lines);
+        const said = voiceStart ? voiceStart.handle.say(say) : say();
         speaking = said.then(() => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS)));
         quietRingDuring(speaking);
         // Not `speaking`: the listener waits a tail of its own after a request

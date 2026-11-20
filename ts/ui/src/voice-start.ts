@@ -277,6 +277,15 @@ export interface VoiceStartHandle {
      * `onHeard`, since a line can name "begin" or a setting.
      */
     hold<T>(during: () => Promise<T>, overLine?: (text: string) => boolean): Promise<T>;
+    /**
+     * Say a line between turns: the answer `onHeard` gives. Where the capture
+     * runs on beneath it (`ListenOnSetupOptions.continuous`) the engine is
+     * told a line plays, as for one heard through, until `SPEECH_TAIL_MS`
+     * after it; elsewhere the recognizer is already stopped and this only
+     * runs `during`. Settles when `during` does: the listener waits a tail of
+     * its own before the next turn.
+     */
+    say<T>(during: () => Promise<T>): Promise<T>;
     /** Start the window over, as a request understood does. */
     keepOpen(): void;
 }
@@ -335,9 +344,10 @@ export interface ListenOnSetupOptions {
      * without stopping the recognizer and the capture idles, unheard, until
      * the next, so nothing is torn down and built again around the app's
      * lines; each turn opens with only the last `SPEECH_TAIL_MS` the idle
-     * capture held (`keepOnsetTail`), not an answer just spoken; and a line
-     * held with `overLine` is heard through (one held without still stops
-     * it). Absent, the recognizer stops between turns and for every line.
+     * capture held (`keepOnsetTail`), not an answer just spoken (which is
+     * said through `say`, so the engine is told of it); and a line held with
+     * `overLine` is heard through (one held without still stops it). Absent,
+     * the recognizer stops between turns and for every line.
      */
     continuous?: { lineStarted(): void; lineEnded(): void; keepOnsetTail(ms: number): void };
     /** Each change of SetupHearing, which starts at `opening`. Not called once
@@ -383,6 +393,16 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
     const linesOverWaiters: Array<() => void> = [];
     const linesOver = (): Promise<void> =>
         overLineHandlers.length === 0 ? Promise.resolve() : new Promise((resolve) => linesOverWaiters.push(resolve));
+    // Lines the `continuous` engine has been told of and not yet told are
+    // over: heard through (hold) or said between turns (say). They overlap
+    // when a tap starts a tour line under an answer.
+    let linesSounding = 0;
+    const lineStarted = (through: NonNullable<ListenOnSetupOptions['continuous']>): void => {
+        if (linesSounding++ === 0) through.lineStarted();
+    };
+    const lineEnded = (through: NonNullable<ListenOnSetupOptions['continuous']>): void => {
+        if (--linesSounding === 0) through.lineEnded();
+    };
     // Between turns and under a line the recognizer stops but keeps its mic
     // stream, until listening is over. On macOS, letting an echo-cancelled
     // mic go rebuilds the audio output a second or two later, and a line
@@ -454,7 +474,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             if (opening) await opening.catch(() => undefined);
             overLineHandlers.push(overLine);
             lastOverLine = overLine;
-            if (overLineHandlers.length === 1) through.lineStarted();
+            lineStarted(through);
             try {
                 return await during();
             } finally {
@@ -462,8 +482,8 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
                 // the line's last words.
                 await pause(SPEECH_TAIL_MS);
                 overLineHandlers.splice(overLineHandlers.indexOf(overLine), 1);
+                lineEnded(through);
                 if (overLineHandlers.length === 0) {
-                    through.lineEnded();
                     for (const resolve of linesOverWaiters.splice(0)) resolve();
                 }
             }
@@ -487,6 +507,17 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
             holds--;
             release();
             if (held === chained) held = null;
+        }
+    };
+
+    const say = async <T>(during: () => Promise<T>): Promise<T> => {
+        const through = ended ? undefined : opts.continuous;
+        if (!through) return during();
+        lineStarted(through);
+        try {
+            return await during();
+        } finally {
+            void pause(SPEECH_TAIL_MS).then(() => lineEnded(through));
         }
     };
 
@@ -582,7 +613,7 @@ export function listenOnSetup(opts: ListenOnSetupOptions): VoiceStartHandle {
         }
     })();
 
-    return { stop: (options) => end('stopped', undefined, options?.keepMicUntil), hold, keepOpen };
+    return { stop: (options) => end('stopped', undefined, options?.keepMicUntil), hold, say, keepOpen };
 }
 
 /**
