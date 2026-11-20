@@ -27,6 +27,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScreenDimPlugin.class);
         registerPlugin(FileExportPlugin.class);
         registerPlugin(OutputVolumePlugin.class);
+        registerPlugin(AgeSignalsPlugin.class);
         super.onCreate(savedInstanceState);
         // Android 15+ draws under the system bars whether asked or not; older
         // versions need the ask, or they keep opaque bars around the webview

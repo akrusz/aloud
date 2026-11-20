@@ -8,5 +8,6 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(FileExportPlugin())
         bridge?.registerPluginInstance(AudioRoutePlugin())
         bridge?.registerPluginInstance(OutputVolumePlugin())
+        bridge?.registerPluginInstance(AgeSignalsPlugin())
     }
 }
