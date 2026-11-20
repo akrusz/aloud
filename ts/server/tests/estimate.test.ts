@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
+import { azureSsmlOverheadFactor, estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
 import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
 describe('estimateModels', () => {
@@ -82,6 +82,19 @@ describe('estimateVoices', () => {
         expect(rateOf(value.providerVoiceId)).toBeLessThan(rateOf(premium.providerVoiceId));
         // Neural2 ($16/1M) is ~half Chirp3-HD ($30/1M).
         expect(rateOf(value.providerVoiceId) / rateOf(premium.providerVoiceId)).toBeCloseTo(16 / 30, 2);
+    });
+
+    it("prices a whole-reply voice's tags once a reply, not once a sentence", () => {
+        const harper = CURATED_VOICES.find((v) => v.name === 'Harper')!;
+        expect(harper.wholeReply).toBe(true);
+        const asSent = azureSsmlOverheadFactor(harper);
+        const perSentence = azureSsmlOverheadFactor({ ...harper, wholeReply: false });
+        expect(asSent).toBeGreaterThan(1);
+        expect(asSent).toBeLessThan(perSentence);
+        // The same tags and lead, over a longer request.
+        expect((asSent - 1) / (perSentence - 1)).toBeCloseTo(80 / 120, 6);
+        const rateOf = (id: string) => voices.find((v) => v.voiceId === id)!.costUsdPerHourTypical;
+        expect(rateOf(harper.providerVoiceId)).toBeGreaterThan(0);
     });
 
     it('prices the Inworld voices below the Chirp3-HD cost (premium-bucket, cheaper burn)', () => {

@@ -19,12 +19,16 @@
  *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts analyze --out <dir> [--whisper-bin <path>]
  *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts recheck --out <dir> [--whisper-bin <path>]
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts gaps    --out <dir>
+ *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts marks --out <dir> [--models <a,b>] [--verbose]
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts report  --out <dir>
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts bill    [--sessions <dir>] [--since YYYY-MM-DD]
  *
  * recheck hears each burst of a take with more bursts than phrases, or a long
  * one, on its own. gaps measures every silence of every take from the PCM
- * alone, for the report's played-silence section. bill prices LINES, and the
+ * alone, for the report's played-silence section. marks scores the server's
+ * sentence finder on the whole takes (providers/mp3-marks.ts; see marksPhase),
+ * and --voicedGain, --minPauseS and --distanceCostS try other settings for
+ * it. bill prices LINES, and the
  * replies in the desktop app's session logs, sent per chunk, first chunk
  * alone and the rest as one, and whole (billedCharsFor). A variant may also
  * carry SSML the route would escape (a <break> between sentences, an
@@ -48,6 +52,7 @@ import { loadConfig } from '../src/config.js';
 import { ttsRateFor } from '../src/pricing/providers.js';
 import { withGain } from '../src/providers/mp3-gain.js';
 import { withLeadSilence } from '../src/providers/mp3-lead-silence.js';
+import { SENTENCE_MARKS, sentenceMarkTimes } from '../src/providers/mp3-marks.js';
 import { TtsUpstreamError, azureBilledChars, isProviderAccountFailure } from '../src/providers/tts.js';
 import { resolveVoice, type ResolvedVoice } from '../src/providers/voice-catalog.js';
 import { billedCharsFor, leadFor, synthFor } from '../src/routes/tts.js';
@@ -1371,6 +1376,98 @@ function shapes(r: ResolvedVoice, text: string): { chunks: number; firstRest: nu
     };
 }
 
+/**
+ * How well a whole-reply clip can be mapped back to its sentences, against
+ * the sentence ends local Whisper confirmed (analyze's seams, takes whose
+ * every seam is ok): the server's frame-domain finder (providers/mp3-marks.ts
+ * sentenceMarkTimes, as the route runs it on the clip it returns), and the
+ * share of the characters times the clip's length (what a client could do
+ * with nothing from the server). Each at the client's chunk starts, the
+ * units a cut-off reply is kept or dropped by (ui streaming-tts.ts). A
+ * boundary's error is how far its time is from the sentence's first sound;
+ * a cut that falls inside it keeps a sentence that wasn't heard, or drops
+ * one that was. The chance of that for a cut at a random moment of the clip
+ * is the errors' sum over its length.
+ */
+function marksPhase(out: string): void {
+    const ffmpeg = findFfmpeg();
+    const only = arg('--models')?.split(',');
+    for (const k of ['voicedGain', 'minPauseS', 'distanceCostS'] as const) if (arg(`--${k}`)) SENTENCE_MARKS[k] = Number(arg(`--${k}`));
+    const heard: Record<string, Heard> = JSON.parse(readFileSync(join(out, 'heard.json'), 'utf8'));
+    type Method = 'server' | 'share';
+    const errs: Record<Method, number[]> = { server: [], share: [] };
+    const wrong: Record<Method, number[]> = { server: [], share: [] };
+    let takes = 0;
+    let skipped = 0;
+    let unfound = 0;
+    let boundaries = 0;
+    for (const h of Object.values(heard)) {
+        if (h.send !== 'whole' || (only && !only.includes(h.model)) || h.parts.length !== 1) continue;
+        const part = h.partsHeard[0]!;
+        const sents = sentencesOf(h.text);
+        const units = clientChunks(h.text);
+        if (units.length < 2) continue;
+        if (!part.segmented || part.sentences.slice(0, -1).some((s) => s.seam !== 'ok')) {
+            skipped++;
+            continue;
+        }
+        const mp3 = new Uint8Array(readFileSync(join(out, h.file)));
+        const pcm = decode(ffmpeg, mp3);
+        const ends = sentenceEnds(pcm, h.text, sents.length)!;
+        // analyze moved a pick by one where Whisper heard the seam on the
+        // wrong side; the pause it kept is the one as long as pauseAfterS.
+        const onsets = part.sentences.slice(0, -1).map((s, b) => {
+            const len = (j: number) => (ends.cands[j] ? ends.cands[j]!.endS - ends.cands[j]!.startS : NaN);
+            const p = ends.picks[b]!;
+            const kept = [p, p - 1, p + 1].find((j) => Math.abs(len(j) - s.pauseAfterS!) < 0.006) ?? p;
+            return ends.cands[kept]!.endS;
+        });
+        const text = units.join(' ');
+        const marks: number[] = [];
+        const truth: number[] = [];
+        let at = 0;
+        let sentence = 0;
+        for (const [u, unit] of units.entries()) {
+            if (u) {
+                marks.push(at);
+                truth.push(onsets[sentence - 1]!);
+            }
+            at += unit.length + 1;
+            sentence += sentencesOf(unit).length;
+        }
+        const durationS = pcm.length / DECODE_RATE;
+        const found = sentenceMarkTimes(mp3, text, marks, resolveVoice(h.voice).gainDb);
+        if (!found) unfound++;
+        const predicted: Record<Method, number[]> = {
+            // Back to the sentence's first sound, as the route moved it ahead.
+            server: found ? found.map((t) => t + SENTENCE_MARKS.leadS) : marks.map(() => NaN),
+            share: marks.map((m) => (durationS * m) / text.length),
+        };
+        if (process.argv.includes('--verbose') && predicted.server.some((p, i) => Math.abs(p - truth[i]!) > 0.25)) {
+            console.log(`${h.file} truth ${truth.map(f2).join(',')} server ${predicted.server.map(f2).join(',')} dur ${f2(durationS)}  ${text}`);
+            console.log(`   pcm pauses ${ends.cands.map((p) => `${f2(p.startS)}-${f2(p.endS)}`).join(' ')}`);
+        }
+        for (const k of ['server', 'share'] as const) {
+            const e = predicted[k].map((p, i) => p - truth[i]!);
+            if (e.some(Number.isNaN)) continue;
+            errs[k].push(...e);
+            wrong[k].push(e.reduce((s, x) => s + Math.abs(x), 0) / durationS);
+        }
+        takes++;
+        boundaries += marks.length;
+    }
+    const abs = (xs: number[]) => xs.map(Math.abs);
+    const pct = (xs: number[]) => (xs.length ? `${((100 * xs.reduce((s, x) => s + x, 0)) / xs.length).toFixed(1)}%` : '-');
+    console.log(`${out}${only ? ` (${only.join(',')})` : ''}: ${takes} takes with ${boundaries} chunk boundaries; ${skipped} skipped (a seam not confirmed); server found none on ${unfound}`);
+    for (const k of ['server', 'share'] as const) {
+        const a = abs(errs[k]);
+        console.log(
+            `  ${k.padEnd(7)} |error| ${spread(a)}; over 0.25s ${rate(a.filter((x) => x > 0.25).length, a.length)}, over 0.5s ${rate(a.filter((x) => x > 0.5).length, a.length)}, over 1s ${rate(a.filter((x) => x > 1).length, a.length)}` +
+                `; signed median ${f2(median(errs[k]))}; a cut at a random moment keeps or drops the wrong chunk ${pct(wrong[k])} of the time`
+        );
+    }
+}
+
 function billPhase(): void {
     const dir = arg('--sessions') ?? join(homedir(), 'Library', 'Application Support', 'app.aloud.meditation', 'sessions');
     const since = arg('--since') ?? '';
@@ -1446,6 +1543,7 @@ async function main(): Promise<void> {
     else if (phase === 'analyze') await analyzePhase(out);
     else if (phase === 'recheck') await recheckPhase(out);
     else if (phase === 'gaps') gapsPhase(out);
+    else if (phase === 'marks') marksPhase(out);
     else if (phase === 'report') report(Object.values(JSON.parse(readFileSync(join(out, 'heard.json'), 'utf8')) as Record<string, Heard>));
     else throw new Error('first argument: synth, analyze, recheck, report or bill');
 }

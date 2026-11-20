@@ -139,6 +139,16 @@ describe('GET /cloud/v1/voices', () => {
         expect(gv.filter((v) => v.default).map((v) => v.name)).toEqual(['Leda']);
     });
 
+    it('asks for whole replies from the styled voices measured for it, and from no other', async () => {
+        const all = createApp(buildDeps(loadConfig({ GOOGLE_TTS_API_KEY: 'k', AZURE_SPEECH_KEY: 'k3', INWORLD_API_KEY: 'k4' })));
+        const voices = (await (await all.request('/cloud/v1/voices')).json()) as CloudVoice[];
+        expect(voices.filter((v) => v.wholeReply).map((v) => v.name).sort()).toEqual(['Ethan', 'Harper']);
+        // Absent, not false, on the rest: an older client never sees the field either way.
+        expect('wholeReply' in voices.find((v) => v.name === 'Leda')!).toBe(false);
+        // Only a styled voice pays tags a request, so only one can save by it.
+        for (const v of CURATED_VOICES.filter((c) => c.wholeReply)) expect(v.style, v.name).toBeTruthy();
+    });
+
     it('is empty when TTS is not configured', async () => {
         const app = createApp(buildDeps(loadConfig({})));
         const res = await app.request('/cloud/v1/voices');

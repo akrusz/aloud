@@ -137,7 +137,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). `messages` must be role + string content. A turn is refused (402) when its worst-case estimate runs more than `MAX_UNCOVERED_CREDITS` past its hold, counted across the account's turns in flight (`deps.overdraft`): a near-empty account still finishes its last turn, but can't run an oversized prompt, or a burst of turns, on credits it doesn't have. When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility` |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send for "GPT"), or OpenRouter for `moondream/parakeet-ultra` ("Parakeet", not offered in zh) and `x-ai/grok-stt-2.0` ("Grok", zh only), each pinned to its host (`providers/stt.ts` `OPENROUTER_STT_MODELS`, needs `OPENROUTER_API_KEY`) → transcript; debits by the seconds the provider bills (`sttBilledSeconds`: gpt-transcribe rounds each request up to a whole second; OpenRouter bills the exact second, plus its credit fee via `viaOpenRouter`). An `x-stt-prior` header (the turn's transcript so far, percent-encoded; incremental passes send it) becomes the Whisper backend's prompt (`routes/stt.ts` `sttPrior`): never logged, not sent to the OpenRouter models or to a model that bills prompt text (`sttPromptIsBilled`). `?setup=1` is the setup screen's listening: prompted with core `setupVocabulary`, free while the clip is under `SETUP_MAX_CLIP_SECONDS` and the account has `SETUP_STT_SECONDS_PER_DAY` left (`deps.ts`, with an all-accounts ceiling), else metered as usual; usage rows carry `purpose: 'setup'` ([voice-commands.md](voice-commands.md#the-mic)) |
-| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
+| `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?,marks?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers, and with `marks` (a whole reply, see Whole replies below) where each marked sentence begins, in `X-Mark-Times`. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`; the store apps ask for `insufficient_credits_plain`, the wording with no purchase in it) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
 | `POST /cloud/v1/judge` | session | silence classifier or spoken-command detection (`classifier`: a core `JudgeId`) as probabilities: `{classifier,text,earlier?,before?}` → TypeSafe Jev → `{answers,model,latencyMs}`, one P(yes) per ask; the client applies thresholds (core `judgeVerdict`). `earlier` (the hold so far) is used for `resume` only, `before` (`{facilitator?,meditator?}`, what was said just before) for `command` only. The question comes from core `JUDGE_SPECS`, never the client. Free to any signed-in account, BYOK and local sessions included (their opt-in), and not charged (~$0.00007/call; usage recorded as `typesafe`), so it has its own rate budget (`deps.judgeGuard`, 90/min/account, separate from the 60/min every other metered route shares) plus a 5,000-a-day cap per account and an all-accounts daily ceiling (`ALOUD_JUDGE_CALLS_PER_DAY`), both of which only bind accounts with no credits. A command is two calls: the one-ask `command-gate`, then `command` if that says maybe; a maybe that names no command costs up to two more, `command` again with one side of `before` each (the second look, [voice-commands.md](voice-commands.md#how-an-utterance-is-checked)). The setup screen's ids (`setup-gate`, `setup-command`, core `setup-command-specs.ts`) take no session and are recorded as `purpose: 'setup'` against the same caps ([voice-commands.md](voice-commands.md#the-judge-tier)). Failures are invisible to users (clients fall back), so they are recorded in the incidents table as `judge_error`, one row a minute with a count, never with content |
@@ -295,6 +295,38 @@ lead. Only the first sentence of a reply waits on any of it, since the rest
 synthesize while earlier ones play. Other leads tried ("Hm.", "Mm.", "So.",
 "Oh.", "Ah.", "I.", "And.", "Alright.") did no better; "Ah." and "Oh." often
 ran into the sentence, and "Mm.", "So." and "Alright." slowed it by about 15%.
+
+**Whole replies.** Azure bills everything inside `<speak>`, so a styled voice
+pays its 55 characters of `<mstts:express-as style="softvoice">` on every
+request, and the client used to send a request per sentence: on short
+facilitator sentences the tags were about 40% of the bill (confirmed against
+Azure's own Synthesized Characters metric, meditation-pal-6ixc). A voice with
+`wholeReply` (`CuratedVoice`, published as `CloudVoice.wholeReply`; Harper
+and Ethan) gets a whole reply in one request instead (`ui/src/streaming-tts.ts`
+`WHOLE_REPLY_WAIT_MS`), which saves about 26% of Harper's bill and 18.5% of
+Ethan's on the dev's real replies. Inside one request no sentence lost its
+opening word (0 of 254 behind the first) and pace and level held, so the
+lead is needed only at the start; what changes is the pause between
+sentences: Harper a median 1.0s (0.56s between clips), Ethan 1.5s (0.75s)
+with a tail to about 5s. Nothing in the request shortens it (a `<break>`,
+`mstts:silence`, `<s>` and a voice temperature were all tried), and the dev
+heard the long ones and kept them. A voice to switch on needs the same
+measuring first (the repeat probe's `whole` and `chunks` sends): an unstyled
+voice pays no tags, so it gains nothing.
+
+Such a request carries `marks`, the character offsets of the client's
+sentence chunks after the first, and the response says in `X-Mark-Times`
+where each begins in the audio (`providers/mp3-marks.ts`
+`sentenceMarkTimes`, run on the clip as returned, under the voice's
+`gainDb`), so a reply cut off mid-clip keeps only the sentences heard. The
+finder reads level off the frames' `global_gain` like the lead trim, and
+fits every sentence end of the text to the pauses at once. Against the
+sentence ends local Whisper confirmed in 226 whole-reply takes, its times
+were within 0.25s of the sentence's first sound for 95% of Harper's chunk
+starts and 98% of Ethan's (the rest a whole pause out), so a cut at a random
+moment keeps or drops the wrong chunk about 2% and 1% of the time; shares of
+the characters, all a client could do alone, are wrong 8% and 13% of the
+time. The probe's `marks` step re-runs that score.
 
 `scripts/preview-voices.ts` synthesizes one meditation sample per voice, measures
 the resulting audio, and writes `voice-previews/index.html` (gitignored) - a

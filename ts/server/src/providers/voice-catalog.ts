@@ -106,6 +106,15 @@ export interface CuratedVoice {
      *  word of its input. Sent only before a consonant-initial input
      *  (routes/tts.ts leadFor). Azure bills it, so billedCharsFor counts it. */
     lead?: string;
+    /** The client sends a whole reply in one request, not a sentence per
+     *  request (CloudVoice.wholeReply, ui streaming-tts.ts). For a styled
+     *  Azure voice: Azure bills the express-as tags (55 characters of
+     *  softvoice) on every request, about 40% of the bill on short
+     *  sentences. Set only on a voice measured whole (the repeat probe,
+     *  meditation-pal-6ixc): no sentence inside a request may lose its
+     *  opening word, and the longer pauses between sentences inside one
+     *  have to be heard and accepted. An unstyled voice saves nothing. */
+    wholeReply?: boolean;
     /** A house voice for this language: it speaks the setup screen's fixed
      *  lines (core setup-lines.ts), pre-rendered to static clips by
      *  scripts/render-voice-clips.ts, which renders every voice carrying the
@@ -139,7 +148,10 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     // Microsoft's docs cover only 2.1.
     { name: 'Ada (GB)', provider: 'azure', multilingual: true, providerVoiceId: 'en-GB-AdaMultilingualNeural', gender: 'female', tier: 'value', gainDb: -4.5 },
     { name: 'Davis', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-DavisMultilingualNeural', gender: 'male', tier: 'premium', style: 'empathetic', gainDb: -1.5 },
-    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', gainDb: 3, house: 'en' },
+    // Whole replies (2026-11-19): pauses between sentences inside one request
+    // run a median 1.48s (p90 2.45s, max 5.1s) where joined clips sat 0.75s
+    // apart; the dev heard the long ones and keeps them.
+    { name: 'Ethan', provider: 'azure', multilingual: true, providerVoiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash', gender: 'male', tier: 'premium', style: 'softvoice', gainDb: 3, house: 'en', wholeReply: true },
     // Harper's softvoice is the point ("breathy, almost sleepy" - the dev's
     // words). It reads a touch brisker than her plain voice (~19s vs ~24s on
     // the audition sample); the speed slider makes that back up if wanted.
@@ -166,8 +178,11 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
         promptNote: 'Never begin a reply with the word "Right" (as in "Right." or "Right, so..."): the voice that reads your replies stumbles on that opener. Start with any other word.',
         // Softvoice swallows a consonant-initial opening word on most takes
         // ("Back to Exploration" lost "Back" 6 of 7), never one behind a
-        // spoken lead (0 of 40 through synthFor, 2026-11-16).
+        // spoken lead (0 of 40 through synthFor, 2026-11-16). Behind the
+        // first sentence of a request none is lost (0 of 254), so a whole
+        // reply needs it once.
         lead: 'Okay.',
+        wholeReply: true,
     },
     { name: 'Isla (AU)', provider: 'azure', multilingual: true, providerVoiceId: 'en-AU-Isla:MAI-Voice-2.1-Flash', gender: 'female', tier: 'premium', paceBias: 1.1, gainDb: -4.5 },
     // No paceBias on the DragonHD voices: Serena carried 1.1 until the dev

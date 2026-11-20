@@ -131,11 +131,21 @@ export interface SpeakRequest {
     /** Opaque per-session grouping id (see CompleteRequest.sessionId). No PII or
      *  content. */
     sessionId?: string;
+    /** Character offsets into `text` where a sentence after the first
+     *  begins, ascending: a whole reply sent as one request
+     *  (CloudVoice.wholeReply). The response then says in X-Mark-Times where
+     *  each begins in the audio. */
+    marks?: number[];
 }
 
 /** Audio is returned as the raw response body (audio/mpeg); cost is reported in
  *  headers (X-Credits-Charged / X-Credits-Remaining) so the body stays a clean
- *  audio stream the client can hand straight to an <audio> element. */
+ *  audio stream the client can hand straight to an <audio> element. A request
+ *  with `marks` gets X-Mark-Times too: for each mark, comma-separated, the
+ *  second of the audio from which its sentence counts as heard
+ *  (providers/mp3-marks.ts). Absent when they could not be found, for a voice
+ *  other than Azure's, and from a server older than the field. */
+export const MARK_TIMES_HEADER = 'X-Mark-Times';
 
 /** GET /cloud/v1/voices, public. The curated hosted voices the server can speak
  *  (empty when TTS isn't configured). The client stores `name` and sends it back
@@ -171,6 +181,10 @@ export interface CloudVoice {
      *  (CuratedVoice.promptNote): appended to the system prompt while the
      *  voice is the effective one. */
     promptNote?: string;
+    /** Send a whole reply as one /cloud/v1/tts request, with `marks`, rather
+     *  than a sentence per request (CuratedVoice.wholeReply). Absent: a
+     *  sentence per request, which is all an older server's voices get. */
+    wholeReply?: boolean;
 }
 
 // ---- Auth & account ---------------------------------------------------------

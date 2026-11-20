@@ -90,7 +90,8 @@ export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
 /**
  * Azure bills the SSML markup, not just the text (providers/tts.azureBilledChars),
  * and the sentence-chunked bridge (ui streaming-tts) synthesizes one sentence
- * per request - so a styled voice pays its express-as tags on EVERY sentence.
+ * per request - so a styled voice pays its express-as tags on EVERY sentence,
+ * or on every reply for a wholeReply voice.
  * Fold that into the shown estimate or a styled voice reads ~40% cheaper than
  * it bills. The sentence length is eyeballed from meditation transcripts
  * (short lines; shorter sentences make the overhead worse, so this leans low
@@ -98,6 +99,12 @@ export type TtsProfile = keyof typeof TTS_CHAR_PROFILES;
  * (styled voices never get prosody - routes/tts.effectiveRate).
  */
 const AZURE_AVG_SENTENCE_CHARS = 80;
+/** A voice whose client sends a whole reply per request
+ *  (CuratedVoice.wholeReply) pays its tags once a reply. The dev's desktop
+ *  replies ran 131 characters on average (420 of them, 2026-11-19); a few go
+ *  out as two requests (ui streaming-tts.ts WHOLE_REPLY_WAIT_MS), so a
+ *  request is counted a little shorter. */
+const AZURE_AVG_WHOLE_REPLY_REQUEST_CHARS = 120;
 const AZURE_STYLE_TAG_CHARS = '<mstts:express-as style="softvoice">'.length + '</mstts:express-as>'.length;
 const AZURE_PROSODY_TAG_CHARS = '<prosody rate="1.15">'.length + '</prosody>'.length;
 
@@ -106,13 +113,14 @@ export function azureSsmlOverheadFactor(v: {
     style?: string;
     paceBias?: number;
     lead?: string;
+    wholeReply?: boolean;
 }): number {
     if (v.provider !== 'azure') return 1;
-    // A spoken lead (CuratedVoice.lead) bills on every sentence it goes ahead
+    // A spoken lead (CuratedVoice.lead) bills on every request it goes ahead
     // of; counted on all of them, which leans high, as above.
     const lead = v.lead ? v.lead.length + 1 : 0;
     const tags = v.style ? AZURE_STYLE_TAG_CHARS : v.paceBias ? AZURE_PROSODY_TAG_CHARS : 0;
-    return 1 + (tags + lead) / AZURE_AVG_SENTENCE_CHARS;
+    return 1 + (tags + lead) / (v.wholeReply ? AZURE_AVG_WHOLE_REPLY_REQUEST_CHARS : AZURE_AVG_SENTENCE_CHARS);
 }
 
 const PER_HOUR = 60 / TYPICAL_SESSION_MINUTES;
@@ -215,7 +223,7 @@ export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
 export function voiceCreditsPerHourTypical(
     provider: TtsProvider,
     voiceId: string,
-    treatment?: { style?: string; paceBias?: number; lead?: string }
+    treatment?: { style?: string; paceBias?: number; lead?: string; wholeReply?: boolean }
 ): number {
     const overhead = azureSsmlOverheadFactor({ provider, ...treatment });
     const usdPerHour =

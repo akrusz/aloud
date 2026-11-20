@@ -6,6 +6,10 @@ import { MAX_TTS_CHARS, type AuthResponse } from '../src/contract.js';
 import { azureBilledChars, synthesizeWithGoogle, synthesizeWithAzure } from '../src/providers/tts.js';
 import { priceTtsChars } from '../src/pricing/meter.js';
 import { previewRate } from '../src/routes/tts.js';
+import { AZURE_LEAD_SILENCE_MP3 } from '../src/providers/mp3-lead-silence.js';
+import { SENTENCE_MARKS, sentenceMarkTimes } from '../src/providers/mp3-marks.js';
+import { resolveVoice } from '../src/providers/voice-catalog.js';
+import { concat, run } from './fake-mp3.js';
 
 // MP3 bytes Google would return, base64-encoded as audioContent.
 const FAKE_MP3 = new Uint8Array([0x49, 0x44, 0x33, 0x04]); // "ID3"
@@ -585,6 +589,80 @@ describe('POST /cloud/v1/tts — up-front cost gate', () => {
         const body = (await res.json()) as { error: { code: string } };
         expect(body.error.code).toBe('insufficient_credits');
         expect(googleCalls).toHaveLength(0); // refused BEFORE spending on the provider
+    });
+});
+
+describe('POST /cloud/v1/tts — a whole reply, with marks', () => {
+    const reply = 'Some joy, and room around it. Nothing needs to happen with that. Where is it in your body?';
+    const marks = [reply.indexOf('Nothing'), reply.indexOf('Where')];
+    // Ethan (no lead) as Azure renders it: a sentence, a pause at each end.
+    const take = concat(run(40, 160), run(30, 120), run(45, 160), run(40, 120), run(35, 160), run(10, 120));
+
+    function ethanApp(audio: Uint8Array) {
+        const config = loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', AZURE_SPEECH_KEY: 'az-key', GOOGLE_TTS_API_KEY: 'g', ALOUD_FREE_SIGNUP_CREDITS: '20' });
+        const inner = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+            if (!String(url).includes('.tts.speech.microsoft.com')) return inner(url, init);
+            azureCalls.push({ url: String(url), body: String(init?.body), key: null });
+            return new Response(audio, { status: 200 });
+        }) as typeof fetch;
+        return createApp(buildDeps(config));
+    }
+
+    async function speak(a: ReturnType<typeof createApp>, body: Record<string, unknown>) {
+        return a.request('/cloud/v1/tts', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${await devToken(a)}`, 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    }
+
+    it('says where each marked sentence begins in the audio it returns, behind the lead silence', async () => {
+        const a = ethanApp(take);
+        const res = await speak(a, { text: reply, voice: 'Ethan', marks });
+        expect(res.status).toBe(200);
+        const body = new Uint8Array(await res.arrayBuffer());
+        // The times are the finder's on the clip as sent: lead silence, gain and all.
+        const expected = sentenceMarkTimes(body, reply, marks, resolveVoice('Ethan').gainDb)!;
+        expect(expected).toHaveLength(2);
+        expect(res.headers.get('X-Mark-Times')).toBe(expected.join(','));
+        const pad = AZURE_LEAD_SILENCE_MP3.length / 288;
+        expect(expected[0]).toBeCloseTo((pad + 70) * 0.024 - SENTENCE_MARKS.leadS, 2);
+        // One request, one charge, for the whole reply: its tags once.
+        expect(azureCalls).toHaveLength(1);
+        const billed = priceTtsChars(azureBilledChars(reply, 1, 'softvoice'), { provider: 'azure', voiceId: 'en-US-Ethan:MAI-Voice-2.1-Flash' }).credits;
+        expect(Number(res.headers.get('X-Credits-Charged'))).toBeCloseTo(billed, 10);
+    });
+
+    it('counts marks from the text as sent, before the route trims it', async () => {
+        const res = await speak(ethanApp(take), { text: `  ${reply}`, voice: 'Ethan', marks: marks.map((m) => m + 2) });
+        const plain = await speak(ethanApp(take), { text: reply, voice: 'Ethan', marks });
+        expect(res.headers.get('X-Mark-Times')).toBe(plain.headers.get('X-Mark-Times'));
+    });
+
+    it('sends no times without marks, for marks it cannot use, or where they cannot be found', async () => {
+        const a = ethanApp(take);
+        for (const extra of [{}, { marks: [] }, { marks: 'x' }, { marks: [0, 5] }, { marks: ['3'] }]) {
+            const res = await speak(a, { text: reply, voice: 'Ethan', ...extra });
+            expect(res.status).toBe(200);
+            expect(res.headers.get('X-Mark-Times')).toBeNull();
+        }
+        // One long burst: no pauses to find them in.
+        const flat = await speak(ethanApp(run(120, 160)), { text: reply, voice: 'Ethan', marks });
+        expect(flat.status).toBe(200);
+        expect(flat.headers.get('X-Mark-Times')).toBeNull();
+    });
+
+    it('finds none for a voice other than Azure\'s, whose stream the finder was never measured on', async () => {
+        const res = await speak(ethanApp(take), { text: reply, voice: 'Leda', marks });
+        expect(res.status).toBe(200);
+        expect(res.headers.get('X-Mark-Times')).toBeNull();
+    });
+
+    it('lets a browser read the times', async () => {
+        const res = await ethanApp(take).request('/cloud/v1/tts', { method: 'OPTIONS', headers: { origin: 'https://example.com', 'access-control-request-method': 'POST' } });
+        const plain = await speak(ethanApp(take), { text: reply, voice: 'Ethan', marks });
+        expect(plain.headers.get('access-control-expose-headers') ?? res.headers.get('access-control-expose-headers')).toMatch(/X-Mark-Times/);
     });
 });
 

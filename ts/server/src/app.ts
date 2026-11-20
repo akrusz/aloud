@@ -23,13 +23,12 @@ import { ttsRoutes } from './routes/tts.js';
 import { judgeRoutes } from './routes/judge.js';
 import { CURATED_VOICES, defaultVoice } from './providers/voice-catalog.js';
 import { voiceCreditsPerHourTypical } from './pricing/estimate.js';
-import type { CloudVoice } from './contract.js';
 import { billingRoutes } from './routes/billing.js';
 import { giftRoutes } from './routes/gifts.js';
 import { incidentRoutes } from './routes/incidents.js';
 import { adminRoutes } from './routes/admin.js';
 import { appBackendRoutes } from './routes/app.js';
-import { apiError } from './contract.js';
+import { MARK_TIMES_HEADER, apiError, type CloudVoice } from './contract.js';
 
 /** Largest request body read into memory. Nothing else bounds it: the routes
  *  parse first and validate after, several of them before any sign-in (the
@@ -72,8 +71,10 @@ export function createApp(deps: Deps): Hono {
             // x-provider-key: the BYOK key on the hosted app's live model-list
             // lookup (routes/app.ts), cross-origin like everything else.
             allowHeaders: ['authorization', 'content-type', 'x-stt-prior', 'x-provider-key'],
-            // So the browser can read per-request cost off the /cloud/v1/tts response.
-            exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh'],
+            // So the browser can read per-request cost off the /cloud/v1/tts
+            // response, and where a whole reply's sentences begin; one left out
+            // reads as absent, not as an error.
+            exposeHeaders: ['X-Credits-Charged', 'X-Credits-Remaining', 'X-Session-Refresh', MARK_TIMES_HEADER],
         })
     );
 
@@ -141,6 +142,7 @@ export function createApp(deps: Deps): Hono {
             ...(v.style ? { fixedPace: true } : {}),
             ...(v.name === fallback ? { default: true } : {}),
             ...(v.promptNote ? { promptNote: v.promptNote } : {}),
+            ...(v.wholeReply ? { wholeReply: true } : {}),
         }));
         return c.json(voices);
     });

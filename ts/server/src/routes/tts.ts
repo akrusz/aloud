@@ -12,7 +12,7 @@
  */
 
 import { Hono } from 'hono';
-import { MAX_TTS_CHARS, type SpeakRequest } from '../contract.js';
+import { MARK_TIMES_HEADER, MAX_TTS_CHARS, type SpeakRequest } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { Config } from '../config.js';
 import type { AuthVars } from '../auth/middleware.js';
@@ -30,6 +30,7 @@ import {
 import { withLeadSilence } from '../providers/mp3-lead-silence.js';
 import { withGain } from '../providers/mp3-gain.js';
 import { trimLead, type LeadExpect } from '../providers/mp3-lead-trim.js';
+import { sentenceMarkTimes } from '../providers/mp3-marks.js';
 import {
     CURATED_VOICES,
     PREVIEW_PHRASE,
@@ -177,6 +178,27 @@ export function billedCharsFor(resolved: ResolvedVoice, text: string, rate: numb
     if (resolved.provider !== 'azure') return text.length;
     const lead = leadFor(resolved, text);
     return azureBilledChars(lead ? `${lead} ${text}` : text, effectiveRate(resolved, rate), resolved.style);
+}
+
+/** Most marks one request may ask about: a reply of this many sentences is
+ *  far past any the facilitator writes. */
+const MAX_MARKS = 64;
+
+/** Where each of a whole reply's sentences begins in `audio`
+ *  (SpeakRequest.marks, X-Mark-Times), or null when the request asked about
+ *  none, asked badly, or they can't be found. The marks count from the text
+ *  as sent, `trimmed` characters ahead of the text synthesized. Azure only:
+ *  the finder reads level off the frames' gain, measured on Azure's stream. */
+export function markTimesFor(
+    resolved: ResolvedVoice,
+    audio: Uint8Array,
+    text: string,
+    marks: unknown,
+    trimmed = 0
+): number[] | null {
+    if (resolved.provider !== 'azure' || !Array.isArray(marks) || !marks.length || marks.length > MAX_MARKS) return null;
+    if (!marks.every((m): m is number => typeof m === 'number')) return null;
+    return sentenceMarkTimes(audio, text, marks.map((m) => m - trimmed), resolved.gainDb);
 }
 
 /** Synthesized canned-apology audio, keyed `${reason}:${provider}:${voiceId}`.
@@ -335,7 +357,8 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<SpeakRequest>;
-        const text = (body.text ?? '').trim();
+        const raw = typeof body.text === 'string' ? body.text : '';
+        const text = raw.trim();
         if (!text) return errorJson(c, 'bad_request', 'text required');
         // Refuse before pricing/synthesis: a facilitation turn is never this
         // long, so anything over the cap is a client bug, and the balance gate
@@ -402,6 +425,8 @@ export function ttsRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         c.header('content-type', 'audio/mpeg');
         c.header('X-Credits-Charged', String(charged.creditsCharged));
         c.header('X-Credits-Remaining', String(charged.creditsRemaining));
+        const times = markTimesFor(resolved, audio, text, body.marks, raw.length - raw.trimStart().length);
+        if (times) c.header(MARK_TIMES_HEADER, times.join(','));
         return c.body(audio.buffer as ArrayBuffer);
     });
 
