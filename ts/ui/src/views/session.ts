@@ -199,7 +199,9 @@ import {
     buildScoredVoiceList,
     fetchServerVoices,
     fetchCloudVoices,
+    hostedVoiceEntry,
     hostedVoicePromptNote,
+    type CloudVoice,
     prefixedVoiceId,
     previewVoice as runVoicePreview,
     previewErrorMessage,
@@ -811,6 +813,13 @@ export async function mountSessionView(
     let activeTtsAbort: AbortController | null = null;
     // Set while a reply is in the log and still being spoken (watchReply).
     let cutReply: (() => void) | null = null;
+    // The hosted voice catalog, once fetched (voiceNoteReady); empty until then.
+    let hostedCatalog: CloudVoice[] = [];
+    /** Whether the voice speaking now takes a whole reply per request
+     *  (CloudVoice.wholeReply). Asked per reply: the voice can change mid-sit.
+     *  Before the catalog arrives, or from a server older than the field, a
+     *  sentence per request. */
+    const replyWhole = (): boolean => hostedVoiceEntry(setup.voice, setup.provider, hostedCatalog)?.wholeReply === true;
     // The continuous-capture engine when that's the live backend; used for
     // barge-in wiring (echo calibration goes through echoListener).
     let whisperEngine = continuousWhisper(stt);
@@ -964,6 +973,8 @@ export async function mountSessionView(
     let lastTtsEndedAt = 0;
     // Rolling tail of text handed to the synthesizer (everything voiced goes
     // through here). The transcript echo guard matches phantom turns against it.
+    // A whole-reply utterance is capped to fit it (streaming-tts.ts
+    // MAX_WHOLE_REPLY_CHARS): shrink one, shrink both.
     let spokenTail = '';
     const SPOKEN_TAIL_MAX_CHARS = 600;
     function ttsPlaybackStarted(text: string): void {
@@ -2458,6 +2469,7 @@ export async function mountSessionView(
                 streamCompletionWithChunkedTts(provider, tts, session.getContextMessages(), {
                     system,
                     ttsOptions: { rate: setup.ttsRate },
+                    wholeReply: replyWhole(),
                     onTtsError: handleTtsError,
                     signal: gated?.signal ?? myFullAbort.signal,
                     ttsSignal: myTtsAbort.signal,
@@ -3357,6 +3369,7 @@ export async function mountSessionView(
     // system prompt, so changing it mid-sit (a voice pick, or a late catalog
     // fetch landing after the opener) re-bills the whole cached prefix.
     const voiceNoteReady = fetchCloudVoices().then((hosted) => {
+        hostedCatalog = hosted;
         builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
     });
 
@@ -3434,6 +3447,7 @@ export async function mountSessionView(
                 {
                     system: systemPrompt(),
                     ttsOptions: { rate: setup.ttsRate },
+                    wholeReply: replyWhole(),
                     onTtsError: handleTtsError,
                     signal: turn.signal,
                     ttsSignal: turn.ttsSignal,

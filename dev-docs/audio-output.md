@@ -123,7 +123,9 @@ Read in the WebKit and Chromium sources, partly measured on Android (above):
 
 The system sends the now-playing app a Pause when a headset disconnects or a
 Play/Pause key is pressed (F8 on a Mac), and `CloudTtsEngine` treats an element
-pause as a cancel: the reply would skip to its next sentence. `initMediaKeys` in
+pause as a cancel: the reply would skip to its next sentence, or for a voice
+that takes a whole reply per request (`CloudVoice.wholeReply`) past the rest
+of the clip, which can be all of it. `initMediaKeys` in
 `ts/ui/src/media-keys.ts` registers no-op `navigator.mediaSession` handlers for
 `play`, `pause` and `stop` on every platform, and WebKit calls a registered
 handler instead of pausing the element (read in its source). The exception: on

@@ -46,20 +46,55 @@ function wpmToMultiplier(rate: number): number {
     return rate > 5 ? rate / 160 : rate;
 }
 
+/** A rendered utterance: its audio, and where each of the request's marks
+ *  begins in it (the server's X-Mark-Times), or null when the server didn't
+ *  say. */
+interface Synth {
+    blob: Blob;
+    markTimes: number[] | null;
+}
+
 /**
- * Request signature → rendered audio blob. Auditioning voices replays the same
+ * Request signature → rendered audio. Auditioning voices replays the same
  * preview phrase repeatedly; without this every click re-synthesizes server-side
  * and re-debits credits. Bounded FIFO; a Blob is immutable, so one cached blob
  * serves many object-URL playbacks.
  */
-const SYNTH_CACHE = new Map<string, Blob>();
+const SYNTH_CACHE = new Map<string, Synth>();
 const SYNTH_CACHE_MAX = 48;
 
 /**
  * In-flight requests, keyed like SYNTH_CACHE, so prefetch() and the eventual
  * speak() of the same sentence share one network call (and one credit charge).
  */
-const SYNTH_INFLIGHT = new Map<string, Promise<Blob>>();
+const SYNTH_INFLIGHT = new Map<string, Promise<Synth>>();
+
+/** The response header a whole reply's mark times come back in (server
+ *  contract.ts MARK_TIMES_HEADER). */
+const MARK_TIMES_HEADER = 'x-mark-times';
+
+/** The seconds in an X-Mark-Times header, or null unless it gives one
+ *  ascending time per mark sent. */
+export function parseMarkTimes(header: string | null, marks: number): number[] | null {
+    if (!header || !marks) return null;
+    const times = header.split(',').map(Number);
+    if (times.length !== marks || times.some((t, i) => !Number.isFinite(t) || t < 0 || (i > 0 && t < times[i - 1]!))) return null;
+    return times;
+}
+
+/** The marks of the utterance on the element, and how many have been
+ *  reported (TtsOptions.marks, onMark). */
+interface PlayingMarks {
+    /** Seconds into the audio, from the server. */
+    times: number[] | null;
+    /** Each mark's share of the text: where it is taken to fall, as a share
+     *  of the clip's length, when the server didn't say. Shares miss a
+     *  sentence start by a second or more often enough (8-13% of cuts land
+     *  on the wrong side of one, server mp3-marks.ts), so only a fallback. */
+    shares: number[];
+    fired: number;
+    onMark: (index: number) => void;
+}
 
 function synthCacheKey(
     endpoint: string,
@@ -71,13 +106,13 @@ function synthCacheKey(
     return JSON.stringify({ endpoint, voice, engine: engine ?? '', text, rate: rate ?? null });
 }
 
-function synthCachePut(key: string, blob: Blob): void {
+function synthCachePut(key: string, synth: Synth): void {
     // Evict the oldest entry once full (Map preserves insertion order).
     if (SYNTH_CACHE.size >= SYNTH_CACHE_MAX) {
         const oldest = SYNTH_CACHE.keys().next().value;
         if (oldest !== undefined) SYNTH_CACHE.delete(oldest);
     }
-    SYNTH_CACHE.set(key, blob);
+    SYNTH_CACHE.set(key, synth);
 }
 
 export interface CloudTtsEngineOptions {
@@ -148,6 +183,7 @@ export class CloudTtsEngine implements TtsEngine {
     private currentUrl: string | null = null;
     private currentResolve: (() => void) | null = null;
     private currentAbort: AbortController | null = null;
+    private currentMarks: PlayingMarks | null = null;
 
     constructor(options: CloudTtsEngineOptions) {
         this.voiceId = options.voice;
@@ -179,6 +215,7 @@ export class CloudTtsEngine implements TtsEngine {
             // outside one (e.g. a Settings voice preview).
             const sessionId = getCloudSessionId();
             if (sessionId) body['sessionId'] = sessionId;
+            if (options?.marks?.length) body['marks'] = options.marks;
             return { url: this.endpointUrl, init: { method: 'POST', headers, body: JSON.stringify(body) } };
         }
         const params = new URLSearchParams({ voice: this.voiceId, text });
@@ -201,14 +238,14 @@ export class CloudTtsEngine implements TtsEngine {
      * sentence mustn't die on an unrelated cancel(). speak() checks its own
      * abort flag after awaiting instead.
      */
-    private synthesize(text: string, options: TtsOptions | undefined, cacheKey: string): Promise<Blob> {
+    private synthesize(text: string, options: TtsOptions | undefined, cacheKey: string): Promise<Synth> {
         const cached = SYNTH_CACHE.get(cacheKey);
         // Cache hit: replay locally, and deliberately no onSynthesize - nothing
         // was rendered server-side, so it isn't billable.
         if (cached) return Promise.resolve(cached);
         const inflight = SYNTH_INFLIGHT.get(cacheKey);
         if (inflight) return inflight;
-        const request = (async (): Promise<Blob> => {
+        const request = (async (): Promise<Synth> => {
             const timed = <T>(p: Promise<T>): Promise<T> =>
                 withTimeout(p, TTS_REQUEST_TIMEOUT_MS, 'aloud cloud TTS timed out.');
             const send = async (): Promise<Response> => {
@@ -226,7 +263,10 @@ export class CloudTtsEngine implements TtsEngine {
                     return res;
                 },
                 {
-                    budgetMs: this.networkRetryMs,
+                    budgetMs:
+                        options?.retryFrom === undefined
+                            ? this.networkRetryMs
+                            : Math.max(0, this.networkRetryMs - (Date.now() - options.retryFrom)),
                     onRetry: (n, why) => console.warn(`[cloud-tts] retry ${n} after ${why}`),
                 }
             );
@@ -243,8 +283,12 @@ export class CloudTtsEngine implements TtsEngine {
             // Count the characters rendered. Fires for prefetches too: the
             // server did render, so it bills.
             this.onSynthesize?.(text.length);
-            synthCachePut(cacheKey, blob);
-            return blob;
+            const synth = {
+                blob,
+                markTimes: parseMarkTimes(response.headers.get(MARK_TIMES_HEADER), options?.marks?.length ?? 0),
+            };
+            synthCachePut(cacheKey, synth);
+            return synth;
         })().finally(() => {
             SYNTH_INFLIGHT.delete(cacheKey);
         });
@@ -273,16 +317,16 @@ export class CloudTtsEngine implements TtsEngine {
         this.currentAbort = abort;
 
         const cacheKey = synthCacheKey(this.endpointUrl, this.voiceId, this.engine, text, options?.rate);
-        let blob: Blob;
+        let synth: Synth;
         try {
-            blob = await this.synthesize(text, options, cacheKey);
+            synth = await this.synthesize(text, options, cacheKey);
         } catch (err) {
             if (this.currentAbort === abort) this.currentAbort = null;
             throw err;
         }
         if (abort.signal.aborted) return;
 
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(synth.blob);
         // The ONE shared element, primed by the Begin click - a per-utterance
         // `new Audio()` is unprivileged under Safari's per-element autoplay gate
         // and plays nothing (see audio-unlock.ts).
@@ -313,22 +357,42 @@ export class CloudTtsEngine implements TtsEngine {
                 this.currentUrl = null;
                 this.currentAbort = null;
                 this.currentResolve = null;
+                this.currentMarks = null;
                 if (elementOwner === this) elementOwner = null;
             };
             const cleanup = (): void => {
                 release();
                 resolve();
             };
-            audio.onended = cleanup;
-            audio.onerror = cleanup;
+            // Played out: every mark was reached.
+            audio.onended = () => {
+                if (current()) this.reportMarks(audio, true);
+                cleanup();
+            };
+            audio.onerror = () => {
+                if (current()) this.reportMarks(audio, false);
+                cleanup();
+            };
             audio.onpause = () => {
                 // Pause without ending means we were cancelled - finalize.
                 if (audio.ended) return;
+                if (current()) this.reportMarks(audio, false);
                 cleanup();
             };
             this.currentAudio = audio;
             this.currentUrl = url;
             this.currentResolve = resolve;
+            const marks = options?.marks;
+            this.currentMarks =
+                marks?.length && options?.onMark
+                    ? {
+                          // A cached clip may have been asked for with other marks.
+                          times: synth.markTimes?.length === marks.length ? synth.markTimes : null,
+                          shares: marks.map((m) => m / text.length),
+                          fired: 0,
+                          onMark: options.onMark,
+                      }
+                    : null;
             audio.play().catch((err: unknown) => {
                 // A cancel() mid-play rejects with AbortError - expected,
                 // finalize quietly. Anything else (notably the iOS autoplay
@@ -353,12 +417,31 @@ export class CloudTtsEngine implements TtsEngine {
         return [];
     }
 
+    /** Report the marks of the utterance on `audio` that its playback has
+     *  reached (all of them once it played out). Before the element is
+     *  stopped or handed on: both reset its position. */
+    private reportMarks(audio: HTMLAudioElement, all: boolean): void {
+        const m = this.currentMarks;
+        if (!m) return;
+        let reached = m.shares.length;
+        if (!all) {
+            const at = audio.currentTime;
+            const times = m.times ?? (Number.isFinite(audio.duration) ? m.shares.map((s) => s * audio.duration) : []);
+            reached = times.filter((t) => t <= at).length;
+        }
+        while (m.fired < reached) m.onMark(m.fired++);
+    }
+
     private cancelSync(): void {
         if (this.currentAbort) {
             this.currentAbort.abort();
             this.currentAbort = null;
         }
         if (this.currentAudio) {
+            // What was heard of a whole reply is known only here, before
+            // the element stops and forgets its position.
+            this.reportMarks(this.currentAudio, false);
+            this.currentMarks = null;
             // Detach FIRST: the element is shared, so a pause event still queued
             // when the next speak() installs its handlers would finalize that
             // utterance before it made a sound.

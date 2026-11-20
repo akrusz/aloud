@@ -36,7 +36,19 @@ On both detecting paths a barge-in cancels the sentence in flight and aborts
 generating (its signals and usage still land), but the log and the bubble end
 up with only what was heard: the sentences whose audio started, the one cut
 mid-word included (`heard()` in `streaming-tts.ts`, `watchReply` in
-`session.ts`, `SessionManager.cutUnspokenReply`). The same cut runs when a
+`session.ts`, `SessionManager.cutUnspokenReply`). A hosted voice that takes
+a whole reply per request (`CloudVoice.wholeReply`: Harper, Ethan) plays the
+reply as one clip, so a cancel stops the whole of it, and what was heard is
+counted by chunk inside the clip: the request carries each chunk's offset
+(`TtsOptions.marks`), the server says where each begins in the audio
+(`X-Mark-Times`, [ts-server.md](ts-server.md#hosted-voices--auditioning-new-ones)),
+and `CloudTtsEngine` reports through `onMark`, synchronously inside
+`cancel()`, the ones the element's position had reached. A chunk counts from
+0.15s ahead of its first sound, about where its own clip would have started
+to play. Without times from the server it falls back to the chunks' shares of
+the text over the clip's length, which put a cut on the wrong side of a chunk
+start several times as often. Every caller cancels before it reads
+`heard()`, so the count is in by then. The same cut runs when a
 newer turn or a command takes the floor mid-reply, before its own words are
 logged. A reply none of which was heard leaves no entry, and a `[HOLD]` bid on
 a cut reply is dropped, since its question comes last. So a false trigger
@@ -149,8 +161,8 @@ still open as the session's opens.
 The same release rule holds mid-session. Muting, or opening the voice picker,
 stops listening at once but keeps the capture stream while a line plays or a
 reply is under way (`facilitatorQuiet` in `session.ts`, passed as
-`keepMicUntil`). A reply's sentences are separate `speak()` calls, and only
-`busy` spans the gaps between them. Let go mid-sentence, the line skipped
+`keepMicUntil`). A reply's sentences are separate `speak()` calls (one or
+two, for a whole-reply voice), and only `busy` spans the gaps between them. Let go mid-sentence, the line skipped
 about 3s later (desktop app, 2026-11-18). With nothing playing, the mute lets
 go at once and the OS mic indicator goes off. An unmute while the stream is
 kept takes it back (`micKept` in `whisper-pcm-stt.ts`). The voice picker keeps

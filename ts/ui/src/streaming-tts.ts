@@ -4,6 +4,11 @@
  * response - worth ~1-2s of time-to-first-audio on a 2-3 sentence reply over a
  * network LLM, most of all on mobile or a slow connection. Falls back to
  * non-streaming complete() otherwise.
+ *
+ * A voice whose every request bills a fixed overhead (a styled Azure voice's
+ * express-as tags, CloudVoice.wholeReply) is instead given the whole reply as
+ * one utterance, or two when the stream runs long (WHOLE_REPLY_WAIT_MS), with
+ * marks at its chunks so a barge-in still keeps only the chunks heard.
  */
 
 import type {
@@ -63,6 +68,16 @@ export interface StreamCompletionOptions extends CompletionOptions {
      *  is `heard()`. */
     ttsSignal?: AbortSignal;
     /**
+     * Speak the reply as one utterance where it can (the hosted voice's
+     * CloudVoice.wholeReply), not one per chunk: the chunks gather until the
+     * stream ends, or until WHOLE_REPLY_WAIT_MS after the first is complete,
+     * when what is there goes and the rest follows as one more at the end.
+     * Each utterance carries its chunk starts as TtsOptions.marks, and heard()
+     * keeps the chunks the engine reports reached. If one fails, its chunks
+     * and the rest of the reply are spoken one by one.
+     */
+    wholeReply?: boolean;
+    /**
      * Asked once, when the first words are ready to be spoken: resolve true to
      * let the reply be heard, false to keep the whole completion silent (the
      * caller is throwing it away). Generation and synthesis prefetch carry on
@@ -101,8 +116,17 @@ export async function streamCompletionWithChunkedTts(
     messages: Message[],
     options: StreamCompletionOptions = {}
 ): Promise<StreamCompletionResult> {
-    const { onTextDelta, onSpeakStart, ttsOptions, onTtsError, signal, ttsSignal, speakGate, ...completionOpts } =
-        options;
+    const {
+        onTextDelta,
+        onSpeakStart,
+        ttsOptions,
+        onTtsError,
+        signal,
+        ttsSignal,
+        speakGate,
+        wholeReply,
+        ...completionOpts
+    } = options;
     const hushed = (): boolean => !!signal?.aborted || !!ttsSignal?.aborted;
     const startedChunks: string[] = [];
     let chunkCount = 0;
@@ -135,6 +159,148 @@ export async function streamCompletionWithChunkedTts(
         ? { ...completionOpts, signal }
         : completionOpts;
 
+    // Each entry awaits the previous one, so utterances play sequentially behind
+    // a single "all done" promise.
+    let ttsQueue: Promise<void> = Promise.resolve();
+    // Settles once the queue does and nothing more was added to it meanwhile.
+    const drained = async (): Promise<void> => {
+        for (let q = ttsQueue; ; q = ttsQueue) {
+            await q;
+            if (q === ttsQueue) return;
+        }
+    };
+
+    /** Speak one chunk, reporting it heard once its audio starts (or once it
+     *  played, for an engine that can't tell). */
+    function playChunk(text: string, opts: TtsOptions | undefined): Promise<void> {
+        let started = false;
+        const reportStart = (): void => {
+            if (started) return;
+            started = true;
+            startedChunks.push(text);
+            onSpeakStart?.(text);
+        };
+        return tts.speak(text, { ...opts, onStart: reportStart }).then(startedUnlessHushed(reportStart));
+    }
+
+    /** Queue one chunk as its own utterance. */
+    function speakChunk(text: string): void {
+        if (hushed()) return;
+        // Start synthesis NOW, concurrent with earlier sentences' playback, so
+        // this chunk's audio is usually fetched by the time it plays instead of
+        // costing a round-trip of silence between sentences. Engines without
+        // prefetch() just fetch inside speak().
+        tts.prefetch?.(text, ttsOptions);
+        // Engines that can't observe the audible start never fire onStart, so
+        // playChunk reports at resolve (playback end) - the reveal still
+        // happens, just late.
+        ttsQueue = ttsQueue
+            .then(async () => {
+                if (hushed() || !(await maySpeak()) || hushed()) return;
+                return playChunk(text, ttsOptions);
+            })
+            .catch((err: unknown) => {
+                // Non-fatal to the queue/session, but surfaced once so the
+                // caller can show billing/auth failures.
+                reportTtsError(err);
+            });
+    }
+
+    // A whole reply (wholeReply): chunks gather here until the stream ends, or
+    // WHOLE_REPLY_WAIT_MS after the first one, and go out as one utterance.
+    let pending: string[] = [];
+    let pendingChars = 0;
+    let waitTimer: ReturnType<typeof setTimeout> | null = null;
+    let sentAny = false;
+    let streamOver = false;
+    // A whole-reply utterance failed: the rest of the reply goes a chunk at a time.
+    let chunkByChunk = false;
+
+    function gather(text: string): void {
+        if (chunkByChunk) return speakChunk(text);
+        if (pending.length && pendingChars + text.length + 1 > MAX_WHOLE_REPLY_CHARS) sendGathered();
+        pending.push(text);
+        pendingChars += text.length + 1;
+        if (!sentAny && !waitTimer) {
+            // Ask the gate now, as the per-sentence path does at its first
+            // chunk, so the wait for the rest of the reply runs beside it.
+            void maySpeak();
+            waitTimer = setTimeout(sendGathered, WHOLE_REPLY_WAIT_MS);
+        }
+    }
+
+    function sendGathered(): void {
+        if (waitTimer) {
+            clearTimeout(waitTimer);
+            waitTimer = null;
+        }
+        if (!pending.length) return;
+        const chunks = pending;
+        pending = [];
+        pendingChars = 0;
+        sentAny = true;
+        if (chunkByChunk) chunks.forEach(speakChunk);
+        else if (!hushed()) speakTogether(chunks);
+    }
+
+    /** Queue `chunks` as one utterance, each after the first a mark, so the
+     *  engine can say which ones were heard when it is cut off. */
+    function speakTogether(chunks: string[]): void {
+        const text = chunks.join(' ');
+        const marks: number[] = [];
+        for (let i = 1, at = 0; i < chunks.length; i++) marks.push((at += chunks[i - 1]!.length + 1));
+        const opts: TtsOptions = marks.length ? { ...ttsOptions, marks } : { ...ttsOptions };
+        tts.prefetch?.(text, opts);
+        // The chunks heard so far, in order. The bubble gets the whole text at
+        // the start (no timed reveal); the log keeps only the chunks heard.
+        let started = 0;
+        const startUpTo = (n: number): void => {
+            if (!started && n > 0) onSpeakStart?.(text);
+            while (started < n) startedChunks.push(chunks[started++]!);
+        };
+        const sentAt = Date.now();
+        ttsQueue = ttsQueue.then(async () => {
+            if (hushed() || !(await maySpeak()) || hushed()) return;
+            try {
+                await tts.speak(text, { ...opts, onStart: () => startUpTo(1), onMark: (i) => startUpTo(i + 2) });
+            } catch {
+                // A synthesis that failed never played. Its chunks are said one
+                // at a time instead, inside the time the first try's re-sends
+                // had (retryFrom), and so is the rest of the reply.
+                chunkByChunk = true;
+                const left = chunks.slice(started);
+                const retry: TtsOptions = { ...ttsOptions, retryFrom: sentAt };
+                for (const chunk of left) if (!hushed()) tts.prefetch?.(chunk, retry);
+                for (const chunk of left) {
+                    if (hushed()) return;
+                    try {
+                        await playChunk(chunk, retry);
+                    } catch (err) {
+                        reportTtsError(err);
+                    }
+                }
+                return;
+            }
+            // Resolved unhushed: played out, as for a single chunk.
+            if (!hushed()) startUpTo(chunks.length);
+            // The stream outran by this one's playback: what it has so far
+            // goes now rather than at its end.
+            if (pending.length && !streamOver) sendGathered();
+        }).catch(reportTtsError);
+    }
+
+    function enqueueSpeak(text: string): void {
+        // Safety net for misplaced control tokens: checkControlPrefix handles
+        // the leading run, but a small model can drop one mid-reply and it would
+        // be read aloud. Never honored (signals stay leading-only), just never
+        // spoken.
+        text = scrubControlTokens(text);
+        if (!text.trim()) return;
+        chunkCount++;
+        if (wholeReply) gather(text.trim());
+        else speakChunk(text);
+    }
+
     if (!provider.completeStream) {
         // Non-streaming fallback - complete(), then speak in one go.
         const result = await provider.complete(messages, providerOpts);
@@ -143,6 +309,16 @@ export async function streamCompletionWithChunkedTts(
         // right here") - only the tokens are silenced, never the words. The
         // caller parses the signals separately from the full text.
         const spoken = parseTurnSignals(result.text).cleanText;
+        const done = { text: result.text, usage: usageFrom(result), finishReason: result.finishReason ?? null, heard };
+        if (wholeReply) {
+            // One utterance still, but marked by chunk, so a cut keeps only
+            // the chunks heard.
+            const { complete, remainder } = splitOffSentences(spoken);
+            for (const chunk of [...complete, remainder]) enqueueSpeak(chunk);
+            streamOver = true;
+            sendGathered();
+            return { ...done, ttsDone: drained() };
+        }
         if (spoken.trim()) chunkCount = 1;
         let started = false;
         const reportStart = (): void => {
@@ -152,7 +328,7 @@ export async function streamCompletionWithChunkedTts(
             onSpeakStart?.(spoken);
         };
         return {
-            text: result.text,
+            ...done,
             ttsDone: maySpeak().then((open) =>
                 !open || hushed()
                     ? undefined
@@ -164,58 +340,14 @@ export async function streamCompletionWithChunkedTts(
                               throw err; // callers already treat ttsDone as non-fatal
                           })
             ),
-            usage: usageFrom(result),
-            finishReason: result.finishReason ?? null,
-            heard,
         };
     }
 
     let fullText = '';
     let pendingTtsText = ''; // text not yet handed to TTS
     let prefixChecked = false; // leading control tokens decided?
-    // Each entry awaits the previous one, so utterances play sequentially behind
-    // a single "all done" promise.
-    let ttsQueue: Promise<void> = Promise.resolve();
     let usage: LlmUsage = {};
     let finishReason: string | null = null;
-
-    function enqueueSpeak(text: string): void {
-        // Safety net for misplaced control tokens: checkControlPrefix handles
-        // the leading run, but a small model can drop one mid-reply and it would
-        // be read aloud. Never honored (signals stay leading-only), just never
-        // spoken.
-        text = scrubControlTokens(text);
-        if (!text.trim()) return;
-        chunkCount++;
-        if (hushed()) return;
-        // Start synthesis NOW, concurrent with earlier sentences' playback, so
-        // this chunk's audio is usually fetched by the time it plays instead of
-        // costing a round-trip of silence between sentences. Engines without
-        // prefetch() just fetch inside speak().
-        tts.prefetch?.(text, ttsOptions);
-        // Report audible start. Engines that can't observe it never fire
-        // onStart, so report at resolve (playback end) - the reveal still happens,
-        // just late.
-        let started = false;
-        const reportStart = (): void => {
-            if (started) return;
-            started = true;
-            startedChunks.push(text);
-            onSpeakStart?.(text);
-        };
-        ttsQueue = ttsQueue
-            .then(async () => {
-                if (hushed() || !(await maySpeak()) || hushed()) return;
-                return tts
-                    .speak(text, { ...ttsOptions, onStart: reportStart })
-                    .then(startedUnlessHushed(reportStart));
-            })
-            .catch((err: unknown) => {
-                // Non-fatal to the queue/session, but surfaced once so the
-                // caller can show billing/auth failures.
-                reportTtsError(err);
-            });
-    }
 
     // The control tokens a reply can open with: [HOLD] always, [NEXT]/[BACK]
     // in staged modes, and [WAIT:Nm] with smart check-in timing. They can
@@ -315,9 +447,32 @@ export async function streamCompletionWithChunkedTts(
             }
         }
     }
+    streamOver = true;
+    sendGathered();
 
-    return { text: fullText, ttsDone: ttsQueue, usage, finishReason, heard };
+    return { text: fullText, ttsDone: drained(), usage, finishReason, heard };
 }
+
+/**
+ * A whole reply (StreamCompletionOptions.wholeReply) waits this long after its
+ * first chunk is complete for the stream to end; past it, what has arrived is
+ * spoken and the rest follows as one more utterance. Most replies end well
+ * inside it: estimated from the dev's session logs and the soak runs
+ * (reply latency against length, 2026-11-19), the stream after the first
+ * chunk of a multi-chunk reply ran a median 126ms on aloud cloud's Haiku 5.5
+ * (98% inside 500ms), about 25ms on Opus 5.5 (its text arrives in a burst
+ * after thinking), 360ms on Opus 4.5 (87%) and 230ms on Sonnet 5.5 (74%).
+ * The first words wait at most this much longer than they used to.
+ */
+export const WHOLE_REPLY_WAIT_MS = 500;
+
+/** Longest text one whole-reply utterance carries; a longer reply is split
+ *  at a chunk. No more than the transcript echo guard keeps of what was
+ *  handed to the voice (views/session.ts SPOKEN_TAIL_MAX_CHARS), which takes
+ *  an utterance's text as it starts: past that, the start of a long one
+ *  would be gone from it while it plays. Far over a typical reply (about
+ *  140 characters), and under the server's MAX_TTS_CHARS. */
+export const MAX_WHOLE_REPLY_CHARS = 600;
 
 /**
  * A completed sentence shorter than this is merged into the next one instead

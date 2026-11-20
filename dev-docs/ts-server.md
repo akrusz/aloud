@@ -314,6 +314,22 @@ heard the long ones and kept them. A voice to switch on needs the same
 measuring first (the repeat probe's `whole` and `chunks` sends): an unstyled
 voice pays no tags, so it gains nothing.
 
+The client (`streamCompletionWithChunkedTts`) gathers the reply's sentence
+chunks and sends them when the stream ends, unless it is still running
+`WHOLE_REPLY_WAIT_MS` (500ms) after the first chunk is complete: then what
+has arrived goes, and the rest follows as one more request at the end (or
+as soon as the first has played, for a stream slower than its audio). On the
+default Opus 5.5 a reply's text arrives in one burst after its thinking, so
+the wait almost never runs out; on Haiku 5.5, 98% of multi-chunk replies end
+inside it, on Sonnet 5.5 about three in four (estimated from reply latency
+against length in the session logs and soak runs). Requests stay under
+`MAX_WHOLE_REPLY_CHARS`. The bubble shows the whole request's text when it
+starts to play. A request that fails is said again a chunk at a time, inside
+what is left of the first one's network retry budget (`TtsOptions.retryFrom`),
+and so is the rest of that reply; only a failure there is reported. An older
+server sends no `wholeReply`, so a newer client keeps every voice a sentence
+per request.
+
 Such a request carries `marks`, the character offsets of the client's
 sentence chunks after the first, and the response says in `X-Mark-Times`
 where each begins in the audio (`providers/mp3-marks.ts`

@@ -81,7 +81,9 @@ machine.
 2. If the verdict is still out at submit and the check runs somewhere other
    than the facilitator's model (Jev, Haiku, a BYOK API), the reply is requested
    anyway and the check runs beside it. `speakGate` (`streaming-tts.ts`) holds
-   the first words for at most `TROUBLE_GRACE_MS` after they are ready; a yes in
+   the first words for at most `TROUBLE_GRACE_MS` after they are ready (for a
+   whole-reply voice, after the first chunk is complete, the grace running
+   beside the wait for the rest of the reply); a yes in
    that window stops the reply and asks again with the note. Past it the reply
    goes out unchecked, and a late yes is only logged (`stepping-out` /
    `too-late`).

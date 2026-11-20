@@ -28,6 +28,25 @@ export interface TtsOptions {
      * observe playback start never call it, so callers need a fallback.
      */
     onStart?: () => void;
+    /**
+     * Character offsets into the text where a sentence after the first
+     * begins, for a whole reply spoken as one utterance (CloudVoice.wholeReply).
+     * An engine that can place them in its audio reports each through
+     * `onMark`; others ignore both.
+     */
+    marks?: number[];
+    /**
+     * Fires once per mark, in order, with its index into `marks`, once its
+     * sentence counts as heard: inside cancel(), synchronously, for each one
+     * the audio had reached; when the utterance plays out, for any left.
+     */
+    onMark?: (index: number) => void;
+    /**
+     * For an engine that re-sends a request lost to a dropped connection:
+     * count its time budget from this moment (epoch ms), not from this
+     * request's own first failure, when the same words were already tried.
+     */
+    retryFrom?: number;
 }
 
 export interface TtsEngine {

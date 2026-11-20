@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CloudTtsEngine } from '../ui/src/adapters/cloud-tts.js';
+import { CloudTtsEngine, parseMarkTimes } from '../ui/src/adapters/cloud-tts.js';
 import { playbackAudio } from '../ui/src/audio-unlock.js';
 
 // Off: play() stays pending until the test starts playback by hand, and a
@@ -261,6 +261,112 @@ describe('CloudTtsEngine on a dropped connection', () => {
     });
 });
 
+
+describe('CloudTtsEngine: a whole reply, marked by chunk', () => {
+    const text = 'First chunk is here. Second chunk is here. Third one.';
+    const marks = [text.indexOf('Second'), text.indexOf('Third')];
+    let sent: Record<string, unknown> = {};
+
+    /** An engine on its own endpoint (the synthesis cache is per module),
+     *  answering with `header` as X-Mark-Times. */
+    function engineFor(endpoint: string, header: string | null): CloudTtsEngine {
+        const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+            sent = JSON.parse(init!.body as string);
+            return new Response(new Blob([new Uint8Array([1])], { type: 'audio/mpeg' }), {
+                status: 200,
+                headers: header === null ? {} : { 'X-Mark-Times': header },
+            });
+        }) as unknown as typeof fetch;
+        return new CloudTtsEngine({ voice: 'Harper', endpointUrl: endpoint, usePost: true, authProvider: async () => 't', fetchImpl });
+    }
+
+    /** The shared element, as a test drives it. */
+    const element = () => playbackAudio() as unknown as { currentTime: number; duration: number; onplaying: (() => void) | null; onended: (() => void) | null; onpause: (() => void) | null };
+
+    afterEach(() => {
+        autoPlay = true;
+    });
+
+    it('sends the marks, and reports inside cancel() the ones playback had reached', async () => {
+        autoPlay = false;
+        const engine = engineFor('/marks/cut', '2.5,5.1');
+        const reached: number[] = [];
+        const audio = element();
+        const line = engine.speak(text, { marks, onMark: (i) => reached.push(i) });
+        await vi.waitFor(() => expect(audio.onended).not.toBeNull());
+        expect(sent['marks']).toEqual(marks);
+        audio.onplaying?.();
+        audio.currentTime = 3.2;
+        void engine.cancel();
+        expect(reached).toEqual([0]);
+        await line;
+        expect(reached).toEqual([0]);
+    });
+
+    it('reports every mark once the reply plays out', async () => {
+        autoPlay = false;
+        const engine = engineFor('/marks/ended', '2.5,5.1');
+        const reached: number[] = [];
+        const audio = element();
+        const line = engine.speak(text, { marks, onMark: (i) => reached.push(i) });
+        await vi.waitFor(() => expect(audio.onended).not.toBeNull());
+        audio.currentTime = 1;
+        audio.onplaying?.();
+        audio.onended?.();
+        await line;
+        expect(reached).toEqual([0, 1]);
+    });
+
+    it('takes shares of the text over the clip when the server gives no times', async () => {
+        autoPlay = false;
+        const engine = engineFor('/marks/shares', null);
+        const reached: number[] = [];
+        const audio = element();
+        const line = engine.speak(text, { marks, onMark: (i) => reached.push(i) });
+        await vi.waitFor(() => expect(audio.onended).not.toBeNull());
+        audio.onplaying?.();
+        audio.duration = 10;
+        // Second starts 21/53 of the way in (4.0s), Third 43/53 (8.1s).
+        audio.currentTime = 4.2;
+        void engine.cancel();
+        await line;
+        expect(reached).toEqual([0]);
+    });
+
+    it('sends no marks for a single chunk, and reads none an older server would not send', async () => {
+        const engine = engineFor('/marks/none', null);
+        await engine.speak('Just the one sentence here.');
+        expect('marks' in sent).toBe(false);
+    });
+});
+
+describe('parseMarkTimes', () => {
+    it('takes one ascending time per mark sent, and nothing else', () => {
+        expect(parseMarkTimes('2.5,5.1', 2)).toEqual([2.5, 5.1]);
+        expect(parseMarkTimes('2.5', 2)).toBeNull();
+        expect(parseMarkTimes('5.1,2.5', 2)).toBeNull();
+        expect(parseMarkTimes('2.5,x', 2)).toBeNull();
+        expect(parseMarkTimes(null, 2)).toBeNull();
+        expect(parseMarkTimes('2.5', 0)).toBeNull();
+    });
+});
+
+describe('CloudTtsEngine retrying what was already tried (retryFrom)', () => {
+    it('re-sends only inside what is left of the budget counted from then', async () => {
+        const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Load failed'));
+        const engine = new CloudTtsEngine({
+            voice: 'Harper',
+            endpointUrl: '/retry-from/spent',
+            usePost: true,
+            authProvider: async () => 'tok',
+            networkRetryMs: 10_000,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+        });
+        // The whole reply already spent its ten seconds re-sending.
+        await expect(engine.speak('A chunk said on its own.', { retryFrom: Date.now() - 11_000 })).rejects.toThrow('Load failed');
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+});
 
 describe('CloudTtsEngine on the shared element', () => {
     const fetchImpl = (async () =>

@@ -66,27 +66,38 @@ export interface CloudVoice {
     /** A system-prompt rule about the text this voice reads (see
      *  hostedVoicePromptNote). */
     promptNote?: string;
+    /** Speak a whole reply as one request (streaming-tts.ts
+     *  StreamCompletionOptions.wholeReply). Absent from an older server, which
+     *  keeps every voice a sentence per request. */
+    wholeReply?: boolean;
 }
 
 /**
- * The prompt note of the hosted voice that will actually speak, or '' when
- * none applies: an explicit `aloud:` pick names it; no pick on the hosted
- * pipeline means the catalog's default (views/session.ts buildTts); a browser
- * or server voice never has one. Feeds PromptConfig.voiceNote.
+ * The hosted voice that will actually speak, if one will: an explicit
+ * `aloud:` pick names it; no pick on the hosted pipeline means the catalog's
+ * default (views/session.ts buildTts); a browser or server voice is none.
  */
+export function hostedVoiceEntry(
+    voiceId: string | null,
+    provider: string,
+    hosted: readonly CloudVoice[]
+): CloudVoice | undefined {
+    if (voiceId?.startsWith('aloud:')) {
+        const name = voiceId.slice('aloud:'.length);
+        return hosted.find((v) => v.name === name);
+    }
+    if (!voiceId && provider === 'aloud') return hosted.find((v) => v.default);
+    return undefined;
+}
+
+/** The prompt note of the hosted voice that will actually speak
+ *  (hostedVoiceEntry), or '' when none applies. Feeds PromptConfig.voiceNote. */
 export function hostedVoicePromptNote(
     voiceId: string | null,
     provider: string,
     hosted: readonly CloudVoice[]
 ): string {
-    let entry: CloudVoice | undefined;
-    if (voiceId?.startsWith('aloud:')) {
-        const name = voiceId.slice('aloud:'.length);
-        entry = hosted.find((v) => v.name === name);
-    } else if (!voiceId && provider === 'aloud') {
-        entry = hosted.find((v) => v.default);
-    }
-    return entry?.promptNote ?? '';
+    return hostedVoiceEntry(voiceId, provider, hosted)?.promptNote ?? '';
 }
 
 /** Scored, sorted voice entry for the picker UI. */
