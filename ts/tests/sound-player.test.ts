@@ -31,6 +31,17 @@ function track(p: Promise<void>): { over: boolean } {
 const lastEl = (): FakeAudio => audiblePlays().at(-1)!.el;
 
 describe('priming', () => {
+    it('primes with a valid WAV of silence at 48 kHz, so no output opens at a lower rate', () => {
+        const wav = Buffer.from(player.SILENT_WAV.replace('data:audio/wav;base64,', ''), 'base64');
+        expect(wav.toString('ascii', 0, 4)).toBe('RIFF');
+        expect(wav.readUInt32LE(4)).toBe(wav.length - 8);
+        expect(wav.readUInt16LE(22)).toBe(1);
+        expect(wav.readUInt32LE(24)).toBe(48_000);
+        expect(wav.readUInt16LE(34)).toBe(8);
+        expect(wav.readUInt32LE(40)).toBe(wav.length - 44);
+        expect([...wav.subarray(44)].every((sample) => sample === 0x80)).toBe(true);
+    });
+
     it('plays silence once on each sound element, inside the gesture', () => {
         player.primeSounds();
         const primed = FakeAudio.log.filter((p) => p.src === player.SILENT_WAV);

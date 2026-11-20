@@ -18,9 +18,15 @@
 import { diag } from './diag.js';
 import { assetPath } from './route-base.js';
 
-/** 8ms of 8-bit mono silence - the shortest thing that is a valid WAV. */
-export const SILENT_WAV =
-    'data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
+/**
+ * 8 ms of 8-bit mono silence as a WAV, at 48 kHz and not lower. In the Android
+ * WebView elements of the same channel count share one output player, opened
+ * at the rate of the first sound played on it, and this is a session's first
+ * mono sound (the Begin prime). At 8 kHz the voice joined that player and
+ * played band-limited to 4 kHz (inferred from a phone's dumpsys audio,
+ * 2026-11-19: dev-docs/audio-output.md).
+ */
+export const SILENT_WAV = `data:audio/wav;base64,UklGRqQBAABXQVZFZm10IBAAAAABAAEAgLsAAIC7AAABAAgAZGF0YYABAACA${'gICA'.repeat(127)}gIA=`;
 
 /**
  * open, close: the signature sound's halves, whose src changes only with the

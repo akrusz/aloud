@@ -133,7 +133,13 @@ Read in the WebKit and Chromium sources, partly measured on Android (above):
   click's prime started (with call usage when Begin came from a listening
   setup screen), and a close that follows within 10 s on the same one. A
   capture graph's AudioContext is a player of its own, stopped after 30 s of
-  silence.
+  silence. Inferred from the same log: elements share a player across rates
+  too, at the rate of the first sound played on it. The Begin prime's silent
+  clip was 8 kHz mono, its player ran until the session ended and 10 s more,
+  and no 24 kHz player opened for the greeting, so the voice played
+  band-limited to 4 kHz while it lasted. The clip is 48 kHz since
+  (`SILENT_WAV` in `sound-player.ts`); a 48 kHz mono player under the first
+  line on the next phone run confirms it.
 - **iPhone.** An audible element with no mic open puts the audio session in the
   playback category: a chime or a preview with no mic open ignores the silent
   switch and stops other apps' music, where Web Audio alone was ambient.
