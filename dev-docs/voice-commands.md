@@ -560,8 +560,8 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
     A request understood starts the count, and the two minutes, over.
 - **It does not hear the app.** A request is answered with the recognizer
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
-  step of the tour, stops it first (`hold`; hosted recognition in the
-  Android app hears through a tour line instead, for the tour's own words
+  step of the tour, stops it first (`hold`; hosted recognition, except on
+  an iPhone, hears through a tour line instead, for the tour's own words
   only: The tour, spoken, below).
   Listening resumes
   `SPEECH_TAIL_MS` after the line ends, and a clip's file ends 0.15s after its
@@ -831,7 +831,7 @@ voices and would move them off it.
   above), and not for a tour read in a local voice, which the OS may speak
   past the canceller.
 - **Elsewhere a word waits for the line.** The phone's recognizer and Chrome's
-  hear the speaker, and local Whisper and hosted recognition off Android were
+  hear the speaker, and local Whisper and hosted recognition on an iPhone were
   left as they were: the recognizer is
   stopped while a line plays, so a word said over it is not heard at all. It
   listens again `SPEECH_TAIL_MS` after the line, and a word said then is acted
