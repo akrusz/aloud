@@ -104,6 +104,29 @@ describe('previewLooksLikeTtsEcho', () => {
     });
 });
 
+describe('looksLikePartOfLine', () => {
+    const tip = "By the way, you can say 'back' or 'next' to control this tour.";
+    it('takes any run of the line, however short, as the line', async () => {
+        const { looksLikePartOfLine } = await import('../src/facilitation/echo-guard.js');
+        expect(looksLikePartOfLine('Next.', tip)).toBe(true);
+        expect(looksLikePartOfLine('back or next', tip)).toBe(true);
+        expect(looksLikePartOfLine('By the way, you can say back or next to control this tour.', tip)).toBe(true);
+    });
+    it('lets through what the line does not say', async () => {
+        const { looksLikePartOfLine } = await import('../src/facilitation/echo-guard.js');
+        expect(looksLikePartOfLine('repeat', tip)).toBe(false);
+        expect(looksLikePartOfLine('next please', tip)).toBe(false);
+        expect(looksLikePartOfLine('Harper', "And I'm Ethan. Say which of us you'd like, or tap our name.")).toBe(false);
+        expect(looksLikePartOfLine('', tip)).toBe(false);
+    });
+    it('reads zh by its characters', async () => {
+        const { looksLikePartOfLine } = await import('../src/facilitation/echo-guard.js');
+        const zhTip = '顺便说一下，你可以说“上一步”或“下一步”来控制这个导览。';
+        expect(looksLikePartOfLine('下一步。', zhTip)).toBe(true);
+        expect(looksLikePartOfLine('重复', zhTip)).toBe(false);
+    });
+});
+
 describe('looksLikeSpokenTail', () => {
     const line = 'Guidance set to following.';
     it('catches the end of the line and nothing else of it', async () => {

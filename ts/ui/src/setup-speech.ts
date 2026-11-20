@@ -129,6 +129,9 @@ export interface SetupSpeaker {
     stop(): void;
     /** What was last said and when it ended, for the listener's echo check. */
     lastSpoken(): { text: string; endedAt: number } | null;
+    /** The words of the line playing now, or null: for a listener that hears
+     *  through a line (voice-start.ts hold), what may leak back is this. */
+    saying(): string | null;
 }
 
 export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
@@ -138,6 +141,7 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
     let sampling = false;
     let generation = 0;
     let last: { text: string; endedAt: number } | null = null;
+    let current: string | null = null;
 
     function playClip(url: string, rate: number): Promise<void> {
         return new Promise((resolve) => {
@@ -213,13 +217,18 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
         const voiceId = opts.voiceId();
         for (const line of lines) {
             if (mine !== generation) return;
-            if (!as.voice && isLocalVoice(voiceId)) {
-                await speakLocally(line.text, voiceId);
-            } else {
-                const voice = as.voice ?? houseVoiceFor(voiceId, opts.houseVoice(), language);
-                const clip = voice ? clipFor(voice, line.id, language) : null;
-                if (!clip) continue;
-                await playClip(clip.url, clipPlaybackRate(opts.rate(), clip.fixedPace));
+            current = line.text;
+            try {
+                if (!as.voice && isLocalVoice(voiceId)) {
+                    await speakLocally(line.text, voiceId);
+                } else {
+                    const voice = as.voice ?? houseVoiceFor(voiceId, opts.houseVoice(), language);
+                    const clip = voice ? clipFor(voice, line.id, language) : null;
+                    if (!clip) continue;
+                    await playClip(clip.url, clipPlaybackRate(opts.rate(), clip.fixedPace));
+                }
+            } finally {
+                if (current === line.text) current = null;
             }
             last = { text: line.text, endedAt: Date.now() };
         }
@@ -265,5 +274,6 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
             stopPreview();
         },
         lastSpoken: () => last,
+        saying: () => current,
     };
 }

@@ -94,9 +94,11 @@ export interface QuickStart {
  * which line and hears what came back.
  */
 export interface TourVoice {
-    /** Speak a tour line, the microphone shut while it plays. `as` is the
-     *  house voice to say it in (the two introductions); otherwise whoever
-     *  speaks the setup screen. Resolves when it has finished or been cut. */
+    /** Speak a tour line, the microphone shut while it plays (on hosted
+     *  recognition it hears through the line, and only the tour's own words
+     *  act). `as` is the house voice to say it in (the two introductions);
+     *  otherwise whoever speaks the setup screen. Resolves when it has
+     *  finished or been cut. */
     say(id: SetupLineId, as?: string): Promise<void>;
     /** Cut off the line being spoken, and any asked for that has not begun. */
     stop(): void;

@@ -111,6 +111,31 @@ function lcsLength(a: string[], b: string[]): number {
 }
 
 /**
+ * True when `utterance` is nothing but a run of `spoken`'s words, from anywhere
+ * in it and however short. For a listener that hears while the app is saying
+ * a line (the setup tour on an echo-cancelled capture, voice-start.ts `hold`):
+ * what leaks past the echo canceller is the line itself, and a request said
+ * over a line that names it ("say 'back' or 'next'") is let go rather than
+ * risked. Same timing gate on the caller.
+ */
+export function looksLikePartOfLine(utterance: string, spoken: string): boolean {
+    if (/[㐀-鿿]/.test(utterance)) {
+        const compact = (text: string): string => text.replace(/[^㐀-鿿a-z0-9]+/giu, '').toLowerCase();
+        const said = compact(utterance);
+        return said.length > 0 && compact(spoken).includes(said);
+    }
+    // Quotes off: a line names a command as 'next', a recognizer writes Next.
+    const bare = (text: string): string[] =>
+        normalizedWords(text)
+            .map((word) => word.replace(/^'+|'+$/g, ''))
+            .filter(Boolean);
+    const u = bare(utterance);
+    if (u.length === 0) return false;
+    const s = bare(spoken);
+    return isContiguousRun(u, s) || fuzzyEcho(u, s);
+}
+
+/**
  * True when `utterance` is nothing but the last words of `spoken`. For a
  * listener that is shut while the app speaks and opens again just after (the
  * setup screen, voice-start.ts): all it can catch of a line is its tail, late

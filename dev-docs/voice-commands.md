@@ -552,7 +552,9 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
     A request understood starts the count, and the two minutes, over.
 - **It does not hear the app.** A request is answered with the recognizer
   stopped (`onHeard` runs between turns), and a line nobody asked for, like a
-  step of the tour, stops it first (`hold`). Listening resumes
+  step of the tour, stops it first (`hold`; hosted recognition hears through a
+  tour line instead, for the tour's own words only: The tour, spoken, below).
+  Listening resumes
   `SPEECH_TAIL_MS` after the line ends, and a clip's file ends 0.15s after its
   last sound, so the mic hears again about 0.4s after the voice stops. Until
   2026-11-18 the files carried up to 0.9s of the provider's silence on top,
@@ -734,11 +736,30 @@ voices and would move them off it.
   for a mic opened cold to settle, which can be a few seconds (The mic,
   above). A tap on the setup mic meanwhile switches voice mode off for the
   held line too.
-- **A word waits for the line.** The recognizer is stopped while a line plays,
-  so a word said over it is not heard at all. It listens again
-  `SPEECH_TAIL_MS` after the line, and a word said then is acted on when the
-  recognizer ends the turn (`LOBBY_STT`'s 0.7 to 1.5s pause) and has written
-  it down.
+- **A word over a line, on hosted recognition.** Hosted recognition's
+  echo-cancelled capture goes on hearing while a tour line plays (`hold` with
+  `overLine` in `voice-start.ts`, `overLines` in `views/setup.ts`), its speech
+  bar raised above the line's echo as in a session (`setTtsActive`,
+  [voice-barge-in.md](voice-barge-in.md)). A turn said over a line, or begun
+  over one and ended after it (`startedDuringTts`), goes to the tour alone
+  (`heardOverTourLine`): its commands act and cut the line as a tap would.
+  Anything else is dropped, so nothing said over a line begins a session or
+  changes the setup (the lines name "begin" and settings), and so is anything
+  that could be the line itself come back past the canceller
+  (`looksLikePartOfLine`): "next" said over the line that teaches it is let
+  go. The bar is `BARGE_IN_THRESHOLD` (0.03 RMS) or more, and 0.1 through the
+  first run of lines after a capture opens (`ECHO_WARMUP_GATE`). The commands
+  said at the phone on 2026-11-19 peaked at 0.022 to 0.050, so a quiet one
+  over a line can still go unheard; the `[vad] tts window` line after each
+  tour line gives that phone's echo against the bar. Not on an iPhone, whose
+  canceller let the facilitator through (meditation-pal-hi6f), and not for a
+  tour read in a local voice, which the OS may speak past the canceller.
+- **Elsewhere a word waits for the line.** The phone's recognizer and Chrome's
+  hear the speaker, and local Whisper was left as it was: the recognizer is
+  stopped while a line plays, so a word said over it is not heard at all. It
+  listens again `SPEECH_TAIL_MS` after the line, and a word said then is acted
+  on when the recognizer ends the turn (`LOBBY_STT`'s 0.7 to 1.5s pause) and
+  has written it down.
 - **It speaks by voice mode, not by the listener.** On or asleep, every card
   is read (`TourVoice.mic()` is `on` for both). Off, the tour is silent
   (`TourVoice.speaks`): no lines, no speaker on the cards, and the voice step

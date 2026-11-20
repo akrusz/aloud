@@ -88,6 +88,7 @@ import {
     leavesAsk,
     parseSetupCommand,
     parseSetupPick,
+    looksLikePartOfLine,
     looksLikeSpokenTail,
     modelSetLine,
     setupLineText,
@@ -124,7 +125,7 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
-import { capacitorPlatform, isCapacitor, isSingleOwnerMicPlatform } from '../is-desktop.js';
+import { capacitorPlatform, isCapacitor, isIosWeb, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import {
     computeProviderMarker,
     fetchKeyPresence,
@@ -1578,6 +1579,20 @@ export async function mountSetupView(
         );
     }
 
+    /** Words begun while a tour line played, on a listener that hears through
+     *  one (voice-start.ts hold): the tour's own commands act, and cut the
+     *  line as a tap would. Anything that could be the line itself, come back
+     *  past the echo canceller, is let go, and with the voice picker up (it
+     *  sits over the tour) the tour hears nothing. */
+    function heardOverTourLine(text: string): boolean {
+        if (openVoicePicker) return false;
+        const recent = speaker.lastSpoken();
+        const line =
+            speaker.saying() ?? (recent && Date.now() - recent.endedAt < SETUP_ECHO_WINDOW_MS ? recent.text : null);
+        if (line && looksLikePartOfLine(text, line)) return false;
+        return tourHeard?.(text) ?? false;
+    }
+
     /** Something said on this screen that was not "begin". True when it was a
      *  request, which keeps the mic open for the next. */
     async function heardOnSetup(text: string): Promise<boolean> {
@@ -1807,6 +1822,25 @@ export async function mountSetupView(
             ...(engine instanceof WhisperPcmSttEngine
                 ? { whenHearing: () => engine.whenHearing(), coldOpening: () => engine.coldOpening() }
                 : {}),
+            // Hosted recognition's echo-cancelled capture hears through the
+            // tour's lines, as a session barges in on it (voice-barge-in.md),
+            // with the engine's bar raised above the line's echo. Not on an
+            // iPhone, whose canceller let the facilitator through
+            // (meditation-pal-hi6f).
+            ...(engine instanceof WhisperPcmSttEngine &&
+            isHostedSttChoice(choice) &&
+            !isIosWeb() &&
+            capacitorPlatform() !== 'ios'
+                ? {
+                      overLines: {
+                          start: () => {
+                              engine.noteVoicePlayback();
+                              engine.setTtsActive(true);
+                          },
+                          end: () => engine.setTtsActive(false),
+                      },
+                  }
+                : {}),
             onHearing: (state) => {
                 if (state === 'hearing') settleOwed();
                 if (state === 'hearing') tourMicFailed(false);
@@ -2031,10 +2065,11 @@ export async function mountSetupView(
     let tourHeard: ((text: string) => boolean) | null = null;
 
     /** Speak with the recognizer stopped, where one is running, and once a
-     *  mic it has just opened cold has settled (voice-start.ts hold). */
-    function sayHeld(say: () => Promise<void>): Promise<void> {
+     *  mic it has just opened cold has settled (voice-start.ts hold). With
+     *  `overLine`, a listener that can hears through the line instead. */
+    function sayHeld(say: () => Promise<void>, overLine?: (text: string) => boolean): Promise<void> {
         const tail = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, SPEECH_TAIL_MS));
-        const run = voiceStart ? voiceStart.handle.hold(say) : say().then(tail);
+        const run = voiceStart ? voiceStart.handle.hold(say, overLine) : say().then(tail);
         speaking = run.catch(() => undefined);
         quietRingDuring(speaking);
         return speaking;
@@ -2051,10 +2086,15 @@ export async function mountSetupView(
             // Voice mode off: captions only, whatever the tour asks. Asked
             // again as it starts: a tap on the mic may have come meanwhile.
             if (!appSettings.setupVoice) return Promise.resolve();
-            return sayHeld(() =>
-                asked === tourLines && appSettings.setupVoice
-                    ? speaker.sayLine(id, as ? { voice: as } : {})
-                    : Promise.resolve()
+            // A clip, which the page plays and an echo canceller can take
+            // out. A local voice may be one the OS speaks, past it.
+            const clip = as !== undefined || !isLocalVoice(setup.voice);
+            return sayHeld(
+                () =>
+                    asked === tourLines && appSettings.setupVoice
+                        ? speaker.sayLine(id, as ? { voice: as } : {})
+                        : Promise.resolve(),
+                clip ? heardOverTourLine : undefined
             );
         },
         stop: () => {
