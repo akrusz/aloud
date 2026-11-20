@@ -783,7 +783,7 @@ function showSection(section: Section): void {
             if (cardEl) placeCard(cardEl, target.getBoundingClientRect());
             linkDotToSpotlight(target);
             speakStep();
-            if (opened && isCapacitor()) addMoreBelow(target);
+            if (opened && panel && isCapacitor()) addMoreBelow(target, panel);
         });
     });
 }
@@ -801,15 +801,20 @@ const MORE_BELOW_SEEN_PX = 72;
  * A panel opened on a phone can run the section on under the card docked at
  * the foot of the screen: a chevron over the card says there is more below,
  * until the page has been scrolled a little (syncMoreBelow). It goes with the
- * card. A tap scrolls on by the room above the card.
+ * card. A tap jumps to the section's controls, the panel's next sibling, put
+ * just under the nav; a panel with nothing after it moves on by the room above
+ * the card.
  */
-function addMoreBelow(target: HTMLElement): void {
+function addMoreBelow(target: HTMLElement, panel: HTMLElement): void {
     const cue = document.createElement('div');
     cue.className = 'tour-more-below';
     cue.setAttribute('aria-hidden', 'true');
     cue.innerHTML = CHEVRON;
     cue.dataset['from'] = String(window.scrollY);
-    cue.addEventListener('click', () => window.scrollBy({ top: cue.getBoundingClientRect().top - getNavHeight(), behavior: 'smooth' }));
+    cue.addEventListener('click', () => {
+        const top = (panel.nextElementSibling ?? cue).getBoundingClientRect().top;
+        window.scrollBy({ top: top - getNavHeight(), behavior: 'instant' });
+    });
     cardEl?.appendChild(cue);
     syncMoreBelow(target);
 }

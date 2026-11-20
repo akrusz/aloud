@@ -73,8 +73,11 @@ minutes of a run):
 - [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
       section card shows its ? text. On the methods card, where the text runs
       below the screen, an arrow above the card points down, and goes once the
-      page has been scrolled a few lines. A tap on it scrolls a screenful,
-      smoothly. Nothing scrolls by itself and Next stays where it is.
+      page has been scrolled a few lines. A tap on it jumps straight to the
+      section's checkboxes, their top just under the word mark and orb (on
+      the focus and vibe cards; a methods card has none below its text and
+      moves on a screenful). Nothing scrolls by itself and Next stays where
+      it is.
 
 ---
 
