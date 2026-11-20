@@ -135,6 +135,29 @@ export function looksLikePartOfLine(utterance: string, spoken: string): boolean 
     return isContiguousRun(u, s) || fuzzyEcho(u, s);
 }
 
+/** How far behind and ahead of the line's position partOfLineNear looks, in seconds. */
+const HEARD_BACK_S = 6;
+const HEARD_AHEAD_S = 1.5;
+
+/**
+ * The part of a line that a listener hearing through it may have heard back,
+ * `at` seconds into a line `length` seconds long: an echo is only ever of what
+ * the line is saying at that moment. For looksLikePartOfLine, so "Back." said
+ * well into a line that opens on "Back to Exploration" is not taken for it.
+ * Clips carry no word timings, so each word (each character in zh) is taken
+ * to fill an equal share of the line, and the window is wide: the transcript
+ * is read 1.4 to 2s after the words end (2026-11-20), and pacing is uneven.
+ */
+export function partOfLineNear(spoken: string, at: number, length: number): string {
+    const zh = /[㐀-鿿]/.test(spoken);
+    const units = zh ? Array.from(spoken) : spoken.split(/\s+/).filter(Boolean);
+    if (!(length > 0) || units.length === 0) return spoken;
+    const share = length / units.length;
+    const from = Math.max(0, Math.floor((at - HEARD_BACK_S) / share));
+    const to = Math.max(0, Math.ceil((at + HEARD_AHEAD_S) / share));
+    return units.slice(from, to).join(zh ? '' : ' ');
+}
+
 /**
  * True when `utterance` is nothing but the last words of `spoken`. For a
  * listener that is shut while the app speaks and opens again just after (the

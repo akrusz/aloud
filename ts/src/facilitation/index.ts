@@ -170,6 +170,7 @@ export {
     previewLooksLikeTtsEcho,
     looksLikePartOfLine,
     looksLikeSpokenTail,
+    partOfLineNear,
     MIN_ECHO_WORDS,
 } from './echo-guard.js';
 

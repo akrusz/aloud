@@ -223,6 +223,55 @@ describe('linesInTheRoom', () => {
         expect(linesInTheRoom(s, 4000)).toEqual([ETHAN, HARPER]);
         s.stop();
     });
+
+    // "Back." said 12.5s into the focus card's line, which opens on "Back to
+    // Exploration", was dropped as the line's own word (desktop app,
+    // 2026-11-20). The transcript was read about 13.1s in.
+    const FOCUS =
+        "Back to Exploration, which is the best place to start. Choosing a focus tells me where you plan to put your attention: the body, emotions, or parts of yourself. Or leave it blank if you aren't sure.";
+    const playingFocus = (at: number) => ({
+        saying: () => FOCUS,
+        lastSpoken: () => null,
+        playingAt: () => ({ at, length: 16.39 }),
+    });
+
+    it('holds only the stretch of the line playing near where it has got to', () => {
+        const late = linesInTheRoom(playingFocus(13.1), 4000);
+        expect(late.some((line) => looksLikePartOfLine('Back.', line))).toBe(false);
+        expect(late.some((line) => looksLikePartOfLine('parts of yourself', line))).toBe(true);
+        const early = linesInTheRoom(playingFocus(2), 4000);
+        expect(early.some((line) => looksLikePartOfLine('Back.', line))).toBe(true);
+    });
+
+    it('reads where a clip has got to, as heard, and nothing for a local voice', async () => {
+        const local = engine();
+        vi.mocked(createTtsForVoice).mockResolvedValueOnce({ engine: local, voice: null });
+        const s = createSetupSpeaker({ voiceId: () => 'server:piper', houseVoice: () => null, language: () => 'en', rate: () => 160 });
+        void s.say([{ id: 'voice-intro-first', text: HARPER }]);
+        await tick();
+        expect(s.saying()).toBe(HARPER);
+        expect(s.playingAt()).toBeNull();
+        s.stop();
+
+        class Clip {
+            currentTime = 3;
+            duration = 6;
+            playbackRate = 1;
+            preservesPitch = false;
+            preload = '';
+            addEventListener(): void {}
+            play = () => Promise.resolve();
+            pause(): void {}
+        }
+        vi.stubGlobal('Audio', Clip);
+        const hosted = createSetupSpeaker({ voiceId: () => 'aloud:Ethan', houseVoice: () => null, language: () => 'en', rate: () => 160 });
+        void hosted.sayLine('voice-intro-first');
+        await tick();
+        expect(hosted.saying()).toBe("Hi, I'm Ethan. This is how I sound.");
+        expect(hosted.playingAt()).toEqual({ at: 3, length: 6 });
+        hosted.stop();
+        vi.unstubAllGlobals();
+    });
 });
 
 describe("a voice's sample", () => {

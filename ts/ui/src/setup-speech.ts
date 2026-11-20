@@ -14,6 +14,7 @@
  */
 
 import {
+    partOfLineNear,
     setupLanguage,
     setupLineText,
     type SetupLineId,
@@ -133,23 +134,29 @@ export interface SetupSpeaker {
     /** The words of the line playing now, or null: for a listener that hears
      *  through a line (voice-start.ts hold), what may leak back is this. */
     saying(): string | null;
+    /** How far into the clip playing now it is and how long it is, in
+     *  seconds as heard; null with no clip playing (a local voice says its
+     *  line itself, and has no clock to read). */
+    playingAt(): { at: number; length: number } | null;
 }
 
 /**
  * The words that may still come back past the echo canceller, for a listener
- * that hears through a line (voice-start.ts hold): the line playing, and the
- * one before it if that ended within `windowMs`. An echo begun in one line can
+ * that hears through a line (voice-start.ts hold): the line playing, as much
+ * of it as is near where it has got to when that can be read (partOfLineNear),
+ * and the one before it, whole, if that ended within `windowMs`. An echo begun in one line can
  * land after the next has started ("Harper." from "Hi, I'm Harper." heard
  * while Ethan introduces himself).
  */
 export function linesInTheRoom(
-    speaker: Pick<SetupSpeaker, 'saying' | 'lastSpoken'>,
+    speaker: Pick<SetupSpeaker, 'saying' | 'lastSpoken' | 'playingAt'>,
     windowMs: number,
     now = Date.now()
 ): string[] {
     const lines: string[] = [];
     const playing = speaker.saying();
-    if (playing) lines.push(playing);
+    const clock = speaker.playingAt();
+    if (playing) lines.push(clock ? partOfLineNear(playing, clock.at, clock.length) : playing);
     const last = speaker.lastSpoken();
     if (last && now - last.endedAt < windowMs && last.text !== playing) lines.push(last.text);
     return lines;
@@ -305,5 +312,9 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
         },
         lastSpoken: () => last,
         saying: () => current,
+        playingAt: () =>
+            current !== null && playing && playing.duration > 0 && Number.isFinite(playing.duration)
+                ? { at: playing.currentTime / playing.playbackRate, length: playing.duration / playing.playbackRate }
+                : null,
     };
 }

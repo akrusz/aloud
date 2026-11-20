@@ -802,7 +802,15 @@ voices and would move them off it.
   (`looksLikePartOfLine`), or the line before it if that ended in the last 4s
   (`linesInTheRoom` in `setup-speech.ts`: a "Harper." begun in her
   introduction can land during Ethan's): "next" said over the line that
-  teaches it is let go. The bar is lower than a session's, and so is the
+  teaches it, near the word, is let go. Of a clip still playing only the
+  stretch near where it has got to counts (`partOfLineNear`, read from the
+  element's clock by `playingAt`): clips have no word timings, so each word
+  is taken to fill an equal share of the clip, and the stretch runs 6s
+  behind and 1.5s ahead, since the transcript is read 1.4 to 2s after the
+  words end. Checked against the whole line, "Back." said 12.5s into the
+  focus card's line, which opens "Back to Exploration", was let go
+  (2026-11-20). A line said in a local voice, and the line before, are
+  checked whole. The bar is lower than a session's, and so is the
   minimum (`overLineBar` 0.02 RMS and `overLineMinSpeechMs` 0 in `LOBBY_STT`,
   read by `speechBar` and `start` in `whisper-pcm-stt.ts` for a turn begun
   while a line plays), since a miss here costs one short transcription and
