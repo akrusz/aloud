@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { endConfirmReply, isEndCommand } from '../src/facilitation/end-command.js';
+import { answerPace, endConfirmReply, isEndCommand } from '../src/facilitation/end-command.js';
 
 describe('isEndCommand', () => {
     it('matches the ways people ask to end the sit', () => {
@@ -138,6 +138,26 @@ describe('endConfirmReply', () => {
         }
         for (const text of ['我的腿麻了', '好像有点紧', '不知道']) {
             expect(endConfirmReply(text), text).toBeNull();
+        }
+    });
+});
+
+describe('answerPace', () => {
+    it('acts on a plain no at once', () => {
+        for (const text of ['No.', 'Not yet.', 'Yes. No, not yet.', '不', '还没']) {
+            expect(answerPace(text), text).toBe('now');
+        }
+    });
+
+    it('waits a short pause after a plain yes', () => {
+        for (const text of ['Yes.', 'Okay, end it.', 'go ahead', '好的', '是的', '结束吧']) {
+            expect(answerPace(text), text).toBe('soon');
+        }
+    });
+
+    it('waits the whole pause on a bare 嗯 and on anything that is not a plain answer', () => {
+        for (const text of ['嗯', '嗯。', '嗯嗯', 'Mm.', 'Hmm.', 'Uh huh.', 'Mm-hmm.', 'Hmm, yes.', 'yes, I think my leg is asleep']) {
+            expect(answerPace(text), text).toBeNull();
         }
     });
 });

@@ -139,10 +139,15 @@ const ECHO_WARMUP_GATE = 0.1;
 // 2026-11-19, meditation-pal-cs6y).
 const ANSWER_ECHO_MARGIN = 3;
 const ANSWER_BAR_FLOOR = 0.01;
-// An answer ends once a speculative pass reads as a whole one with no speech
-// since, instead of on the session's adaptive pause (3s and up). Past this
-// much speech it is a turn, not an answer, and turn rules apply.
+// An answer that a speculative pass reads as a plain one, with no speech
+// since, ends sooner than on the session's adaptive pause (3s and up). Past
+// this much speech it is a turn, not an answer, and turn rules apply.
 const ANSWER_MAX_SPEECH_MS = 2000;
+// The silence after a plain yes that ends its turn (expectAnswer's `soon`).
+// The full pause made a quick "yes" wait 3.1s and feel unheard; ending it at
+// its pass took "yes... no, not yet" for a yes and ended the sit. Words said
+// inside this join the turn.
+const ANSWER_YES_PAUSE_MS = 2000;
 
 // Energy-only speech decision, active ONLY while the Silero session is
 // unavailable (create failed - 6z11): a frame is speech when it clears the max
@@ -213,6 +218,11 @@ const MIN_FINAL_PIECE_MS = 250;
 // full passes, everything since the last pass on incremental ones) AFTER
 // submit, right where the user is waiting.
 const MAX_SPECULATIVE_PASSES = 6;
+
+/** How soon a turn answering a question may end once a speculative pass has
+ *  read it (expectAnswer): at that pass, after ANSWER_YES_PAUSE_MS of quiet,
+ *  or (null) on the session's own pause. */
+export type AnswerPace = 'now' | 'soon' | null;
 
 type TranscribeResult =
     | { ok: true; text: string; seconds: number }
@@ -413,12 +423,14 @@ export class WhisperPcmSttEngine implements SttEngine {
     private lineSounding = false;
     private lineEchoPeak = 0;
     private lineEndedAt: number | null = null;
-    // expectAnswer: what reads as a whole answer, until when (performance
-    // clock), and what the mic heard over the question's tail before the
-    // answer's speech began (diagnostic).
+    // expectAnswer: how soon an answer read so far may end its turn, until
+    // when (performance clock), whether the last pass read a plain yes with
+    // nothing said since (ANSWER_YES_PAUSE_MS), and what the mic heard over
+    // the question's tail before the answer's speech began (diagnostic).
     private answer: {
-        isAnswer: (text: string) => boolean;
+        pace: (text: string) => AnswerPace;
         until: number;
+        soon: boolean;
         tailPeak: number;
         tailPeakAt: number;
     } | null = null;
@@ -680,7 +692,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                 `dropped=${this.silero?.droppedChunks ?? 0} ` +
                 `dangling=${this.partialIncomplete} ` +
                 `mode=${this.silero ? 'silero' : `energy(floor=${this.noiseFloor.toFixed(4)})`}` +
-                (this.answer ? ` answer=${how === 'answer' ? 'early' : 'full-pause'}` : '')
+                (this.answer
+                    ? ` answer=${how === 'answer' ? 'early' : this.answer.soon ? 'yes-pause' : 'full-pause'}`
+                    : '')
         );
         // Energy + speech-prob traces, last 8s in 0.5s buckets (max per
         // bucket, oldest first). The prob row shows what the model thought
@@ -712,15 +726,16 @@ export class WhisperPcmSttEngine implements SttEngine {
 
     /** Trailing silence that ends the turn. Adaptive: each ms of speech buys
      *  silenceRampRate ms of patience, capped at silenceMaxMs, plus the
-     *  dangling-clause extension. */
+     *  dangling-clause extension. No longer than ANSWER_YES_PAUSE_MS after an
+     *  answer read as a plain yes. */
     private submitWindowMs(): number {
         const speechDur = this.lastSpeechMs - this.speechStartMs;
-        return (
-            Math.min(
-                this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
-                this.opts.silenceMaxMs
-            ) + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0)
+        const adaptive = Math.min(
+            this.opts.silenceBaseMs + speechDur * this.opts.silenceRampRate,
+            this.opts.silenceMaxMs
         );
+        if (this.answer?.soon) return Math.min(adaptive, ANSWER_YES_PAUSE_MS);
+        return adaptive + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
     }
 
     /** Continuous audio callback - runs for the engine's whole lifetime. */
@@ -872,8 +887,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             // New speech supersedes the dangling-clause verdict, or a turn
             // that spent its spec passes early would carry a stale
             // dangling=true into its real ending and wait the extra window
-            // over dead silence.
+            // over dead silence. The same for a yes read before these words:
+            // "yes... no, not yet" is not a yes.
             this.partialIncomplete = false;
+            if (this.answer) this.answer.soon = false;
             this.keepChunk(frame, energy);
         } else if (this.speechStarted) {
             this.keepChunk(frame, energy);
@@ -1210,16 +1227,17 @@ export class WhisperPcmSttEngine implements SttEngine {
      * - Over the question's tail the bar for the meditator's voice drops to
      *   what the question's own echo allows (ANSWER_ECHO_MARGIN), so a soft
      *   word said right after it is not lost under the barge-in bar.
-     * - Speculative passes run on it even with speculation off, and the turn
-     *   ends as soon as one comes back as a whole answer (`isAnswer`) with no
-     *   speech since, rather than after the adaptive pause
-     *   (ANSWER_MAX_SPEECH_MS).
+     * - Speculative passes run on it even with speculation off, and `pace`
+     *   reads each one that has no speech after it: `now` ends the turn at
+     *   that pass, `soon` after ANSWER_YES_PAUSE_MS of quiet (words said
+     *   meanwhile join the turn), null on the adaptive pause. Past
+     *   ANSWER_MAX_SPEECH_MS of speech it is a turn and none of this applies.
      * Nothing else about the speech test moves: the bar holds while any line
      * plays, and Silero still has to call it speech.
      */
-    expectAnswer(isAnswer: (text: string) => boolean, forMs: number): void {
+    expectAnswer(pace: (text: string) => AnswerPace, forMs: number): void {
         const now = performance.now();
-        this.answer = { isAnswer, until: now + forMs, tailPeak: 0, tailPeakAt: 0 };
+        this.answer = { pace, until: now + forMs, soon: false, tailPeak: 0, tailPeakAt: 0 };
         const ended = this.lineSounding
             ? 'question still playing'
             : this.lineEndedAt === null
@@ -1431,6 +1449,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.prependedPreFrames = 0;
         this.partialIncomplete = false;
         this.specInFlight = false;
+        if (this.answer) this.answer.soon = false;
         // Re-arm barge-in for the next idle period.
         this.bargeInFired = false;
         this.bargeInChunks = 0;
@@ -1575,13 +1594,15 @@ export class WhisperPcmSttEngine implements SttEngine {
                             this.partialIncomplete = transcriptLooksIncomplete(text);
                             emittedPartial = true;
                             // The answer expected, said whole, nothing said
-                            // since: the rest of the pause would only delay it.
-                            if (
-                                this.answerSized() &&
-                                this.lastSpeechMs === lastSpecSpeechMs &&
-                                this.answer!.isAnswer(text)
-                            ) {
-                                this.endUtterance(performance.now(), this.submitWindowMs(), 'answer');
+                            // since: a no ends the turn now, a yes once a
+                            // short pause has passed with nothing added.
+                            if (this.answerSized() && this.lastSpeechMs === lastSpecSpeechMs) {
+                                const pace = this.answer!.pace(text);
+                                if (pace === 'now') {
+                                    this.endUtterance(performance.now(), this.submitWindowMs(), 'answer');
+                                } else {
+                                    this.answer!.soon = pace === 'soon';
+                                }
                             }
                             yield {
                                 type: 'partial',
@@ -1642,6 +1663,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (this.postSubmitSpeech && !this.hitMaxUtterance && !this.stopRequested) {
                     this.postSubmitSpeech = false;
                     this.utteranceDone = false;
+                    if (this.answer) this.answer.soon = false;
                     diag('[vad] speech continued past submit - reopening the utterance');
                     if (result.ok && result.text) {
                         emittedPartial = true;

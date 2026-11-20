@@ -47,7 +47,8 @@ minutes of a run):
       heard and no more.
 - [ ] **"Yes"** (`meditation-pal-cs6y`). Say "end the session", then a quick,
       soft "yes" right as the question finishes: the close starts about two
-      seconds later. Again with "no", and with "hmm... yes", which still
+      seconds later. Again with "yes", a breath, "no, not yet": the session
+      goes on. With "no" the answer comes sooner, and "hmm... yes" still
       waits the full pause.
 - [ ] **Preview bubbles**, on Parakeet. A few remarks of under 18 words: each
       goes from preview to final without leaving the screen.

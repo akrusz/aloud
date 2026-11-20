@@ -2,13 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { advance, engineWithMic, heard, listen, rig, useWhisperHarness, type Engine } from './whisper-pcm-harness.js';
 import type { WhisperPcmSttEngine } from '../ui/src/adapters/whisper-pcm-stt.js';
+import { answerPace } from '../src/facilitation/end-command.js';
 
 /**
  * The answer to a question the facilitator just asked (expectAnswer): a soft
- * "yes" said over the question's tail opens the turn, and a whole answer ends
- * it at its first speculative pass instead of after the session's pause
- * (meditation-pal-cs6y). The engine runs on its energy speech decision here,
- * so a frame's level alone says whether it is speech (floor 0.015).
+ * "yes" said over the question's tail opens the turn, a plain no ends it at
+ * its first speculative pass, and a plain yes after 2s of quiet instead of
+ * the session's pause (meditation-pal-cs6y). The engine runs on its energy
+ * speech decision here, so a frame's level alone says whether it is speech
+ * (floor 0.015).
  */
 
 vi.mock('../ui/src/adapters/silero-vad.js', () => ({
@@ -19,7 +21,6 @@ useWhisperHarness();
 
 /** A session's own pause: 3s and up. */
 const sessionWindow = { silenceBaseMs: 3000, silenceMaxMs: 6000, silenceRampRate: 0.16 };
-const isYes = (text: string): boolean => /^yes\.?$/i.test(text.trim());
 /** Over the floor, under the barge-in bar (0.03). */
 const SOFT_WORD = 0.02;
 
@@ -90,7 +91,7 @@ describe('a soft word right after a question', () => {
         const engine = await engineWithMic(sessionWindow);
         let turn!: Awaited<ReturnType<typeof listen>>;
         await question(engineOf(engine), 0.001, softYes, async () => {
-            engineOf(engine).expectAnswer(isYes, 45_000);
+            engineOf(engine).expectAnswer(answerPace, 45_000);
             turn = await listen(engine);
         });
         await advance(6000, turn.done);
@@ -107,7 +108,7 @@ describe('a soft word right after a question', () => {
         // An echo of 0.008 puts the bar at 0.024: a word at 0.02 could be the
         // question's own tail.
         await question(engineOf(engine), 0.008, softYes, async () => {
-            engineOf(engine).expectAnswer(isYes, 45_000);
+            engineOf(engine).expectAnswer(answerPace, 45_000);
             turn = await listen(engine);
         });
         await advance(6000);
@@ -125,7 +126,7 @@ describe('a soft word right after a question', () => {
         e.setTtsActive(true);
         e.noteVoicePlayback();
         const turn = await listen(engine);
-        e.expectAnswer(isYes, 45_000);
+        e.expectAnswer(answerPace, 45_000);
         level = 0.001;
         await advance(1000);
         level = SOFT_WORD;
@@ -143,20 +144,66 @@ describe('a soft word right after a question', () => {
 });
 
 describe('a whole answer', () => {
-    it('ends the turn when its first speculative pass comes back', async () => {
+    it('ends at its first speculative pass when it is a plain no', async () => {
+        rig.fetchMs = 300;
+        rig.reply = () => heard('No.');
+        const engine = await engineWithMic(sessionWindow);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
+        const turn = await listen(engine);
+        expect(await sayAndTime(turn)).toBeLessThan(1500);
+        expect(rig.posts).toHaveLength(1);
+        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'No.' });
+    });
+
+    it('ends 2s after a plain yes, on the text of its pass', async () => {
+        rig.fetchMs = 300;
         rig.reply = () => heard('Yes.');
         const engine = await engineWithMic(sessionWindow);
-        engineOf(engine).expectAnswer(isYes, 45_000);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
         const turn = await listen(engine);
-        expect(await sayAndTime(turn)).toBeLessThan(2500);
+        const took = await sayAndTime(turn);
+        expect(took).toBeGreaterThanOrEqual(1800);
+        expect(took).toBeLessThan(2500);
         expect(rig.posts).toHaveLength(1);
         expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'Yes.' });
+    });
+
+    it('takes what is said inside those 2s into the turn: "yes... no, not yet" is one turn, and a no', async () => {
+        rig.fetchMs = 300;
+        rig.reply = (n) => heard(n === 1 ? 'Yes.' : 'Yes. No, not yet.');
+        const engine = await engineWithMic(sessionWindow);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
+        const turn = await listen(engine);
+        rig.talking = true;
+        await advance(400);
+        rig.talking = false;
+        // The pass is back and has read a yes by now.
+        await advance(1500);
+        expect(rig.posts).toHaveLength(1);
+        expect(turn.done()).toBe(false);
+        rig.talking = true;
+        await advance(700);
+        rig.talking = false;
+        await advance(12_000, turn.done);
+        const finals = turn.events.filter((e) => e.type === 'final');
+        expect(finals).toEqual([expect.objectContaining({ text: 'Yes. No, not yet.' })]);
+        expect(answerPace('Yes. No, not yet.')).toBe('now');
+    });
+
+    it('waits out the session\'s pause on a bare 嗯, as much a hesitation as a yes', async () => {
+        rig.fetchMs = 300;
+        rig.reply = () => heard('嗯。');
+        const engine = await engineWithMic(sessionWindow);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
+        const turn = await listen(engine);
+        expect(await sayAndTime(turn)).toBeGreaterThanOrEqual(3000);
+        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: '嗯。' });
     });
 
     it("waits out the session's pause when the pass reads as anything else", async () => {
         rig.reply = () => heard('Hmm.');
         const engine = await engineWithMic(sessionWindow);
-        engineOf(engine).expectAnswer(isYes, 45_000);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
         const turn = await listen(engine);
         expect(await sayAndTime(turn)).toBeGreaterThanOrEqual(3000);
         expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'Hmm.' });
@@ -165,16 +212,16 @@ describe('a whole answer', () => {
     it('gets its pass with speculation off, and one transcription in all', async () => {
         rig.reply = () => heard('Yes.');
         const engine = await engineWithMic({ ...sessionWindow, speculation: false });
-        engineOf(engine).expectAnswer(isYes, 45_000);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
         const turn = await listen(engine);
         expect(await sayAndTime(turn)).toBeLessThan(2500);
         expect(rig.posts).toHaveLength(1);
     });
 
     it('does not end the turn when speech came while its pass was out', async () => {
-        rig.reply = (n) => heard(n === 1 ? 'Yes.' : 'Yes, but not yet.');
+        rig.reply = (n) => heard(n === 1 ? 'No.' : 'No, but soon.');
         const engine = await engineWithMic(sessionWindow);
-        engineOf(engine).expectAnswer(isYes, 45_000);
+        engineOf(engine).expectAnswer(answerPace, 45_000);
         const turn = await listen(engine);
         rig.talking = true;
         await advance(400);
@@ -187,18 +234,18 @@ describe('a whole answer', () => {
         rig.talking = false;
         await advance(12_000, turn.done);
         expect(rig.posts).toHaveLength(2);
-        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'Yes, but not yet.' });
+        expect(turn.events.at(-1)).toMatchObject({ type: 'final', text: 'No, but soon.' });
     });
 
     it('is expected once: the turn after it, or after the window, is a turn', async () => {
         rig.reply = () => heard('Yes.');
         const engine = await engineWithMic(sessionWindow);
         const e = engineOf(engine);
-        e.expectAnswer(isYes, 45_000);
+        e.expectAnswer(answerPace, 45_000);
         expect(await sayAndTime(await listen(engine))).toBeLessThan(2500);
         expect(await sayAndTime(await listen(engine))).toBeGreaterThanOrEqual(3000);
 
-        e.expectAnswer(isYes, 1000);
+        e.expectAnswer(answerPace, 1000);
         await advance(2000);
         expect(await sayAndTime(await listen(engine))).toBeGreaterThanOrEqual(3000);
     });

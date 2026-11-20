@@ -55,12 +55,17 @@ question's 45 seconds, or until something with words is heard. Two things
 differ from a meditation turn, both after a "yes" on an Android phone was
 lost once and then waited 3.1s to be acted on (meditation-pal-cs6y):
 
-- It ends as soon as a speculative pass comes back as a plain yes or no
-  (`endConfirmReply`) with nothing said since: 0.75s of quiet plus the pass,
-  where a turn waits out the session's pause (3s and up). Anything else
-  ("hmm, yes") waits the full pause, so a hesitant reply is not cut in two.
-  The pass runs even with speculative passes off, and past two seconds of
-  speech it is a turn and turn rules apply (`ANSWER_MAX_SPEECH_MS`).
+- It ends sooner than a turn, which waits out the session's pause (3s and
+  up), once a speculative pass reads it with nothing said since
+  (`answerPace` in `end-command.ts`): a plain no at that pass (0.75s of
+  quiet plus the pass), a plain yes after 2s of quiet
+  (`ANSWER_YES_PAUSE_MS`) on the pass's own text. Ended at its pass,
+  "yes... no, not yet" was a yes and ended the sit; words said inside the
+  2s join the turn and are read with it. Anything else ("hmm, yes"), and a
+  bare 嗯, as often thinking as a yes, waits the full pause, so a hesitant
+  reply is not cut in two. The pass runs even with speculative passes off,
+  and past two seconds of speech it is a turn and turn rules apply
+  (`ANSWER_MAX_SPEECH_MS`).
 - For a second after the question ends the mic holds the echo gate up
   (`TTS_ACTIVE_HANGOVER_MS`), and a word had to clear the bar for speech over
   the facilitator. Over that tail the bar is now set by how loud the question

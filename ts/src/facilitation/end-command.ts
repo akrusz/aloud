@@ -229,3 +229,25 @@ export function endConfirmReply(utterance: string): 'yes' | 'no' | null {
     if (w.some((word) => YES_WORDS.has(word))) return 'yes';
     return YES_PHRASES.has(w.join(' ')) ? 'yes' : null;
 }
+
+/** A yes to endConfirmReply that is as often the sound of someone thinking.
+ *  English hums ("mm", "hmm", "uh huh") are no yes there at all. */
+const ZH_HESITATION_RE = /^嗯+$/;
+
+/**
+ * How soon the turn holding an answer to a yes/no question (the end question,
+ * a hold bid) may end, read from what is heard of it so far
+ * (whisper-pcm-stt.ts expectAnswer):
+ * - `now` on a plain no. Ending a sit someone wanted to keep is the costly
+ *   mistake, and a no never makes one.
+ * - `soon` on a plain yes: after a short pause, not at once, since
+ *   "yes... no, not yet" is a no and its second half may still be coming.
+ * - null on anything else, a bare 嗯 included: the turn's whole pause.
+ */
+export function answerPace(utterance: string): 'now' | 'soon' | null {
+    const reply = endConfirmReply(utterance);
+    if (reply === 'no') return 'now';
+    if (reply !== 'yes') return null;
+    const zh = joinedZh(utterance);
+    return zh !== null && ZH_HESITATION_RE.test(zh) ? null : 'soon';
+}

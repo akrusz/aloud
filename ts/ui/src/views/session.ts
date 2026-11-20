@@ -25,6 +25,7 @@ import {
     isMuteCommand,
     isEndCommand,
     endConfirmReply,
+    answerPace,
     HOLD_REENTRY_GRACE_MS,
     classifyHoldConfirm,
     classifyTrouble,
@@ -2005,11 +2006,11 @@ export async function mountSessionView(
 
     /** A yes/no question has just been spoken (the end question, a hold bid):
      *  the Whisper engines take the next utterance as its answer (expectAnswer,
-     *  voice-commands.md). A plain yes or no ends the turn without the rest of
-     *  the meditation turn's pause; the browser's and the phones' recognizers
-     *  end their turns themselves. */
+     *  voice-commands.md). A plain no ends the turn at once and a plain yes
+     *  after a short pause, not the meditation turn's whole one; the browser's
+     *  and the phones' recognizers end their turns themselves. */
     function listenForAnswer(): void {
-        echoListener()?.expectAnswer((text) => endConfirmReply(text) !== null, END_CONFIRM_WINDOW_MS);
+        echoListener()?.expectAnswer(answerPace, END_CONFIRM_WINDOW_MS);
     }
 
     /** Supersede an in-flight reply so a command can speak. */
