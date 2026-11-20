@@ -317,6 +317,18 @@ describe('CloudTtsEngine: a whole reply, marked by chunk', () => {
         expect(reached).toEqual([0, 1]);
     });
 
+    it('counts a clip that played out as begun, though `playing` never fired', async () => {
+        autoPlay = false;
+        const engine = engineFor('/marks/no-playing', null);
+        let starts = 0;
+        const audio = element();
+        const line = engine.speak('One chunk only.', { onStart: () => starts++ });
+        await vi.waitFor(() => expect(audio.onended).not.toBeNull());
+        audio.onended?.();
+        await line;
+        expect(starts).toBe(1);
+    });
+
     it('takes shares of the text over the clip when the server gives no times', async () => {
         autoPlay = false;
         const engine = engineFor('/marks/shares', null);

@@ -340,12 +340,14 @@ export class CloudTtsEngine implements TtsEngine {
         // Report when audible playback begins (not when the blob arrived), so
         // callers can reveal text in step with the voice.
         const onStart = options?.onStart;
-        audio.onplaying = onStart
-            ? () => {
-                  audio.onplaying = null;
-                  onStart();
-              }
-            : null;
+        let begun = false;
+        const begin = (): void => {
+            if (begun) return;
+            begun = true;
+            audio.onplaying = null;
+            onStart?.();
+        };
+        audio.onplaying = onStart ? begin : null;
 
         return new Promise<void>((resolve, reject) => {
             // A cancel (cancelSync) settles this utterance itself. The play() it
@@ -369,6 +371,10 @@ export class CloudTtsEngine implements TtsEngine {
             };
             // Played out: every mark was reached.
             audio.onended = () => {
+                // A clip can end without `playing` having fired, and a whole
+                // reply that looks never begun is said again chunk by chunk
+                // (streaming-tts.ts speakTogether): played out is begun.
+                if (current()) begin();
                 if (current()) this.reportMarks(audio, true);
                 cleanup();
             };
