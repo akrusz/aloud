@@ -270,6 +270,12 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
      *  every pass. The cloud /stt route builds its own prompt from it, so the
      *  hosted engine sends this instead of `initialPrompt`. */
     setupListening?: boolean;
+    /** The energy a frame must clear, besides the echo gates, to count as
+     *  speech while a line plays (setTtsActive). Default BARGE_IN_THRESHOLD. */
+    overLineBar?: number;
+    /** minSpeechDurationMs for a turn begun while a line plays. Default
+     *  minSpeechDurationMs. */
+    overLineMinSpeechMs?: number;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -474,6 +480,9 @@ export class WhisperPcmSttEngine implements SttEngine {
             silenceRampRate: options.silenceRampRate ?? defaultPacingConfig.silenceRampRate,
             minSpeechDurationMs:
                 options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
+            overLineBar: options.overLineBar ?? BARGE_IN_THRESHOLD,
+            overLineMinSpeechMs:
+                options.overLineMinSpeechMs ?? options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
             incremental: options.incremental ?? false,
@@ -649,12 +658,13 @@ export class WhisperPcmSttEngine implements SttEngine {
     }
 
     /** The energy a frame must clear to count as the meditator's voice while
-     *  the facilitator may be heard (barge-in grade), or 0 when the echo gate
+     *  the facilitator may be heard (overLineBar: barge-in grade unless the
+     *  setup screen lowers it), or 0 when the echo gate
      *  is down and Silero's verdict decides alone. Lower over the tail of a
      *  question an answer is expected to (ANSWER_ECHO_MARGIN). */
     private speechBar(echoGate: number): number {
         if (echoGate === 0) return 0;
-        const bar = Math.max(echoGate, BARGE_IN_THRESHOLD);
+        const bar = Math.max(echoGate, this.opts.overLineBar);
         return this.answer && !this.lineSounding ? Math.min(bar, this.answerBar()) : bar;
     }
 
@@ -1628,11 +1638,14 @@ export class WhisperPcmSttEngine implements SttEngine {
                 if (!this.speechStarted) return;
 
                 const speechDuration = this.lastSpeechMs - this.speechStartMs;
+                const minSpeechMs = this.startedWhileTtsActive
+                    ? this.opts.overLineMinSpeechMs
+                    : this.opts.minSpeechDurationMs;
                 // Too short to be speech (cough, mic bump) - skip the billable
                 // final pass, unless a real preview already showed
                 // (emittedPartial). Noise that slips through is still dropped
                 // downstream by isNonSpeechOnly.
-                if (speechDuration < this.opts.minSpeechDurationMs && !emittedPartial) {
+                if (speechDuration < minSpeechMs && !emittedPartial) {
                     return;
                 }
 

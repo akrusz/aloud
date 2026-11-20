@@ -778,7 +778,7 @@ voices and would move them off it.
   for a mic opened cold to settle, which can be a few seconds (The mic,
   above). A tap on the setup mic meanwhile switches voice mode off for the
   held line too.
-- **A word over a line, on hosted recognition in the Android app.** Its
+- **A word over a line, on hosted recognition except on an iPhone.** Its
   echo-cancelled capture goes on hearing while a tour line plays (`hold` with
   `overLine` in `voice-start.ts`, `continuous` in `views/setup.ts`), its speech
   bar raised above the line's echo as in a session (`setTtsActive`,
@@ -791,13 +791,26 @@ voices and would move them off it.
   (`looksLikePartOfLine`), or the line before it if that ended in the last 4s
   (`linesInTheRoom` in `setup-speech.ts`: a "Harper." begun in her
   introduction can land during Ethan's): "next" said over the line that
-  teaches it is let go. The bar is `BARGE_IN_THRESHOLD` (0.03 RMS) or more, and 0.1 through the
-  first run of lines after a capture opens (`ECHO_WARMUP_GATE`). The commands
-  said at the phone on 2026-11-19 peaked at 0.022 to 0.050, so a quiet one
-  over a line can still go unheard; the `[vad] tts window` line after each
-  tour line gives that phone's echo against the bar. Not on desktop or an
-  iPhone (`setupCaptureRunsOn`, above), and not for a tour read in a local
-  voice, which the OS may speak past the canceller.
+  teaches it is let go. The bar is lower than a session's, and so is the
+  minimum (`overLineBar` 0.02 RMS and `overLineMinSpeechMs` 0 in `LOBBY_STT`,
+  read by `speechBar` and `start` in `whisper-pcm-stt.ts` for a turn begun
+  while a line plays), since a miss here costs one short transcription and
+  the line plays on, where a session's false barge-in cuts the facilitator
+  off. At a session's bar (`BARGE_IN_THRESHOLD`, 0.03) and 200ms minimum,
+  seven of ten commands said over lines on MacBook speakers (2026-11-20)
+  were dropped as coughs: only frames over the bar count as speech while a
+  line plays, so a one-syllable word measured 0 to 171ms. The phone's
+  commands (2026-11-19) peaked at 0.022 to 0.050, many under 0.03. Lines
+  nobody spoke over peaked at 0.006 at the MacBook's mic and 0.0017 at the
+  phone's (`[vad] tts window`); 0.02 leaves twice the 0.01 a louder volume
+  setting might bring on the MacBook. The bar still rises with the echo
+  gate, and is 0.1 through the first line after a capture opens
+  (`ECHO_WARMUP_GATE`). The meditator's own speech over a line raises the
+  echo floor (to 0.0146 in that tour), and with it the bar, to about 0.03
+  for a second or so after: every command said on the MacBook still cleared
+  it, a quiet second try on a phone may not. Not on an iPhone (`setupCaptureRunsOn`,
+  above), and not for a tour read in a local voice, which the OS may speak
+  past the canceller.
 - **Elsewhere a word waits for the line.** The phone's recognizer and Chrome's
   hear the speaker, and local Whisper and hosted recognition off Android were
   left as they were: the recognizer is

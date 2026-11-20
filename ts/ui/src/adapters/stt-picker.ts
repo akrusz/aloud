@@ -62,6 +62,9 @@ type VadOpts = Partial<
     /** PCM engines only: the longest one utterance may run before it is
      *  submitted anyway (voice-start.ts LOBBY_STT). */
     maxUtteranceMs?: number;
+    /** PCM engines only: speech while a line plays (voice-start.ts LOBBY_STT). */
+    overLineBar?: number;
+    overLineMinSpeechMs?: number;
     /** The setup screen's listener (voice-start.ts LOBBY_STT). Local Whisper
      *  gets the setup vocabulary as its initial prompt; aloud cloud gets the
      *  flag and builds that prompt server-side. Absent for a session. */

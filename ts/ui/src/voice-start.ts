@@ -178,6 +178,17 @@ export const LOBBY_STT = {
     // off there is no preview to vouch for it (whisper-pcm-stt.ts drops a
     // shorter utterance as a cough).
     minSpeechDurationMs: 200,
+    // Words said over a tour line, on a capture that hears through it
+    // (`continuous`). Over a line only frames over the bar count as speech, so
+    // a one-syllable command measured 0 to 171ms there and was dropped as a
+    // cough; here a miss costs one short transcription and the line plays on,
+    // so any turn begun over a line is sent. Lines nobody spoke over peaked at
+    // 0.006 at a MacBook's mic (planned for 0.01) and 0.0017 at an Android
+    // phone's; commands over them at 0.036 and up, and 0.022 and up
+    // (2026-11-19/20). The voice warm-up's bar still holds over the first line
+    // after a capture opens (whisper-pcm-stt.ts ECHO_WARMUP_GATE).
+    overLineBar: 0.02,
+    overLineMinSpeechMs: 0,
     speculation: false,
     maxUtteranceMs: 10_000,
     // Tells each recognizer what the setup screen expects to hear (stt-picker.ts),

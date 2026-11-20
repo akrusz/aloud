@@ -309,6 +309,7 @@ and no watchdog/cooldown machinery is needed.
 | `ECHO_GATE_MARGIN` | 2.0 | `whisper-pcm-stt.ts` | Multiplier on the measured echo floor while TTS is audible |
 | `ECHO_GATE_MAX` | 0.035 | `whisper-pcm-stt.ts` | Cap on that gate, kept below real-speech level |
 | `ECHO_WARMUP_GATE` | 0.1 | `whisper-pcm-stt.ts` | Gate floor during a new capture stream's first voice playback |
+| `overLineBar` | 0.02 | `voice-start.ts` `LOBBY_STT` | In place of `BARGE_IN_THRESHOLD` for words said over a setup tour line ([voice-commands.md](voice-commands.md#the-tour-spoken)) |
 | `ANSWER_ECHO_MARGIN` | 3 | `whisper-pcm-stt.ts` | Over an asked question's tail, the bar as a multiple of the question's own echo peak |
 | `ANSWER_BAR_FLOOR` | 0.01 | `whisper-pcm-stt.ts` | The lowest that bar goes |
 | `PRE_BUFFER_MS` | 2000 | `whisper-pcm-stt.ts` | Onset retained so a barge-in's first word survives |
