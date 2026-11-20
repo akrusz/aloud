@@ -1,7 +1,7 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -28,8 +28,36 @@ const SERVER_URL = process.env['ALOUD_CLOUD_URL'] ?? 'http://localhost:8787';
 // '/' → ui/dist. The cross-origin API base is separate (VITE_ALOUD_CLOUD_URL).
 const HOSTED = process.env['ALOUD_HOSTED'] === '1';
 
+// The dev app's audio and timing lines (ui/src/diag.ts), appended to a dated
+// file under the repo's ignored .probe-data/, so a test pass in the desktop
+// shell can be read afterwards without the Web Inspector.
+const DIAG_DIR = resolve(__dirname, '../../.probe-data/dev-diag');
+const diagFile: Plugin = {
+    name: 'diag-file',
+    apply: 'serve',
+    configureServer(server) {
+        server.middlewares.use('/__diag', (req, res) => {
+            let body = '';
+            req.on('data', (chunk: Buffer) => {
+                if (body.length < 200_000) body += chunk;
+            });
+            req.on('end', () => {
+                if (req.method === 'POST' && body) {
+                    const now = new Date();
+                    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                    mkdirSync(DIAG_DIR, { recursive: true });
+                    appendFileSync(resolve(DIAG_DIR, `${day}.log`), `${body}\n`);
+                }
+                res.statusCode = 204;
+                res.end();
+            });
+        });
+    },
+};
+
 export default defineConfig({
     root: __dirname,
+    plugins: [diagFile],
     base: HOSTED ? '/app/' : '/',
     server: {
         // Allow Vite to read TS sources from outside ui/ — the UI imports the

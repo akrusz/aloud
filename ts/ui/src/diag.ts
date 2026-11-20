@@ -24,10 +24,33 @@ const kept: string[] = [];
 
 /** Guard anything costly to format with `diagOn()` rather than paying for it
  *  on every utterance. */
+// A dev build served by Vite also writes the audio and timing lines to a file
+// on the dev's machine (the `diag-file` plugin in vite.config.ts), since the
+// desktop shell's console is only readable in the Web Inspector. These tags
+// carry timings and lengths, never what was said.
+const FILED_TAG = /^\[(vad|stt-[a-z]+|echo-guard|signature|turn|setup-clip)\]/;
+const FILE_FLUSH_MS = 500;
+let unfiled: string[] = [];
+
+function fileLine(line: string): void {
+    if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return;
+    const d = new Date();
+    const at = `${d.toTimeString().slice(0, 8)}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+    if (unfiled.length === 0) {
+        setTimeout(() => {
+            const body = unfiled.join('\n');
+            unfiled = [];
+            navigator.sendBeacon('/__diag', body);
+        }, FILE_FLUSH_MS);
+    }
+    unfiled.push(`${at} ${line}`);
+}
+
 export function diag(...args: unknown[]): void {
     if (!diagOn()) return;
     console.info(...args);
     const line = args.map(String).join(' ');
+    if (import.meta.env.DEV && FILED_TAG.test(line)) fileLine(line);
     if (!KEPT_TAG.test(line)) return;
     kept.push(line.length > MAX_KEPT_CHARS ? `${line.slice(0, MAX_KEPT_CHARS)}…` : line);
     if (kept.length > MAX_KEPT) kept.shift();
