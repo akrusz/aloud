@@ -508,7 +508,7 @@ describe('Android native session events', () => {
         expect(finals(events)).toEqual([{ type: 'final', text: 'yeah' }]);
     });
 
-    it('classifies errors by code: 7 is silence, 11 is a fault, whatever the text says', async () => {
+    it('classifies errors by code: 7 is silence, 3 is a fault, whatever the text says', async () => {
         const engine = new CapacitorSttEngine(OPTS);
         const { events } = collect(engine);
         await vi.advanceTimersByTimeAsync(60);
@@ -520,9 +520,44 @@ describe('Android native session events', () => {
         const engine2 = new CapacitorSttEngine(OPTS);
         const { events: events2 } = collect(engine2);
         await vi.advanceTimersByTimeAsync(60);
-        codedError(11, "Didn't understand, please try again.");
+        codedError(3, "Didn't understand, please try again.");
         await vi.advanceTimersByTimeAsync(100);
         expect(events2.filter((e) => e.type === 'error')).toHaveLength(1);
+    });
+
+    it('relaunches after the recognition service disconnects (11), and recovers', async () => {
+        // The setup screen's second start on 2026-11-19 was answered at once
+        // with 11. The plugin builds a new recognizer at the next start.
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        expect(H.start).toHaveBeenCalledTimes(1);
+
+        codedError(11, 'Recognition service disconnected');
+        await vi.advanceTimersByTimeAsync(100); // relaunch gap
+        expect(H.start).toHaveBeenCalledTimes(2);
+        expect(events.filter((e) => e.type === 'error')).toEqual([]);
+
+        partial('next');
+        finalClose();
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(finals(events)).toEqual([{ type: 'final', text: 'next' }]);
+    });
+
+    it('surfaces a disconnect that keeps coming back once the retry budget is spent', async () => {
+        H.start.mockImplementation(async () => undefined as unknown);
+        const engine = new CapacitorSttEngine(OPTS);
+        const { events, finished } = collect(engine);
+        await vi.advanceTimersByTimeAsync(60);
+        for (let i = 0; i < 3; i++) {
+            codedError(11, 'Recognition service disconnected');
+            await vi.advanceTimersByTimeAsync(100);
+        }
+        expect(H.start).toHaveBeenCalledTimes(4); // 1 launch + 3 retries
+        codedError(11, 'Recognition service disconnected');
+        await vi.advanceTimersByTimeAsync(10);
+        expect(events.filter((e) => e.type === 'error')).toHaveLength(1);
+        await finished;
     });
 
     it("reports the user mid-turn from 'started', through a pause, until the turn submits", async () => {

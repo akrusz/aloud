@@ -99,6 +99,11 @@ const ERR_CLIENT = 5;
 const ERR_SPEECH_TIMEOUT = 6;
 const ERR_NO_MATCH = 7;
 const ERR_BUSY = 8;
+// ERROR_SERVER_DISCONNECTED (API 31+): the recognition service went away. The
+// patched plugin builds a new recognizer at the next start, so it is retried
+// like a busy one. Seen on the setup screen's second start, 19s after a first
+// that was stopped before it came up (Android, 2026-11-19).
+const ERR_SERVER_DISCONNECTED = 11;
 // A silence error this soon after a launch belongs to the previous segment:
 // Android needs seconds of quiet to decide it heard nothing. (wlp9: ~12ms.)
 const STALE_SILENCE_GUARD_MS = 300;
@@ -548,7 +553,10 @@ export class CapacitorSttEngine implements SttEngine {
                     code !== undefined
                         ? code === ERR_NO_MATCH || code === ERR_SPEECH_TIMEOUT
                         : /didn't understand|no match|no speech/i.test(msg);
-                const busy = code !== undefined ? code === ERR_BUSY || code === ERR_CLIENT : /busy|client side/i.test(msg);
+                const busy =
+                    code !== undefined
+                        ? code === ERR_BUSY || code === ERR_CLIENT || code === ERR_SERVER_DISCONNECTED
+                        : /busy|client side/i.test(msg);
                 if (silence) {
                     // Not ours if this segment hasn't come up yet - it's the
                     // previous one's, and acting on it costs each turn its first
@@ -564,8 +572,8 @@ export class CapacitorSttEngine implements SttEngine {
                     onSilence();
                     return;
                 }
-                // BUSY / flaky client errors: the service didn't take the
-                // launch. Relaunch on the watchdog's retry budget.
+                // BUSY / flaky client errors / a lost service: the launch
+                // didn't take. Relaunch on the watchdog's retry budget.
                 if (busy && startRetries < MAX_START_RETRIES) {
                     startRetries++;
                     diag(
