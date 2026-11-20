@@ -276,6 +276,9 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** minSpeechDurationMs for a turn begun while a line plays. Default
      *  minSpeechDurationMs. */
     overLineMinSpeechMs?: number;
+    /** The longest pause that ends a turn begun while a line plays. Default
+     *  none: the adaptive window alone. */
+    overLineSilenceMs?: number;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -483,6 +486,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             overLineBar: options.overLineBar ?? BARGE_IN_THRESHOLD,
             overLineMinSpeechMs:
                 options.overLineMinSpeechMs ?? options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
+            overLineSilenceMs: options.overLineSilenceMs ?? Infinity,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
             incremental: options.incremental ?? false,
@@ -737,7 +741,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     /** Trailing silence that ends the turn. Adaptive: each ms of speech buys
      *  silenceRampRate ms of patience, capped at silenceMaxMs, plus the
      *  dangling-clause extension. No longer than ANSWER_YES_PAUSE_MS after an
-     *  answer read as a plain yes. */
+     *  answer read as a plain yes, or overLineSilenceMs for a turn begun
+     *  while a line played. */
     private submitWindowMs(): number {
         const speechDur = this.lastSpeechMs - this.speechStartMs;
         const adaptive = Math.min(
@@ -745,7 +750,8 @@ export class WhisperPcmSttEngine implements SttEngine {
             this.opts.silenceMaxMs
         );
         if (this.answer?.soon) return Math.min(adaptive, ANSWER_YES_PAUSE_MS);
-        return adaptive + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
+        const window = adaptive + (this.partialIncomplete ? INCOMPLETE_CLAUSE_EXTRA_MS : 0);
+        return this.startedWhileTtsActive ? Math.min(window, this.opts.overLineSilenceMs) : window;
     }
 
     /** Continuous audio callback - runs for the engine's whole lifetime. */

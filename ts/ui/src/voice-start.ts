@@ -189,6 +189,10 @@ export const LOBBY_STT = {
     // after a capture opens (whisper-pcm-stt.ts ECHO_WARMUP_GATE).
     overLineBar: 0.02,
     overLineMinSpeechMs: 0,
+    // The pause that ends such a turn, in place of 0.7s and up, so a "next"
+    // cuts the line sooner. Long enough to keep "go back" whole; a word said
+    // after it, while the turn is being transcribed, still joins it.
+    overLineSilenceMs: 450,
     speculation: false,
     maxUtteranceMs: 10_000,
     // Tells each recognizer what the setup screen expects to hear (stt-picker.ts),

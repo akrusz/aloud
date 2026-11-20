@@ -19,6 +19,9 @@ vi.mock('../ui/src/adapters/silero-vad.js', () => ({
 
 useWhisperHarness();
 
+/** LOBBY_STT as a session would have it: nothing of its own over a line. */
+const { overLineBar: _bar, overLineMinSpeechMs: _min, overLineSilenceMs: _pause, ...session } = LOBBY_STT;
+
 const engineOf = (engine: Engine): WhisperPcmSttEngine => engine as unknown as WhisperPcmSttEngine;
 
 /** The echo every line leaves at the mic: the desktop's planning figure. */
@@ -26,9 +29,17 @@ const ECHO = 0.01;
 /** The mic's level for the next `frames` frames, then `rest`. */
 let burst = { frames: 0, level: 0 };
 let rest = 0;
+/** When the last frame of the word was heard. */
+let wordEndedAt = 0;
 function word(level: number, frames: number): void {
     burst = { frames, level };
 }
+const mic = (): number => {
+    if (burst.frames === 0) return rest;
+    burst.frames--;
+    wordEndedAt = Date.now();
+    return burst.level;
+};
 
 async function line(e: WhisperPcmSttEngine, during: () => Promise<void>): Promise<void> {
     e.noteVoicePlayback();
@@ -43,7 +54,7 @@ async function line(e: WhisperPcmSttEngine, during: () => Promise<void>): Promis
 async function setupEngine(opts: Record<string, unknown>): Promise<WhisperPcmSttEngine> {
     burst = { frames: 0, level: 0 };
     rest = 0;
-    rig.amplitude = () => (burst.frames > 0 ? (burst.frames--, burst.level) : rest);
+    rig.amplitude = mic;
     const engine = engineOf(await engineWithMic(opts));
     // The first line after a capture opens is the voice warm-up's.
     await line(engine, () => advance(1000));
@@ -67,7 +78,6 @@ describe('a word over a tour line', () => {
         expect(await overLine(await setupEngine(LOBBY_STT), 0.025)).toBe(true);
     });
 
-    const { overLineBar: _bar, overLineMinSpeechMs: _min, ...session } = LOBBY_STT;
     it('is not sent in a session under the barge-in bar', async () => {
         expect(await overLine(await setupEngine(session), 0.025)).toBe(false);
     });
@@ -88,9 +98,43 @@ describe('a word over a tour line', () => {
     it('waits for the voice warm-up over the first line after a capture opens', async () => {
         burst = { frames: 0, level: 0 };
         rest = 0;
-        rig.amplitude = () => (burst.frames > 0 ? (burst.frames--, burst.level) : rest);
+        rig.amplitude = mic;
         const e = engineOf(await engineWithMic(LOBBY_STT));
         expect(await overLine(e, 0.05, 3)).toBe(false);
+    });
+});
+
+describe('the pause that ends the turn', () => {
+    /** How long after the word's last frame the turn was sent. */
+    async function sentAfter(e: WhisperPcmSttEngine, over: boolean): Promise<number> {
+        const turn = await listen(e as unknown as Engine);
+        let sentAt = 0;
+        const sent = (): boolean => {
+            if (!sentAt && rig.posts.length > 0) sentAt = Date.now();
+            return sentAt > 0;
+        };
+        const speak = async (): Promise<void> => {
+            await advance(500);
+            word(0.05, 3);
+            await advance(2500, sent);
+        };
+        if (over) await line(e, speak);
+        else await speak();
+        await advance(3000, turn.done);
+        expect(sentAt).toBeGreaterThan(0);
+        return sentAt - wordEndedAt;
+    }
+
+    it('is shorter for a turn begun over a line', async () => {
+        expect(await sentAfter(await setupEngine(LOBBY_STT), true)).toBeLessThan(650);
+    });
+
+    it('is the setup screen\'s own between lines', async () => {
+        expect(await sentAfter(await setupEngine(LOBBY_STT), false)).toBeGreaterThanOrEqual(LOBBY_STT.silenceBaseMs);
+    });
+
+    it('is unchanged over a line without the setup screen\'s numbers', async () => {
+        expect(await sentAfter(await setupEngine(session), true)).toBeGreaterThanOrEqual(LOBBY_STT.silenceBaseMs);
     });
 });
 

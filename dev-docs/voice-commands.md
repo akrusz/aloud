@@ -785,6 +785,10 @@ voices and would move them off it.
   [voice-barge-in.md](voice-barge-in.md)). A turn said over a line, or begun
   over one and ended after it (`startedDuringTts`), goes to the tour alone
   (`heardOverTourLine`): its commands act and cut the line as a tap would.
+  Such a turn ends on a 0.45s pause (`overLineSilenceMs`), not the 0.7s and
+  up of `LOBBY_STT`'s: "Next." said over the noting line cut it 2s later,
+  0.77s of that the pause (2026-11-20). A word said after it, while the turn
+  is being transcribed, still joins it, as "back" after "go".
   Anything else is dropped, so nothing said over a line begins a session or
   changes the setup (the lines name "begin" and settings), and so is anything
   that could be the line itself come back past the canceller
