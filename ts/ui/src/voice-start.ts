@@ -41,7 +41,7 @@
 import type { SttEngine } from '../../src/platform/index.js';
 import { parseBeginRequest, type BeginRequest } from '../../src/facilitation/begin-command.js';
 import { appUrl } from './app-base.js';
-import { isTauri } from './is-desktop.js';
+import { capacitorPlatform, isTauri } from './is-desktop.js';
 import { micOpenedThisPage } from './mic-check.js';
 import { withTimeout } from './net-timeout.js';
 
@@ -119,6 +119,21 @@ export function setupListeningLimits(listener: SetupListener): SetupListeningLim
         unheardLimit: VOICE_START_SENT_UNHEARD,
         ...flat,
     };
+}
+
+/**
+ * Whether the setup screen's hosted listener runs its capture on between
+ * turns and hears through the tour's lines (`ListenOnSetupOptions.continuous`).
+ * In the Android app only, for now. What it answers is Android's: a stop
+ * closed the engine's audio graph, a call-stream player of its own, as a line
+ * began, and the line lost its first words. An iPhone's echo canceller let the
+ * facilitator through (meditation-pal-hi6f), and on desktop it rests on an
+ * echo path nobody has listened to. What would lift it there: one tour heard
+ * on MacBook speakers with diag on, reading each line's `[vad] tts window`
+ * overGate.
+ */
+export function setupCaptureRunsOn(): boolean {
+    return capacitorPlatform() === 'android';
 }
 
 /** After the app has finished speaking, before the recognizer listens again.
@@ -337,7 +352,8 @@ export interface ListenOnSetupOptions {
     coldOpening?: () => Promise<void> | null;
     /**
      * Present for an engine whose capture runs on between turns, as a
-     * session's does (WhisperPcmSttEngine on hosted recognition): an
+     * session's does (WhisperPcmSttEngine on hosted recognition, where
+     * setupCaptureRunsOn): an
      * echo-cancelled capture that raises its speech bar above a line's echo
      * while told one plays (`lineStarted` / `lineEnded`) and marks a turn
      * begun meanwhile (`startedDuringTts` on its final). With it a turn ends

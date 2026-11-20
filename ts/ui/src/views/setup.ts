@@ -80,6 +80,7 @@ import {
     pageTouched,
     voiceStartBlocker,
     setupListeningLimits,
+    setupCaptureRunsOn,
     type MicPermission,
     type SetupHearing,
     type VoiceStartHandle,
@@ -132,7 +133,7 @@ import { clearActiveSession } from '../active-session.js';
 import { showResumeModal } from '../resume-modal.js';
 import { detectCapabilities, capabilitiesSync, watchCloudReachable } from '../capabilities.js';
 import { isWebMode } from '../app-mode.js';
-import { capacitorPlatform, isCapacitor, isIosWeb, isSingleOwnerMicPlatform } from '../is-desktop.js';
+import { capacitorPlatform, isCapacitor, isSingleOwnerMicPlatform } from '../is-desktop.js';
 import {
     computeProviderMarker,
     fetchKeyPresence,
@@ -1831,12 +1832,8 @@ export async function mountSetupView(
             // Hosted recognition's echo-cancelled capture runs on between
             // turns and hears through the tour's lines, as a session's barges
             // in on it (voice-barge-in.md), the engine's bar raised above a
-            // line's echo. Not on an iPhone, whose canceller let the
-            // facilitator through (meditation-pal-hi6f).
-            ...(engine instanceof WhisperPcmSttEngine &&
-            isHostedSttChoice(choice) &&
-            !isIosWeb() &&
-            capacitorPlatform() !== 'ios'
+            // line's echo. In the Android app only (setupCaptureRunsOn).
+            ...(engine instanceof WhisperPcmSttEngine && isHostedSttChoice(choice) && setupCaptureRunsOn()
                 ? {
                       // The full bar over every line: this engine is never
                       // asked expectAnswer, which lowers it over a question's

@@ -22,6 +22,7 @@ import {
     micPermission,
     voiceStartBlocker,
     setupListeningLimits,
+    setupCaptureRunsOn,
     VOICE_START_LATE_UNHEARD_COST,
     VOICE_START_SENT_UNHEARD,
     SPEECH_TAIL_MS,
@@ -1103,6 +1104,31 @@ describe('listenOnSetup: a capture that runs on between turns (continuous)', () 
         await handle.say(() => Promise.resolve());
         await vi.advanceTimersByTimeAsync(SPEECH_TAIL_MS + 50);
         expect(calls).toEqual([]);
+    });
+});
+
+describe('setupCaptureRunsOn', () => {
+    // Continuous capture and hearing through tour lines answer an Android
+    // problem; on desktop they rest on an echo path nobody has listened to,
+    // and an iPhone's canceller let the facilitator through.
+    afterEach(() => vi.unstubAllGlobals());
+    const nativeApp = (platform: 'ios' | 'android') =>
+        vi.stubGlobal('window', { Capacitor: { isNativePlatform: () => true, getPlatform: () => platform } });
+
+    it('is the Android app', () => {
+        nativeApp('android');
+        expect(setupCaptureRunsOn()).toBe(true);
+    });
+
+    it('is not an iPhone, the desktop app or a browser', () => {
+        nativeApp('ios');
+        expect(setupCaptureRunsOn()).toBe(false);
+        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+        expect(setupCaptureRunsOn()).toBe(false);
+        vi.stubGlobal('window', { Capacitor: { isNativePlatform: () => false, getPlatform: () => 'web' } });
+        expect(setupCaptureRunsOn()).toBe(false);
+        vi.stubGlobal('window', {});
+        expect(setupCaptureRunsOn()).toBe(false);
     });
 });
 

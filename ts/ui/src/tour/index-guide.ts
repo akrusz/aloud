@@ -96,8 +96,8 @@ export interface QuickStart {
  */
 export interface TourVoice {
     /** Speak a tour line, the microphone shut while it plays (on hosted
-     *  recognition it hears through the line, and only the tour's own words
-     *  act). `as` is the house voice to say it in (the two introductions);
+     *  recognition in the Android app it hears through the line, and only the
+     *  tour's own words act). `as` is the house voice to say it in (the two introductions);
      *  otherwise whoever speaks the setup screen. Resolves when it has
      *  finished or been cut. */
     say(id: SetupLineId, as?: string): Promise<void>;
