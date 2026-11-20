@@ -4,12 +4,15 @@
  * can't read the system volume, and the desktop shell doesn't yet
  * (meditation-pal-zojq).
  *
- * A session looks as it starts and says so in a banner (mountVolumeNotice).
- * Then, and not on the setup screen: on Android the stream a session plays on
- * is only settled once its mic is open (media, or the call stream under an
- * echo-cancelled capture: MainActivity.java), and a phone's setup screen is
- * silent unless asked to speak. Never a gate: a low setting is a guess about
- * the room, and a dead mic is the only thing that makes a session impossible.
+ * A session says so in a banner (mountVolumeNotice), and the setup screen
+ * doesn't: a phone's setup screen is silent unless asked to speak. "Very low"
+ * is judged once, as the session loads: once its mic is open, which on
+ * Android settles the stream it plays on (the call stream under an
+ * echo-cancelled capture, MainActivity.java), and which happens before
+ * anything audible. A level turned down after that is the meditator's own
+ * choice. "Off" is watched for through the start and stays up until the
+ * volume comes up. Never a gate: a low setting is a guess about the room, and
+ * a dead mic is the only thing that makes a session impossible.
  */
 
 import { capacitorPlatform } from './is-desktop.js';
@@ -30,9 +33,11 @@ export type VolumeProblem = 'off' | 'low';
  *  phone it was set on, where one step up is 0.125 and already fine). */
 export const LOW_VOLUME = 0.1;
 const POLL_MS = 2000;
-/** How long a session keeps looking. Long enough for the mic to open and the
- *  first line to be spoken. */
+/** How long a session keeps looking for the volume off. */
 export const WATCH_MS = 60_000;
+/** How long after the session's mic opens "very low" is judged: a beat for
+ *  Android to have moved the app to the call stream. */
+export const LOW_JUDGED_AFTER_MS = 1000;
 /** How long "very low" stays up once it shows: a hint, read in a glance. */
 export const LOW_SHOWN_MS = 10_000;
 
@@ -77,41 +82,79 @@ export interface VolumeNoticeEl {
 
 /**
  * Keep `el` saying what is wrong with the volume for the start of a session.
- * "Off" stays until it is turned up; "very low" is a hint, up for LOW_SHOWN_MS
- * from when it first shows and then gone for the session. `wanted` is whether
- * the session speaks at all (its TTS toggle).
- * Returns the stop.
+ * "Off" is looked for through WATCH_MS and stays until it is turned up. "Very
+ * low" is one reading, LOW_JUDGED_AFTER_MS after `micOpen` settles (the
+ * session's mic open; at once where there is none): when it is low, up for
+ * LOW_SHOWN_MS or until the volume comes up, and never shown later. `wanted`
+ * is whether the session speaks at all (its TTS toggle). Returns the stop.
  */
 export function mountVolumeNotice(
     el: VolumeNoticeEl | null,
-    opts: { wanted?: () => boolean; read?: () => Promise<VolumeReading | null> } = {}
+    opts: {
+        wanted?: () => boolean;
+        read?: () => Promise<VolumeReading | null>;
+        micOpen?: Promise<unknown>;
+    } = {}
 ): () => void {
     if (!el) return () => {};
     const read = opts.read ?? readOutputVolume;
     const startedAt = Date.now();
     let stopped = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let lowSince: number | null = null;
-
-    const look = async (): Promise<void> => {
-        const reading = await read();
-        // Nothing to read here (a browser, the desktop app): done for good.
-        if (stopped || reading === null) return;
-        const watching = Date.now() - startedAt < WATCH_MS;
-        const found = opts.wanted?.() === false ? null : volumeProblem(reading);
-        if (found === 'low' && watching) lowSince ??= Date.now();
-        const lowLeft = lowSince === null ? 0 : LOW_SHOWN_MS - (Date.now() - lowSince);
-        const problem = found === 'low' && lowLeft <= 0 ? null : found;
+    // Nothing to read here (a browser, the desktop app): done for good.
+    let unreadable = false;
+    let off = false;
+    let low = false;
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const later = (ms: number, run: () => void): void => {
+        if (stopped) return;
+        const timer = setTimeout(() => {
+            timers.delete(timer);
+            if (!stopped) run();
+        }, ms);
+        timers.add(timer);
+    };
+    const show = (): void => {
+        const problem = off ? 'off' : low ? 'low' : null;
         el.textContent = problem ? describeVolumeProblem(problem) : '';
         el.classList.toggle('hidden', !problem);
-        if (watching || problem) {
-            timer = setTimeout(() => void look(), problem === 'low' ? Math.min(POLL_MS, lowLeft) : POLL_MS);
-        }
     };
-    void look();
+    const problemNow = async (): Promise<VolumeProblem | null> => {
+        const reading = await read();
+        if (reading === null) unreadable = true;
+        return opts.wanted?.() === false ? null : volumeProblem(reading);
+    };
+
+    const watchOff = async (): Promise<void> => {
+        const problem = await problemNow();
+        if (stopped || unreadable) return;
+        off = problem === 'off';
+        // Turned up while "very low" shows: it goes.
+        if (problem !== 'low') low = false;
+        show();
+        if (off || low || Date.now() - startedAt < WATCH_MS) later(POLL_MS, () => void watchOff());
+    };
+    void watchOff();
+
+    void Promise.resolve(opts.micOpen)
+        .catch(() => undefined)
+        .then(() =>
+            later(LOW_JUDGED_AFTER_MS, () => {
+                if (unreadable) return;
+                void problemNow().then((problem) => {
+                    if (stopped || problem !== 'low') return;
+                    low = true;
+                    show();
+                    later(LOW_SHOWN_MS, () => {
+                        low = false;
+                        show();
+                    });
+                });
+            })
+        );
 
     return () => {
         stopped = true;
-        clearTimeout(timer);
+        for (const timer of timers) clearTimeout(timer);
+        timers.clear();
     };
 }

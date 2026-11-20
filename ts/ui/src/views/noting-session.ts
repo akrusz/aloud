@@ -355,9 +355,13 @@ export async function mountNotingSessionView(
         ttsEnabled = !ttsEnabled;
         ttsToggle.classList.toggle('active', ttsEnabled);
     });
+    // Settled by playOpening below, which opens the mic: when the banner
+    // judges "very low" (output-volume.ts).
+    let micOpened!: (opening: unknown) => void;
+    const micOpen = new Promise<unknown>((resolve) => (micOpened = resolve));
     viewCleanup.signal.addEventListener(
         'abort',
-        mountVolumeNotice(root.querySelector<HTMLElement>('#volume-trouble'), { wanted: () => ttsEnabled })
+        mountVolumeNotice(root.querySelector<HTMLElement>('#volume-trouble'), { wanted: () => ttsEnabled, micOpen })
     );
     if (orbEl) {
         initKasinaMode({ orb: orbEl, root, toggle: kasinaToggle, signal: viewCleanup.signal });
@@ -405,7 +409,11 @@ export async function mountNotingSessionView(
     // The opening sound and the mic, one after the other (playOpening says in
     // which order); the opener waits for both.
     const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound, () => stt?.prime?.());
+    const openingOver = playOpening(signatureSound, () => {
+        const opening = stt?.prime?.();
+        micOpened(opening);
+        return opening;
+    });
 
     // One TTS engine per distinct voice id (participants + narrator).
     const ttsCache = new Map<string, TtsEngine>();

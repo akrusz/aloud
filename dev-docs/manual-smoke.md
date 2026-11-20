@@ -418,7 +418,8 @@ Android build is enough for most of it - see [mobile.md](mobile.md).
       down, begin a session on the speaker: "The volume is off." sits above the
       status line and goes within a couple of seconds of turning it up. One
       step up from the bottom it reads "The volume is very low." for ten
-      seconds, and not at all in headphones. On Android try it on aloud cloud
+      seconds, and not at all in headphones; turned down once the session is
+      under way, nothing. On Android try it on aloud cloud
       speech too, where the slider that counts is Call: it never reaches
       zero, and only its bottom step reads as very low (`LOW_VOLUME`). On
       iOS, check the reading follows the buttons at all: the plugin reads

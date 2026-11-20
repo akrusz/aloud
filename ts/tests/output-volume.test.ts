@@ -1,11 +1,12 @@
 /**
- * output-volume.ts: a session on a phone says when its volume is off or very
- * low, for as long as that matters, and nothing where the volume can't be read.
+ * output-volume.ts: a session on a phone says when its volume is off, or very
+ * low as it loads, and nothing where the volume can't be read.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
     LOW_VOLUME,
+    LOW_JUDGED_AFTER_MS,
     LOW_SHOWN_MS,
     WATCH_MS,
     mountVolumeNotice,
@@ -82,16 +83,34 @@ describe('mountVolumeNotice', () => {
         stop();
     });
 
-    it('catches a volume that only reads low once the mic has opened', async () => {
+    it('judges "very low" once the mic has opened, on the stream it settles', async () => {
+        const el = banner();
+        let opened!: () => void;
+        const micOpen = new Promise<void>((resolve) => (opened = resolve));
+        // Low before the mic opens: not yet the stream the session plays on.
+        let now = reading({ level: 0.05 });
+        const stop = mountVolumeNotice(el, { read: async () => now, micOpen });
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(el.hidden).toBe(true);
+
+        // Android's call stream at its lowest step.
+        now = reading({ level: 0 });
+        opened();
+        await vi.advanceTimersByTimeAsync(LOW_JUDGED_AFTER_MS - 1);
+        expect(el.hidden).toBe(true);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(el.textContent).toBe('The volume is very low.');
+        stop();
+    });
+
+    it('says nothing of a volume turned down once the session has loaded', async () => {
         const el = banner();
         let now = reading();
         const stop = mountVolumeNotice(el, { read: async () => now });
-        await vi.advanceTimersByTimeAsync(0);
-        expect(el.hidden).toBe(true);
-
+        await vi.advanceTimersByTimeAsync(LOW_JUDGED_AFTER_MS);
         now = reading({ level: 0 });
-        await vi.advanceTimersByTimeAsync(2000);
-        expect(el.textContent).toBe('The volume is very low.');
+        await vi.advanceTimersByTimeAsync(WATCH_MS);
+        expect(el.hidden).toBe(true);
         stop();
     });
 
@@ -99,7 +118,7 @@ describe('mountVolumeNotice', () => {
         const el = banner();
         let now = reading({ level: 0.05 });
         const stop = mountVolumeNotice(el, { read: async () => now });
-        await vi.advanceTimersByTimeAsync(LOW_SHOWN_MS - 500);
+        await vi.advanceTimersByTimeAsync(LOW_JUDGED_AFTER_MS + LOW_SHOWN_MS - 500);
         expect(el.textContent).toBe('The volume is very low.');
         await vi.advanceTimersByTimeAsync(600);
         expect(el.hidden).toBe(true);
@@ -109,6 +128,18 @@ describe('mountVolumeNotice', () => {
         now = reading({ level: 0, muted: true });
         await vi.advanceTimersByTimeAsync(2000);
         expect(el.textContent).toBe('The volume is off.');
+        stop();
+    });
+
+    it('takes "low" down once the volume comes up', async () => {
+        const el = banner();
+        let now = reading({ level: 0.05 });
+        const stop = mountVolumeNotice(el, { read: async () => now });
+        await vi.advanceTimersByTimeAsync(LOW_JUDGED_AFTER_MS);
+        expect(el.textContent).toBe('The volume is very low.');
+        now = reading();
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(el.hidden).toBe(true);
         stop();
     });
 

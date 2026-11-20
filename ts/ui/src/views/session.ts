@@ -831,7 +831,13 @@ export async function mountSessionView(
     // facilitator's first words wait for both (tts.speak below), and come as
     // soon after as they are ready.
     const signatureSound = resolveSignatureSound(appSettings.signatureSound);
-    const openingOver = playOpening(signatureSound, () => stt?.prime?.());
+    // When the volume banner judges "very low" (output-volume.ts).
+    let micOpen: Promise<unknown> = Promise.resolve();
+    const openingOver = playOpening(signatureSound, () => {
+        const opening = stt?.prime?.();
+        if (opening) micOpen = opening;
+        return opening;
+    });
     let openingSounding = true;
     void openingOver.then(() => {
         openingSounding = false;
@@ -3210,6 +3216,7 @@ export async function mountSessionView(
     });
     unmountVolumeNotice = mountVolumeNotice(root.querySelector<HTMLElement>('#volume-trouble'), {
         wanted: () => ttsEnabled,
+        micOpen,
     });
 
     // Manual silence-mode toggle. Exiting is immediate here; while held, the
