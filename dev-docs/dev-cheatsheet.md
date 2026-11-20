@@ -161,8 +161,12 @@ Four switches also live there with no URL twin:
   memory and downloaded as one `.tar` (`clips/*.wav` + `clips.json`) when the
   session ends. A webview can't download a blob, so the desktop app writes each
   clip as it is transcribed to `<app-data>/stt-clips/<capture>/` (a `.wav` and
-  a `.json` per clip, through the shell's `/app/v1/stt-clips/...`). Cloud or
-  local Whisper STT; nothing is recorded on mobile. An incremental pass
+  a `.json` per clip, through the shell's `/app/v1/stt-clips/...`). A phone
+  posts each clip the same way over USB to `npm --prefix ts run stt:clip-sink`
+  (`ts/scripts/stt-clip-sink.ts`, which runs `adb reverse` and writes the same
+  folder layout); debug builds only, since
+  `ts/android/app/src/debug/AndroidManifest.xml` is what allows plain http.
+  Cloud or local Whisper STT. An incremental pass
   (`incremental` in `whisper-pcm-stt.ts`) records only its piece, with `from`
   (seconds of the turn's audio before it) and the turn's joined text;
   `loadCapture` in the replay script chains the pieces back into each pass's

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const flag = { on: true, desktop: false };
+const flag = { on: true, desktop: false, phone: false };
 vi.mock('../ui/src/dev-mode.js', () => ({ isSttClipsDebug: () => flag.on }));
-vi.mock('../ui/src/is-desktop.js', () => ({ isTauri: () => flag.desktop }));
+vi.mock('../ui/src/is-desktop.js', () => ({ isTauri: () => flag.desktop, isCapacitor: () => flag.phone }));
 
-import { recordSttClip, takeSttClipArchive, STT_CLIP_SAMPLE_RATE } from '../ui/src/stt-clip-recorder.js';
+import { recordSttClip, takeSttClipArchive, STT_CLIP_SAMPLE_RATE, STT_CLIP_SINK_PORT } from '../ui/src/stt-clip-recorder.js';
 
 /** Read a ustar archive back the way `tar` does: 512-byte headers, octal sizes. */
 function untar(bytes: Uint8Array): Map<string, Uint8Array> {
@@ -29,6 +29,7 @@ describe('stt clip recorder', () => {
     beforeEach(() => {
         flag.on = true;
         flag.desktop = false;
+        flag.phone = false;
         takeSttClipArchive();
     });
 
@@ -77,6 +78,24 @@ describe('stt clip recorder', () => {
         expect(calls[1]!.url).toBe(calls[0]!.url.replace(/wav$/, 'json'));
         expect((calls[0]!.body as Uint8Array).length).toBe(44 + STT_CLIP_SAMPLE_RATE * 2);
         expect(JSON.parse(calls[1]!.body as string)).toEqual({ turn: 3, label: 'final', seconds: 1, from: 2.25, text: 'still here' });
+        expect(takeSttClipArchive()).toBeNull();
+    });
+
+    it('on a phone posts each clip to the sink on the dev machine, buffering nothing', async () => {
+        flag.phone = true;
+        const urls: string[] = [];
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = (async (url: string | URL | Request) => {
+            urls.push(String(url));
+            return new Response('{"status":"ok"}');
+        }) as typeof fetch;
+        try {
+            recordSttClip({ turn: 2, label: 'spec', pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE), from: 0, text: 'here' });
+            await vi.waitFor(() => expect(urls).toHaveLength(2));
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+        expect(urls[0]).toMatch(new RegExp(`^http://localhost:${STT_CLIP_SINK_PORT}/stt-clips/aloud-stt-clips-[\\d-]+/\\d{4}-t002-spec/wav$`));
         expect(takeSttClipArchive()).toBeNull();
     });
 

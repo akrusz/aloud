@@ -12,17 +12,23 @@
  * exportSessions has the same limit), so the desktop app instead writes each
  * clip through the shell as it is transcribed, to
  * <app-data>/stt-clips/<capture>/NNNN-tNNN-<label>.wav with a .json beside it
- * (turn, label, seconds, from, text). Mobile has neither path and records
- * nothing.
+ * (turn, label, seconds, from, text). A phone posts each clip the same way to
+ * scripts/stt-clip-sink.ts on the dev's machine, over USB (`adb reverse`).
+ * That works in a debug build only: android/app/src/debug/AndroidManifest.xml
+ * is what allows plain http, so a release build drops its clips.
  *
- * Nothing leaves the device, and nothing is kept unless the flag is on.
+ * Nothing leaves the device (or the cable), and nothing is kept unless the
+ * flag is on.
  */
 
 import { appUrl } from './app-base.js';
 import { isSttClipsDebug } from './dev-mode.js';
-import { isTauri } from './is-desktop.js';
+import { isCapacitor, isTauri } from './is-desktop.js';
 
 export const STT_CLIP_SAMPLE_RATE = 16_000;
+
+/** The port scripts/stt-clip-sink.ts listens on and reverses to the phone. */
+export const STT_CLIP_SINK_PORT = 8793;
 
 interface Clip {
     /** The utterance this pass belongs to. A turn's audio is its LAST pass
@@ -65,15 +71,16 @@ const metaOf = (c: Clip) => ({
 export function recordSttClip(clip: Clip): void {
     if (!isSttClipsDebug() || clip.pcm16.length === 0) return;
     seq++;
-    if (isTauri()) void saveThroughShell(seq, clip);
+    if (isTauri()) void postClip(appUrl('/stt-clips'), seq, clip);
+    else if (isCapacitor()) void postClip(`http://localhost:${STT_CLIP_SINK_PORT}/stt-clips`, seq, clip);
     else clips.push(clip);
 }
 
-/** Desktop: one clip to disk now, so a crash mid-sit loses nothing. */
-async function saveThroughShell(n: number, clip: Clip): Promise<void> {
+/** Desktop and phone: one clip to disk now, so a crash mid-sit loses nothing. */
+async function postClip(base: string, n: number, clip: Clip): Promise<void> {
     captureDir ??= `aloud-stt-clips-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
     const put = (kind: 'wav' | 'json', body: BodyInit): Promise<Response> =>
-        fetch(appUrl(`/stt-clips/${captureDir}/${clipName(n, clip)}/${kind}`), { method: 'POST', body });
+        fetch(`${base}/${captureDir}/${clipName(n, clip)}/${kind}`, { method: 'POST', body });
     try {
         const wav = await put('wav', wavBytes(clip.pcm16) as BodyInit);
         const meta = await put('json', JSON.stringify(metaOf(clip)));

@@ -32,6 +32,7 @@
         "clips:check": "npm run clips:render -- --check",
         "voice:check": "node scripts/voice-loop-check.mjs",
         "stt:replay": "tsx scripts/stt-replay.ts",
+        "stt:clip-sink": "tsx scripts/stt-clip-sink.ts",
         "soak": "tsx soak/run.ts",
         "soak:web": "tsx soak/browser/run.ts",
         "ui:dev": "vite --config ui/vite.config.ts",
