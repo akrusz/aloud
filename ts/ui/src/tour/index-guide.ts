@@ -21,7 +21,7 @@ import { sharedKv } from '../state.js';
 import { t, uiLang } from '../i18n.js';
 import { FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { escapeHtml } from '../escape-html.js';
-import { isTauri } from '../is-desktop.js';
+import { isCapacitor, isTauri } from '../is-desktop.js';
 import { displayVoiceName, parseTourCommand, type OfferedVoice, type SetupLineId } from '../../../src/facilitation/index.js';
 import { footerHtml, getNavHeight, placeCard } from './tour-common.js';
 
@@ -757,8 +757,10 @@ function showSection(section: Section): void {
 
     resetTarget();
 
+    // Not in the phone apps, where an open panel pushed the section's
+    // controls off the screen. Its ? still opens it.
     const panel = document.getElementById('info-' + (section.panel || section.id));
-    if (panel) panel.classList.remove('hidden');
+    if (panel && !isCapacitor()) panel.classList.remove('hidden');
 
     // Elevate the target above the overlay so its info panel is readable.
     target.classList.add('guide-elevated');
@@ -788,8 +790,8 @@ function showDone(): void {
     html +=
         '<p>' +
         (tourVoice && tourVoice.mic() !== 'off'
-            ? t('Pick what you like and begin. With the mic on, you can speak: "twenty minutes", "add playful", "begin". Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')
-            : t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to reopen these notes.')) +
+            ? t('Pick what you like and begin. With the mic on, you can speak: "twenty minutes", "add playful", "begin". Tap <span class="info-btn-glyph">?</span> on any section to show more details.')
+            : t('Pick what you like and begin. Tap <span class="info-btn-glyph">?</span> on any section to show more details.')) +
         '</p>';
     showCentered(html, false);
 }
