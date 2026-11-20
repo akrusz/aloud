@@ -20,6 +20,7 @@ import {
     type SpokenSetupLine,
 } from '../../src/facilitation/index.js';
 import { createTtsForVoice } from './adapters/tts-picker.js';
+import { diag } from './diag.js';
 import { assetPath } from './route-base.js';
 import { previewVoice, stopPreview } from './voice-picker.js';
 import manifestJson from './voice-clips.json';
@@ -153,8 +154,17 @@ export function createSetupSpeaker(opts: SetupSpeakerOptions): SetupSpeaker {
             audio.preload = 'auto';
             audio.playbackRate = rate;
             audio.preservesPitch = true;
-            const done = (): void => {
+            // When each clip really starts and how it ends, against the
+            // [vad] lines: a clip whose first words go missing on a phone.
+            const asked = performance.now();
+            const name = url.slice(url.lastIndexOf('/') + 1);
+            const started = (): void => diag(`[setup-clip] ${name} playing +${Math.round(performance.now() - asked)}ms`);
+            audio.addEventListener('playing', started, { once: true });
+            let finished = false;
+            const done = (event?: Event): void => {
                 if (playing === audio) playing = null;
+                if (!finished) diag(`[setup-clip] ${name} ${event?.type ?? 'refused'} at ${audio.currentTime.toFixed(2)}s`);
+                finished = true;
                 resolve();
             };
             audio.addEventListener('ended', done, { once: true });
