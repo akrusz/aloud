@@ -21,24 +21,27 @@
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts gaps    --out <dir>
  *   taskpolicy -b nice -n 10 tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts marks --out <dir> [--models <a,b>] [--verbose]
  *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts report  --out <dir>
- *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts bill    [--sessions <dir>] [--since YYYY-MM-DD]
+ *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts route   --out <dir> [--voices <a,b>] [--lines <1,4>] [--cap <usd>] [--env <.env>] [--dry-run]
+ *   tsx --tsconfig server/tsconfig.json server/scripts/tts-repeat-probe.ts bill    [--sessions <dir>] [--since YYYY-MM-DD] [--voices <a,b>]
  *
  * recheck hears each burst of a take with more bursts than phrases, or a long
  * one, on its own. gaps measures every silence of every take from the PCM
  * alone, for the report's played-silence section. marks scores the server's
  * sentence finder on the whole takes (providers/mp3-marks.ts; see marksPhase),
  * and --voicedGain, --minPauseS and --distanceCostS try other settings for
- * it. bill prices LINES, and the
- * replies in the desktop app's session logs, sent per chunk, first chunk
- * alone and the rest as one, and whole (billedCharsFor). A variant may also
+ * it. route sends replies through the metered route itself (routePhase).
+ * bill prices LINES, and the replies in the desktop app's session logs, sent
+ * per chunk, first chunk alone and the rest as one, and whole
+ * (billedCharsFor). A variant may also
  * carry SSML the route would escape (a <break> between sentences, an
  * mstts:silence, sentence elements, <voice> parameters), sent through the
  * probe's own Azure call. The plan (voices, variants, lines, takes, spend
- * cap) is PLAN below, as last run (Ethan per sentence against whole replies,
- * 2026-11-20); edit it and run again: every step picks up where the last run
- * stopped. Synthesis is sequential with a pause, backs off on 429, and stops
- * before the cap, which covers every take in <dir>/takes.jsonl. Every take
- * is kept under <dir>/<variant>/.
+ * cap) is PLAN below, as last run (Harper's lead, whole replies against a
+ * chunk per input, 2026-11-19); edit it and run again: every step picks up
+ * where the last run stopped. Synthesis is sequential with a pause, backs
+ * off on 429, and stops before the cap, which covers every take in
+ * <dir>/takes.jsonl. Every take is kept under <dir>/<variant>/, and a led
+ * take the route refused and rolled again beside it (-refused1.mp3).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -48,9 +51,12 @@ import { join, resolve } from 'node:path';
 
 import { parseTurnSignals } from '../../src/facilitation/index.js';
 import { splitOffSentences } from '../../ui/src/streaming-tts.js';
+import { createApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { buildDeps } from '../src/deps.js';
+import { priceTtsChars } from '../src/pricing/meter.js';
 import { ttsRateFor } from '../src/pricing/providers.js';
-import { withGain } from '../src/providers/mp3-gain.js';
+import { mp3Frames, withGain } from '../src/providers/mp3-gain.js';
 import { withLeadSilence } from '../src/providers/mp3-lead-silence.js';
 import { SENTENCE_MARKS, sentenceMarkTimes } from '../src/providers/mp3-marks.js';
 import { TtsUpstreamError, azureBilledChars, isProviderAccountFailure } from '../src/providers/tts.js';
@@ -114,28 +120,19 @@ const LINES = [
 const SPLITS: Record<number, string[]> = {};
 
 const PLAN: { voice: string; variants: Variant[]; capUsd: number; pauseMs: number } = {
-    voice: 'Ethan',
+    voice: 'Harper',
     variants: [
-        // The two arms (2026-11-20, spread over an hour with --rounds 1 and
-        // --variants): as the client sends a reply today, and the whole reply
-        // in one input. Takes 1-3 of ethan-whole on L1-5 come from the
-        // 2026-11-19 harper-batch run. Chunks stopped at four to pay for
-        // pilot-temp.
-        { label: 'ethan-chunks', send: 'chunks', takes: 4 },
-        { label: 'ethan-whole', send: 'whole', lines: [1, 2, 3, 4, 5], takes: 14 },
-        { label: 'ethan-whole', send: 'whole', lines: [6, 7, 8], takes: 11 },
-        // Can the gap inside one input be set from the request? None of these
-        // capped it: 2.95s under a 300ms break, 4.84s under an exact 300ms
-        // sentence-boundary silence, 4.00s with each sentence in <s>, 3.44s at
-        // temperature 0.3 (HD voices take one on <voice>, unbilled; MAI
-        // accepts the attribute, whether it acts is unknown).
-        { label: 'pilot-break', send: 'whole', between: '<break time="300ms"/>', lines: [6, 4], takes: 2 },
-        { label: 'pilot-silence', send: 'whole', silence: '<mstts:silence type="Sentenceboundary-exact" value="300ms"/>', lines: [6, 4], takes: 2 },
-        { label: 'pilot-s', send: 'whole', sentenceTag: 's', lines: [6, 4], takes: 2 },
-        { label: 'pilot-temp', send: 'whole', voiceParams: 'temperature=0.3', lines: [4, 6, 7, 8], takes: 2 },
+        // Harper's lead on whole replies (2026-11-19, after leadExpect learned
+        // short opening phrases): a reply in one input against the same lines
+        // a chunk per input, for how often each re-rolls or drops the lead.
+        { label: 'harper-whole', send: 'whole', takes: 5 },
+        { label: 'harper-chunks', send: 'chunks', takes: 2 },
+        // More of the whole replies that need the lead (the rest open on a
+        // vowel), the refused takes kept. Rolled: 5 of 65 led whole replies
+        // in all, 0 of 40 led chunks; none spoken without the lead.
+        { label: 'harper-whole-led', send: 'whole', lines: [1, 2, 3, 4, 6], takes: 8 },
     ],
-    // Half a dollar for the job, plus the $0.0323 the copied takes cost then.
-    capUsd: 0.49 + 0.0323,
+    capUsd: 0.32,
     pauseMs: 1200,
 };
 
@@ -151,6 +148,9 @@ const WHISPER_REST_MS = 15_000;
 interface ProviderCall {
     headersMs: number;
     firstByteMs: number;
+    /** What came back, kept until the take is written (a rolled take's
+     *  first, refused audio is kept beside it). */
+    body?: Uint8Array;
     totalMs: number;
 }
 
@@ -167,6 +167,8 @@ interface PartRow {
     /** A lead take re-rolled once, or said without its lead in the end. */
     leadReroll?: boolean;
     leadDropped?: boolean;
+    /** The refused led takes as Azure sent them, before any cut. */
+    refused?: string[];
 }
 
 interface TakeRow {
@@ -326,7 +328,7 @@ function timeProviderCalls(): void {
             if (firstByteMs < 0) firstByteMs = performance.now() - t0;
             chunks.push(value);
         }
-        providerCalls.push({ headersMs, firstByteMs, totalMs: performance.now() - t0 });
+        providerCalls.push({ headersMs, firstByteMs, totalMs: performance.now() - t0, body: Buffer.concat(chunks) });
         return new Response(Buffer.concat(chunks), { status: res.status, headers: res.headers });
     }) as typeof fetch;
 }
@@ -424,6 +426,15 @@ async function synthPhase(out: string, dryRun: boolean): Promise<void> {
                         }
                     }
                     part.ms = Math.round(performance.now() - partStarted);
+                    if (part.leadReroll || part.leadDropped) {
+                        // Every call but the last was a led take trimLead refused.
+                        mkdirSync(join(out, v.label), { recursive: true });
+                        part.refused = providerCalls.slice(callsBefore, -1).map((c, i) => {
+                            const name = part.file.replace(/\.mp3$/, `-refused${i + 1}.mp3`);
+                            writeFileSync(join(out, name), c.body!);
+                            return name;
+                        });
+                    }
                     part.calls = providerCalls.slice(callsBefore).map((c) => ({
                         headersMs: Math.round(c.headersMs),
                         firstByteMs: Math.round(c.firstByteMs),
@@ -1468,6 +1479,96 @@ function marksPhase(out: string): void {
     }
 }
 
+/**
+ * Replies through the metered route itself (createApp in memory, dev auth,
+ * only the Azure key and region taken from the .env): each of --lines (default
+ * 1,4,6,8) for each of --voices (default Harper,Ethan), whole with the
+ * client's marks and then a chunk per request, as a client sends them. Per
+ * request: the characters billed (X-Credits-Charged back to characters)
+ * against billedCharsFor's plan, a lead re-roll showing as the difference;
+ * X-Mark-Times; the clip's length. Takes and route.jsonl under <dir>/route/.
+ */
+async function routePhase(out: string): Promise<void> {
+    const envFile = arg('--env') ?? resolve(import.meta.dirname, '..', '.env');
+    const env: Record<string, string> = {};
+    for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+        const m = /^\s*(?:export\s+)?(AZURE_SPEECH_KEY|AZURE_SPEECH_REGION)\s*=\s*(.*)\s*$/.exec(line);
+        if (m) env[m[1]!] = m[2]!.replace(/^(['"])(.*)\1$/, '$2');
+    }
+    if (!env['AZURE_SPEECH_KEY']) throw new Error(`no AZURE_SPEECH_KEY in ${envFile}`);
+    const deps = buildDeps(loadConfig({ ...env, ALOUD_ENABLE_DEV_AUTH: '1', ALOUD_FREE_SIGNUP_CREDITS: '100' }));
+    const app = createApp(deps);
+    const token = ((await (await app.request('/cloud/v1/auth/dev', { method: 'POST' })).json()) as { token: string }).token;
+    const voices = (arg('--voices') ?? 'Harper,Ethan').split(',');
+    const lines = (arg('--lines') ?? '1,4,6,8').split(',').map(Number);
+    const cap = Number(arg('--cap') ?? 0.15);
+    const plan = voices.flatMap((voice) =>
+        lines.flatMap((line) => {
+            const chunks = clientChunks(LINES[line - 1]!);
+            return [
+                { voice, line, send: 'whole' as Send, inputs: [chunks.join(' ')], chunks },
+                { voice, line, send: 'chunks' as Send, inputs: chunks, chunks },
+            ];
+        })
+    );
+    const usdOf = (voice: string, chars: number) => chars * ttsRateFor('azure', resolveVoice(voice).voiceId);
+    const plannedUsd = plan.reduce((s, p) => s + p.inputs.reduce((t, x) => t + usdOf(p.voice, billedCharsFor(resolveVoice(p.voice), x, 1)), 0), 0);
+    console.log(`${plan.length} replies, planned $${plannedUsd.toFixed(4)} before any lead re-roll, cap $${cap}`);
+    if (plannedUsd > cap) throw new Error('over the cap');
+    if (process.argv.includes('--dry-run')) return;
+    mkdirSync(join(out, 'route'), { recursive: true });
+    let spent = 0;
+    for (const p of plan) {
+        const r = resolveVoice(p.voice);
+        for (const [i, input] of p.inputs.entries()) {
+            const marks: number[] = [];
+            if (p.send === 'whole') for (let k = 1, at = 0; k < p.chunks.length; k++) marks.push((at += p.chunks[k - 1]!.length + 1));
+            const res = await app.request('/cloud/v1/tts', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ text: input, voice: p.voice, ...(marks.length ? { marks } : {}) }),
+            });
+            if (res.status !== 200) throw new Error(`${p.voice} L${p.line} ${p.send}: ${res.status} ${await res.text()}`);
+            const mp3 = new Uint8Array(await res.arrayBuffer());
+            const charged = Number(res.headers.get('X-Credits-Charged'));
+            const billed = Math.round(charged / priceTtsChars(1, { provider: 'azure', voiceId: r.voiceId }).credits);
+            const planned = billedCharsFor(r, input, 1);
+            spent += usdOf(p.voice, billed);
+            const file = join('route', `${p.voice}-${p.send}-L${p.line}${p.inputs.length > 1 ? `-${'abcdefgh'[i]}` : ''}.mp3`);
+            writeFileSync(join(out, file), mp3);
+            const frames = mp3Frames(mp3) ?? [];
+            const row = {
+                voice: p.voice,
+                line: p.line,
+                send: p.send,
+                part: i,
+                text: input,
+                file,
+                billed,
+                planned,
+                markTimes: res.headers.get('X-Mark-Times'),
+                marks,
+                durationS: Math.round(frames.reduce((s, f) => s + f.samples / f.sampleRate, 0) * 100) / 100,
+                at: new Date().toISOString(),
+            };
+            appendFileSync(join(out, 'route.jsonl'), JSON.stringify(row) + '\n');
+            console.log(`${file.padEnd(28)} billed ${billed} planned ${planned}${billed !== planned ? ' (re-rolled)' : ''}  marks ${row.markTimes ?? '-'}  ${row.durationS}s  $${spent.toFixed(4)}`);
+            await sleep(PLAN.pauseMs);
+        }
+    }
+    const rows = readFileSync(join(out, 'route.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { voice: string; send: Send; billed: number; planned: number; markTimes: string | null; marks: number[] });
+    for (const voice of voices) {
+        const of = (send: Send) => rows.filter((x) => x.voice === voice && x.send === send);
+        const sum = (xs: { billed: number }[]) => xs.reduce((s, x) => s + x.billed, 0);
+        const whole = of('whole');
+        const chunks = of('chunks');
+        console.log(
+            `${voice}: whole ${sum(whole)} billed (${whole.filter((x) => x.billed !== x.planned).length} re-rolled), a chunk per request ${sum(chunks)} (${chunks.filter((x) => x.billed !== x.planned).length} re-rolled): ` +
+                `-${((100 * (sum(chunks) - sum(whole))) / sum(chunks)).toFixed(1)}%; mark times on ${whole.filter((x) => x.markTimes).length} of ${whole.filter((x) => x.marks.length).length} marked`
+        );
+    }
+}
+
 function billPhase(): void {
     const dir = arg('--sessions') ?? join(homedir(), 'Library', 'Application Support', 'app.aloud.meditation', 'sessions');
     const since = arg('--since') ?? '';
@@ -1486,7 +1587,7 @@ function billPhase(): void {
             if (replies.length > before) sessions++;
         }
     }
-    for (const voice of [...new Set(PLAN.variants.map(voiceOf))]) {
+    for (const voice of arg('--voices')?.split(',') ?? [...new Set(PLAN.variants.map(voiceOf))]) {
         const r = resolveVoice(voice);
         for (const [label, set] of [
             ['probe lines', LINES],
@@ -1544,6 +1645,7 @@ async function main(): Promise<void> {
     else if (phase === 'recheck') await recheckPhase(out);
     else if (phase === 'gaps') gapsPhase(out);
     else if (phase === 'marks') marksPhase(out);
+    else if (phase === 'route') await routePhase(out);
     else if (phase === 'report') report(Object.values(JSON.parse(readFileSync(join(out, 'heard.json'), 'utf8')) as Record<string, Heard>));
     else throw new Error('first argument: synth, analyze, recheck, report or bill');
 }

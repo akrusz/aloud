@@ -303,16 +303,34 @@ facilitator sentences the tags were about 40% of the bill (confirmed against
 Azure's own Synthesized Characters metric, meditation-pal-6ixc). A voice with
 `wholeReply` (`CuratedVoice`, published as `CloudVoice.wholeReply`; Harper
 and Ethan) gets a whole reply in one request instead (`ui/src/streaming-tts.ts`
-`WHOLE_REPLY_WAIT_MS`), which saves about 26% of Harper's bill and 18.5% of
-Ethan's on the dev's real replies. Inside one request no sentence lost its
-opening word (0 of 254 behind the first) and pace and level held, so the
-lead is needed only at the start; what changes is the pause between
-sentences: Harper a median 1.0s (0.56s between clips), Ethan 1.5s (0.75s)
-with a tail to about 5s. Nothing in the request shortens it (a `<break>`,
-`mstts:silence`, `<s>` and a voice temperature were all tried), and the dev
-heard the long ones and kept them. A voice to switch on needs the same
-measuring first (the repeat probe's `whole` and `chunks` sends): an unstyled
-voice pays no tags, so it gains nothing.
+`WHOLE_REPLY_WAIT_MS`). Priced on the dev's 420 desktop replies (the probe's
+`bill` step, 2026-11-19), that bills 19.4% fewer characters for Harper and
+18.5% for Ethan, before lead re-rolls: about 3.1 and 3.0 credits a session
+hour at 0.9 replies a minute, against 3.9 and 3.7. Through the metered route
+itself (the probe's `route` step) the bill matched `billedCharsFor` request
+for request. Inside one request no sentence lost its opening word (0 of 254
+behind the first) and pace and level held, so the lead is needed only at the
+start; what changes is the pause between sentences: Harper a median 1.0s
+(0.56s between clips), Ethan 1.5s (0.75s) with a tail to about 5s. Nothing
+in the request shortens it (a `<break>`, `mstts:silence`, `<s>` and a voice
+temperature were all tried), and the dev heard the long ones and kept them.
+
+The lead goes once per request, and a whole reply rolls it a little more
+often than a sentence does: 5 of 65 led whole replies against 0 of 40 led
+chunks (2026-11-19, after the short-phrase fix), none spoken without it in
+the end. Whisper hears the three refused takes kept
+(`.probe-data/reply-batch/harper-lead`) as clean, one "Okay" and every word:
+`leadExpect` counts short bursts until the first long one, and a mid-clause
+pause early in a reply makes one more than the text gives a reason for, the
+same miss a sentence can have but with more of the reply in reach. A roll
+repeats the whole reply, so it costs about 4% of Harper's bill back. Left as
+it is: loosening the count risks a lead that can be heard.
+
+A voice to switch on needs the same measuring first (the repeat probe's
+`whole` and `chunks` sends). An unstyled voice pays no tags, though an Azure
+one pays a 31-character `<prosody>` wrapper per request at any speed but
+1.0 (the default 140 wpm included). Chinese text is one chunk per reply
+already: the client's sentence split needs an ASCII `.!?` and a space.
 
 The client (`streamCompletionWithChunkedTts`) gathers the reply's sentence
 chunks and sends them when the stream ends, unless it is still running
