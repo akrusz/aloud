@@ -606,7 +606,7 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   "begin" said during the close is not heard. On Android a capture opened
   under the close dropped its level
   ([audio-output.md](audio-output.md#the-mic-around-a-sessions-sounds)).
-- **In the Android app, hosted recognition is not stopped at all between
+- **Except on an iPhone, hosted recognition is not stopped at all between
   turns** (`continuous` in `listenOnSetup`, wired in `views/setup.ts` for
   `WhisperPcmSttEngine` on a hosted pick where `setupCaptureRunsOn` in
   `voice-start.ts` allows it). A stop closes the engine's audio graph

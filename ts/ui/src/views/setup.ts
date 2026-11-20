@@ -1832,7 +1832,7 @@ export async function mountSetupView(
             // Hosted recognition's echo-cancelled capture runs on between
             // turns and hears through the tour's lines, as a session's barges
             // in on it (voice-barge-in.md), the engine's bar raised above a
-            // line's echo. In the Android app only (setupCaptureRunsOn).
+            // line's echo. Not on an iPhone (setupCaptureRunsOn).
             ...(engine instanceof WhisperPcmSttEngine && isHostedSttChoice(choice) && setupCaptureRunsOn()
                 ? {
                       // The full bar over every line: this engine is never

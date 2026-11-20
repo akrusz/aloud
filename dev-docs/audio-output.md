@@ -144,7 +144,7 @@ Read in the WebKit and Chromium sources, partly measured on Android (above):
   that began within a second of the hosted listener's graph closing (and the
   next turn's opening another) lost their first 0.4 to 1.4s, and the same
   clip played whole with none open (2026-11-19, read from the timing; the
-  mechanism is not known). In the Android app the setup screen's hosted
+  mechanism is not known). Everywhere but an iPhone the setup screen's hosted
   listener now keeps its graph running between turns and through lines
   (`continuous` in [voice-commands.md](voice-commands.md)), as a session that
   barges in on that engine always has.

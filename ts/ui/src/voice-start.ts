@@ -124,16 +124,14 @@ export function setupListeningLimits(listener: SetupListener): SetupListeningLim
 /**
  * Whether the setup screen's hosted listener runs its capture on between
  * turns and hears through the tour's lines (`ListenOnSetupOptions.continuous`).
- * In the Android app only, for now. What it answers is Android's: a stop
- * closed the engine's audio graph, a call-stream player of its own, as a line
- * began, and the line lost its first words. An iPhone's echo canceller let the
- * facilitator through (meditation-pal-hi6f), and on desktop it rests on an
- * echo path nobody has listened to. What would lift it there: one tour heard
- * on MacBook speakers with diag on, reading each line's `[vad] tts window`
- * overGate.
+ * Everywhere but an iPhone, whose echo canceller let the facilitator through
+ * (meditation-pal-hi6f) and which has not been listened to since. It was
+ * built for Android, where a stop closed the engine's audio graph, a
+ * call-stream player of its own, as a line began, and the line lost its first
+ * words.
  */
 export function setupCaptureRunsOn(): boolean {
-    return capacitorPlatform() === 'android';
+    return capacitorPlatform() !== 'ios';
 }
 
 /** After the app has finished speaking, before the recognizer listens again.

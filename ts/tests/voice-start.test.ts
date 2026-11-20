@@ -1108,26 +1108,22 @@ describe('listenOnSetup: a capture that runs on between turns (continuous)', () 
 });
 
 describe('setupCaptureRunsOn', () => {
-    // Continuous capture and hearing through tour lines answer an Android
-    // problem; on desktop they rest on an echo path nobody has listened to,
-    // and an iPhone's canceller let the facilitator through.
     afterEach(() => vi.unstubAllGlobals());
     const nativeApp = (platform: 'ios' | 'android') =>
         vi.stubGlobal('window', { Capacitor: { isNativePlatform: () => true, getPlatform: () => platform } });
 
-    it('is the Android app', () => {
+    it('is the Android app, the desktop app and a browser', () => {
         nativeApp('android');
+        expect(setupCaptureRunsOn()).toBe(true);
+        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+        expect(setupCaptureRunsOn()).toBe(true);
+        vi.stubGlobal('window', {});
         expect(setupCaptureRunsOn()).toBe(true);
     });
 
-    it('is not an iPhone, the desktop app or a browser', () => {
+    // An iPhone's canceller let the facilitator through (meditation-pal-hi6f).
+    it('is not an iPhone', () => {
         nativeApp('ios');
-        expect(setupCaptureRunsOn()).toBe(false);
-        vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
-        expect(setupCaptureRunsOn()).toBe(false);
-        vi.stubGlobal('window', { Capacitor: { isNativePlatform: () => false, getPlatform: () => 'web' } });
-        expect(setupCaptureRunsOn()).toBe(false);
-        vi.stubGlobal('window', {});
         expect(setupCaptureRunsOn()).toBe(false);
     });
 });
