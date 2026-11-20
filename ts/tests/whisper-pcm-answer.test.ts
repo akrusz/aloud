@@ -250,3 +250,36 @@ describe('a whole answer', () => {
         expect(await sayAndTime(await listen(engine))).toBeGreaterThanOrEqual(3000);
     });
 });
+
+describe('another line before the answer', () => {
+    // No answer to the question, then a check-in or a timer notice plays:
+    // its sentence gaps and its tail are where the app can hear itself, and a
+    // yes to its own question is no answer to the old one.
+    it('keeps the full bar over its own tail', async () => {
+        level = 0;
+        rig.amplitude = () => level;
+        const engine = await engineWithMic(sessionWindow);
+        const e = engineOf(engine);
+        let turn!: { done: () => boolean };
+        await question(e, 0.001, () => advance(0), async () => {
+            e.expectAnswer(answerPace, 45_000);
+            turn = await listen(engine);
+        });
+        await advance(5000);
+        await question(e, 0.001, softYes);
+        await advance(6000);
+        expect(rig.posts).toHaveLength(0);
+        expect(turn.done()).toBe(false);
+    });
+
+    it('ends nothing early', async () => {
+        rig.fetchMs = 300;
+        rig.reply = () => heard('No.');
+        const engine = await engineWithMic(sessionWindow);
+        const e = engineOf(engine);
+        e.expectAnswer(answerPace, 45_000);
+        await question(e, 0.001, () => advance(0));
+        const turn = await listen(engine);
+        expect(await sayAndTime(turn)).toBeGreaterThanOrEqual(3000);
+    });
+});

@@ -995,6 +995,9 @@ export async function mountSessionView(
         }
         echoListener()?.setTtsActive(true);
         echoListener()?.noteVoicePlayback();
+        // A line after the end question closes it: a yes to that line's own
+        // question (a check-in, a timer notice) must not end the sit.
+        endConfirmUntil = 0;
     }
     function ttsPlaybackEnded(): void {
         tapFlags({ speaking: false });

@@ -51,9 +51,12 @@ makes it an ordinary turn ("yes, I think my leg is asleep").
 **Hearing the answer.** On the Whisper engines (local Whisper, aloud cloud)
 the turn after the question is taken as its answer (`listenForAnswer` in
 `views/session.ts`, `expectAnswer` in `whisper-pcm-stt.ts`) for the
-question's 45 seconds, or until something with words is heard. Two things
-differ from a meditation turn, both after a "yes" on an Android phone was
-lost once and then waited 3.1s to be acted on (meditation-pal-cs6y):
+question's 45 seconds, until something with words is heard, or until another
+line starts (`noteVoicePlayback`): a check-in or a timer notice can ask a
+question of its own, and plays at the full bar. The end question's window
+closes there too (`endConfirmUntil`, cleared in `ttsPlaybackStarted`). Two
+things differ from a meditation turn, both after a "yes" on an Android phone
+was lost once and then waited 3.1s to be acted on (meditation-pal-cs6y):
 
 - It ends sooner than a turn, which waits out the session's pause (3s and
   up), once a speculative pass reads it with nothing said since

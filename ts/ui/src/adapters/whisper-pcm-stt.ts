@@ -1198,13 +1198,21 @@ export class WhisperPcmSttEngine implements SttEngine {
     }
 
     /** The facilitator's voice (not a sound) starts playing. It ends any
-     *  watch on the last playback's tail, and the first one after a new
-     *  capture stream opens the echo warm-up (ECHO_WARMUP_GATE), which lasts
-     *  until that playback ends (setTtsActive). */
+     *  watch on the last playback's tail and any answer expected
+     *  (expectAnswer), and the first one after a new capture stream opens the
+     *  echo warm-up (ECHO_WARMUP_GATE), which lasts until that playback ends
+     *  (setTtsActive). */
     noteVoicePlayback(): void {
         this.tailWatch = null;
         this.lineSounding = true;
         this.lineEchoPeak = 0;
+        // The question is no longer the last thing said: this line's gaps and
+        // tail keep the full bar, and a yes to its own question is no answer
+        // to the old one.
+        if (this.answer) {
+            diag('[vad] answer: another line began, none expected now');
+            this.answer = null;
+        }
         if (!this.voiceWarmupArmed) return;
         this.voiceWarmupArmed = false;
         this.voiceWarmup = true;
@@ -1223,7 +1231,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     /**
      * The facilitator has just asked a yes/no question. The next utterance (or
      * the one under way, if it has no speech yet) is taken as its answer for
-     * `forMs`, until an utterance with words ends:
+     * `forMs`, until an utterance with words ends or another line starts
+     * (noteVoicePlayback):
      * - Over the question's tail the bar for the meditator's voice drops to
      *   what the question's own echo allows (ANSWER_ECHO_MARGIN), so a soft
      *   word said right after it is not lost under the barge-in bar.
