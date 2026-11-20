@@ -541,34 +541,6 @@ describe('listenOnSetup', () => {
         expect(second.ends).toEqual(['stopped']);
     });
 
-    it('keeps the mic of a recognizer that failed for one built in its place, where asked', async () => {
-        const engine = scriptedEngine([new Error('lost')]);
-        const keeps: Array<Promise<unknown> | undefined> = [];
-        const stop = engine.stop.bind(engine);
-        engine.stop = (options?: SttStopOptions) => {
-            keeps.push(options?.keepMicUntil);
-            return stop();
-        };
-        let rebuilt!: () => void;
-        const ends: VoiceStartEnd[] = [];
-        listenOnSetup({
-            engine,
-            alive: () => true,
-            onBegin: () => undefined,
-            onEnd: (why) => void ends.push(why),
-            keepMicOnError: () => new Promise<void>((resolve) => (rebuilt = resolve)),
-        });
-        await vi.advanceTimersByTimeAsync(100);
-        expect(ends).toEqual(['error']);
-        let letGo = false;
-        void keeps.at(-1)!.then(() => (letGo = true));
-        await vi.advanceTimersByTimeAsync(5_000);
-        expect(letGo).toBe(false);
-        rebuilt();
-        await vi.advanceTimersByTimeAsync(0);
-        expect(letGo).toBe(true);
-    });
-
     it('a hold over a recognizer that errors when stopped is not a failure', async () => {
         // Browser recognition reports its own abort as an error.
         let release: (() => void) | null = null;

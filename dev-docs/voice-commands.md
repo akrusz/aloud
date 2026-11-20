@@ -466,19 +466,14 @@ keeps its height. Voice mode is in one of three states (`paintVoiceMic` in
   the unheard limit, a recognizer error, "stop listening" said aloud. It lasts
   for the visit and leaves the setting alone (a television should not be able
   to switch the feature off for good). A tap wakes it, and so does a tour
-  starting (`TourVoice.reopen`); nothing else does. A recognizer that fails is
-  first built again once, a second later (`LISTENER_REBUILDS` in
-  `views/setup.ts`, counted from the last request understood), since a fault
-  can pass: Android's recognition service dropping, a lost connection. Its
-  capture, where it has one, stays open until the new listener hears
-  (`keepMicOnError`, through the same `MicHandover`), so call mode does not
-  end and start again between them. Fallen
-  asleep that way under the tour, every card says so ("The microphone didn't
+  starting (`TourVoice.reopen`); nothing else does. Fallen asleep by a
+  recognizer error under the tour, every card says so ("The microphone didn't
   respond. You can still continue by tapping.", `tourMicFailed` in
   `tour/index-guide.ts`) until the mic hears again: the tour goes on reading
   itself out, and on a phone the mic beside Begin is hidden under a section's
-  card. The phone's recognizer also starts again by itself after "Recognition
-  service disconnected" (error 11), on the retry budget it gives a busy one
+  card. A passing fault is retried below this, in the engine: the phone's
+  recognizer starts again by itself after "Recognition service disconnected"
+  (error 11), on the retry budget it gives a busy one
   (`ERR_SERVER_DISCONNECTED` in `adapters/capacitor-stt.ts`).
 - **What blocks it keeps its own look.** The permission not yet given and a
   browser tab not yet touched show slashed, titled "Tap to listen" (`ask`),
