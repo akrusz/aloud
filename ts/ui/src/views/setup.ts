@@ -1239,6 +1239,14 @@ export async function mountSetupView(
     // A recognizer that can't be built here (createSttForChoice gave none for
     // it): with it picked, nothing listens.
     let noRecognizer: SttEngineChoice | null = null;
+    // While the tour is up, the recognizer it started with. The tour walks
+    // every mode's tab, and noting keeps its own pick (the phone's recognizer
+    // on a phone): swapped there, Android left call mode under the noting
+    // card's line and the phone's recognizer failed to come back
+    // (2026-11-19). Swaps wait for the tour to end.
+    let tourChoice: SttEngineChoice | null = null;
+    /** The recognizer this screen listens with. */
+    const listenerChoice = (): SttEngineChoice => tourChoice ?? sttSetupChoice();
     // What the mic beside Begin shows (paintVoiceMic). Lit can come before
     // the listener does: a mic switched on while the app speaks shows on at
     // once and starts listening when the line is over.
@@ -1683,7 +1691,7 @@ export async function mountSetupView(
         // This sync is now the one that decides; a listener still being built
         // by an earlier one is abandoned at its next check.
         const gen = ++voiceStartGen;
-        const choice = sttSetupChoice();
+        const choice = listenerChoice();
         // Hosted recognition with nobody signed in would refuse the first
         // thing heard. Nothing here may raise a sign-in, so there is no mic.
         sttNeedsAccount = isHostedSttChoice(choice) && !(await canReachJudge());
@@ -2052,7 +2060,7 @@ export async function mountSetupView(
             const beginBtn = root.querySelector<HTMLButtonElement>('#begin-btn');
             if (mic === 'denied' || sttNeedsAccount || !beginBtn || beginBtn.disabled) return 'off';
             if (voiceStart) return 'on';
-            if (noRecognizer === sttSetupChoice()) return 'ask';
+            if (noRecognizer === listenerChoice()) return 'ask';
             // Opening, or asleep (voiceStartClosed with the setting still
             // on): on either way. Switched off is the setting.
             const blocker = voiceStartBlocker({
@@ -2086,6 +2094,9 @@ export async function mountSetupView(
         },
         listen: (handler) => {
             tourHeard = handler;
+            tourChoice = handler ? (voiceStart?.choice ?? sttSetupChoice()) : null;
+            // Over: the tab it ended on may want another recognizer.
+            if (!handler) void syncVoiceStart();
         },
         keepOpen: () => voiceStart?.handle.keepOpen(),
     };

@@ -561,7 +561,8 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   in (desktop app, 2026-11-16; the fix has not been heard yet,
   manual-smoke.md). Chrome played the same lines whole: its echo canceller is
   its own, not the OS's. A listener replaced because the mode has another
-  recognizer (noting keeps its own pick) is stopped the same way and holds its
+  recognizer (noting keeps its own pick; not under the tour, which keeps one
+  recognizer throughout) is stopped the same way and holds its
   stream through the card's line until the new listener can hear
   (`createMicHandover`, its first `onHearing` of `hearing`; a first frame is
   too soon, being the silence a fresh capture sends while the OS sets it up),
@@ -737,6 +738,16 @@ voices and would move them off it.
   nothing else keeps it shut (permission, a page not yet touched, hosted
   recognition signed out), and then offers no card to turn it on. With voice
   mode off it stays off, and the tour offers it.
+- **One recognizer the whole way.** The tour walks every mode's tab, and
+  noting keeps its own speech recognition pick (the phone's recognizer, on a
+  phone). While the tour is up the screen listens with the recognizer it
+  started with (`tourChoice` in `views/setup.ts`, set by `TourVoice.listen`),
+  and a swap the tab asks for waits until the tour is over. Swapped at the
+  noting card, the hosted capture let go as the card's line began, which on
+  Android ends call mode under the line (it came in late), and the phone's
+  recognizer, stopped for that line before it had reported ready, failed at its next
+  start with "Recognition service disconnected", which put the mic to sleep
+  for the rest of the tour (Android, 2026-11-19).
 
 ### Not verified on a device
 
