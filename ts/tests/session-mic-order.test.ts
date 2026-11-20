@@ -307,8 +307,9 @@ describe('the session capture closes after the last sound, on every way out', ()
 
 describe("after a session, the setup screen's capture opens once the close is over", () => {
     /** The setup screen coming up under the close and its listener waiting
-     *  for it, as views/setup.ts runVoiceSync does; the listener lets the
-     *  session's mic go once it hears (its onHearing). */
+     *  for it, as views/setup.ts runVoiceSync does (setup-voice-source.test.ts
+     *  pins that it does); the listener lets the session's mic go once it
+     *  hears (its onHearing). */
     function setupWaiting(): { opened: Promise<Engine>; release: () => void } {
         const close = sound.waitForClose();
         if (!close) throw new Error('no close under way');
