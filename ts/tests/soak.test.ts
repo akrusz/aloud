@@ -190,6 +190,36 @@ describe('runSoakSession', () => {
         expect(runChecks(result).filter((f) => f.level === 'fail')).toEqual([]);
     });
 
+    it('withdraws an unanswered hold offer once a check-in is spoken', async () => {
+        const facilitator = new ScriptedFacilitator({
+            turns: [
+                'Take a breath. What do you notice?',
+                '[HOLD] Would you like me to be quiet for a while?',
+                'Good. What is here now?',
+            ],
+        });
+        const sim = new ScriptedSimUser([
+            { waitSec: 30, text: 'could we have some quiet for a bit' },
+            // Says nothing to the offer; the wait ends when the check-in speaks.
+            { waitSec: 900 },
+            { waitSec: 10, text: 'yes, still here' },
+            { waitSec: 30, end: true },
+        ]);
+        const result = await runSoakSession({
+            scenario: { ...baseScenario, checkinTiming: 'fixed', checkinContent: 'canned' },
+            facilitator,
+            utility: utilityStub,
+            simUser: sim,
+        });
+
+        expect(result.error).toBeUndefined();
+        const eventKeys = result.events.map((e) => `${e.kind}:${e.detail}`);
+        expect(eventKeys).toContain('signal:hold-bid');
+        expect(eventKeys).toContain('checkin:canned');
+        expect(eventKeys).not.toContain('hold:enter');
+        expect(result.finalState.silenceMode).toBe(false);
+    });
+
     /**
      * meditation-pal-9era. A reply of nothing but control tokens keeps
      * rawText non-empty, so the old blank-completion guard waved it through and

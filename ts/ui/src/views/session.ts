@@ -3758,7 +3758,10 @@ export async function mountSessionView(
     ): Promise<void> {
         if (busy) return;
         busy = true;
-        tapFlags({ busy: true });
+        // "Shall I be quiet?" stands only until someone speaks again. With
+        // this line said, a yes answers this line, not that one.
+        awaitingHoldConfirm = false;
+        tapFlags({ busy: true, awaitingHoldConfirm: false });
         try {
             session.addAssistantMessage(text);
             tapTurn('assistant', kind, text);

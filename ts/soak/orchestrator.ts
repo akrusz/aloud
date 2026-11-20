@@ -217,6 +217,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
 
     /** A facilitator line with no LLM call behind it (respondWithFacilitatorLine). */
     function speakCannedLine(kind: TurnKind, text: string): void {
+        awaitingHoldConfirm = false;
         session.addAssistantMessage(text);
         record('assistant', kind, text);
         speakAdvance(text);
