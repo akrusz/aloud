@@ -1257,3 +1257,33 @@ html[data-platform] {
 .signin-google-desktop-btn {
     width: 100%;
 }
+
+/* The store-age screen (views/age-block.ts) is the whole page: no nav to
+   reach anything it holds back. */
+body[data-age-block] .nav,
+body[data-age-block] .bottom-nav {
+    display: none;
+}
+.age-block {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: calc(var(--safe-top) + var(--space-lg)) calc(var(--safe-right) + var(--space-lg))
+        calc(var(--safe-bottom) + var(--space-lg)) calc(var(--safe-left) + var(--space-lg));
+    text-align: center;
+}
+.age-block h1 {
+    max-width: 22rem;
+    font-size: 1.5rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text-primary);
+}
+.age-block p {
+    max-width: 24rem;
+    color: var(--text-secondary);
+}

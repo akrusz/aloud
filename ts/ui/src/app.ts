@@ -38,6 +38,8 @@ import { isCapacitor } from './is-desktop.js';
 import { getActiveSessionId, clearActiveSession } from './active-session.js';
 import { sessionStore } from './state.js';
 import { setUiLang, localizeChrome, LANGUAGE_CHANGED_EVENT, t } from './i18n.js';
+import { bootAgeTier, isBlockingTier } from './age-tier.js';
+import { mountAgeBlockView } from './views/age-block.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
@@ -83,6 +85,17 @@ export async function bootApp(): Promise<void> {
     // English flash beyond the static HTML itself.
     setUiLang(settings.language);
     localizeChrome();
+
+    // Phones: the app store's age signal, before anything mounts, listens or
+    // opens a mic (age-tier.ts). A blocking tier is the whole page.
+    const root = $('app-root');
+    const ageTier = await bootAgeTier((tier) => mountAgeBlockView(root, tier));
+    if (isBlockingTier(ageTier)) {
+        mountAgeBlockView(root, ageTier);
+        retireBootOrb();
+        return;
+    }
+
     wireLanguageChange();
 
     // Read (and clear) any `?purchase=` Stripe appended on return from checkout,
@@ -113,7 +126,6 @@ export async function bootApp(): Promise<void> {
     wireNav();
     wireMobileMore();
     wirePopstate();
-    const root = $('app-root');
     // Dev-only: `?slowboot=<ms>` holds the boot orb on screen *before* the view
     // mounts, to eyeball the loading state. Waiting ahead of routeTo keeps the
     // content area empty during the delay, mirroring a real slow load rather
@@ -206,10 +218,15 @@ function settleBootOrb(): void {
         }
     };
 
+    retireBootOrb(showNavOrb);
+}
+
+/** Fade the first-paint #boot-orb out and remove it, then run `after`. */
+function retireBootOrb(after: () => void = () => {}): void {
     const bootOrb = document.getElementById('boot-orb');
-    if (!bootOrb || reduce) {
+    if (!bootOrb || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         bootOrb?.remove();
-        showNavOrb();
+        after();
         return;
     }
 
@@ -220,7 +237,7 @@ function settleBootOrb(): void {
     });
     fade.onfinish = () => {
         bootOrb.remove();
-        showNavOrb();
+        after();
     };
 }
 

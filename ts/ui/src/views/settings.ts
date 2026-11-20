@@ -2375,6 +2375,10 @@ function renderDeveloperSection(): string {
                 `${devParam('?slowboot=2500')} Holds the boot orb that many ms before the first view. This load only.`
             )}
             ${devRow(
+                devParamOnly('Store age screen'),
+                `${devParam('?age=child')} Boots on the blocking screen; also ${devParam('?age=pendingConsent')}, ${devParam('?age=deniedConsent')}, ${devParam('?age=teen')}. This load only; a reload is the real app.`
+            )}
+            ${devRow(
                 devParamOnly('Soak session log'),
                 `${devParam('?soak=1')} Logs a session's turns, events and model calls to ${devCode('window.__aloudSoak')}, where ${devCode('npm run soak:web')} reads them. The harness adds this itself. This load only.`
             )}`

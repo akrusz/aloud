@@ -8,6 +8,7 @@ import { initTauriWindowDrag } from './tauri-chrome.js';
 import { initExternalLinks } from './external-links.js';
 import { initAppMode } from './app-mode.js';
 import { adoptSimulationParams, renderSimBanner } from './dev-sim.js';
+import { adoptAgeParam } from './age-tier.js';
 import { adoptCheckinDebugParam } from './dev-mode.js';
 import { initAndroidBack } from './android-back.js';
 import { initSystemBarsTheme } from './system-bars.js';
@@ -29,10 +30,11 @@ initMediaKeys();
 // Capture a dev `?mode=` override (app-mode.ts) NOW, before bootApp's router
 // strips the query string off the initial URL.
 initAppMode();
-// Same reason, same moment: ?sim= / ?nomic= must be read before the router
-// rewrites the URL. Both are no-ops outside a dev build.
+// Same reason, same moment: ?sim= / ?nomic= / ?age= must be read before the
+// router rewrites the URL. All no-ops outside a dev build.
 adoptSimulationParams();
 renderSimBanner();
+adoptAgeParam();
 // And ?debug=checkin, which works in any build.
 adoptCheckinDebugParam();
 

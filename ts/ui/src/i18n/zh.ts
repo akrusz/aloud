@@ -857,4 +857,11 @@ export const ZH: Record<string, string> = {
     "Sign in required.": "需要先登录。",
     "This gift is no longer available.": "这份礼物已失效。",
     "Could not re-gift this.": "无法转赠这份礼物。",
+    "aloud is for ages 13 and up": "aloud 适用于 13 岁及以上的用户",
+    "The app store says this account is under 13.": "应用商店显示，这个账户的用户未满 13 岁。",
+    "Waiting for a parent or guardian": "正在等待家长或监护人",
+    "They need to approve a recent change to aloud. It opens here once they have.": "他们需要批准 aloud 最近的一项变更。批准之后，就能在这里打开 aloud。",
+    "Not approved": "未获批准",
+    "A parent or guardian declined a recent change to aloud.": "家长或监护人没有批准 aloud 最近的一项变更。",
+    "Google Play needs to confirm your age. You can do that in the Play Store app.": "Google Play 需要确认你的年龄。你可以在 Play 商店应用中完成确认。",
 };
