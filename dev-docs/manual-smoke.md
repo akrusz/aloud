@@ -61,15 +61,20 @@ minutes of a run):
       was at the bottom of the Call slider before Begin, about a second after
       the mic opens, and never on a mute or later in the session.
 - [ ] **The tour, read aloud**, setup mic lit. Walk all of it by voice. The
+      first line plays without a break, a moment after the mic opens. The
       noting line starts promptly and whole and "back" works from it. The
       first word of every card is heard on first play (felt sense, and the
-      methods line after picking a voice, lost theirs). "Next" said clearly
-      over a line cuts it, though not over the first card's lines. No ?
-      panel opens. Afterwards tap the Noting tab: the mic keeps working.
+      methods line after picking a voice, lost theirs). "Next" and "back"
+      said over a line at an ordinary level, a quiet one too, cut it about a
+      second and a half later, "back" a few seconds into the focus line
+      included, though not over the first card's lines. A cough over a line
+      does nothing. No ? panel opens. Afterwards tap the Noting tab: the mic
+      keeps working.
 - [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
-      section card shows its ? text. On the methods card the page creeps
-      down after a moment at a pace you can read along with, Next stays where
-      it is, and one touch stops the creep.
+      section card shows its ? text. On the methods card, where the text runs
+      below the screen, an arrow above the card points down until the end of
+      it has been scrolled to. Nothing scrolls by itself and Next stays where
+      it is.
 
 ---
 
