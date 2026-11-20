@@ -793,30 +793,35 @@ const CHEVRON =
     '<svg viewBox="0 0 24 14" width="26" height="15" focusable="false">' +
     '<path d="M2 2 L12 12 L22 2" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
+/** How far down the page a person scrolls before the chevron has been taken
+ *  in: about three lines of a panel's text. */
+const MORE_BELOW_SEEN_PX = 72;
+
 /**
  * A panel opened on a phone can run the section on under the card docked at
- * the foot of the screen: a chevron over the card says there is more below
- * (syncMoreBelow). It goes with the card. A tap scrolls on by the room above
- * the card.
+ * the foot of the screen: a chevron over the card says there is more below,
+ * until the page has been scrolled a little (syncMoreBelow). It goes with the
+ * card. A tap scrolls on by the room above the card.
  */
 function addMoreBelow(target: HTMLElement): void {
     const cue = document.createElement('div');
     cue.className = 'tour-more-below';
     cue.setAttribute('aria-hidden', 'true');
     cue.innerHTML = CHEVRON;
+    cue.dataset['from'] = String(window.scrollY);
     cue.addEventListener('click', () => window.scrollBy({ top: cue.getBoundingClientRect().top - getNavHeight(), behavior: 'smooth' }));
     cardEl?.appendChild(cue);
     syncMoreBelow(target);
 }
 
-/** Shown while the section's foot is under the card and the page can still
- *  scroll down to it. */
+/** Shown while the section's foot is under the card; gone for this card once
+ *  the page has been scrolled MORE_BELOW_SEEN_PX on from where it appeared. */
 function syncMoreBelow(target: HTMLElement): void {
-    const cue = cardEl?.querySelector('.tour-more-below');
+    const cue = cardEl?.querySelector<HTMLElement>('.tour-more-below');
     if (!cue || !cardEl) return;
+    if (window.scrollY - Number(cue.dataset['from']) > MORE_BELOW_SEEN_PX) return void cue.remove();
     const under = target.getBoundingClientRect().bottom + PADDING > cardEl.getBoundingClientRect().top;
-    const atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1;
-    cue.classList.toggle('hidden', !under || atEnd);
+    cue.classList.toggle('hidden', !under);
 }
 
 /** The last card: the close, and where the mic is on offer, that all of it

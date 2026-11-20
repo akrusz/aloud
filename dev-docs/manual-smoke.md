@@ -72,9 +72,9 @@ minutes of a run):
       keeps working.
 - [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
       section card shows its ? text. On the methods card, where the text runs
-      below the screen, an arrow above the card points down until the end of
-      it has been scrolled to, and a tap on it scrolls a screenful. Nothing
-      scrolls by itself and Next stays where it is.
+      below the screen, an arrow above the card points down, and goes once the
+      page has been scrolled a few lines. A tap on it scrolls a screenful,
+      smoothly. Nothing scrolls by itself and Next stays where it is.
 
 ---
 

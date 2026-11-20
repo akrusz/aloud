@@ -846,7 +846,7 @@ voices and would move them off it.
   up, so a card muted or unmuted keeps the layout it was shown with). Read
   aloud, the panel said what the line says and pushed the section's controls
   off the screen. A panel that runs the section on under the docked card
-  gets a chevron above the card until it has been scrolled into view
+  gets a chevron above the card until the page has been scrolled a few lines
   ([style.md](style.md#tour-popup-styling), `addMoreBelow` in
   `tour/index-guide.ts`). Desktop and the web open every panel, as before.
 - **A tour starting wakes a mic that is asleep** (`TourVoice.reopen`), where
