@@ -9,6 +9,7 @@
  * only one.
  */
 
+import { editDistance, soundKey } from './setup-command.js';
 import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
@@ -78,6 +79,20 @@ function words(utterance: string): string[] {
  * ("Harper"), by place ("the first one"), or by how it sounds ("the woman",
  * where the two differ that way). Both at once is no answer.
  */
+/** The offered voice a word names, or -1: the name itself, the name with a
+ *  letter or two run on ("Harperd", "Harper's"), or one letter off and
+ *  sounding the same ("Ethen"). Never a word that could be either voice. */
+function namedVoice(word: string, voices: readonly OfferedVoice[]): number {
+    const bare = word.replace(/'/g, '');
+    const near = voices.flatMap((voice, i) => {
+        const name = voice.name.toLowerCase();
+        const runOn = name.length >= 4 && bare.startsWith(name) && bare.length - name.length <= 2;
+        const sounds = name.length >= 4 && soundKey(bare) === soundKey(name) && editDistance(bare, name) <= 1;
+        return bare === name || runOn || sounds ? [i] : [];
+    });
+    return near.length === 1 ? near[0]! : -1;
+}
+
 function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number | null {
     const byGender = (gender: string): number | null => {
         const matches = voices.flatMap((voice, i) => (voice.gender === gender ? [i] : []));
@@ -102,9 +117,9 @@ function pickedVoice(utterance: string, voices: readonly OfferedVoice[]): number
     // "Number one": the only way "one" is a pick and not "the first one".
     if (said.join(' ') === 'number one') return 0;
     // A word that picks has to be there; "the one" names neither.
-    if (!said.some((w) => w in PLACE || w in GENDER || voices.some((v) => v.name.toLowerCase() === w))) return null;
+    if (!said.some((w) => w in PLACE || w in GENDER || namedVoice(w, voices) >= 0)) return null;
     for (const word of said) {
-        const named = voices.findIndex((voice) => voice.name.toLowerCase() === word);
+        const named = namedVoice(word, voices);
         if (named >= 0) picked.add(named);
         else if (word in PLACE) picked.add(PLACE[word]!);
         else if (word in GENDER) {

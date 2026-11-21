@@ -68,6 +68,9 @@ describe('parseTourCommand', () => {
         const cases: Array<[string, number]> = [
             ['Harper', 0],
             ['Ethan.', 1],
+            ['Harperd.', 0],
+            ["Harper's", 0],
+            ['Ethen', 1],
             ["I'd like Harper please", 0],
             ['the first one', 0],
             ['first', 0],
@@ -101,6 +104,8 @@ describe('parseTourCommand', () => {
             'the first or the second',
             'I like them',
             'Hermione',
+            'Harbor',
+            'Harpsichord',
             'her',
             'one',
             'the one',
