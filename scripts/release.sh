@@ -46,6 +46,7 @@ the untagged bullets and that store's own, tag stripped. Then the
 pre-release doc check: Y run, n skip, q abort; if it leaves items, f fixes
 them in a claude session here. When it recommends raising the minimum app
 version aloud cloud serves, Enter writes and commits it, n leaves it.
+To raise one it did not recommend, or before a retry: scripts/min-version.sh.
 
 Last, once the release is out, the mobile builds: Enter both, a App Store
 only (iOS archive + TestFlight upload), p Play only (Android .aab), n neither.

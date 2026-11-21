@@ -331,3 +331,10 @@ platforms to raise (`MINVERSION: desktop=2.21.0 android=2.17.0`). Don't edit
 the file: the script shows the reasoning and the change, asks (Enter is yes),
 then writes and commits it ahead of the version bump
 (`scripts/lib/min-version.sh`).
+
+**By hand.** `scripts/min-version.sh desktop=2.21.0 android=2.17.0` raises and
+commits a minimum whatever the check said (no arguments shows the current
+ones). It keeps the same rules: never lower, nothing newer than the version
+being released. Use it when the check recommended nothing but you want a
+cutoff, when the check was skipped, and before `scripts/release.sh retry`,
+which skips the check. The rule for phones above is yours to keep here.

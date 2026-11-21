@@ -164,5 +164,24 @@ describe('min-version.sh', () => {
             expect(minimums()).toBe('desktop=0.0.0 android=0.0.0 ios=0.0.0');
             expect(sh('git log -1 --format=%s').stdout.trim()).toBe('init');
         });
+
+        it('raises by hand without asking, and commits that file alone', () => {
+            writeFileSync(join(dir, 'other.txt'), 'staged elsewhere\n');
+            sh('git add other.txt');
+            const res = sh('force_min_versions "desktop=2.21.0 android=2.17.0" 2.21.0');
+            expect(res.status).toBe(0);
+            expect(minimums()).toBe('desktop=2.21.0 android=2.17.0 ios=0.0.0');
+            expect(sh('git log -1 --format=%s').stdout.trim()).toBe('min client version: desktop 2.21.0, android 2.17.0');
+            expect(sh('git show --stat --format= HEAD').stdout).not.toContain('other.txt');
+        });
+
+        it('by hand, refuses a malformed pair or one past the release, and never lowers', () => {
+            for (const pairs of ['desktop=two', 'web=2.21.0', 'desktop=2.22.0']) {
+                expect(sh(`force_min_versions "${pairs}" 2.21.0`).status, pairs).not.toBe(0);
+            }
+            expect(sh('force_min_versions "desktop=0.0.0" 2.21.0').stdout).toContain('Nothing to raise');
+            expect(minimums()).toBe('desktop=0.0.0 android=0.0.0 ios=0.0.0');
+            expect(sh('git log -1 --format=%s').stdout.trim()).toBe('init');
+        });
     });
 });

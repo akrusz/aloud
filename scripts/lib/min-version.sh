@@ -11,7 +11,9 @@
 # commits it ahead of the version bump. A minimum never goes down, and only a
 # plain X.Y.Z no newer than the release being cut is written.
 #
-# Sourced by release.sh from the repo root; ts/tests/release-min-version.test.ts
+# scripts/min-version.sh raises one by hand (force_min_versions).
+#
+# Sourced by both from the repo root; ts/tests/release-min-version.test.ts
 # exercises it. bash 3.2 (macOS): no associative arrays.
 
 MIN_VERSION_FILE=ts/server/src/min-client-version.ts
@@ -156,9 +158,29 @@ propose_min_versions() {
     case "$answer" in
         n|N) echo "  Minimum versions left as they are."; return 0 ;;
     esac
+    minver_commit "$plan"
+}
+
+# Write plan $1 into MIN_VERSION_FILE and commit that file alone.
+minver_commit() {
+    local plan=$1 summary
     minver_apply "$plan" "$MIN_VERSION_FILE" || return 1
     summary=$(printf '%s\n' "$plan" | awk 'NF { printf "%s%s %s", sep, $1, $3; sep = ", " }')
     git add "$MIN_VERSION_FILE"
-    git commit -q -m "min client version: $summary"
+    git commit -q -m "min client version: $summary" -- "$MIN_VERSION_FILE"
     echo "  Committed: min client version: $summary"
+}
+
+# Raise minimums by hand, whatever the check said: pairs $1 ("desktop=2.21.0
+# android=2.17.0"), none newer than version $2. Same rules as a recommended
+# raise (minver_plan); a malformed pair is an error here, not ignored.
+force_min_versions() {
+    local plan
+    plan=$(minver_plan "$1" "$MIN_VERSION_FILE" "$2") || return 1
+    if [ -z "$plan" ]; then
+        echo "  Nothing to raise."
+        return 0
+    fi
+    printf '%s\n' "$plan" | awk 'NF { printf "  %s: %s -> %s\n", $1, $2, $3 }'
+    minver_commit "$plan"
 }
