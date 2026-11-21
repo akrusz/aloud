@@ -4757,7 +4757,7 @@ p.clouds-hint-row {
 /* The tint of a selected option (.modifier-toggle:has(input:checked)), so it
    reads apart from the combination buttons above it. */
 .info-panel-link .btn {
-    border-color: var(--accent-dim);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
     background: hsl(from var(--accent-dim) h calc(s * 0.65) l / alpha);
 }
 
