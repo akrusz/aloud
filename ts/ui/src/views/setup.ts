@@ -521,16 +521,37 @@ export async function mountSetupView(
         updateCustomizeSummary();
     }
 
+    /** A combination reads as picked for as long as the setup matches it,
+     *  however it got there. Open awareness has no card on this screen, so a
+     *  stored one doesn't count against a match. */
+    function paintPresets(): void {
+        const same = (have: readonly string[], want: readonly string[]): boolean =>
+            have.length === want.length && want.every((v) => have.includes(v));
+        const focuses = setup.focuses.filter((f) => f !== 'open_awareness');
+        root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((btn) => {
+            const preset = EXPLORATION_PRESETS[btn.dataset['preset'] ?? ''];
+            const on =
+                !!preset &&
+                same(focuses, preset.focuses) &&
+                same(setup.qualities, preset.qualities) &&
+                setup.dirStep === preset.dirStep;
+            btn.classList.toggle('selected', on);
+            btn.setAttribute('aria-pressed', String(on));
+        });
+    }
+
     function setFocuses(list: Focus[]): void {
         setup.focuses = list;
         persist();
         paintModifiers('focus', list);
+        paintPresets();
     }
 
     function setQualities(list: Quality[]): void {
         setup.qualities = list;
         persist();
         paintModifiers('quality', list);
+        paintPresets();
     }
 
     function paintGuidance(): void {
@@ -545,6 +566,7 @@ export async function mountSetupView(
         setup.dirStep = step;
         persist();
         paintGuidance();
+        paintPresets();
     }
 
     function paintVerbosity(): void {
@@ -2446,6 +2468,7 @@ export async function mountSetupView(
                 setGuidance(preset.dirStep);
             });
         });
+        paintPresets();
     }
 
     // ---- Noting circle participants ----

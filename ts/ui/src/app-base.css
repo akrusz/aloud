@@ -4750,6 +4750,11 @@ p.clouds-hint-row {
     justify-content: center;
     margin-bottom: 0.6rem;
 }
+.info-presets .btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--text-primary);
+}
 /* Two classes: `.info-panel p` zeroes a top margin set with one. */
 .info-panel .info-panel-link {
     margin-top: 5px;
