@@ -2042,7 +2042,7 @@ export async function mountSessionView(
     function muteMicByVoice(userText: string, via: 'regex' | 'judge'): void {
         tapEvent('audio', 'mute-command', { text: userText, via });
         tapFlags({ muted: true });
-        setMuted(true);
+        setMuted(true, 'voice');
     }
 
     /** Mic off first, so nothing said while the acknowledgment plays is heard.
@@ -3188,8 +3188,9 @@ export async function mountSessionView(
     let micOpenings = 0;
 
     /** Mic on/off. Unmuting is button-only - a muted mic hears no way back. */
-    function setMuted(next: boolean): void {
+    function setMuted(next: boolean, source: 'button' | 'voice'): void {
         if (!stt || next === muted) return;
+        diag(`[turn] mic ${next ? 'muted' : 'unmuted'} (${source})`);
         if (next) {
             muted = true;
             // Listening stops now; the mic itself is let go once the
@@ -3232,7 +3233,7 @@ export async function mountSessionView(
     }
 
     micBtn.addEventListener('click', () => {
-        setMuted(!muted);
+        setMuted(!muted, 'button');
         // After, so it replaces the plain "Muted" setMuted just wrote.
         if (muted) hintVoiceCommand('mute');
     });
@@ -3342,6 +3343,7 @@ export async function mountSessionView(
         speedSlider.value = String(setup.ttsRate);
         syncSpeedControlForVoice(speedSlider, speedLabel, currentName, scoredVoices, setup.ttsRate);
         modal.classList.remove('hidden');
+        diag('[turn] voice picker opened');
         // Park the listen loop (see voiceModalOpen) and stop in-flight capture.
         // The mic is kept through any line still playing (setMuted) and until
         // the modal is closed: let go under a preview, the preview skips, and
@@ -3384,6 +3386,7 @@ export async function mountSessionView(
         };
         const closeModal = () => {
             modal.classList.add('hidden');
+            diag('[turn] voice picker closed');
             stopVoicePreview();
             // Behind the modal the status line can't be seen; say it on the way out.
             if (speedChanged) hintVoiceCommand('speed');
