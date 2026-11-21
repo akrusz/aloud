@@ -219,6 +219,13 @@ Platform reality: macOS swaps the `.app` (already signed/notarized), Windows run
 the NSIS installer, Linux replaces the AppImage. **`.deb` and `.msi` can't
 self-update** - those users reinstall.
 
+A build older than aloud cloud's minimum for desktop gets the same install
+flow as a blocking screen at load or Begin (`ui/src/update-gate.ts`), but only
+once `check()` offers a version at or above that minimum, so nobody is held on
+a screen with nothing to install. A failed install there also links the
+releases page, the way out for a `.deb` or `.msi`. The minimum and when a
+release raises it: [ts-server.md](ts-server.md#minimum-client-version).
+
 ### Signing keys (one-time)
 
 The updater requires a minisign keypair - the public half verifies downloads, the

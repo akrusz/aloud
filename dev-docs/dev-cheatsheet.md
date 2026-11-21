@@ -97,7 +97,7 @@ off the URL on its first `replaceState`, so a param read later never sees it.
 | `?slowboot=<ms>` | Hold the boot orb on screen `<ms>` *before* the first view mounts, so you can eyeball the real loading state (static nav + orb, empty content). On localhost boot is otherwise a blink. | `bootApp` in `app.ts` |
 | `?age=<tier>` | Boot as that store-age tier: `child`, `pendingConsent` or `deniedConsent` shows the blocking screen, `teen` changes nothing yet. This load only: it never writes the stored tier and comes off the URL, so a reload is the real app. See [age-tier.md](age-tier.md). | `adoptAgeParam` in `age-tier.ts` |
 | `?nomic=<status>` | Simulate a broken mic - `denied`, `no-device`, `no-api`, or `error`. Sticky for the tab; `?nomic=off` clears it. Same switch as Settings → Developer → **Simulate failures → Microphone**. | `mic-check.ts` |
-| `?sim=<fault>` | The rest of the simulated failures: a cloud error code (`insufficient_credits`, `unauthenticated`, `email_unverified`, `quota_exceeded`), a recognizer fault (`service-not-allowed`, `network`, `not-allowed`, `whisper-503`), or `no-voices`. `?sim=off` clears all four (mic included). | `dev-sim.ts` |
+| `?sim=<fault>` | The rest of the simulated failures: a cloud error code (`insufficient_credits`, `unauthenticated`, `email_unverified`, `quota_exceeded`), a recognizer fault (`service-not-allowed`, `network`, `not-allowed`, `whisper-503`), or `no-voices`. `?sim=off` clears all four (mic included). Also the update screen of a build too old for aloud cloud, for this load only: `?sim=outdated` (this platform's, desktop in a browser), `?sim=outdated-desktop`, `?sim=outdated-android`, `?sim=outdated-ios`. | `dev-sim.ts` |
 | `?soak=1` | Arm the tier-2 soak tap: the session view publishes structured turn/event/LLM records for the Playwright driver to read (holds, classifier routes, echo drops, timer events - none of which the DOM shows). Set by `npm run soak:web`, not usually by hand. See [soak-harness.md](soak-harness.md). | `soak-tap.ts` |
 
 The mode build-default keys off the *environment*, **not** whether a cloud URL
@@ -251,6 +251,18 @@ seam (`dev-sim.ts`, wired in `stt-picker.ts` / `tts-picker.ts` / `voices.ts` /
 `buildProvider`), so the handling under test is the shipping handling. All four
 live in sessionStorage, reset when the tab closes, and raise a banner while any
 is on.
+
+**Outdated app** shows what a build below aloud cloud's minimum sees: the
+blocking update screen ([ts-server.md](ts-server.md#minimum-client-version)),
+through the real decision with the minimum one patch above the running build.
+Pick a variant in the menu, or open `?sim=outdated` (this platform's: the
+desktop app's in `tauri:dev`, desktop in a browser), `?sim=outdated-desktop`,
+`?sim=outdated-android` or `?sim=outdated-ios`, all from a desktop browser or
+the desktop app. It lasts one load: the screen is the whole page, with no
+Settings to switch it off from, so a reload (right-click, Reload in the
+desktop app) is the real app again. The desktop variant shows with no update
+out, and its button fakes a two-second download, then reloads in place of the
+relaunch; a phone variant's button opens that store's listing in the browser.
 
 ### Hosted server (Hono)
 

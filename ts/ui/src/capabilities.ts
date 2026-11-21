@@ -21,6 +21,7 @@ import {
     setRuntimeGoogleDesktopClientId,
     setRuntimeAppleClientId,
 } from './cloud-auth.js';
+import { setMinClientVersions } from './client-version.js';
 
 export type Capability = 'shell' | 'cloud' | 'ollama';
 
@@ -44,12 +45,14 @@ async function reachable(url: string): Promise<boolean> {
 
 /** The public `/config` route proves reachability AND carries the sign-in
  *  client ids in one round-trip, so any install shows real sign-in for whatever
- *  server it points at. Failure reads as unreachable + no ids. (meditation-pal-rfb) */
+ *  server it points at. Failure reads as unreachable + no ids. (meditation-pal-rfb)
+ *  It also carries the oldest app version still served (client-version.ts). */
 interface CloudConfig {
     reachable: boolean;
     googleClientId: string;
     googleDesktopClientId: string;
     appleClientId: string;
+    minClientVersion: unknown;
 }
 
 const NO_CLOUD: CloudConfig = {
@@ -57,6 +60,7 @@ const NO_CLOUD: CloudConfig = {
     googleClientId: '',
     googleDesktopClientId: '',
     appleClientId: '',
+    minClientVersion: undefined,
 };
 
 async function probeCloud(): Promise<CloudConfig> {
@@ -67,12 +71,14 @@ async function probeCloud(): Promise<CloudConfig> {
             googleClientId?: string;
             googleDesktopClientId?: string;
             appleClientId?: string;
+            minClientVersion?: unknown;
         };
         return {
             reachable: true,
             googleClientId: data.googleClientId ?? '',
             googleDesktopClientId: data.googleDesktopClientId ?? '',
             appleClientId: data.appleClientId ?? '',
+            minClientVersion: data.minClientVersion,
         };
     } catch {
         return NO_CLOUD;
@@ -83,6 +89,7 @@ function adoptCloudConfig(cloud: CloudConfig): void {
     setRuntimeGoogleClientId(cloud.googleClientId);
     setRuntimeGoogleDesktopClientId(cloud.googleDesktopClientId);
     setRuntimeAppleClientId(cloud.appleClientId);
+    setMinClientVersions(cloud.minClientVersion);
 }
 
 /** Short backoff before concluding cloud is down, so a boot blip (Fly cold

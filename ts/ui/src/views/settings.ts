@@ -57,7 +57,10 @@ import {
     getNoVoices,
     setNoVoices,
     renderSimBanner,
+    OUTDATED_SIMS,
+    outdatedSimParam,
     type CloudFault,
+    type OutdatedSim,
     type SttFault,
 } from '../dev-sim.js';
 import { MIC_SIM_STATUSES, getSimMic, setSimMic, type MicStatus } from '../mic-check.js';
@@ -1497,6 +1500,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 setNoVoices(noVoices.checked);
                 renderSimBanner();
             });
+            // For one load, so it reloads into it (dev-sim.ts OUTDATED_SIMS).
+            const outdated = root.querySelector<HTMLSelectElement>('#s-dev-sim-outdated');
+            outdated?.addEventListener('change', () => {
+                if (!outdated.value) return;
+                window.location.assign(`${routePath('/')}?sim=${outdatedSimParam(outdated.value as OutdatedSim)}`);
+            });
         }
     }
 
@@ -2472,7 +2481,7 @@ function renderDeveloperSection(): string {
     const simulations = import.meta.env.DEV
         ? `
         <h3 class="settings-subhead">Simulate failures</h3>
-        <p class="form-hint">Each travels the real code path, so what you see is the shipping handling. They reset when the tab closes, a banner shows while any is on, and ${devParam('?sim=off')} clears all four.</p>
+        <p class="form-hint">Each travels the real code path, so what you see is the shipping handling. They reset when the tab closes, a banner shows while any is on, and ${devParam('?sim=off')} clears the first four.</p>
         <div class="dev-options">
             ${devRow(
                 devField(
@@ -2501,6 +2510,14 @@ function renderDeveloperSection(): string {
             ${devRow(
                 devCheck('s-dev-sim-no-voices', 'Empty voice catalog', getNoVoices()),
                 `${devParam('?sim=no-voices')} Raises the no-voices banners. Reload to apply.`
+            )}
+            ${devRow(
+                devField(
+                    's-dev-sim-outdated',
+                    'Outdated app',
+                    `<select id="s-dev-sim-outdated"><option value="">off</option>${simOptionsHTML(OUTDATED_SIMS, null)}</select>`
+                ),
+                `${devParam('?sim=outdated')} this platform's update screen, or ${devParam('?sim=outdated-desktop')}, ${devParam('?sim=outdated-android')}, ${devParam('?sim=outdated-ios')}. As if aloud cloud's minimum were one patch above this build. This load only: a reload is the real app, and the desktop button fakes a download, then reloads.`
             )}
         </div>`
         : '';

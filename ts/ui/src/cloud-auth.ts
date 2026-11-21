@@ -16,6 +16,7 @@ import { cloudUrl } from './cloud-base.js';
 import { setKnownBalance, clearKnownBalance } from './cloud-balance.js';
 import { setRetreatCovered, clearRetreatCovered } from './cloud-coverage.js';
 import { isDevBypass } from './app-mode.js';
+import { clientReportQuery, noteClientReported } from './client-version.js';
 import { t } from './i18n.js';
 import type { KvStorage } from '../../src/platform/storage.js';
 
@@ -161,12 +162,14 @@ async function adoptRefreshedToken(res: Response): Promise<void> {
 }
 
 /** GET /cloud/v1/me: the signed-in account + live balance. null when there's no
- *  cached token or the server rejects it; callers read null as "signed out". */
+ *  cached token or the server rejects it; callers read null as "signed out".
+ *  The first call of an app load also names this build (client-version.ts). */
 export async function fetchMe(): Promise<AuthResponse['account'] | null> {
     const token = await getCloudToken();
     if (!token) return null;
+    const report = clientReportQuery();
     const getMe = (bearer: string): Promise<Response> =>
-        fetchImpl(cloudUrl('/me'), { headers: { authorization: `Bearer ${bearer}` } });
+        fetchImpl(cloudUrl(`/me${report}`), { headers: { authorization: `Bearer ${bearer}` } });
     let res = await getMe(token);
     if (res.status === 401) {
         // Stale / secret-rotated token: clear, re-mint once, retry, matching the
@@ -183,6 +186,7 @@ export async function fetchMe(): Promise<AuthResponse['account'] | null> {
         res = await getMe(fresh);
     }
     if (!res.ok) return null;
+    if (report) noteClientReported();
     await adoptRefreshedToken(res);
     const account = (await res.json()) as AuthResponse['account'];
     // Seed the shared balance store; live surfaces subscribe (meditation-pal-14s).

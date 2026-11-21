@@ -41,6 +41,7 @@ import { sessionStore } from './state.js';
 import { setUiLang, localizeChrome, LANGUAGE_CHANGED_EVENT, t } from './i18n.js';
 import { bootAgeTier, isBlockingTier } from './age-tier.js';
 import { mountAgeBlockView } from './views/age-block.js';
+import { blockIfOutdatedAtBoot, updateBlockAtBegin } from './update-gate.js';
 
 type View = 'setup' | 'session' | 'history' | 'settings' | 'account';
 
@@ -93,6 +94,12 @@ export async function bootApp(): Promise<void> {
     const ageTier = await bootAgeTier((tier) => mountAgeBlockView(root, tier));
     if (isBlockingTier(ageTier)) {
         mountAgeBlockView(root, ageTier);
+        retireBootOrb();
+        return;
+    }
+    // A build older than aloud cloud serves: the update screen is the whole
+    // page (update-gate.ts). Begin checks again.
+    if (await blockIfOutdatedAtBoot(root)) {
         retireBootOrb();
         return;
     }
@@ -366,6 +373,9 @@ async function routeTo(
     // Already there with nothing to tear down. currentView is null on the very
     // first mount, so the deep-link still routes.
     if (currentView === view && currentSession === null && currentNoting === null) return;
+    // The update screen went up at Begin: Android's back button must not bring
+    // a view back over it.
+    if (document.body.dataset['updateBlock'] !== undefined) return;
 
     const path = ROUTE_FOR_VIEW[view];
     if (!options.fromPopstate) {
@@ -457,6 +467,8 @@ async function goSession(
     continueFrom: SessionState | null = null
 ): Promise<void> {
     setActiveNav('setup'); // session is still under Setup tab conceptually
+    const outdated = updateBlockAtBegin(root);
+    if (outdated && (await outdated)) return;
     if (!(await ensureMicAvailable())) return;
     // A voice nobody picked is never stored (app-settings.ts fieldsToStore),
     // and resolved by the setup screen once its catalog loads; a Begin before
@@ -505,6 +517,8 @@ async function ensureMicAvailable(): Promise<boolean> {
 
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
+    const outdated = updateBlockAtBegin(root);
+    if (outdated && (await outdated)) return;
     if (!(await ensureMicAvailable())) return;
     setup.voice = await sessionVoice(setup.voice, setup.language);
     // Same sign-in pre-flight as goSession; 'noting' so participant voices

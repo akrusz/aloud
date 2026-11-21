@@ -880,4 +880,6 @@ export const ZH: Record<string, string> = {
     "Session setup reset.": "冥想设置已恢复为默认。",
     "The tour and tips will show again.": "导览和提示会再次显示。",
     "Could not reset: {message}": "重置失败：{message}",
+    "Time to update": "该更新了",
+    "This version of aloud is old and needs an update - it'll just take a moment.": "这个版本的 aloud 比较旧，需要更新，只需要一会儿。",
 };

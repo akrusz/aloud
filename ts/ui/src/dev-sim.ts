@@ -1,7 +1,8 @@
 /**
  * Simulated failures, for exercising states that are painful or impossible to
  * reach on purpose: being out of credits, a browser that blocks its speech
- * recognizer, a machine with no microphone, a TTS catalog that came back empty.
+ * recognizer, a machine with no microphone, a TTS catalog that came back empty,
+ * a build too old for aloud cloud (the update screen, update-gate.ts).
  *
  * Each knob is a sessionStorage value (so it dies with the tab) settable from
  * Settings → Developer or a URL param. The wrappers below are applied at the
@@ -19,6 +20,8 @@ import type { LLMProvider } from '../../src/llm/base.js';
 import type { SttEngine, SttEvent } from '../../src/platform/stt.js';
 import type { TtsEngine } from '../../src/platform/tts.js';
 import type { VoiceEntry } from './voices.js';
+import type { DesktopUpdate } from './desktop-updater.js';
+import type { ClientPlatform, MinVersionPlatform, UpdateGateInput } from './client-version.js';
 import { adoptSimMicParam, getSimMic, setSimMic } from './mic-check.js';
 
 /** Hosted-service faults, keyed by the server's error code. The value is the
@@ -90,6 +93,65 @@ export function setNoVoices(on: boolean): void {
     writeSim(KEYS.voices, on ? '1' : null);
 }
 
+/**
+ * The update screen for a build below aloud cloud's minimum, in one platform's
+ * variant: `?sim=outdated` for this platform's (desktop in a browser),
+ * `?sim=outdated-desktop`, `-android`, `-ios` for a given one. This load only,
+ * unlike the switches above: the screen is the whole page, with no Settings
+ * to switch it off from and, in the desktop app, no URL bar, so a reload has
+ * to be the real app.
+ */
+export const OUTDATED_SIMS = ['this platform', 'desktop', 'android', 'ios'] as const;
+export type OutdatedSim = (typeof OUTDATED_SIMS)[number];
+
+let simOutdated: OutdatedSim | null = null;
+
+export function getSimOutdated(): OutdatedSim | null {
+    return import.meta.env.DEV ? simOutdated : null;
+}
+
+/** `?sim=` for a variant, as the Settings menu and the cheatsheet name it. */
+export function outdatedSimParam(sim: OutdatedSim): string {
+    return sim === 'this platform' ? 'outdated' : `outdated-${sim}`;
+}
+
+/**
+ * The updater's answer in the desktop variant, there with or without a real
+ * release: a ~2 s download that installs nothing, then a reload in place of
+ * the relaunch, which is the real app again.
+ */
+export function simulatedDesktopUpdate(version: string): DesktopUpdate {
+    return {
+        version,
+        installAndRelaunch: async (onProgress) => {
+            for (let i = 0; i <= 10; i++) {
+                onProgress?.(i / 10);
+                await new Promise((resolve) => setTimeout(resolve, 200));
+            }
+            window.location.reload();
+        },
+    };
+}
+
+/** Which platform's screen a variant shows. */
+function outdatedSimPlatform(sim: OutdatedSim, here: ClientPlatform): MinVersionPlatform {
+    if (sim !== 'this platform') return sim;
+    return here === 'web' ? 'desktop' : here;
+}
+
+/** The update gate's input under a simulation: the real decision, with a
+ *  minimum one patch above this build and an updater that always has one. */
+export function simulatedGateInput(sim: OutdatedSim, here: ClientPlatform, running: string): UpdateGateInput {
+    const m = /^(\d+)\.(\d+)\.(\d+)/.exec(running);
+    const ahead = m ? `${m[1]}.${m[2]}.${Number(m[3]) + 1}` : '9.9.9';
+    return {
+        platform: outdatedSimPlatform(sim, here),
+        running: m ? running : '0.0.0',
+        minimum: ahead,
+        checkDesktopUpdate: async () => simulatedDesktopUpdate(ahead),
+    };
+}
+
 /** Everything currently being faked, for the banner. */
 function activeSimulations(): string[] {
     const active: string[] = [];
@@ -100,6 +162,8 @@ function activeSimulations(): string[] {
     const cloud = getCloudFault();
     if (cloud) active.push(`cloud: ${cloud}`);
     if (getNoVoices()) active.push('no voices');
+    const outdated = getSimOutdated();
+    if (outdated) active.push(`outdated: ${outdated}`);
     return active;
 }
 
@@ -199,14 +263,24 @@ export function simulateVoiceCatalog(voices: VoiceEntry[]): VoiceEntry[] {
  * Adopt `?sim=` and `?nomic=` params into sessionStorage, so a simulation can
  * be started from a URL as well as from Settings: `?sim=insufficient_credits`,
  * `?sim=network`, `?sim=no-voices`, `?nomic=denied`, `?sim=off`. Called once
- * at boot.
+ * at boot. `?sim=outdated[-platform]` is held for this load only, and comes off
+ * the URL here, since a blocked boot never reaches the router that strips the
+ * rest.
  */
 export function adoptSimulationParams(): void {
     if (!import.meta.env.DEV) return;
     adoptSimMicParam();
     try {
-        const q = new URL(window.location.href).searchParams.get('sim');
+        const url = new URL(window.location.href);
+        const q = url.searchParams.get('sim');
         if (q === null) return;
+        const outdated = OUTDATED_SIMS.find((sim) => outdatedSimParam(sim) === q);
+        if (outdated) {
+            simOutdated = outdated;
+            url.searchParams.delete('sim');
+            window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+            return;
+        }
         if (q === 'off' || q === '0') {
             setCloudFault(null);
             setSttFault(null);
