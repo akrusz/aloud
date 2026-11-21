@@ -4750,8 +4750,9 @@ p.clouds-hint-row {
     justify-content: center;
     margin-bottom: 0.6rem;
 }
-.info-panel-link {
-    margin-top: 0.75rem;
+/* Two classes: `.info-panel p` zeroes a top margin set with one. */
+.info-panel .info-panel-link {
+    margin-top: 0.3rem;
 }
 
 .settings-desc {
