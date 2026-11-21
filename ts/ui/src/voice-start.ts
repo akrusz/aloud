@@ -176,8 +176,10 @@ export const LOBBY_STT = {
     silenceMaxMs: 1500,
     // A bare "begin" is under half a second of speech, and with speculation
     // off there is no preview to vouch for it (whisper-pcm-stt.ts drops a
-    // shorter utterance as a cough).
-    minSpeechDurationMs: 200,
+    // shorter utterance as a cough). Speech is measured in 85ms frames: a
+    // quick "got it" came to 172ms on a phone and was dropped at 200
+    // (2026-11-20), so two frames pass and one does not.
+    minSpeechDurationMs: 150,
     // Words said over a tour line, on a capture that hears through it
     // (`continuous`). Over a line only frames over the bar count as speech, so
     // a one-syllable command measured 0 to 171ms there and was dropped as a

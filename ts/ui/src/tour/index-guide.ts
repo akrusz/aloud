@@ -759,11 +759,12 @@ function showSection(section: Section): void {
 
     resetTarget();
 
-    // In the phone apps only for a tour not read aloud, whose cards have no
-    // other words: read aloud, an open panel pushed the section's controls
-    // off the screen. Its ? still opens it.
+    // In the phone apps a card read aloud opens only a panel with nothing
+    // after it (the methods cards'): the others pushed their section's
+    // controls off the screen. A card not read aloud has no other words, so
+    // it opens every panel. Its ? still opens it.
     const panel = document.getElementById('info-' + (section.panel || section.id));
-    const opened = panel !== null && (!isCapacitor() || !speaking());
+    const opened = panel !== null && (!isCapacitor() || !speaking() || !panel.nextElementSibling);
     if (opened) panel.classList.remove('hidden');
 
     // Elevate the target above the overlay so its info panel is readable.

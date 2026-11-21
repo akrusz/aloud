@@ -845,7 +845,8 @@ voices and would move them off it.
   switched off: `speaking()` in `tour/index-guide.ts`, read as each card goes
   up, so a card muted or unmuted keeps the layout it was shown with). Read
   aloud, the panel said what the line says and pushed the section's controls
-  off the screen. A panel that runs the section on under the docked card
+  off the screen; the methods cards' panel has nothing after it to push, so
+  it opens read aloud too. A panel that runs the section on under the docked card
   gets a chevron above the card until the page has been scrolled a few lines
   ([style.md](style.md#tour-popup-styling), `addMoreBelow` in
   `tour/index-guide.ts`). Desktop and the web open every panel, as before.

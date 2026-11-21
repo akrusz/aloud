@@ -68,8 +68,9 @@ minutes of a run):
       said over a line at an ordinary level, a quiet one too, cut it about a
       second and a half later, "back" a few seconds into the focus line
       included, though not over the first card's lines. A cough over a line
-      does nothing. No ? panel opens. Afterwards tap the Noting tab: the mic
-      keeps working.
+      does nothing. The three methods cards show their ? text under the tabs;
+      no other ? panel opens. A quick "got it" on the last card is taken
+      the first time. Afterwards tap the Noting tab: the mic keeps working.
 - [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
       section card shows its ? text. Only where that pushes the section's
       text or checkboxes under the tour card does an arrow sit above the
