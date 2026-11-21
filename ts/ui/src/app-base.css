@@ -6768,7 +6768,7 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
        edge on phones. Float it up into the top chrome instead - centered
        between the "aloud." wordmark (left) and the orb (right), matching the
        same translucent chip treatment so it reads as part of the header. It
-       still toggles the methods panel / "take the full tour" link as before. */
+       still toggles the methods panel / "take the full tour" button as before. */
     .tab-bar .info-btn {
         position: fixed;
         top: var(--top-chrome-mid);
@@ -6776,6 +6776,8 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         transform: translate(-50%, -50%);
         z-index: 95;
         margin-left: 0;
+        /* The glyph a little larger than the other "?"s, in the same circle. */
+        font-size: 0.97rem;
         color: var(--accent-text);
         border-color: var(--border);
         background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
