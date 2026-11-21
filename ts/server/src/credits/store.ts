@@ -15,6 +15,7 @@
 
 import type { UsageEvent } from './usage.js';
 import type { Incident } from './incidents.js';
+import type { ClientPlatform } from '../contract.js';
 
 export type LedgerKind =
     | 'signup_grant'
@@ -63,6 +64,17 @@ export interface Account {
      *  are stateless and renew themselves, so this is the only thing that can
      *  end one that has leaked (auth/session.ts tokenStillValid). */
     sessionsValidAfter?: number;
+    /** The app build this account was last signed in on, as the client named it
+     *  on its first GET /me of an app load. For the admin accounts list. */
+    lastClient?: ClientSeen;
+}
+
+export interface ClientSeen {
+    /** As sent, validated by min-client-version.ts parseClientReport. */
+    version: string;
+    platform: ClientPlatform;
+    /** Seconds since epoch. */
+    seenAt: number;
 }
 
 /** Sign-in methods an account can carry. TRUSTED providers (google, apple) are
@@ -187,6 +199,8 @@ export interface CreditsStore {
     setSessionsValidAfter(accountId: string, ts: number): Promise<void>;
     /** Flip the email-updates opt-in (PATCH /me and the signup checkbox). */
     setAccountEmailUpdates(accountId: string, optIn: boolean): Promise<void>;
+    /** Replace the build the account was last seen on (Account.lastClient). */
+    setAccountLastClient(accountId: string, seen: ClientSeen): Promise<void>;
 
     // ---- Identities (sign-in methods, meditation-pal-116) -------------------
     getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined>;
@@ -204,7 +218,7 @@ export interface CreditsStore {
      *  deletion (meditation-pal-8jc). */
     deleteIdentitiesForAccount(accountId: string): Promise<void>;
     /** Anonymize + tombstone an account in place (soft-delete): scrub email to
-     *  `anonymizedEmail`, drop the signup IP, stamp `deletedAt`, keep the row so
+     *  `anonymizedEmail`, drop the signup IP and the last-seen build, stamp `deletedAt`, keep the row so
      *  ledger FKs hold. With email, identities, and IP gone, surviving
      *  ledger/usage rows hang off a random UUID only (meditation-pal-9rkg). */
     markAccountDeleted(accountId: string, deletedAt: number, anonymizedEmail: string): Promise<void>;

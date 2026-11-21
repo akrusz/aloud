@@ -309,12 +309,13 @@ ${ADMIN_STYLE}</style>
     <h2 id="sec-accounts">Accounts <span class="controls"><button class="ghost" id="refreshAccts">refresh</button></span></h2>
     <div class="card">
       <div class="row" style="margin-bottom:12px">
-        <div><input id="search" placeholder="search id, email, or sign-in…" autocomplete="off"></div>
+        <div><input id="search" placeholder="search id, email, sign-in, or app version…" autocomplete="off"></div>
       </div>
+      <p class="sub help-text" id="minVersions" style="margin:0 0 12px"></p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th class="act"></th></tr></thead>
-          <tbody id="acctRows"><tr><td colspan="9" class="muted">Connect to load accounts.</td></tr></tbody>
+          <thead><tr><th>Email</th><th>Sign-in</th><th>Status</th><th class="num">Balance</th><th class="num">Granted</th><th class="num">Spent</th><th>Joined</th><th>Active</th><th>App</th><th class="act"></th></tr></thead>
+          <tbody id="acctRows"><tr><td colspan="10" class="muted">Connect to load accounts.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -869,6 +870,9 @@ ${ADMIN_STYLE}</style>
       $('cBeta').value = cfg.betaBonusCredits;
       $('cPaused').checked = !!cfg.meteredPaused;
       $('cTesters').value = (cfg.testerEmails || []).join('\n');
+      var min = cfg.minClientVersion || {};
+      $('minVersions').textContent = 'Oldest app version served (set by a release, 0.0.0 is none): desktop ' +
+        (min.desktop || '?') + ' · Android ' + (min.android || '?') + ' · iOS ' + (min.ios || '?');
     });
   }
   function savePause() {
@@ -912,13 +916,14 @@ ${ADMIN_STYLE}</style>
     var parts = [a.id];
     if (!a.deleted && a.email) parts.push(a.email);
     if (a.providers) parts = parts.concat(a.providers);
+    if (a.lastClient) parts.push(a.lastClient.platform + ' ' + a.lastClient.version);
     return parts.join(' ').toLowerCase();
   }
   function renderAccounts() {
     var q = $('search').value.trim().toLowerCase();
     var rows = allAccounts.filter(function (a) { return !q || acctSearchText(a).indexOf(q) >= 0; });
     if (!rows.length) {
-      $('acctRows').innerHTML = '<tr><td colspan="9" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
+      $('acctRows').innerHTML = '<tr><td colspan="10" class="muted">No accounts' + (q ? ' match.' : ' yet.') + '</td></tr>';
       return;
     }
     $('acctRows').innerHTML = rows.map(function (a) {
@@ -933,6 +938,7 @@ ${ADMIN_STYLE}</style>
         '<td class="num">' + dec1(a.debited) + '</td>' +
         '<td class="muted">' + date(a.createdAt) + '</td>' +
         '<td class="muted">' + (a.lastActiveTs ? date(a.lastActiveTs) : 'never') + '</td>' +
+        '<td class="muted">' + appCell(a.lastClient) + '</td>' +
         '<td class="act">' + (a.deleted ? '' : '<button class="ghost xs" data-grant="' + esc(a.email) + '">grant</button>') + '</td>' +
         '</tr>';
     }).join('');
@@ -957,6 +963,15 @@ ${ADMIN_STYLE}</style>
     return String(s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
+  }
+
+  // The build an account last signed in on, its date in the hover. Blank for
+  // an account not seen since the server started recording it.
+  var PLATFORM_LABEL = { desktop: 'desktop', android: 'Android', ios: 'iOS', web: 'web' };
+  function appCell(c) {
+    if (!c) return '';
+    return '<span title="seen ' + esc(dateTime(c.seenAt)) + '">' +
+      esc((PLATFORM_LABEL[c.platform] || c.platform) + ' ' + c.version) + '</span>';
   }
 
   // Sign-in methods as small labelled pills (Google / Apple / Email).

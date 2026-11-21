@@ -30,6 +30,7 @@ import { sessionForToken } from '../auth/middleware.js';
 import { effectiveConfig, applyRuntimeConfig, type ConfigPatch } from '../admin/runtime-config.js';
 import { errorJson } from '../http.js';
 import { apiError } from '../contract.js';
+import { MIN_CLIENT_VERSION } from '../min-client-version.js';
 
 function tokenOk(provided: string | undefined, expected: string): boolean {
     if (!provided) return false;
@@ -317,6 +318,8 @@ export function adminRoutes(deps: Deps): Hono {
                 purchased: purchased.has(a.id),
                 providers: providersByAccount.get(a.id) ?? [],
                 deleted: a.deletedAt != null,
+                // The app build last signed in on: { version, platform, seenAt }.
+                lastClient: a.lastClient ?? null,
             }))
             .sort((x, y) => y.createdAt - x.createdAt);
         return c.json(rows);
@@ -348,9 +351,10 @@ export function adminRoutes(deps: Deps): Hono {
 
     // Operator-tunable runtime config (free-credit knobs). GET reads the live
     // effective values; PUT patches them, live and persisted, so the operator can
-    // stop handing out free credits without a redeploy.
+    // stop handing out free credits without a redeploy. The minimum app
+    // versions ride along read-only: a release sets them (min-client-version.ts).
     app.get('/config', adminOnly, async (c) => {
-        return c.json(effectiveConfig(deps));
+        return c.json({ ...effectiveConfig(deps), minClientVersion: MIN_CLIENT_VERSION });
     });
 
     app.put('/config', adminOnly, async (c) => {

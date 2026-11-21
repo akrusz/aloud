@@ -213,6 +213,25 @@ export interface CloudVoice {
     wholeReply?: boolean;
 }
 
+// ---- GET /cloud/v1/config -----------------------------------------------------
+
+/** Platforms a release can cut off below a version (min-client-version.ts).
+ *  The hosted web app is always the last release, so it has none. */
+export type MinVersionPlatform = 'desktop' | 'android' | 'ios';
+
+/** Where a client runs, as it names itself on GET /cloud/v1/me. */
+export type ClientPlatform = MinVersionPlatform | 'web';
+
+/** Public, read before sign-in. */
+export interface ConfigResponse {
+    googleClientId: string;
+    appleClientId: string;
+    googleDesktopClientId: string;
+    /** The oldest version still served, per platform; '0.0.0' is no cutoff.
+     *  Absent from servers older than the field, which clients read as none. */
+    minClientVersion: Record<MinVersionPlatform, string>;
+}
+
 // ---- Auth & account ---------------------------------------------------------
 
 /** POST /cloud/v1/auth/google: exchange a Google ID token for an aloud session. */
@@ -278,7 +297,9 @@ export interface SignInGrants {
     beta: number;
 }
 
-/** GET /cloud/v1/me: current account + balance. */
+/** GET /cloud/v1/me: current account + balance. A client adds
+ *  `?v=<version>&platform=<ClientPlatform>` to its first call of an app load,
+ *  which the account keeps as the build it was last seen on. */
 export interface AccountView {
     id: string;
     email: string;

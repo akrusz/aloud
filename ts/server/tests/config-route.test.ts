@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
+import { MIN_CLIENT_VERSION } from '../src/min-client-version.js';
 
 function app(env: Record<string, string>) {
     return createApp(buildDeps(loadConfig({ ANTHROPIC_API_KEY: 'sk-test', ...env })));
@@ -25,6 +26,7 @@ describe('GET /cloud/v1/config', () => {
             googleClientId: 'web-client-1',
             googleDesktopClientId: 'desktop-client-3',
             appleClientId: 'app.aloud.web',
+            minClientVersion: MIN_CLIENT_VERSION,
         });
     });
 
@@ -35,6 +37,7 @@ describe('GET /cloud/v1/config', () => {
             googleClientId: '',
             googleDesktopClientId: '',
             appleClientId: '',
+            minClientVersion: MIN_CLIENT_VERSION,
         });
     });
 });

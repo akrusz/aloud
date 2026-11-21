@@ -122,7 +122,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | Route | Auth | Purpose |
 |---|---|---|
 | `GET /health` | public | liveness + what's configured |
-| `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: the Google/Apple client ids (first of `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`). Lets any install render OAuth sign-in without baking ids in at build |
+| `GET /cloud/v1/config` | public | build-agnostic client bits before sign-in: the Google/Apple client ids (first of `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS`). Lets any install render OAuth sign-in without baking ids in at build. Also `minClientVersion`, the oldest app version served per platform (see Minimum client version below) |
 | `POST /cloud/v1/auth/google` | public (optional bearer) | verify Google ID token; sign in, or on a first connect create/link an account and grant free credits per the connect rules. With a bearer token it LINKS Google to that account (the "connect to claim credits" flow). The response's `granted: {connect, beta}` (present only when non-zero) is what the client's thank-you dialog reads (`ui/src/sign-in-thanks.ts`) |
 | `POST /cloud/v1/auth/google/desktop` | public (optional bearer) | the desktop loopback-PKCE variant (exchanges an auth code server-side) |
 | `POST /cloud/v1/auth/apple` | public (optional bearer) | same as google for Sign in with Apple (verifies vs Apple JWKS; needs `APPLE_CLIENT_IDS`) |
@@ -131,7 +131,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/auth/email/set-password` | session | add/change a password on an OAuth-created account. CHANGING one ends every session issued before now (`Account.sessionsValidAfter`) and the response carries this device's replacement token; adding a first password revokes nothing |
 | `POST /cloud/v1/auth/signout-all` | session | "Sign out everywhere": ends every session on the account, the caller's included. The tokens are stateless and renew themselves, so this (and a password change) is the only thing that ends one held elsewhere; the app's plain Sign out only forgets the token on that device. Every token check goes through `auth/middleware.ts` `sessionForToken` |
 | `POST /cloud/v1/auth/dev` | public (dev only) | local dev sign-in; mints a session for `dev@localhost`. 404s unless `ALOUD_ENABLE_DEV_AUTH` is set |
-| `GET /cloud/v1/me` | session | account + live balance |
+| `GET /cloud/v1/me` | session | account + live balance. The app's first call of a load adds `?v=<version>&platform=<desktop\|android\|ios\|web>`, stored on the account as the build last seen (Minimum client version below) |
 | `PATCH /cloud/v1/me` | session | flip the email-updates opt-in (`{emailUpdates: boolean}`); returns the updated account view |
 | `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
@@ -157,7 +157,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/admin/calls` | none* | per-call page HTML: one session's every metered call (`admin/calls-page.ts`); reuses the panel's stored credential |
 | `GET /cloud/v1/admin/sessions` | admin | sessions by client session id (`?sinceHours=`, default 7d) with cost per leg and cold-cache call count; `ALOUD_ADMIN_EMAILS` accounts only |
 | `GET /cloud/v1/admin/sessions/:id` | admin | one session's calls in order (gap since the previous facilitation call or keep-alive, cache read/write, cost; keep-alives listed as their own kind, never turns or cold calls), facilitation spend by token type, and its incidents; 404 for a non-admin session |
-| `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |
+| `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call / the app build last seen (`lastClient`) |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
 | `POST /cloud/v1/admin/accounts/:id/delete` | admin | soft-delete an account (the panel's typed-email confirm flow) |
@@ -165,11 +165,38 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/admin/retreats` | admin | create a pass (date window, optional spend cap) |
 | `POST /cloud/v1/admin/retreats/:id/members` | admin | add an attendee by email; no account yet → pending invite that binds on that address's first verified (Google/Apple) sign-in. An email/password signup does not bind it: add the attendee again once the account exists (the response then carries `unverified: true`) |
 | `POST /cloud/v1/admin/retreats/:id/revoke` | admin | revoke a pass; coverage stops for every member |
-| `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context |
+| `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context, and the minimum app versions read-only |
 | `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, betaBonusCredits?, meteredPaused?, testerEmails?}` → retune live + persist |
 
 "admin" auth = the `ALOUD_ADMIN_TOKEN` bearer, or a normal session token whose
 verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
+
+### Minimum client version
+
+`MIN_CLIENT_VERSION` in `src/min-client-version.ts` is the oldest app version
+aloud cloud still serves, per platform (`desktop`, `android`, `ios`; `0.0.0` is
+no cutoff). No admin override and no env var: it ships with a server deploy,
+and a release raises it (`scripts/release.sh`, criteria in
+[pre-release-checklist.md](pre-release-checklist.md) Part D). The hosted web
+app has no entry, being always the last release.
+
+The app reads it from `GET /cloud/v1/config` at load (`ui/src/capabilities.ts`
+into `client-version.ts`) and, below its platform's minimum, mounts a blocking
+update screen in place of the first view (`ui/src/update-gate.ts`,
+`views/update-block.ts`). Begin checks the same stored value again, with no
+request, since an app can stay open for days. Never blocking: no config
+(offline, a fully local build) or no minimum. Desktop blocks only once the
+Tauri updater offers a version at or above the minimum, so the minutes
+between a server deploy and the release's desktop bundles strand nobody; its
+button installs and relaunches. A phone's opens its store listing
+(`STORE_LISTING` in `views/update-block.ts`). An install older than this
+mechanism never checks: it can only be reached by what the server does.
+
+The same load names its build once, on the first signed-in `GET /me`
+(`?v=&platform=`, validated by `parseClientReport`), kept on the account as
+`lastClient` (version, platform, when; cleared on deletion) and shown in the
+admin accounts list's App column, which the search also matches. The panel
+prints the minimums above that list.
 
 ### Admin control panel
 

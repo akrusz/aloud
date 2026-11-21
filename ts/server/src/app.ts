@@ -28,7 +28,8 @@ import { giftRoutes } from './routes/gifts.js';
 import { incidentRoutes } from './routes/incidents.js';
 import { adminRoutes } from './routes/admin.js';
 import { appBackendRoutes } from './routes/app.js';
-import { MARK_TIMES_HEADER, apiError, type CloudVoice } from './contract.js';
+import { MARK_TIMES_HEADER, apiError, type CloudVoice, type ConfigResponse } from './contract.js';
+import { MIN_CLIENT_VERSION } from './min-client-version.js';
 
 /** Largest request body read into memory. Nothing else bounds it: the routes
  *  parse first and validate after, several of them before any sign-in (the
@@ -105,16 +106,20 @@ export function createApp(deps: Deps): Hono {
     // so any install pointed at this server can render the sign-in button without
     // baking the id in at build time. Empty when GOOGLE_CLIENT_IDS is unset; the
     // client then keeps its dev-sign-in fallback. (meditation-pal-rfb)
-    app.get('/cloud/v1/config', (c) =>
-        c.json({
+    // Also the oldest app version still served per platform, which a client
+    // checks at load (min-client-version.ts).
+    app.get('/cloud/v1/config', (c) => {
+        const body: ConfigResponse = {
             googleClientId: deps.config.googleClientIds[0] ?? '',
             appleClientId: deps.config.appleClientIds[0] ?? '',
             // Desktop (Tauri) uses a separate "Desktop app" OAuth client for the
             // loopback PKCE flow. The id is public (it appears in the auth URL the
             // user sees); the secret stays server-side. Empty disables it.
             googleDesktopClientId: deps.config.googleDesktopClientId ?? '',
-        })
-    );
+            minClientVersion: { ...MIN_CLIENT_VERSION },
+        };
+        return c.json(body);
+    });
 
     // Public: the curated hosted voices, or [] when TTS isn't configured. The
     // client merges these into its voice picker.

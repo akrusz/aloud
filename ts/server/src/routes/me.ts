@@ -1,7 +1,8 @@
 /**
- * GET /cloud/v1/me: the signed-in account and its live credit balance, plus
- * what a client needs to render its model picker and store transparently
- * (/me/models, /me/packs, /me/estimates).
+ * GET /cloud/v1/me: the signed-in account and its live credit balance (and,
+ * once per app load, the build the client runs on), plus what a client needs
+ * to render its model picker and store transparently (/me/models, /me/packs,
+ * /me/estimates).
  */
 
 import { Hono } from 'hono';
@@ -33,6 +34,8 @@ import {
 import { errorJson } from '../http.js';
 import { DEFAULT_STT_MODEL } from '../pricing/providers.js';
 import { OPENROUTER_STT_MODELS } from '../providers/stt.js';
+import { parseClientReport } from '../min-client-version.js';
+import { log } from '../logger.js';
 
 export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
@@ -44,6 +47,17 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // Sweeping here means the balance the user sees has already recovered
         // them. placeHold does the same on the spend path.
         await deps.ledger.releaseStaleHolds(account.id);
+        // The client's first call of an app load names its build
+        // (`?v=&platform=`), kept for the admin accounts list. Best-effort: a
+        // failed write must not cost anyone their account view.
+        const client = parseClientReport(c.req.query('v'), c.req.query('platform'));
+        if (client) {
+            try {
+                await deps.store.setAccountLastClient(account.id, { ...client, seenAt: Date.now() / 1000 });
+            } catch (err) {
+                log.warn('last client write failed', { accountId: account.id, error: String(err) });
+            }
+        }
         return c.json(await buildAccountView(deps, account));
     });
 

@@ -6,6 +6,7 @@
 
 import type {
     Account,
+    ClientSeen,
     CreditsStore,
     Gift,
     GiftStatus,
@@ -69,6 +70,11 @@ export class MemoryCreditsStore implements CreditsStore {
         else delete account.emailUpdates;
     }
 
+    async setAccountLastClient(accountId: string, seen: ClientSeen): Promise<void> {
+        const account = this.accounts.get(accountId);
+        if (account) account.lastClient = { ...seen };
+    }
+
     async getIdentity(provider: IdentityProvider, sub: string): Promise<Identity | undefined> {
         return this.identities.get(idKey(provider, sub));
     }
@@ -116,6 +122,7 @@ export class MemoryCreditsStore implements CreditsStore {
         a.email = anonymizedEmail;
         a.emailVerified = false;
         delete a.signupIp;
+        delete a.lastClient;
     }
 
     async clearSignupIpsBefore(cutoff: number): Promise<number> {

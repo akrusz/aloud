@@ -19,6 +19,7 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
     Account,
+    ClientSeen,
     CreditsStore,
     Gift,
     GiftStatus,
@@ -33,6 +34,7 @@ import type {
 } from './store.js';
 import type { Incident, IncidentKind } from './incidents.js';
 import type { UsageEvent, UsageKind, UsagePurpose } from './usage.js';
+import type { ClientPlatform } from '../contract.js';
 import { normalizeEmail } from '../auth/email-key.js';
 import { log } from '../logger.js';
 
@@ -55,7 +57,12 @@ CREATE TABLE IF NOT EXISTS accounts (
     email_updates INTEGER NOT NULL DEFAULT 0,
     -- Session tokens issued before this (epoch seconds) no longer authenticate.
     -- NULL: nothing has ever been revoked. Added by migrateAddSessionsValidAfter.
-    sessions_valid_after REAL
+    sessions_valid_after REAL,
+    -- The app build last signed in on (Account.lastClient), all three or none.
+    -- Added by migrateAddLastClient.
+    last_client_version  TEXT,
+    last_client_platform TEXT,
+    last_client_seen_at  REAL
 );
 -- Sign-in identities (meditation-pal-116). (provider, sub) is globally unique:
 -- one external identity → at most one account, ever. granted_credits records
@@ -219,6 +226,13 @@ function rowToAccount(r: Row): Account {
     if (r['deleted_at'] != null) account.deletedAt = Number(r['deleted_at']);
     if (Number(r['email_updates']) !== 0) account.emailUpdates = true;
     if (r['sessions_valid_after'] != null) account.sessionsValidAfter = Number(r['sessions_valid_after']);
+    if (r['last_client_version'] != null && r['last_client_platform'] != null && r['last_client_seen_at'] != null) {
+        account.lastClient = {
+            version: String(r['last_client_version']),
+            platform: String(r['last_client_platform']) as ClientPlatform,
+            seenAt: Number(r['last_client_seen_at']),
+        };
+    }
     return account;
 }
 
@@ -348,6 +362,7 @@ export class SqliteCreditsStore implements CreditsStore {
         this.migrateAddUsagePurpose();
         this.migrateAddEmailUpdates();
         this.migrateAddSessionsValidAfter();
+        this.migrateAddLastClient();
         this.migrateIncidentAccountNullable();
         // Index on pass_id AFTER the column migration above: on a pre-retreat
         // -passes DB the column doesn't exist until migrateAddUsagePassId runs,
@@ -389,6 +404,19 @@ export class SqliteCreditsStore implements CreditsStore {
     private migrateAddSessionsValidAfter(): void {
         if (this.hasColumn('accounts', 'sessions_valid_after')) return;
         this.db.exec('ALTER TABLE accounts ADD COLUMN sessions_valid_after REAL');
+    }
+
+    /** Add the accounts.last_client_* columns to a DB predating them. Existing
+     *  rows stay NULL until that account's next app load. */
+    private migrateAddLastClient(): void {
+        const columns = [
+            ['last_client_version', 'TEXT'],
+            ['last_client_platform', 'TEXT'],
+            ['last_client_seen_at', 'REAL'],
+        ] as const;
+        for (const [column, type] of columns) {
+            if (!this.hasColumn('accounts', column)) this.db.exec(`ALTER TABLE accounts ADD COLUMN ${column} ${type}`);
+        }
     }
 
     /** incidents.account_id was NOT NULL, so a row with no account (the public
@@ -579,6 +607,14 @@ export class SqliteCreditsStore implements CreditsStore {
             .run(optIn ? 1 : 0, accountId);
     }
 
+    async setAccountLastClient(accountId: string, seen: ClientSeen): Promise<void> {
+        this.db
+            .prepare(
+                'UPDATE accounts SET last_client_version = ?, last_client_platform = ?, last_client_seen_at = ? WHERE id = ?'
+            )
+            .run(seen.version, seen.platform, seen.seenAt, accountId);
+    }
+
     async findLiveAccountByEmail(email: string): Promise<Account | undefined> {
         // Oldest live row wins if duplicates coexist (index temporarily absent).
         // rowid is monotonic with INSERT, so it stands in for created_at.
@@ -652,7 +688,9 @@ export class SqliteCreditsStore implements CreditsStore {
     ): Promise<void> {
         this.db
             .prepare(
-                'UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0, signup_ip = NULL, email_updates = 0 WHERE id = ?'
+                `UPDATE accounts SET deleted_at = ?, email = ?, email_verified = 0, signup_ip = NULL, email_updates = 0,
+                     last_client_version = NULL, last_client_platform = NULL, last_client_seen_at = NULL
+                 WHERE id = ?`
             )
             .run(deletedAt, anonymizedEmail, accountId);
     }
