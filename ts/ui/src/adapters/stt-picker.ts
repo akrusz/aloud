@@ -72,6 +72,10 @@ type VadOpts = Partial<
      *  gets the setup vocabulary as its initial prompt; aloud cloud gets the
      *  flag and builds that prompt server-side. Absent for a session. */
     setupListening?: boolean;
+    /** Hosted engines only: the hosted choice each pass asks for, given the
+     *  one the engine was built for (setup listening: setupHostedChoice). The
+     *  engine and its capture stay as built. */
+    hostedChoice?: (built: HostedSttChoice) => HostedSttChoice;
 };
 
 export type SttBackend = 'capacitor' | 'web-speech' | 'server-whisper' | 'none';
@@ -181,10 +185,10 @@ function hostedTakesPrompt(model: string | undefined): boolean {
  * STT through the aloud cloud's authed /cloud/v1/stt, on the server's default
  * model unless `model` names an allowlisted one. Same client-side capture/VAD as
  * desktop server-Whisper - only endpoint + bearer token differ. Used when a
- * session runs on the hosted ('aloud') provider. Null when mic capture isn't
- * available here.
+ * session runs on the hosted ('aloud') provider. `model` may be a function,
+ * asked on each pass. Null when mic capture isn't available here.
  */
-export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): SttEngine | null {
+export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string | (() => string)): SttEngine | null {
     if (!WhisperPcmSttEngine.isAvailable()) return null;
     // Strip the local-Whisper model-size param: the cloud endpoint picks its
     // own model server-side (unless `model` pins an allowlisted alternate).
@@ -195,7 +199,9 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string): Stt
     return new WhisperPcmSttEngine({
         ...rest,
         ...(model ? { cloudModel: model } : {}),
-        incremental: incrementalFor(vadOpts, hostedTakesPrompt(model)),
+        // A model asked for pass by pass can change inside a turn, and a
+        // turn's pieces only join up from one model: full passes.
+        incremental: typeof model !== 'function' && incrementalFor(vadOpts, hostedTakesPrompt(model)),
         specEarlyMaxBufferMs: CLOUD_SPEC_EARLY_MAX_BUFFER_MS,
         finalRetryBudgetMs: CLOUD_FINAL_RETRY_BUDGET_MS,
         endpointUrl: cloudUrl('/stt'),
@@ -284,8 +290,10 @@ async function buildSttForChoice(
             return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
         case 'aloud-gpt-transcribe':
         case 'aloud-parakeet':
-        case 'aloud-grok':
-            return createServerAloudStt(vadOpts, HOSTED_STT[choice].model);
+        case 'aloud-grok': {
+            const ask = vadOpts.hostedChoice;
+            return createServerAloudStt(vadOpts, ask ? () => HOSTED_STT[ask(choice)].model : HOSTED_STT[choice].model);
+        }
         case 'web-speech':
             // Same Tauri guard as sttEngineOptions - honor a stale stored pick
             // with null rather than a mic that pulses forever.
@@ -456,4 +464,26 @@ export function resolveSttChoice(
     if (stored && offered.includes(stored)) return stored;
     const hosted = stored && isHostedSttChoice(stored) ? hostedSttDefault(webMode, mode) : null;
     return hosted ?? defaultSttChoice(webMode, mode);
+}
+
+/**
+ * The hosted model the setup screen's listener asks for on each pass
+ * (VadOpts.hostedChoice): the one it was built for, except while the tour is
+ * up. There, with nothing picked, it is the first model the language takes
+ * that takes the setup vocabulary as hints (GPT): the tour is driven by names
+ * and commands, which Parakeet, the English default, mishears. A hosted pick
+ * made during the tour applies at once; any other waits for the tour to end,
+ * which keeps one recognizer (views/setup.ts tourChoice). `stored` is the
+ * pick the listener's recognizer resolves from, as it stands now.
+ */
+export function setupHostedChoice(
+    built: HostedSttChoice,
+    stored: SttEngineChoice | null,
+    touring: boolean,
+    lang: UiLang = uiLang()
+): HostedSttChoice {
+    if (!touring) return built;
+    const offered = (Object.keys(HOSTED_STT) as HostedSttChoice[]).filter((c) => HOSTED_STT[c].offeredIn(lang));
+    if (stored === null) return offered.find((c) => HOSTED_STT[c].takesPrompt) ?? built;
+    return isHostedSttChoice(stored) && offered.includes(stored) ? stored : built;
 }

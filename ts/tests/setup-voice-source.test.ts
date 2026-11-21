@@ -45,3 +45,20 @@ describe("the setup screen's listener", () => {
         expect(listen).toBeGreaterThan(build);
     });
 });
+
+describe("the tour's speech recognition model", () => {
+    it('is named on each request, so the tour neither rebuilds the listener nor reopens the mic', () => {
+        // The recognizer is the same in and out of the tour: a listener is
+        // replaced only when listenerChoice changes (runVoiceSync).
+        expect(setup).toMatch(/const listenerChoice = \(\): SttEngineChoice => tourChoice \?\? sttSetupChoice\(\);/);
+        // The model is asked for on each pass, from the tour's state as it is.
+        const build = setup.indexOf('createSttForChoice(choice, {');
+        expect(build).toBeGreaterThan(0);
+        const opts = setup.slice(build, setup.indexOf('});', build));
+        expect(opts).toMatch(
+            /hostedChoice: \(built\) =>\s*setupHostedChoice\(built, appSettings\[tourPickKey\] \?\? null, tourChoice !== null\)/
+        );
+        // Whose pick decides: the setting the tour's recognizer came from.
+        expect(setup).toMatch(/tourPickKey = sttSettingKey\(setup\.meditationType\);/);
+    });
+});

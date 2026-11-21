@@ -25,8 +25,9 @@ import {
     sttChoiceForMode,
     cloudSttCreditsPerHour,
     setCloudSttCreditsPerHour,
+    setupHostedChoice,
 } from '../ui/src/adapters/stt-picker.js';
-import type { SttEngineChoice } from '../ui/src/app-settings.js';
+import type { HostedSttChoice, SttEngineChoice } from '../ui/src/app-settings.js';
 import { isTauri, isCapacitor } from '../ui/src/is-desktop.js';
 import { setUiLang } from '../ui/src/i18n.js';
 
@@ -362,5 +363,58 @@ describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', 
             setCloudSttCreditsPerHour(bad);
             expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(0.42);
         }
+    });
+});
+
+describe('setupHostedChoice: the hosted model setup listening asks for', () => {
+    afterEach(() => setUiLang('en'));
+
+    /** What a listener built for this stored pick asks for, in or out of the tour. */
+    function heard(stored: SttEngineChoice | null, touring: boolean, lang: 'en' | 'zh' = 'en'): SttEngineChoice {
+        setUiLang(lang);
+        const built = resolveSttChoice(stored, true);
+        return setupHostedChoice(built as HostedSttChoice, stored, touring, lang);
+    }
+
+    it('hears the tour on GPT for someone who never picked, in English', () => {
+        expect(resolveSttChoice(null, true)).toBe('aloud-parakeet');
+        expect(heard(null, true)).toBe('aloud-gpt-transcribe');
+    });
+    it('is back on the default once the tour is over', () => {
+        expect(heard(null, false)).toBe('aloud-parakeet');
+    });
+    it('keeps a stored pick in the tour, Parakeet included', () => {
+        expect(heard('aloud-parakeet', true)).toBe('aloud-parakeet');
+        expect(heard('aloud-gpt-transcribe', true)).toBe('aloud-gpt-transcribe');
+        expect(heard('aloud-gpt-transcribe', false)).toBe('aloud-gpt-transcribe');
+    });
+    it('changes nothing in 中文, where the default is GPT already', () => {
+        expect(heard(null, true, 'zh')).toBe('aloud-gpt-transcribe');
+        expect(heard(null, false, 'zh')).toBe('aloud-gpt-transcribe');
+        expect(heard('aloud-grok', true, 'zh')).toBe('aloud-grok');
+        // A Parakeet pick 中文 drops is on the language's default, as before.
+        expect(heard('aloud-parakeet', true, 'zh')).toBe('aloud-gpt-transcribe');
+    });
+    it('takes a hosted pick made during the tour at once, on the same listener', () => {
+        const built: HostedSttChoice = 'aloud-parakeet';
+        expect(setupHostedChoice(built, null, true, 'en')).toBe('aloud-gpt-transcribe');
+        expect(setupHostedChoice(built, 'aloud-parakeet', true, 'en')).toBe('aloud-parakeet');
+        expect(setupHostedChoice(built, 'aloud-gpt-transcribe', true, 'en')).toBe('aloud-gpt-transcribe');
+    });
+    it('stays on the listener for another kind of pick made during the tour, which waits for its end', () => {
+        // The tour keeps one recognizer (views/setup.ts tourChoice); the pick
+        // is still a pick, so the tour is no longer heard on GPT.
+        for (const stored of ['capacitor', 'whisper', 'web-speech'] as const) {
+            expect(setupHostedChoice('aloud-parakeet', stored, true, 'en')).toBe('aloud-parakeet');
+        }
+    });
+    it('is never asked where the unpicked default is not hosted', () => {
+        // Desktop: local Whisper. A phone's noting: the built-in recognizer.
+        // Neither builds a hosted engine, so nothing asks for a model.
+        isTauriMock.mockReturnValue(true);
+        expect(resolveSttChoice(null, false)).toBe('whisper');
+        isTauriMock.mockReturnValue(false);
+        isCapacitorMock.mockReturnValue(true);
+        expect(resolveSttChoice(null, true, 'noting')).toBe('capacitor');
     });
 });

@@ -13,7 +13,7 @@ vi.mock('../ui/src/cloud-auth.js', async (importOriginal) => ({
     clearCloudToken: vi.fn(async () => {}),
 }));
 
-import { createSttForChoice } from '../ui/src/adapters/stt-picker.js';
+import { createSttForChoice, setupHostedChoice } from '../ui/src/adapters/stt-picker.js';
 import { WhisperPcmSttEngine } from '../ui/src/adapters/whisper-pcm-stt.js';
 import { setupVocabulary } from '../src/facilitation/index.js';
 import type { SttEngineChoice } from '../ui/src/app-settings.js';
@@ -140,5 +140,50 @@ describe('a session (no setupListening)', () => {
             expect(url.searchParams.has('prompt')).toBe(false);
             expect(url.searchParams.has('setup')).toBe(false);
         }
+    });
+});
+
+describe('a hosted model named on each request (VadOpts.hostedChoice)', () => {
+    it('asks for the tour\'s model and then the default, from one engine and one capture', async () => {
+        let touring = true;
+        const engine = await createSttForChoice('aloud-parakeet', {
+            setupListening: true,
+            language: 'en',
+            hostedChoice: (built) => setupHostedChoice(built, null, touring, 'en'),
+        });
+        expect(engine).toBeInstanceOf(WhisperPcmSttEngine);
+        const transcribe = (engine as unknown as { transcribe: Transcribe }).transcribe.bind(engine);
+        const frame = new Float32Array(16_000).fill(0.1);
+        await transcribe([frame], 'final', 16_000);
+        touring = false;
+        await transcribe([frame], 'final', 16_000);
+        const posts = urls.filter(isTranscription);
+        expect(posts.map((u) => u.searchParams.get('model'))).toEqual(['gpt-transcribe', 'moondream/parakeet-ultra']);
+        // Both as setup listening, with the server's prompt and no client one.
+        for (const post of posts) {
+            expect(post.searchParams.get('setup')).toBe('1');
+            expect(post.searchParams.has('prompt')).toBe(false);
+        }
+    });
+
+    it('sends no prior: a model that can change inside a turn makes full passes', async () => {
+        // GPT in a session would go incremental; asked pass by pass, never.
+        const engine = await createSttForChoice('aloud-gpt-transcribe', {
+            language: 'en',
+            hostedChoice: (built) => built,
+        });
+        expect((engine as unknown as { opts: { incremental: boolean } }).opts.incremental).toBe(false);
+    });
+
+    it('leaves local Whisper alone', async () => {
+        const all = await fetched('whisper', {
+            setupListening: true,
+            language: 'en',
+            whisperModelSize: 'base',
+            hostedChoice: () => 'aloud-gpt-transcribe',
+        });
+        const post = all.find(isTranscription)!;
+        expect(post.pathname).toBe('/app/v1/stt/whisper');
+        expect(post.searchParams.has('model')).toBe(false);
     });
 });

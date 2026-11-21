@@ -680,9 +680,10 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   phone). Hosted recognition gets a flag and the server builds the prompt
   itself, below; only GPT takes it, so Parakeet (the English default) and
   Grok hear this screen unprompted, and `tour-command.ts` matches their near
-  misses of the tour's words. Chrome's browser recognizer gets nothing: its
-  phrase biasing is on-device only and makes a cloud recognizer fail at
-  start. "Begin" is in none of it, since a prompted word is the one a
+  misses of the tour's words. The tour itself is heard on GPT by someone who
+  never picked (The tour, spoken, below). Chrome's browser recognizer gets
+  nothing: its phrase biasing is on-device only and makes a cloud recognizer
+  fail at start. "Begin" is in none of it, since a prompted word is the one a
   recognizer writes over noise. A session sends none of it.
 - **zh has phrases and no prompt.** Measured (below), the zh prompt wrote its
   own words over unclear speech: 开始 came out 开阔 and 跟随 came out 均衡. About
@@ -874,6 +875,22 @@ voices and would move them off it.
   recognizer, stopped for that line before it had reported ready, failed at its next
   start with "Recognition service disconnected", which put the mic to sleep
   for the rest of the tour (Android, 2026-11-19).
+- **On GPT where nothing is picked.** The tour runs on names and commands,
+  which Parakeet, taking no hints, mishears ("Harper", "back"), and GPT gets
+  the setup vocabulary. So with no speech recognition pick stored (in the
+  setting of the tab the tour started on, `tourPickKey`) and a hosted default,
+  the tour is heard on GPT and the default again once it ends, however it
+  ends (`setupHostedChoice` in `adapters/stt-picker.ts`). The model is named
+  on each request (`VadOpts.hostedChoice`; `cloudModel` as a function in
+  `whisper-pcm-stt.ts`), so the listener and its mic carry on through the
+  tour's start and end. The select, the estimate and the session that
+  follows stay on the default. A stored pick is kept, Parakeet included; a
+  hosted one made during the tour applies at once, any other at its end.
+  Setup listening makes only full passes, so nothing of GPT's carries into
+  the next request, and the server meters each request by the model it
+  names. 中文 is on GPT already, and a default that is not hosted (local
+  Whisper, the browser's recognizer, a phone's noting) is left alone. A tour
+  replayed later is heard the same way.
 
 ### Not verified on a device
 

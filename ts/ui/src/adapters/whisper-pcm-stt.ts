@@ -264,8 +264,9 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Hosted-model override, sent as a `model` query param the cloud /stt
      *  route validates against its backend's allowlist (e.g. 'gpt-transcribe').
      *  Cloud endpoint only - leave unset for the desktop endpoint and for the
-     *  server-default model. */
-    cloudModel?: string | null;
+     *  server-default model. A function is asked on each pass, so the model
+     *  can change under one capture (stt-picker.ts setupHostedChoice). */
+    cloudModel?: string | null | (() => string | null);
     /** Whisper initial prompt, sent as `prompt` on every pass: words the
      *  listener expects, which Whisper favors where the audio is ambiguous.
      *  Local endpoint only (stt-picker.ts localWhisperStt). */
@@ -1399,6 +1400,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
         }
         const prior = this.incremental ? priorHeader(piece.prior) : null;
+        const cloudModel = typeof this.opts.cloudModel === 'function' ? this.opts.cloudModel() : this.opts.cloudModel;
         let answered = false;
         try {
             // session_id groups the cloud cost report (the desktop ignores
@@ -1407,7 +1409,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                 session_id: getCloudSessionId(),
                 model_size: this.opts.whisperModelSize,
                 lang: this.opts.language,
-                model: this.opts.cloudModel,
+                model: cloudModel,
                 prompt: this.opts.initialPrompt,
                 setup: this.opts.setupListening ? '1' : null,
             })
@@ -1472,7 +1474,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             if (diagOn()) {
                 const now = performance.now();
                 diag(
-                    `[stt-time] ${label} ${this.opts.cloudModel ?? 'default'} round-trip=${Math.round(now - sentAt)}ms ` +
+                    `[stt-time] ${label} ${cloudModel ?? 'default'} round-trip=${Math.round(now - sentAt)}ms ` +
                         `since-speech=${Math.round(now - this.lastSpeechMs)}ms`
                 );
             }

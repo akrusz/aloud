@@ -70,6 +70,7 @@ import {
     sttBackendForChoice,
     cloudSttCreditsPerHour,
     createSttForChoice,
+    setupHostedChoice,
 } from '../adapters/stt-picker.js';
 import {
     createMicHandover,
@@ -1255,6 +1256,10 @@ export async function mountSetupView(
     // card's line and the phone's recognizer failed to come back
     // (2026-11-19). Swaps wait for the tour to end.
     let tourChoice: SttEngineChoice | null = null;
+    // The setting tourChoice was resolved from (sttSettingKey), read on every
+    // hosted pass: nothing picked there, and the tour is heard on GPT
+    // (setupHostedChoice).
+    let tourPickKey: ReturnType<typeof sttSettingKey> = 'sttEngine';
     /** The recognizer this screen listens with. */
     const listenerChoice = (): SttEngineChoice => tourChoice ?? sttSetupChoice();
     // What the mic beside Begin shows (paintVoiceMic). Lit can come before
@@ -1787,6 +1792,10 @@ export async function mountSetupView(
             language: appSettings.language,
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,
+            // Hosted recognition names its model on each request, so the
+            // tour's model comes and goes with no new capture.
+            hostedChoice: (built) =>
+                setupHostedChoice(built, appSettings[tourPickKey] ?? null, tourChoice !== null),
         });
         turnClearOfEcho = engine instanceof WhisperPcmSttEngine ? () => engine.lastTurnClearOfEcho() : null;
         // A line that began while the engine was being built (a step of the
@@ -2153,6 +2162,7 @@ export async function mountSetupView(
         listen: (handler) => {
             tourHeard = handler;
             tourChoice = handler ? (voiceStart?.choice ?? sttSetupChoice()) : null;
+            tourPickKey = sttSettingKey(setup.meditationType);
             // Over: the tab it ended on may want another recognizer.
             if (!handler) void syncVoiceStart();
         },
