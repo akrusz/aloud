@@ -61,7 +61,10 @@ minutes of a run):
       was at the bottom of the Call slider before Begin, about a second after
       the mic opens, and never on a mute or later in the session.
 - [ ] **The tour, read aloud**, setup mic lit. Walk all of it by voice. The
-      first line plays without a break, a moment after the mic opens. The
+      first line plays without a break, a moment after the mic opens. Once
+      more starting with the mic off and turning it on at the tour's mic
+      card: "Hi, I'm Harper." is heard whole, about two seconds after. A
+      name heard a little wrong ("Happy") still picks the voice. The
       noting line starts promptly and whole and "back" works from it. The
       first word of every card is heard on first play (felt sense, and the
       methods line after picking a voice, lost theirs). "Next" and "back"
