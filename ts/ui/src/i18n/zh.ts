@@ -730,7 +730,7 @@ export const ZH: Record<string, string> = {
     "recommended": "推荐",
     "resumed": "已继续",
     "seconds": "秒",
-    "This is a dyadic meditation format where you speak about what you are experiencing in the moment and the facilitator asks brief questions to help you explore.": "这是一种两个人一起进行的冥想形式：你说出自己当下正在经历什么，引导者用简短的问题帮助你继续探索。",
+    "In this mode, you speak about what you are experiencing in the moment and the facilitator asks brief questions to help you explore.": "在这个模式里，你说出自己当下正在经历什么，引导者用简短的问题帮助你继续探索。",
     "try again": "重试",
     "You specify what participants you'd like, if any: AIs, fixed phrases, or sound effects. Then starting with you, each participant notes a sensation in their \"awareness\" (ideally 1&ndash;2 words) or plays their fixed phrase or sound. This process can be helpful to observe the mental and somatic processes that happen in the cycle of resting -&gt; hearing the cue -&gt; observing -&gt; speaking. If there are no other participants, it'll just briefly introduce the method and then record what you note.": "你可以指定想要的参与者（也可以没有）：AI、固定短语或音效。然后从你开始，每位参与者标记一个「觉察」中的感受（最好 1&ndash;2 个词），或播放自己的固定短语或声音。这个过程有助于观察「休息 -&gt; 听到提示 -&gt; 观察 -&gt; 说出」循环中的心理与身体过程。如果没有其他参与者，它会简单介绍方法，然后记录你的标记。",
     "your current sign-in": "你当前的登录方式",
