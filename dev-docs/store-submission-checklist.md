@@ -55,7 +55,18 @@ below needs a server deploy again unless `ts/server/` changes.
       is a new last paragraph ("The facilitator is an AI, not a person...").
 - [x] Data safety needs no change: the age check collects nothing.
 
-**B. One real session on the phone** (the debug build already on it)
+**B. One real session on the phone** (install a fresh debug build first:
+`npm --prefix ts run cap:android:run`; the one on the phone predates
+2026-11-21)
+
+- [ ] **New on 2026-11-21, none of it run on a phone**: Settings → Advanced →
+      "Reset model and voice picks" (uncommitted until its copy is approved),
+      then the speech picker shows Parakeet; "Take the full tour" logs
+      `[stt-time] final gpt-transcribe` and "Harper", "next" and "back" over a
+      line land; after the tour a setup request logs
+      `moondream/parakeet-ultra`, with no mic re-open at either end; one
+      session on Parakeet; the embers row on one line with the fifth flame;
+      the About panel's shorter AI note.
 
 Optional, for a log Claude can read afterwards: plug the phone into the Mac
 first and ask a Claude session to "start the phone capture" (the steps are
