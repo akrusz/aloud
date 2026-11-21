@@ -42,7 +42,8 @@ below needs a server deploy again unless `ts/server/` changes.
 - [ ] **Content rating**: answer the questionnaire so it lands at Teen.
       Leave "Restrict Minor Access" off (it hides the app from every known
       minor). The age signals page stays on its default ranges.
-- [ ] **Countries**: untick Brazil.
+- [ ] **Countries**: every country except Brazil, Russia, Belarus, Hong
+      Kong and Macau (why: "Countries" in section 2).
 - [ ] **Description**: paste the full description again from
       [store-descriptions.md](store-descriptions.md). Two things changed:
       the modes are in the order Exploration, Felt Sense, Noting, and there
@@ -121,8 +122,10 @@ names as hints).
 **D. Open testing, in Play Console**
 
 - [ ] **Testing → Open testing → Create new release → Add from library**:
-      the bundle just smoked. Release notes ("What's new"), countries without
-      Brazil, the feedback email, a tester cap if wanted.
+      the bundle just smoked. Release notes ("What's new"), the feedback
+      email, a tester cap if wanted. On the track's Countries / regions tab,
+      check the same five are off: a testing track follows production's list
+      until "Unsync countries/regions" is clicked.
 - [ ] **Upload the new screenshots** to the listing.
 - [ ] **EU trader status**, if the console asks for it here: **trader**, same
       contact details as Apple's (section 2). Where Play keeps it has not
