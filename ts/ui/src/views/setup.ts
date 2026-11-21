@@ -2950,7 +2950,7 @@ function renderSetupHTML(
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
                 <p><strong>${t('Exploration')}</strong>: ${t('In this mode, you speak about what you are experiencing in the moment and the facilitator asks brief questions to help you explore.')}</p>
-                <p>${t("In this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads.")}</p>
+                <p>${t("Optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads.")}</p>
                 <p>${t('Combinations to try:')}</p>
                 <div class="info-presets">
                     <button type="button" class="btn btn-small btn-secondary" data-preset="jhana">${t('Jhana 1/2')}</button>

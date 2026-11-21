@@ -719,7 +719,7 @@ export const ZH: Record<string, string> = {
     "for guiding me in similar practices.": "在类似练习中对我的引导。",
     "for inspiration.": "带来的启发。",
     "from {email}": "来自 {email}",
-    "In this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads.": "在这个模式里，你可以先设定一个意图（也可以不设），再把<strong>注意焦点</strong>和<strong>氛围</strong>自由搭配成你自己的风格。引导程度滑块可以调节它引领得有多主动。",
+    "Optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads.": "你可以先设定一个意图（也可以不设），再把<strong>注意焦点</strong>和<strong>氛围</strong>自由搭配成你自己的风格。引导程度滑块可以调节它引领得有多主动。",
     "intention: {intention}": "意图：{intention}",
     "is an AI meditation facilitator that listens and responds to your experience in real time.": "是一位 AI 冥想引导者，实时聆听并回应你的体验。",
     "The facilitator is an AI, not a person; you can choose the model and provider. It may not be suitable for some minors.": "引导者是 AI，不是真人；模型和服务商可由你选择。它可能不适合部分未成年人。",
