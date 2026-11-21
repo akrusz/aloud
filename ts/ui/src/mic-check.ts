@@ -184,6 +184,14 @@ export function noteCaptureClosing(stream: MediaStream): void {
     if (live?.()) lastLiveCaptureClosedAt = performance.now();
 }
 
+/** How long Android's audio output takes to come back once a capture has
+ *  switched call mode on: the audio policy mutes playback for 2 s as call
+ *  mode starts (2.0 s measured on a phone, 2026-11-19), whatever was primed
+ *  before the switch. A little over, as the mute ends on a ramp. Anything
+ *  played sooner after a cold open loses its start ("Hi, I'm Harper." went
+ *  unheard 0.5 s after one, 2026-11-20). */
+export const CALL_MODE_SETTLE_MS = 2200;
+
 /** Whether a capture stream of ours is open and live now, a kept one
  *  included (SttStopOptions.keepMicUntil). */
 export function captureLive(): boolean {

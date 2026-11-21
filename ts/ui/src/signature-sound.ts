@@ -15,7 +15,7 @@ import type { SttEngine } from '../../src/platform/stt.js';
 import { pulseNavOrb } from './orb-pulse.js';
 import { assetPath } from './route-base.js';
 import { diag } from './diag.js';
-import { captureLive, endCaptureHandover } from './mic-check.js';
+import { CALL_MODE_SETTLE_MS, captureLive, endCaptureHandover } from './mic-check.js';
 import { playSound, preloadSound, primeSounds, type Sound } from './sound-player.js';
 
 /** [id, label], in menu order. An id names its two files, so renaming one
@@ -46,13 +46,9 @@ export function resolveSignatureSound(stored: unknown): SignatureSound {
 const LOAD_DEADLINE_MS = 1500;
 /** How long the audio output gets to settle once the mic has opened, before
  *  the opening plays (see playOpening). By ear, not measured: the drop-out it
- *  avoids was "some fraction of a second". */
+ *  avoids was "some fraction of a second". On Android, a mic that switched
+ *  call mode on gets CALL_MODE_SETTLE_MS (mic-check.ts) instead. */
 const MIC_SETTLE_MS = 600;
-/** The same on Android when that mic switched call mode on: the audio policy
- *  mutes media playback for 2 s as call mode starts (2.0 s measured on a
- *  phone, 2026-11-19), and the elements primed at the Begin click opened their
- *  output before the switch. A little over, as the mute ends on a ramp. */
-const CALL_MODE_SETTLE_MS = 2200;
 /** A mic that hasn't opened by now doesn't hold the opening any longer. */
 const MIC_OPEN_CAP_MS = 1500;
 

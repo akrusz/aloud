@@ -811,7 +811,11 @@ function addMoreBelow(target: HTMLElement, panel: HTMLElement): void {
     cue.className = 'tour-more-below';
     cue.setAttribute('aria-hidden', 'true');
     cue.innerHTML = CHEVRON;
-    cue.dataset['from'] = String(window.scrollY);
+    // The card goes up 300ms into a smooth scroll that may not have landed
+    // (scrollToSection), so the baseline is where that scroll is headed.
+    const lands = window.scrollY + target.getBoundingClientRect().top - getNavHeight();
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    cue.dataset['from'] = String(Math.min(max, Math.max(0, lands)));
     cue.addEventListener('click', () => {
         const top = (panel.nextElementSibling ?? cue).getBoundingClientRect().top;
         window.scrollBy({ top: top - getNavHeight(), behavior: 'instant' });

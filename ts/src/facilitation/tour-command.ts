@@ -80,15 +80,22 @@ function words(utterance: string): string[] {
  * where the two differ that way). Both at once is no answer.
  */
 /** The offered voice a word names, or -1: the name itself, the name with a
- *  letter or two run on ("Harperd", "Harper's"), or one letter off and
- *  sounding the same ("Ethen"). Never a word that could be either voice. */
+ *  letter or two run on ("Harperd", "Harper's"), one letter off and sounding
+ *  the same ("Ethen"), or five letters or more opening on the name's first
+ *  two and no more than half its length away ("Happy", "Happen" for Harper, as a phone
+ *  heard it twice running, 2026-11-20). Loose, because only two voices are on
+ *  offer and the card takes a tap; never a word that could be either. */
 function namedVoice(word: string, voices: readonly OfferedVoice[]): number {
     const bare = word.replace(/'/g, '');
     const near = voices.flatMap((voice, i) => {
         const name = voice.name.toLowerCase();
-        const runOn = name.length >= 4 && bare.startsWith(name) && bare.length - name.length <= 2;
-        const sounds = name.length >= 4 && soundKey(bare) === soundKey(name) && editDistance(bare, name) <= 1;
-        return bare === name || runOn || sounds ? [i] : [];
+        if (bare === name) return [i];
+        if (name.length < 4 || bare.length < 4) return [];
+        const off = editDistance(bare, name);
+        const runOn = bare.startsWith(name) && bare.length - name.length <= 2;
+        const sounds = soundKey(bare) === soundKey(name) && off <= 1;
+        const opens = bare.length >= 5 && bare.slice(0, 2) === name.slice(0, 2) && off <= Math.floor(name.length / 2);
+        return runOn || sounds || opens ? [i] : [];
     });
     return near.length === 1 ? near[0]! : -1;
 }

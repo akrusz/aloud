@@ -32,7 +32,8 @@ import { getCloudSessionId } from '../cloud-session.js';
 import { withTimeout } from '../net-timeout.js';
 import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 import { ensureMicPermission } from '../mic-permission.js';
-import { captureLive, noteCaptureClosing, noteCaptureHearing, noteCaptureOpened } from '../mic-check.js';
+import { CALL_MODE_SETTLE_MS, captureLive, noteCaptureClosing, noteCaptureHearing, noteCaptureOpened } from '../mic-check.js';
+import { capacitorPlatform } from '../is-desktop.js';
 import { isAecOffDebug } from '../dev-mode.js';
 import { diag, diagOn } from '../diag.js';
 import { recordSttClip } from '../stt-clip-recorder.js';
@@ -341,7 +342,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     /** Waiting for the next frame with sound in it (whenHearing). */
     private hearingWaiters: Array<() => void> = [];
     /** A capture being opened with no other of ours open (coldOpening). */
-    private coldOpen: { settled: Promise<void>; end: () => void } | null = null;
+    private coldOpen: { settled: Promise<void>; since: number; heard: boolean; end: () => void } | null = null;
     private processor: ScriptProcessorNode | null = null;
     private source: MediaStreamAudioSourceNode | null = null;
     private stopRequested = false;
@@ -764,7 +765,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         const now = performance.now();
         if (energy >= SILENT_FRAME_RMS) {
             for (const resolve of this.hearingWaiters.splice(0)) resolve();
-            if (this.coldOpen) this.endColdOpen();
+            if (this.coldOpen) this.coldOpenHeard(now);
             noteCaptureHearing();
         }
 
@@ -1168,7 +1169,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     /**
      * A capture this engine is opening with no other capture of ours open
      * beside it: settles at its first frame with sound in it, or
-     * COLD_OPEN_SETTLE_MAX_MS after it was asked for. Null when no such open
+     * COLD_OPEN_SETTLE_MAX_MS after it was asked for (on Android no sooner
+     * than CALL_MODE_SETTLE_MS, coldOpenHeard). Null when no such open
      * is under way. On macOS that open starts voice processing, which rebuilds
      * the audio output, and on a Bluetooth headset it switches to call audio;
      * a line started meanwhile begins late and quiet (voice-start.ts hold).
@@ -1185,11 +1187,27 @@ export class WhisperPcmSttEngine implements SttEngine {
         const cap = setTimeout(() => this.endColdOpen(), COLD_OPEN_SETTLE_MAX_MS);
         this.coldOpen = {
             settled,
+            since: performance.now(),
+            heard: false,
             end: () => {
                 clearTimeout(cap);
                 settle();
             },
         };
+    }
+
+    /** The cold open's first frame with sound. That settles it, except on
+     *  Android, where the output stays muted CALL_MODE_SETTLE_MS from the
+     *  open however soon the mic hears. */
+    private coldOpenHeard(now: number): void {
+        const open = this.coldOpen;
+        if (!open || open.heard) return;
+        const wait = capacitorPlatform() === 'android' ? open.since + CALL_MODE_SETTLE_MS - now : 0;
+        if (wait <= 0) return this.endColdOpen();
+        open.heard = true;
+        setTimeout(() => {
+            if (this.coldOpen === open) this.endColdOpen();
+        }, wait);
     }
 
     private endColdOpen(): void {
