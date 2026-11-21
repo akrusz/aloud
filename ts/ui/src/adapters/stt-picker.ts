@@ -131,14 +131,14 @@ const HOSTED_STT: Record<
     'aloud-parakeet': {
         model: 'moondream/parakeet-ultra',
         label: 'Parakeet',
-        seedCreditsPerHour: 0.49,
+        seedCreditsPerHour: 0.24,
         offeredIn: (lang) => lang !== 'zh',
         takesPrompt: false,
     },
     'aloud-gpt-transcribe': {
         model: 'gpt-transcribe',
         label: 'GPT',
-        seedCreditsPerHour: 2.11,
+        seedCreditsPerHour: 1.01,
         offeredIn: () => true,
         takesPrompt: true,
     },
@@ -146,7 +146,7 @@ const HOSTED_STT: Record<
     'aloud-grok': {
         model: 'x-ai/grok-stt-2.0',
         label: 'Grok',
-        seedCreditsPerHour: 0.82,
+        seedCreditsPerHour: 0.39,
         offeredIn: (lang) => lang === 'zh',
         takesPrompt: false,
     },

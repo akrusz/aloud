@@ -13,21 +13,25 @@
  * dominated by one returning user, so "measured for that practice style", not
  * "typical"; re-estimate as the account mix widens, meditation-pal-bv9p):
  *   - turns match (40.9/hr measured vs 39.6 assumed): left at the seed.
- *   - sttSeconds 1,170 (~23.4 min/hr): the Nov 2026 report, real users only
- *     (admin omitted), whole history: 23.4 min/hr over 72.2 h, 2.1 cr/hr
- *     against the 1.9 badge of the old 1,055. The last month alone read 56
- *     min/hr over 7.2 h: too few hours to price on, but a jump to explain
- *     (meditation-pal-0uw7) before the next reseed. Talking vs VAD
- *     padding is still meditation-pal-0uw7's question, but the BILLED figure
- *     is what the badge should predict. Usage rows hold billed seconds
- *     (gpt-transcribe's whole-second round-up included), so a reseed from the
- *     admin report needs no factor for it.
- *   - TTS band (TTS_CHAR_PROFILES): measured cloud-voice sessions ran
- *     ~1k-6.2k chars. `engaged` 8,500 (Oct 2026): a fully metered 40-min sit
- *     spoke 7,031 chars per 50 min (58 turns/hr, ~143 chars a reply), and
- *     faster talkers than that one exist.
- *   - LLM token fields left at the seed: per-model samples are too small and
- *     track user style.
+ *   - sttSeconds 560 (~11.2 min/hr): builds since v2.11.0 billed 11.7 min/hr
+ *     on gpt-transcribe (Nov 2026, 9.6 h, 15 accounts). The 23.4 min/hr this
+ *     replaced was mostly older builds re-sending a growing clip; one account
+ *     still on such a build bills 60+ min/hr (meditation-pal-0uw7). Usage rows
+ *     hold billed seconds (gpt-transcribe's whole-second round-up included),
+ *     so a reseed from the admin report needs no factor for it.
+ *   - TTS band (TTS_CHAR_PROFILES): `typical` 4,500 (Nov 2026): the Azure
+ *     house voices billed ~8,600 chars/hr over 10.7 h (about 4,800 spoken per
+ *     50 min once their tags are taken off), Google 7,000 per 50 min, Inworld
+ *     3,800. `engaged` 8,500 (Oct 2026): a fully metered 40-min sit spoke
+ *     7,031 chars per 50 min (58 turns/hr, ~143 chars a reply), and faster
+ *     talkers than that one exist.
+ *   - LLM token fields left at the seed, a deliberate under-read: Opus 5.5
+ *     measured 5.3 cr/hr over 14.6 h of mostly short sessions (Nov 2026, 54
+ *     turns/hr), about 4.3 at an hour's length. The full reseed is
+ *     meditation-pal-bv9p.
+ *   - Thinking (THINKING_TOKENS_PER_CALL): a model that can't turn thinking
+ *     off bills it as output on every reply. Opus 5.5 at effort low measured
+ *     ~110 output tokens a turn where ~40 are spoken.
  *
  * The utility LLM (Haiku via buildUtilityProvider, plus the recap model)
  * is carried as its own flat leg, UTILITY_CREDITS_PER_HOUR below - it applies to
@@ -38,6 +42,7 @@
 
 import type { SessionUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
+import { thinkingPolicy } from '@aloud/core/llm';
 import { priceSession, priceSttSeconds, usdToCredits } from './meter.js';
 import { DEFAULT_STT_MODEL, allowedModels, ttsRateFor } from './providers.js';
 import { CURATED_VOICES, type TtsProvider } from '../providers/voice-catalog.js';
@@ -51,7 +56,7 @@ export const TYPICAL_SESSION: SessionUsage = {
     llmTokensOut: 2_700, // facilitator speech (~10k chars)
     llmCacheRead: 115_000, // re-sent prefix, cached at ~0.1x
     llmCacheCreation: 7_500, // unique content written to cache once
-    sttSeconds: 1_170, // ~19.5 min billed audio per 50-min session (~23.4 min/hr)
+    sttSeconds: 560, // ~9.3 min billed audio per 50-min session (~11.2 min/hr)
     ttsChars: 10_000, // facilitator speech, if spoken by cloud TTS
 };
 
@@ -75,7 +80,7 @@ export const TYPICAL_SESSION: SessionUsage = {
  */
 export const TTS_CHAR_PROFILES = {
     spacious: 1_200, // terse model / low verbosity / lots of held silence
-    typical: 3_500, // mid of the measured band
+    typical: 4_500, // a little under the measured middle
     engaged: 8_500, // chattiest measured voice-hour (7,031), plus headroom
     // MODELLED, not measured: that same 7,031 sit from a quicker talker. Its
     // meditator spoke at ~124 wpm and left about 37% of the clock as reflective
@@ -174,12 +179,20 @@ export interface VoiceEstimate {
     costUsdPerHourTypical: number;
 }
 
+/** Hidden thinking billed as output on each reply by a model whose thinking
+ *  can't be disabled (core thinkingPolicy 'always-on'). Set below the ~70
+ *  measured on Opus 5.5, like the rest of the profile (file header). */
+export const THINKING_TOKENS_PER_CALL = 55;
+
 /** LLM-only credits for the typical session (zero STT/TTS, those are separate
  *  legs the UI composes). */
 export function estimateModels(): ModelEstimate[] {
     const llmOnly: SessionUsage = { ...TYPICAL_SESSION, sttSeconds: 0, ttsChars: 0 };
+    const thinking = THINKING_TOKENS_PER_CALL * TYPICAL_SESSION.llmCalls;
     return allowedModels().map((m) => {
-        const cost = priceSession(m.provider, m.model, llmOnly);
+        const thinks = m.provider === 'anthropic' && thinkingPolicy(m.model) === 'always-on';
+        const usage = thinks ? { ...llmOnly, llmTokensOut: llmOnly.llmTokensOut + thinking } : llmOnly;
+        const cost = priceSession(m.provider, m.model, usage);
         return {
             provider: m.provider,
             model: m.model,
