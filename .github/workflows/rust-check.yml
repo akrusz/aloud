@@ -62,5 +62,12 @@ jobs:
           workspaces: ts/src-tauri
           key: cmake-${{ steps.cmake.outputs.version }}
 
+      # espeak-ng tests __has_include_next unguarded, which MSVC 14.52 rejects.
+      # The forced include answers it: ts/src-tauri/patches/msvc/has_include_next.h.
+      - name: Shim __has_include_next for MSVC
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "CFLAGS=/FI$(cygpath -m "$GITHUB_WORKSPACE")/ts/src-tauri/patches/msvc/has_include_next.h" >> "$GITHUB_ENV"
+
       - name: cargo check
         run: cargo check --manifest-path ts/src-tauri/Cargo.toml --locked
