@@ -92,9 +92,11 @@ for two minutes after the session. Dev mode on in the app; aloud cloud speech.
 
 Known and parked until after the release, so not a failure here: the opening
 and closing sounds drop in level partway and sound thinner than the promo
-video (`meditation-pal-grfo`); on Parakeet "Harper" and "back" said over a
-line are sometimes misheard (a tap always works; GPT, in the picker, gets the
-names as hints).
+video (`meditation-pal-grfo`; measured 2026-11-20: the app and Android send
+the same signal every time); with Parakeet PICKED, "Harper" and "back" said
+over a tour line are sometimes misheard (a tap always works). Someone who
+never picked hears the tour on GPT, which gets the names as hints
+(`setupHostedChoice`).
 
 **C. The release**
 
