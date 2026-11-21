@@ -54,8 +54,7 @@ never picked hears the tour on GPT, which gets the names as hints
 - [ ] (Claude) **"Run the pre-release check"**
       ([pre-release-checklist.md](pre-release-checklist.md)) only if more
       than notes has been committed since 2026-11-21, when the last one ran
-      and found nothing blocking. Still Alex's from it: the privacy page's
-      "Children" paragraph, before the Android build goes out.
+      and found nothing blocking.
 - [ ] **`scripts/release.sh`** (patch by default, `scripts/release.sh minor`
       for a minor). It publishes the release, which deploys the server and
       then the web app. At "Mobile builds" answer `p` for Play only. The
