@@ -160,7 +160,10 @@ if [ -f ts/package.json ]; then
         fi
         # Supply-chain gate (advisories/bans/licenses/sources); enforced in CI.
         if cargo deny --version >/dev/null 2>&1; then
-            if ! (cd ts/src-tauri && cargo deny check); then
+            # Quiet on purpose: duplicate versions are expected (deny.toml
+            # only warns on them) and each one prints its whole inclusion
+            # tree, thousands of lines. CI runs the check in full.
+            if ! (cd ts/src-tauri && cargo deny check --hide-inclusion-graph -A duplicate); then
                 echo "Error: cargo deny found issues — fix before releasing" >&2
                 exit 1
             fi
