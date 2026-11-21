@@ -193,11 +193,28 @@ names as hints).
       layout fine at rest. Landscape, resizing and audio are unchecked.
 - [ ] **Store-billed packs** (StoreKit; Play Billing too, but Android's beta
       doesn't need it). **Required before iOS review**, see "Buying ☁".
-- [ ] **No Brazil**, both stores (decided 2026-11-20, `meditation-pal-p6ml.3`):
-      Play Console → the release's countries, and App Store Connect → Pricing
-      and Availability. Brazil's ECA Digital presumes a conversational AI is
-      covered and asks for a local legal representative, among other things.
-      Revisit if aloud gains Portuguese.
+- [ ] **Countries**, both stores (decided 2026-11-20): everywhere the store
+      offers except Brazil, Russia, Belarus, Hong Kong and Macau. Play
+      Console → the track's countries, and App Store Connect → Pricing and
+      Availability. The web app stays reachable everywhere; nothing is
+      blocked by IP.
+      - Brazil (`meditation-pal-p6ml.3`): the ECA Digital presumes a
+        conversational AI is covered and asks for a local legal
+        representative, among other things. Revisit if aloud gains
+        Portuguese.
+      - Russia and Belarus: no Play billing, a data-localization law in
+        Russia, and believed absent from Anthropic's and OpenAI's supported
+        regions (not confirmed).
+      - Hong Kong and Macau: absent from Anthropic's supported regions by a
+        secondary source; OpenAI says offering access outside its list can
+        get an account suspended. A contract risk to the accounts aloud
+        cloud runs on, not a legal one. Revisit when a vendor adds them.
+      - Not yet decided: mainland China on the App Store (Play is not
+        there). Apple asks for an ICP filing, and the same vendor lists
+        leave it out.
+- [ ] **Tax on web credit sales** (`meditation-pal-ga25`): none is collected
+      today. Decide before production; the plan so far is store-billed packs
+      on the phones and Stripe Managed Payments on the web.
 - [ ] **Declared Age Range**, before 2027-01-01: enable the capability in
       Xcode (App target → Signing & Capabilities), which writes
       `com.apple.developer.declared-age-range` into `App.entitlements` and
