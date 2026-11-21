@@ -6312,11 +6312,18 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         margin-top: 0;
     }
     /* Session input controls (ember flames / Voice) - chunkier so
-       they're tappable, and allowed to wrap so they don't crash into
-       each other on the narrowest widths. */
+       they're tappable. One line at any width: the flames and +/- keep
+       their size and the voice label gives way (ellipsis), so a fifth
+       flame or a long label never pushes a control onto a second row. */
     .input-controls {
-        flex-wrap: wrap;
-        gap: 0.5rem 1rem;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+    }
+    .ember-level {
+        flex: none;
+    }
+    .voice-control {
+        min-width: 0;
     }
     .toggle-label input {
         width: 20px;
@@ -6337,6 +6344,16 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .ember-level {
         gap: 0.3rem;
+    }
+    /* The egg's fifth flame, on the narrowest screens: a touch smaller and
+       closer, so "Harper · fixed speed" still fits whole at 320px. */
+    @media (max-width: 340px) {
+        .ember-level:has(.ember-block[data-level="5"]) {
+            gap: 0.15rem;
+        }
+        .ember-level:has(.ember-block[data-level="5"]) .ember-block {
+            --ember-size: 18px;
+        }
     }
 
     /* Bigger range thumb so the directiveness slider (and any other
