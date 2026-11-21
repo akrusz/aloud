@@ -19,69 +19,10 @@ per-device STT/TTS quality matrix.
 
 ## This release (everything after v2.20.1)
 
-What is left to hear or see before Android goes to open beta. The desktop and
-Chrome pass and most of the phone pass are done, and what they found is in
-Beads. The iPhone checks and the 中文 pass wait until after this release.
-Delete this section once it ships.
-
-**Deploy the server from `main`** first: Harper's lead check changed
-(`meditation-pal-6ixc`). Whole replies have been live since the deploy of
-2026-11-19.
-
-On the Android phone, a build from `main` against production, on aloud cloud
-speech, with dev mode on and the phone on USB so the diag lines and
-`dumpsys audio` can be read afterwards (the playback log rolls within a few
-minutes of a run):
-
-- [ ] **The store age check stays out of the way** (`meditation-pal-p6ml.9`).
-      The app opens as before, with no pause at launch after the first one.
-      With dev mode on, a build that Play did not install logs
-      `[age-check] unavailable APP_NOT_OWNED (-9)`: the plugin ran and failed
-      open.
-- [ ] **Harper's level.** In a session she is as loud as her tour lines and
-      sits sensibly against the opening sound.
-- [ ] **Sounds** (`meditation-pal-grfo`). The close holds one level to its
-      end: the setup screen's mic used to open under it. The first line of a
-      session is as crisp as the later ones (it was likely playing at 8 kHz).
-      If the opening seems to fade two seconds in, compare it with its
-      preview in Settings: the file itself drops there.
-- [ ] **Whole replies**, Harper and then Ethan (`meditation-pal-6ixc`). A
-      reply of several sentences starts about as soon as it used to and the
-      pauses between its sentences sound natural. Talk over one partway
-      through: it stops, and the transcript keeps the sentences that were
-      heard and no more.
-- [ ] **"Yes"** (`meditation-pal-cs6y`). Say "end the session", then a quick,
-      soft "yes" right as the question finishes: the close starts about two
-      seconds later. Again with "yes", a breath, "no, not yet": the session
-      goes on. With "no" the answer comes sooner, and "hmm... yes" still
-      waits the full pause.
-- [ ] **Preview bubbles**, on Parakeet. A few remarks of under 18 words: each
-      goes from preview to final without leaving the screen.
-- [ ] **Volume banner.** "The volume is very low." shows only when the volume
-      was at the bottom of the Call slider before Begin, about a second after
-      the mic opens, and never on a mute or later in the session.
-- [ ] **The tour, read aloud**, setup mic lit. Walk all of it by voice. The
-      first line plays without a break, a moment after the mic opens. Once
-      more starting with the mic off and turning it on at the tour's mic
-      card: "Hi, I'm Harper." is heard whole, about two seconds after. A
-      name heard a little wrong ("Happy") still picks the voice. The
-      noting line starts promptly and whole and "back" works from it. The
-      first word of every card is heard on first play (felt sense, and the
-      methods line after picking a voice, lost theirs). "Next" and "back"
-      said over a line at an ordinary level, a quiet one too, cut it about a
-      second and a half later, "back" a few seconds into the focus line
-      included, though not over the first card's lines. A cough over a line
-      does nothing. The three methods cards show their ? text under the tabs;
-      no other ? panel opens. A quick "got it" on the last card is taken
-      the first time. Afterwards tap the Noting tab: the mic keeps working.
-- [ ] **The tour, silent** (voice mode off, or the card's speaker off). Each
-      section card shows its ? text. Only where that pushes the section's
-      text or checkboxes under the tour card does an arrow sit above the
-      card, pointing down (expected on focus and vibe; note which cards show
-      one). It goes once the page has been scrolled a few lines. A tap on it
-      jumps straight to the section's checkboxes, their top just under the
-      word mark and orb. Nothing scrolls by itself and Next stays where it
-      is.
+What is left to hear and see before Android goes to open beta is section 1 of
+[store-submission-checklist.md](store-submission-checklist.md), with the
+console and release steps around it. The iPhone checks and the 中文 pass wait
+until after this release. Delete this section once it ships.
 
 ---
 

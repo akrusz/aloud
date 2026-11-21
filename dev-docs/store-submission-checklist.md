@@ -28,89 +28,126 @@ the App Store. The how-to lives in [mobile.md](mobile.md) (native projects),
 
 ## 1. Before the Android open beta
 
-In order. A step marked (Claude) is one to ask for; the rest are Alex's.
-Delete this section once the open test is live.
+Everything left, in order, written to be followed without the session that
+made it. A step marked (Claude) is one to ask any Claude session for; the
+rest are Alex's. Delete this section once the open test is live.
 
-**A. Now, no build needed**
+Where things stand (2026-11-20, evening): the server is deployed with
+Harper's lead check; the tour has been run on the phone, read aloud and
+silent, and called ready; a debug build of `main` is on the phone. Nothing
+below needs a server deploy again unless `ts/server/` changes.
 
-- [ ] **Push `main`, then run "Deploy server (Fly)"** on GitHub (it deploys
-      GitHub's `main`, so the push comes first). Carries Harper's lead check.
-- [ ] **Play Console, content and listing** (`meditation-pal-p6ml.1`):
-      the content rating questionnaire answered so it lands at Teen; "Restrict
-      Minor Access" left off; Brazil unticked in the countries; the full
-      description pasted again from
-      [store-descriptions.md](store-descriptions.md) (modes in the order
-      Exploration, Felt Sense, Noting, and the new last paragraph saying the
-      facilitator is an AI).
+**A. Play Console, no build needed** (`meditation-pal-p6ml.1`)
 
-**B. Desktop, before the phone**
+- [ ] **Content rating**: answer the questionnaire so it lands at Teen.
+      Leave "Restrict Minor Access" off (it hides the app from every known
+      minor). The age signals page stays on its default ranges.
+- [ ] **Countries**: untick Brazil.
+- [ ] **Description**: paste the full description again from
+      [store-descriptions.md](store-descriptions.md). Two things changed:
+      the modes are in the order Exploration, Felt Sense, Noting, and there
+      is a new last paragraph ("The facilitator is an AI, not a person...").
+- [ ] Data safety needs no change: the age check collects nothing.
 
-- [ ] **The tour read aloud, once more**, in `npm run tauri:dev` on MacBook
-      speakers with aloud cloud speech recognition. "Next" and "back" over
-      several lines at an ordinary level, one of them quiet; "back" a few
-      seconds into the focus line; a cough over a line does nothing; the
-      first line plays without a break. Then tell Claude, which reads
-      `.probe-data/dev-diag/`.
-- [ ] (Claude) The agreed simplifications with no change in behaviour, after
-      that tour so a regression has one cause. One more quick tour after them.
+**B. One real session on the phone** (the debug build already on it)
 
-**C. The phone pass**
+Optional, for a log Claude can read afterwards: plug the phone into the Mac
+first and ask a Claude session to "start the phone capture" (the steps are
+"Reading a test pass afterwards" in [mobile.md](mobile.md)); leave it on USB
+for two minutes after the session. Dev mode on in the app; aloud cloud speech.
 
-- [ ] **Plug the phone in and say so.** (Claude) installs a build from `main`
-      and starts the clip receiver and the timing log.
-- [ ] **"This release" in [manual-smoke.md](manual-smoke.md)**: what is left
-      to hear and see, the store age check's first run among it
-      (`meditation-pal-p6ml.9`).
+- [ ] **It opens as before**, with no age screen and no pause at launch
+      (`meditation-pal-p6ml.9`; a build Play did not install logs
+      `[age-check] unavailable APP_NOT_OWNED (-9)`, which is the check
+      failing open).
+- [ ] **Harper's level**: in the session she is as loud as her tour lines.
+- [ ] **Whole replies**, Harper and then Ethan (`meditation-pal-6ixc`): a
+      reply of several sentences starts about as soon as it used to and the
+      pauses between its sentences sound natural. Talk over one partway
+      through: it stops, and the transcript keeps the sentences that were
+      heard and no more.
+- [ ] **"Yes"** (`meditation-pal-cs6y`): say "end the session", then a quick,
+      soft "yes" right as the question finishes: the close starts about two
+      seconds later. Again with "yes", a breath, "no, not yet": the session
+      goes on. With "no" the answer comes sooner, and "hmm... yes" still
+      waits the full pause.
+- [ ] **Preview bubbles**, on Parakeet: a few remarks of under 18 words each
+      go from preview to final without leaving the screen.
+- [ ] **Volume banner**: "The volume is very low." shows only when the volume
+      was at the bottom of the Call slider before Begin, about a second after
+      the mic opens, and never on a mute or later in the session.
+- [ ] **Two tour leftovers**, a minute each. With the mic off, start the tour
+      and turn the mic on at its mic card: "Hi, I'm Harper." is heard whole,
+      about two seconds after. In a silent tour, tap the arrow on the focus
+      card: the checkboxes land with their foot just above the tour bar.
 - [ ] **Look once at what has not been seen**: the About panel's AI note and
       the welcome card's line; the mic's grey breathing look; the noting
       tab's "Introduction voice" and two-line sound label.
-- [ ] **Decide from what was heard**: native playback for the sounds if the
-      close still wavers (`meditation-pal-grfo`); a short hold before the
-      tour's first line on Android if it is cut; stopping a tour line on any
-      clear speech if commands over it are still unreliable.
 
-**D. The release**
+Known and parked until after the release, so not a failure here: the opening
+and closing sounds drop in level partway and sound thinner than the promo
+video (`meditation-pal-grfo`); on Parakeet "Harper" and "back" said over a
+line are sometimes misheard (a tap always works; GPT, the default, gets the
+names as hints).
 
-- [ ] (Claude) **The pre-release check**
+**C. The release**
+
+- [ ] **Push**: `git push` from `main`. Do not push `pending/open-beta-site`
+      (step E).
+- [ ] (Claude) **"Run the pre-release check"**
       ([pre-release-checklist.md](pre-release-checklist.md)). The last one
-      covered up to 2026-11-18.
-- [ ] **`scripts/release.sh`**, answering Android at the stores prompt:
-      publishes the release (server, then web) and builds the `.aab`.
+      covered up to 2026-11-18. Fix or accept what it reports, push again.
+- [ ] **`scripts/release.sh`** (patch by default, `scripts/release.sh minor`
+      for a minor). It publishes the release, which deploys the server and
+      then the web app. At "Mobile builds" answer `p` for Play only. The
+      bundle lands at
+      `ts/android/app/build/outputs/bundle/release/app-release.aab`.
 - [ ] **Screenshots**, since the setup screen changed:
-      `node scripts/site-screenshots.mjs` for the site and
-      `node scripts/store-screenshots.mjs` for the listing
-      (`<device>/cap-*.png`).
-- [ ] **Upload the `.aab` to Internal testing** (no review), uninstall the
-      dev build from the phone (same `applicationId`, different key) and
-      install from Play.
+      `node scripts/site-screenshots.mjs` for the site (commit and push
+      them) and `node scripts/store-screenshots.mjs` for the listing
+      (`<device>/cap-*.png`, uploaded in step D).
+- [ ] **Internal testing first** (no review): Play Console → Testing →
+      Internal testing → Create new release → upload the `.aab`. On the
+      phone, uninstall the debug build (same `applicationId`, different key)
+      and install from Play.
 - [ ] **Smoke the Play-installed build**: sign in with Google and see the
-      beta bonus land (if not, the server logs `beta bonus check`); one
-      Exploration session end to end; signed-out noting on the default circle
-      with no sign-in modal (the App access text claims it); no buy button
-      anywhere (Account shows "at aloud.rest/account" as plain text); the app
-      opens with no age screen.
+      beta bonus land (if not, the server logs `beta bonus check`, and
+      `eligible: false` means the listed client id isn't the one the build
+      presents); one Exploration session end to end; signed-out noting on the
+      default circle with no sign-in modal (the App access text claims it);
+      no buy button anywhere (Account shows "at aloud.rest/account" as plain
+      text); the app opens with no age screen.
 
-**E. Open testing, in Play Console**
+**D. Open testing, in Play Console**
 
-- [ ] **Testing → Open testing → Create release**, promoting the bundle just
-      smoked. Release notes, countries without Brazil, the feedback email,
-      and a tester cap if wanted. Upload the new screenshots. Send for
-      review.
+- [ ] **Testing → Open testing → Create new release → Add from library**:
+      the bundle just smoked. Release notes ("What's new"), countries without
+      Brazil, the feedback email, a tester cap if wanted.
+- [ ] **Upload the new screenshots** to the listing.
 - [ ] **EU trader status**, if the console asks for it here: **trader**, same
       contact details as Apple's (section 2). Where Play keeps it has not
       been looked up.
-- [ ] The closed track can stay as it is: a tester on both gets whichever
-      track holds the highest versionCode.
+- [ ] **Send for review.** The closed track can stay as it is: a tester on
+      both gets whichever track holds the highest versionCode. The beta
+      bonus stays on.
 
-**F. When Play approves**
+**E. When Play approves**
 
-- [ ] **Publish the site copy**: `git cherry-pick pending/open-beta-site`
-      (the hero line and the mobile beta page's Android section, Alex's
-      wording), then push. A push to `docs/` is live at once, which is why it
-      waits on a branch.
+- [ ] **Publish the site copy**: `git cherry-pick pending/open-beta-site`,
+      then `git push`. It holds the hero line and the mobile beta page's
+      Android section in Alex's wording, and waits on a local branch because
+      a push to `docs/` is live at once.
 - [ ] Tell the closed testers and post it.
-- [ ] (Claude) Delete "This release" from manual-smoke.md, this section, and
-      the open-beta reminders in `CLAUDE.md`; close `meditation-pal-k8gf`.
+
+**F. Afterwards** (Claude, on request)
+
+- [ ] Delete this section and the open-beta reminders in `CLAUDE.md`; close
+      `meditation-pal-k8gf`; delete branch `pending/open-beta-site`.
+- [ ] The agreed simplifications in the setup voice code
+      (`meditation-pal-abp8`).
+- [ ] The sounds' level on Android (`meditation-pal-grfo`, with a lead to
+      try first), the iPhone checks, the 中文 pass and per-language voice
+      picks (`meditation-pal-fz1k`).
 
 **Nice to have on the Play build**, none of it blocking:
 
