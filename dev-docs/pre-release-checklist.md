@@ -70,7 +70,9 @@ check each of these still reflects reality:
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must
   match current branding and claims. The Play Store video's script lives in
   `assets/promo/play-video/script.md` (its lines are app voice and features on
-  screen, so a renamed mode or changed flow means a script edit as well). The video is
+  screen, so a renamed mode or changed flow means a script edit as well). The
+  voices video has its own, `assets/promo/voice-video/script.md`, which names
+  Harper and Ethan and quotes the picker's per-hour costs. The video is
   **built** from that script and films the real UI at phone size
   (`assets/promo/play-video/tools/`, steps in `assets/promo/README.md` →
   "Building the video"), so a script edit, a reworded opener it quotes, or a
@@ -256,6 +258,15 @@ check each of these still reflects reality:
   privacy policy's "Voice commands and background functionality" says exactly what the check
   is shown, separately for aloud cloud and for opt-in / own-key sessions, and
   so does the in-app consent line (`VOICE_COMMANDS_CONSENT`).
+- **Changed which store age tiers block, or what the age range is used for**
+  (`tierFromReading`, `isBlockingTier` in `ui/src/age-tier.ts`) → the privacy
+  policy's "Children" paragraph, the block screen's copy (`views/age-block.ts`)
+  and its zh, `age-tier.md`, the terms' age paragraph, and the consoles'
+  rating and target audience.
+- **Added a stored pick, a setup field or a one-time flag** → its area in
+  `ui/src/settings-reset.ts`, or the list of what a reset keeps, and
+  `tests/settings-reset.test.ts`, which checks named keys only, so a new flag
+  slips past it.
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
   model's rates, a new metered leg) → the ☁ badges and the setup footer's
   session pill, the "what are ☁?" explainer (`ui/src/clouds-explainer.ts`),

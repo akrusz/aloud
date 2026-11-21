@@ -32,90 +32,30 @@ Everything left, in order, written to be followed without the session that
 made it. A step marked (Claude) is one to ask any Claude session for; the
 rest are Alex's. Delete this section once the open test is live.
 
-Where things stand (2026-11-20, evening): the server is deployed with
-Harper's lead check; the tour has been run on the phone, read aloud and
-silent, and called ready; a debug build of `main` is on the phone. Nothing
-below needs a server deploy again unless `ts/server/` changes.
+Where things stand (2026-11-21): the Play Console steps that need no build
+are done (content rating, target audience 13 and up, countries, the
+description; `meditation-pal-p6ml.1`), and Data safety needed no change. The
+server is deployed with Harper's lead check, so nothing below needs a server
+deploy again unless `ts/server/` changes. The tour has been run on the phone
+and called ready. Alex called the rest of the phone pass fine or not worth
+holding the release for; what is left of it is under "Nice to have".
 
-**A. Play Console, no build needed** (`meditation-pal-p6ml.1`)
-
-- [x] **Content rating**: answered 2026-11-20. Truthful answers give
-      Everyone / PEGI 3 / 3+ (Brazil 14), not Teen: the rating is computed,
-      not picked, and it stays as it came out.
-- [x] **Target audience and content** (same App content page): 13-15,
-      16-17 and 18+ ticked, the under-13 groups off. This, not the rating,
-      is what tells Play who the app is for. Leave "Restrict Minor Access"
-      off (it hides the app from every known minor). The age signals page
-      stays on its default ranges.
-- [x] **Countries**: every country except Brazil, Russia, Belarus, Hong
-      Kong and Macau (why: "Countries" in section 2).
-- [x] **Description**: paste the full description again from
-      [store-descriptions.md](store-descriptions.md). Two things changed:
-      the modes are in the order Exploration, Felt Sense, Noting, and there
-      is a new last paragraph ("The facilitator is an AI, not a person...").
-- [x] Data safety needs no change: the age check collects nothing.
-
-**B. One real session on the phone** (install a fresh debug build first:
-`npm --prefix ts run cap:android:run`; the one on the phone predates
-2026-11-21)
-
-- [ ] **New on 2026-11-21, none of it run on a phone**: Settings → Advanced →
-      "Reset model and voice picks" (uncommitted until its copy is approved),
-      then the speech picker shows Parakeet; "Take the full tour" logs
-      `[stt-time] final gpt-transcribe` and "Harper", "next" and "back" over a
-      line land; after the tour a setup request logs
-      `moondream/parakeet-ultra`, with no mic re-open at either end; one
-      session on Parakeet; the embers row on one line with the fifth flame;
-      the About panel's shorter AI note.
-
-Optional, for a log Claude can read afterwards: plug the phone into the Mac
-first and ask a Claude session to "start the phone capture" (the steps are
-"Reading a test pass afterwards" in [mobile.md](mobile.md)); leave it on USB
-for two minutes after the session. Dev mode on in the app; aloud cloud speech.
-
-- [ ] **It opens as before**, with no age screen and no pause at launch
-      (`meditation-pal-p6ml.9`; a build Play did not install logs
-      `[age-check] unavailable APP_NOT_OWNED (-9)`, which is the check
-      failing open).
-- [ ] **Harper's level**: in the session she is as loud as her tour lines.
-- [ ] **Whole replies**, Harper and then Ethan (`meditation-pal-6ixc`): a
-      reply of several sentences starts about as soon as it used to and the
-      pauses between its sentences sound natural. Talk over one partway
-      through: it stops, and the transcript keeps the sentences that were
-      heard and no more.
-- [ ] **"Yes"** (`meditation-pal-cs6y`): say "end the session", then a quick,
-      soft "yes" right as the question finishes: the close starts about two
-      seconds later. Again with "yes", a breath, "no, not yet": the session
-      goes on. With "no" the answer comes sooner, and "hmm... yes" still
-      waits the full pause.
-- [ ] **Preview bubbles**, on Parakeet: a few remarks of under 18 words each
-      go from preview to final without leaving the screen.
-- [ ] **Volume banner**: "The volume is very low." shows only when the volume
-      was at the bottom of the Call slider before Begin, about a second after
-      the mic opens, and never on a mute or later in the session.
-- [ ] **Two tour leftovers**, a minute each. With the mic off, start the tour
-      and turn the mic on at its mic card: "Hi, I'm Harper." is heard whole,
-      about two seconds after. In a silent tour, tap the arrow on the focus
-      card: the checkboxes land with their foot just above the tour bar.
-- [ ] **Look once at what has not been seen**: the About panel's AI note and
-      the welcome card's line; the mic's grey breathing look; the noting
-      tab's "Introduction voice" and two-line sound label.
-
-Known and parked until after the release, so not a failure here: the opening
-and closing sounds drop in level partway and sound thinner than the promo
-video (`meditation-pal-grfo`; measured 2026-11-20: the app and Android send
-the same signal every time); with Parakeet PICKED, "Harper" and "back" said
-over a tour line are sometimes misheard (a tap always works). Someone who
+Known and parked until after the release, so not a failure in the smoke: the
+opening and closing sounds drop in level partway and sound thinner than the
+promo video (`meditation-pal-grfo`); with Parakeet PICKED, "Harper" and "back"
+said over a tour line are sometimes misheard (a tap always works). Someone who
 never picked hears the tour on GPT, which gets the names as hints
 (`setupHostedChoice`).
 
-**C. The release**
+**A. The release**
 
 - [ ] **Push**: `git push` from `main`. Do not push `pending/open-beta-site`
-      (step E).
+      (step C).
 - [ ] (Claude) **"Run the pre-release check"**
-      ([pre-release-checklist.md](pre-release-checklist.md)). The last one
-      covered up to 2026-11-18. Fix or accept what it reports, push again.
+      ([pre-release-checklist.md](pre-release-checklist.md)) only if more
+      than notes has been committed since 2026-11-21, when the last one ran
+      and found nothing blocking. Still Alex's from it: the privacy page's
+      "Children" paragraph, before the Android build goes out.
 - [ ] **`scripts/release.sh`** (patch by default, `scripts/release.sh minor`
       for a minor). It publishes the release, which deploys the server and
       then the web app. At "Mobile builds" answer `p` for Play only. The
@@ -125,7 +65,7 @@ never picked hears the tour on GPT, which gets the names as hints
       `node scripts/site-screenshots.mjs` for the site (commit and push
       them). The listing's were shot from `main` on 2026-11-20
       (`node scripts/store-screenshots.mjs`, the four `<device>/cap-*.png`,
-      uploaded in step D by hand: nothing here uploads to a store); run it
+      uploaded in step B by hand: nothing here uploads to a store); run it
       again only if the setup, session or noting screen changes before the
       release.
 - [ ] **Internal testing first** (no review): Play Console → Testing →
@@ -138,9 +78,11 @@ never picked hears the tour on GPT, which gets the names as hints
       presents); one Exploration session end to end; signed-out noting on the
       default circle with no sign-in modal (the App access text claims it);
       no buy button anywhere (Account shows "at aloud.rest/account" as plain
-      text); the app opens with no age screen.
+      text); the app opens with no age screen; change the voice and one
+      setting, close the app and open it again, and both are as left (stored
+      settings changed shape on 2026-11-21 and have never run on a phone).
 
-**D. Open testing, in Play Console**
+**B. Open testing, in Play Console**
 
 - [ ] **Testing → Open testing → Create new release → Add from library**:
       the bundle just smoked. Release notes ("What's new"), the feedback
@@ -155,7 +97,7 @@ never picked hears the tour on GPT, which gets the names as hints
       both gets whichever track holds the highest versionCode. The beta
       bonus stays on.
 
-**E. When Play approves**
+**C. When Play approves**
 
 - [ ] **Publish the site copy**: `git cherry-pick pending/open-beta-site`,
       then `git push`. It holds the hero line and the mobile beta page's
@@ -163,10 +105,13 @@ never picked hears the tour on GPT, which gets the names as hints
       a push to `docs/` is live at once.
 - [ ] Tell the closed testers and post it.
 
-**F. Afterwards** (Claude, on request)
+**D. Afterwards** (Claude, on request)
 
 - [ ] Delete this section and the open-beta reminders in `CLAUDE.md`; close
-      `meditation-pal-k8gf`; delete branch `pending/open-beta-site`.
+      `meditation-pal-k8gf`; delete branch `pending/open-beta-site`. Two quotes
+      in [pre-release-checklist.md](pre-release-checklist.md) Part A then
+      name the closed beta ("iOS and Android are in closed beta", "how to
+      join the Play closed test"): reword them to what the site says.
 - [ ] The agreed simplifications in the setup voice code
       (`meditation-pal-abp8`).
 - [ ] The sounds' level on Android (`meditation-pal-grfo`, with a lead to
@@ -175,6 +120,11 @@ never picked hears the tour on GPT, which gets the names as hints
 
 **Nice to have on the Play build**, none of it blocking:
 
+- [ ] **"Yes"** (`meditation-pal-cs6y`), the next time a session is run
+      anyway: say "end the session", then a quick, soft "yes" right as the
+      question finishes: the close starts about two seconds later. Again with
+      "yes", a breath, "no, not yet": the session goes on. With "no" the
+      answer comes sooner, and "hmm... yes" still waits the full pause.
 - [ ] **Bluetooth (`4xkx`)**: headphones on, aloud cloud speech recognition,
       lock ~30s, unlock: the reply is still in the headphones. Then
       headphones off and on mid-session: the voice moves to the speaker and

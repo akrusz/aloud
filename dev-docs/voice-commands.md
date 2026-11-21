@@ -877,7 +877,9 @@ voices and would move them off it.
   for the rest of the tour (Android, 2026-11-19).
 - **On GPT where nothing is picked.** The tour runs on names and commands,
   which Parakeet, taking no hints, mishears ("Harper", "back"), and GPT gets
-  the setup vocabulary. So with no speech recognition pick stored (in the
+  the setup vocabulary. (In English that vocabulary does not yet carry the
+  voice names or the tour's commands, and GPT on the tour is unmeasured:
+  `meditation-pal-bpgu`.) So with no speech recognition pick stored (in the
   setting of the tab the tour started on, `tourPickKey`) and a hosted default,
   the tour is heard on GPT and the default again once it ends, however it
   ends (`setupHostedChoice` in `adapters/stt-picker.ts`). The model is named
