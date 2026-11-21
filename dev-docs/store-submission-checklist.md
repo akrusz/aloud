@@ -39,9 +39,14 @@ below needs a server deploy again unless `ts/server/` changes.
 
 **A. Play Console, no build needed** (`meditation-pal-p6ml.1`)
 
-- [ ] **Content rating**: answer the questionnaire so it lands at Teen.
-      Leave "Restrict Minor Access" off (it hides the app from every known
-      minor). The age signals page stays on its default ranges.
+- [x] **Content rating**: answered 2026-11-20. Truthful answers give
+      Everyone / PEGI 3 / 3+ (Brazil 14), not Teen: the rating is computed,
+      not picked, and it stays as it came out.
+- [ ] **Target audience and content** (same App content page): 13-15,
+      16-17 and 18+ ticked, the under-13 groups off. This, not the rating,
+      is what tells Play who the app is for. Leave "Restrict Minor Access"
+      off (it hides the app from every known minor). The age signals page
+      stays on its default ranges.
 - [ ] **Countries**: every country except Brazil, Russia, Belarus, Hong
       Kong and Macau (why: "Countries" in section 2).
 - [ ] **Description**: paste the full description again from
