@@ -4,14 +4,14 @@
  * Prompt caching: the breakpoint on the LAST message caches the whole
  * system+conversation prefix, so each later turn reads the transcript at ~0.1x
  * instead of re-billing it as fresh input - the dominant cost on this
- * input-heavy (~45:1) workload. Long sessions add a second, 1h-TTL "anchor"
- * breakpoint (ANCHOR_STEP) so a >5min [HOLD] silence doesn't drop the prefix.
+ * input-heavy (~45:1) workload. The entry lives five minutes from the start of
+ * the request that last wrote or read it; a quiet stretch longer than that is
+ * bridged by keepAlive (keep-alive.ts), not by a 1h breakpoint: reading a 5m
+ * entry restarts its 5 minutes even from a request that marks the block 1h, so
+ * a 1h breakpoint behind the tail is never written while the cache is warm.
  *
- * The system prompt gets NO breakpoint of its own: it is already covered by the
- * message-prefix caches, and a 5m system block is processed before the messages
- * (order: tools, system, messages), so it would precede the 1h anchor, which
- * Anthropic 400s ("a 1h cache_control block must not come after a 5m block").
- * It only shows once a session is long enough for the anchor (~msg 16).
+ * The system prompt gets no breakpoint of its own: the tail's entry already
+ * covers it, and every request in a sit carries the same one.
  *
  * The cache only pays if each request starts byte-identically with the last, so
  * the conversation is rendered 1:1 from the session log: no merging, no stubs,
@@ -138,27 +138,8 @@ function isFallbackRejection(detail: string): boolean {
     return /fallback/i.test(detail);
 }
 
-/**
- * Two ephemeral cache TTLs, both used: 5m (write 1.25x input) on the rolling
- * tail, refreshed by each turn's read; 1h (write 2x) on the slowly-advancing
- * anchor (ANCHOR_STEP), which survives a >5min [HOLD] silence.
- *
- * The 1h write is priced at 2x in the server table (providers.ts
- * cacheCreation1h) off Anthropic's ephemeral_1h_input_tokens; keep them in
- * lockstep.
- */
+/** The default 5-minute TTL, on the rolling tail. */
 const CACHE_5M = { type: 'ephemeral' } as const;
-const CACHE_1H = { type: 'ephemeral', ttl: '1h' } as const;
-
-/**
- * The 1h anchor advances every ANCHOR_STEP messages, holding a fixed re-readable
- * position in between. Bounded by Anthropic's 20-content-block cache-lookback
- * window: one block per message, so the anchor-to-tail gap (= ANCHOR_STEP) must
- * be < 20 to stay reachable and survive a hold. 16 (8 exchanges) leaves margin;
- * beyond ~10 exchanges the anchor falls out of the window and a mid-stretch hold
- * loses the prefix anyway.
- */
-const ANCHOR_STEP = 16;
 
 export interface AnthropicProviderOptions {
     apiKey: string;
@@ -196,8 +177,9 @@ interface AnthropicUsage {
     output_tokens?: number;
     cache_read_input_tokens?: number;
     cache_creation_input_tokens?: number;
-    /** Per-TTL breakdown, present when a 1h breakpoint is used. The flat field
-     *  above stays the total (5m + 1h). */
+    /** Per-TTL breakdown. The flat field above stays the total (5m + 1h);
+     *  nothing here writes at 1h any more, but the split is still billed when
+     *  it is reported. */
     cache_creation?: {
         ephemeral_5m_input_tokens?: number;
         ephemeral_1h_input_tokens?: number;
@@ -270,30 +252,14 @@ export class AnthropicProvider implements LLMProvider {
             supportsMidConversationSystem(this.model) &&
             messages.some((m, i) => i > 0 && m.role === 'system');
         const convo = renderConversation(messages, systemRole);
-        const lastIndex = convo.length - 1;
-        // The 1h anchor: largest ANCHOR_STEP boundary strictly behind the tail.
-        // Stable for a stretch of ANCHOR_STEP messages (re-read each turn,
-        // refreshing its TTL), then jumps forward, so a long session pays one
-        // cheap 1h write per stretch and never leaves the 20-block lookback
-        // window. -1 skips it until the convo needs hold-protection and clears
-        // the cacheable minimum.
-        const anchorBoundary = Math.floor((lastIndex - 1) / ANCHOR_STEP) * ANCHOR_STEP;
-        const anchorIndex = cacheableAtOrBefore(
-            convo,
-            anchorBoundary >= ANCHOR_STEP ? anchorBoundary : -1
+        const tailIndex = cacheableAtOrBefore(convo, convo.length - 1);
+
+        const anthropicMessages = convo.map((m, i) =>
+            i === tailIndex
+                ? { role: m.role, content: [{ type: 'text', text: m.content, cache_control: CACHE_5M }] }
+                : { role: m.role, content: m.content }
         );
-        const tailIndex = cacheableAtOrBefore(convo, lastIndex);
 
-        // Tail → 5m rolling breakpoint, anchor → 1h, rest plain.
-        const anthropicMessages = convo.map((m, i) => {
-            const ttl = i === tailIndex ? CACHE_5M : i === anchorIndex ? CACHE_1H : null;
-            return ttl
-                ? { role: m.role, content: [{ type: 'text', text: m.content, cache_control: ttl }] }
-                : { role: m.role, content: m.content };
-        });
-
-        // No cache_control here on purpose: a 5m block would precede the 1h
-        // anchor and 400 (see the file header).
         const systemParam = options.system
             ? [{ type: 'text', text: options.system }]
             : undefined;
@@ -438,6 +404,33 @@ export class AnthropicProvider implements LLMProvider {
             done: true,
             finishReason: stopReason,
             ...usageToResult(usage, stopDetails, servedModel),
+        };
+    }
+
+    /**
+     * Read the cache entry the request for `messages` left at its tail, so it
+     * lives another five minutes. The request is the one `complete()` builds
+     * for the same messages and options, at max_tokens 0 and not streamed:
+     * nothing is generated and only the read is billed. Thinking and effort
+     * stay as the real call sends them, since both render into the cached
+     * prompt.
+     *
+     * One fetch and none of send()'s retries: a 400 here must not flip the
+     * flags the real turns are built with, or the next turn would miss the
+     * entry this exists to keep. Any failure throws.
+     */
+    async keepAlive(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
+        const req = this.buildRequest(messages, { ...options, maxTokens: 0 }, false, !this.tuningRejected);
+        const response = await this.fetchImpl(req.url, req.init);
+        if (!response.ok) {
+            const detail = await response.text().catch(() => '');
+            throw new Error(`Anthropic API error ${response.status}: ${detail}`);
+        }
+        const data = (await response.json()) as AnthropicMessagesResponse;
+        return {
+            text: '',
+            finishReason: data.stop_reason ?? null,
+            ...usageToResult(data.usage, data.stop_details, data.model),
         };
     }
 }

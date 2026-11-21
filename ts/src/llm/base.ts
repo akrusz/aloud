@@ -127,6 +127,15 @@ export interface LLMProvider {
         messages: Message[],
         options?: CompletionOptions
     ): AsyncIterable<StreamChunk>;
+    /**
+     * Optional. Re-read the prompt-cache entry that a request for `messages`
+     * and `options` left at its tail, generating nothing, so the entry
+     * outlives a quiet stretch (CacheKeepAlive, keep-alive.ts). Pass what the
+     * last facilitation request sent, without the reply it got back. Only a
+     * provider whose cache a read keeps alive implements it. Throws on any
+     * failure.
+     */
+    keepAlive?(messages: Message[], options?: CompletionOptions): Promise<CompletionResult>;
 }
 
 /**

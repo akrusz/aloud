@@ -7,7 +7,10 @@
  * ui/src/views/session.ts wires them - same call order, same guards, same
  * counters - minus DOM, audio, and streaming. When the view's orchestration
  * changes, this file is the place that has to follow; the offline vitest
- * coverage (tests/soak.test.ts) pins the flows that matter.
+ * coverage (tests/soak.test.ts) pins the flows that matter. The one thing left
+ * out on purpose is the prompt-cache keep-alive (core keep-alive.ts): the
+ * fake clock outruns the cache's wall-clock lifetime, so pings here would only
+ * add cost.
  *
  * Time: the fake clock advances in POLL_STEP_SEC steps between user turns,
  * checking the timer and the check-in gate at each step exactly like the

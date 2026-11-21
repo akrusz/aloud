@@ -236,9 +236,8 @@ describe('AnthropicProvider', () => {
 
         const body = JSON.parse((init as RequestInit).body as string);
         expect(body.model).toBe('claude-test');
-        // System carries NO cache_control of its own — a 5m block here would
-        // precede the 1h anchor and Anthropic 400s. It's cached via the message
-        // breakpoint below instead.
+        // System carries NO cache_control of its own: the message breakpoint
+        // below already caches it, as part of the whole prefix.
         expect(body.system).toEqual([{ type: 'text', text: 'be warm' }]);
         // System messages are filtered out; the last message carries the cache
         // breakpoint (its content becomes a block array) so the whole prefix
@@ -280,7 +279,7 @@ describe('AnthropicProvider', () => {
         ]);
     });
 
-    it('adds a 1h-TTL anchor breakpoint every 16 messages in a long conversation', async () => {
+    it('keeps one 5m breakpoint, on the tail, however long the conversation', async () => {
         const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
             mockJsonResponse({
                 content: [{ type: 'text', text: 'ok' }],
@@ -293,30 +292,20 @@ describe('AnthropicProvider', () => {
             fetchImpl: fetchImpl as unknown as typeof fetch,
         });
 
-        // 18 messages (indices 0..17). Anchor boundary = floor((17-1)/16)*16 = 16.
-        const convo = Array.from({ length: 18 }, (_v, i) => ({
+        const convo = Array.from({ length: 41 }, (_v, i) => ({
             role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
             content: `m${i}`,
         }));
         await provider.complete(convo, { system: 'be warm' });
 
         const body = JSON.parse(((fetchImpl.mock.calls[0]?.[1] as RequestInit).body) as string);
-        // Index 16 → 1h anchor; index 17 (last) → 5m rolling tail; rest plain.
-        expect(body.messages[16].content).toEqual([
-            { type: 'text', text: 'm16', cache_control: { type: 'ephemeral', ttl: '1h' } },
-        ]);
-        expect(body.messages[17].content).toEqual([
-            { type: 'text', text: 'm17', cache_control: { type: 'ephemeral' } },
-        ]);
-        expect(body.messages[0]).toEqual({ role: 'user', content: 'm0' });
-        expect(body.messages[15]).toEqual({ role: 'assistant', content: 'm15' });
-        // Exactly two cached blocks (anchor + tail), not one per turn.
+        // No 1h anchor: reading a 5m entry keeps it a 5m entry, so a 1h mark
+        // behind the tail was never written while the cache was warm. A quiet
+        // stretch is bridged by keepAlive instead.
         const cached = body.messages.filter((m: { content: unknown }) => Array.isArray(m.content));
-        expect(cached).toHaveLength(2);
-        // Regression: the system block must NOT carry cache_control. A 5m system
-        // block is processed before the messages, so it would precede this 1h
-        // anchor and Anthropic 400s ("a 1h block must not come after a 5m block")
-        // — which broke every turn once a session grew past the anchor threshold.
+        expect(cached).toEqual([
+            { role: 'user', content: [{ type: 'text', text: 'm40', cache_control: { type: 'ephemeral' } }] },
+        ]);
         expect(body.system).toEqual([{ type: 'text', text: 'be warm' }]);
     });
 
@@ -1542,5 +1531,111 @@ describe('AnthropicProvider - safety-classifier refusals', () => {
             ['claude-opus-5-5', false, 40],
             ['claude-opus-4-8', true, 3],
         ]);
+    });
+});
+
+describe('AnthropicProvider.keepAlive', () => {
+    const streamed = (): Response =>
+        mockSseResponse([
+            'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":4,"cache_creation_input_tokens":3000}}}',
+            'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Mm."}}',
+            'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}',
+            'event: message_stop\ndata: {"type":"message_stop"}',
+        ]);
+    const pinged = (): Response =>
+        mockJsonResponse({
+            content: [],
+            stop_reason: 'max_tokens',
+            usage: { input_tokens: 4, output_tokens: 0, cache_read_input_tokens: 3000, cache_creation_input_tokens: 0 },
+        });
+
+    // A sit as the log holds it: the opener, a phase note behind it, a turn
+    // each way, and the meditator's latest words with a note still trailing.
+    const sit: Message[] = [
+        { role: 'user', content: 'Open the session warmly.' },
+        { role: 'system', content: 'Stage note: stage 1 of 4.' },
+        { role: 'assistant', content: 'Welcome.' },
+        { role: 'user', content: 'I feel scattered.' },
+        { role: 'assistant', content: 'Let that be as it is.' },
+        { role: 'user', content: 'There is something heavy in my chest.' },
+        { role: 'system', content: 'Stage note: stage 2 of 4.' },
+    ];
+
+    function recording(responses: Array<() => Response>) {
+        const bodies: Array<Record<string, unknown>> = [];
+        const headers: Array<Record<string, string>> = [];
+        const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+            bodies.push(JSON.parse(init!.body as string));
+            headers.push({ ...(init!.headers as Record<string, string>) });
+            return (responses.shift() ?? pinged)();
+        });
+        return { fetchImpl: fetchImpl as unknown as typeof fetch, bodies, headers, calls: fetchImpl };
+    }
+
+    const without = (body: Record<string, unknown>, ...keys: string[]): Record<string, unknown> =>
+        Object.fromEntries(Object.entries(body).filter(([k]) => !keys.includes(k)));
+
+    it.each([
+        ['claude-opus-5-5', 'always-on'],
+        ['claude-fable-5-2', 'always-on'],
+        ['claude-sonnet-5-5', 'between-tools'],
+        ['claude-haiku-5-5', 'opt-out'],
+        ['claude-opus-5', 'opt-out'],
+        ['claude-haiku-4-5', 'none'],
+    ])('sends the real request for the same messages, but max_tokens 0 and not streamed (%s, %s)', async (model) => {
+        const rec = recording([streamed, pinged]);
+        const provider = new AnthropicProvider({ apiKey: 'k', model, directBrowserAccess: true, fetchImpl: rec.fetchImpl });
+        const options = { system: 'You are a meditation facilitator.' };
+        for await (const _chunk of provider.completeStream(sit, options)) {
+            /* drain */
+        }
+        const ping = await provider.keepAlive(sit, options);
+
+        const [real, keep] = rec.bodies as [Record<string, unknown>, Record<string, unknown>];
+        expect(real['stream']).toBe(true);
+        expect(keep['max_tokens']).toBe(0);
+        expect(keep['stream']).toBeUndefined();
+        expect(without(keep, 'max_tokens', 'stream')).toEqual(without(real, 'max_tokens', 'stream'));
+        // Same headers, the betas included; only the stream's accept differs.
+        expect(without(rec.headers[1]!, 'accept')).toEqual(without(rec.headers[0]!, 'accept'));
+        expect(ping).toMatchObject({ text: '', finishReason: 'max_tokens', outputTokens: 0, cacheReadTokens: 3000 });
+    });
+
+    it('ignores the max_tokens the real call asked for', async () => {
+        const rec = recording([pinged]);
+        const provider = new AnthropicProvider({ apiKey: 'k', model: 'claude-opus-5-5', fetchImpl: rec.fetchImpl });
+        await provider.keepAlive(sit, { system: 's', maxTokens: 80 });
+        expect(rec.bodies[0]!['max_tokens']).toBe(0);
+    });
+
+    it('follows a fallback the real calls already took (system notes as user text)', async () => {
+        const rejection = () =>
+            new Response(JSON.stringify({ error: { message: "role 'system' is not supported on this model" } }), { status: 400 });
+        const rec = recording([rejection, streamed, pinged]);
+        const provider = new AnthropicProvider({ apiKey: 'k', model: 'claude-sonnet-5-5', maxRetries: 0, fetchImpl: rec.fetchImpl });
+        for await (const _chunk of provider.completeStream(sit, { system: 's' })) {
+            /* drain */
+        }
+        await provider.keepAlive(sit, { system: 's' });
+        const [, real, keep] = rec.bodies as Array<Record<string, unknown>>;
+        expect(without(keep!, 'max_tokens', 'stream')).toEqual(without(real!, 'max_tokens', 'stream'));
+        expect(JSON.stringify(keep!['messages'])).not.toContain('"role":"system"');
+    });
+
+    it('one try, and a refusal changes nothing the real turns send', async () => {
+        const blamesThinking = () =>
+            new Response(JSON.stringify({ error: { message: 'thinking: not supported with max_tokens 0' } }), { status: 400 });
+        const overloaded = () => new Response('{"error":{"type":"overloaded_error"}}', { status: 529 });
+        const rec = recording([blamesThinking, overloaded, streamed]);
+        const provider = new AnthropicProvider({ apiKey: 'k', model: 'claude-sonnet-5-5', fetchImpl: rec.fetchImpl, sleepImpl: async () => {} });
+        await expect(provider.keepAlive(sit, { system: 's' })).rejects.toThrow(/400/);
+        await expect(provider.keepAlive(sit, { system: 's' })).rejects.toThrow(/529/);
+        expect(rec.calls).toHaveBeenCalledTimes(2);
+        for await (const _chunk of provider.completeStream(sit, { system: 's' })) {
+            /* drain */
+        }
+        // The turn still carries its tuning and its fallback.
+        expect(rec.bodies[2]!['thinking']).toEqual({ type: 'between_tools' });
+        expect(rec.bodies[2]!['fallbacks']).toBe('default');
     });
 });

@@ -10,6 +10,16 @@ export type {
 } from './base.js';
 
 export { AnthropicProvider, thinkingPolicy, takesRefusalFallback, type AnthropicProviderOptions } from './anthropic.js';
+export {
+    CacheKeepAlive,
+    KEEP_ALIVE_INTERVAL_MS,
+    KEEP_ALIVE_LATE_MS,
+    KEEP_ALIVE_MAX_PINGS,
+    type CacheKeepAliveOptions,
+    type KeepAliveRequest,
+    type KeepAliveTicket,
+    type KeepAliveTimer,
+} from './keep-alive.js';
 export { OllamaProvider, contextLengthForRam, type OllamaProviderOptions } from './ollama.js';
 export {
     OpenAIProvider,

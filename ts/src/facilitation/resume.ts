@@ -3,7 +3,7 @@
  *
  * Resuming replays prior turns into the model's context, which for a long
  * session means re-sending the whole transcript against a cold prompt cache (no
- * warm anchor survives a save/reload) at full input price. Summary-based resume
+ * warm cache entry survives a save/reload) at full input price. Summary-based resume
  * seeds from the stored recap plus the last few exchanges instead. The UI still
  * renders the entire prior transcript; this governs only what the model gets.
  *

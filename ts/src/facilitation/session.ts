@@ -76,7 +76,8 @@ export interface LlmUsage {
     cacheRead?: number | null;
     cacheCreation?: number | null;
     /** Subset of cacheCreation written at the 1h TTL (2x input vs the 5m
-     *  default's 1.25x). Absent when the turn used no 1h breakpoint. */
+     *  default's 1.25x). Absent when the provider reports no TTL split; no
+     *  request has written one since the 1h anchor was retired. */
     cacheCreation1h?: number | null;
 }
 

@@ -86,7 +86,9 @@ export class OllamaProvider implements LLMProvider {
     readonly model: string;
     readonly maxTokens: number;
     readonly think: boolean;
-    readonly keepAlive: string;
+    /** Ollama's keep_alive, how long the model stays loaded; not the prompt
+     *  cache's LLMProvider.keepAlive. */
+    readonly modelKeepAlive: string;
     readonly contextLength: number;
     private readonly baseUrl: string;
     private readonly fetchImpl: typeof fetch;
@@ -97,7 +99,7 @@ export class OllamaProvider implements LLMProvider {
         this.model = options.model ?? DEFAULT_MODEL;
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.think = options.think ?? false;
-        this.keepAlive = options.keepAlive ?? '30m';
+        this.modelKeepAlive = options.keepAlive ?? '30m';
         this.contextLength = options.contextLength ?? DEFAULT_NUM_CTX;
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
         this.retry = retryOptions(options, { retryableStatus: OLLAMA_RETRYABLE_STATUS });
@@ -109,7 +111,7 @@ export class OllamaProvider implements LLMProvider {
             messages: withSystemMessage(messages, options.system),
             stream,
             think: this.think,
-            keep_alive: this.keepAlive,
+            keep_alive: this.modelKeepAlive,
             ...(options.format !== undefined && { format: options.format }),
             options: {
                 num_predict: options.maxTokens ?? this.maxTokens,

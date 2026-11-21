@@ -162,6 +162,22 @@ describe.each(['claude-fable-5-2', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'cla
         }
     });
 
+    it('marks one 5m breakpoint per request, on its last cacheable message', async () => {
+        const bodies = await runSit(model);
+        for (const [i, b] of bodies.entries()) {
+            const marks = b.messages.flatMap((m, at) =>
+                Array.isArray(m.content)
+                    ? m.content.filter((block) => block.cache_control).map((block) => ({ at, mark: block.cache_control }))
+                    : []
+            );
+            let tail = b.messages.length - 1;
+            while (b.messages[tail]!.role === 'system') tail--;
+            // One entry per request, at its tail, which the keep-alive re-reads
+            // and the next request extends. No second (1h) mark behind it.
+            expect(marks, `request ${i}`).toEqual([{ at: tail, mark: { type: 'ephemeral' } }]);
+        }
+    });
+
     it('carries phase moves as notes in the log, never on a cache breakpoint', async () => {
         const bodies = await runSit(model);
         const last = bodies[bodies.length - 1]!;
