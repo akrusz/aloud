@@ -486,6 +486,13 @@ claude session in the same terminal with the punch list preloaded - fix and
 commit together, then exit to resume the release. The script refuses to
 proceed over an unclean tree, so a bailed-out fix can't ship half-done.
 
+On a stable release the check also recommends whether to raise the oldest app
+version aloud cloud serves (Part D of the checklist). The script shows its
+reasoning and the change, asks (Enter is yes), and writes and commits
+`ts/server/src/min-client-version.ts` ahead of the version bump
+(`scripts/lib/min-version.sh`). It never lowers a minimum and skips the step
+for a prerelease. What the minimum does: [ts-server.md](ts-server.md#minimum-client-version).
+
 **CI**: publishing the release runs `tauri-release.yml` (desktop bundles for all
 three platforms, signed updater artifacts) and `deploy-release.yml` (server,
 then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:

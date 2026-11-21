@@ -45,8 +45,8 @@ Known and parked until after the release, so not a failure in the smoke: the
 opening and closing sounds drop in level partway and sound thinner than the
 promo video (`meditation-pal-grfo`); with Parakeet PICKED, "Harper" and "back"
 said over a tour line are sometimes misheard (a tap always works). Someone who
-never picked hears the tour on GPT, which gets the names as hints
-(`setupHostedChoice`).
+never picked hears the tour on GPT (`setupHostedChoice`), though in English
+GPT gets no hint for the names either (`meditation-pal-bpgu`).
 
 **A. The release**
 

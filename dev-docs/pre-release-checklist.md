@@ -229,7 +229,9 @@ check each of these still reflects reality:
 - **Edited any user-facing English string** → see `zh.ts` in Part A. The
   translation is keyed on the English text; changing the text un-translates it.
 - **Changed platform support** (e.g. mobile ships) → the "coming soon" lines on the
-  site, README platform notes, store listings, the desktop-vs-mobile provider caveats.
+  site, README platform notes, store listings, the desktop-vs-mobile provider caveats,
+  and `STORE_LISTING` in `ui/src/views/update-block.ts`, where the update screen
+  sends each phone (iOS goes to TestFlight until the App Store listing is live).
 - **Rebrand / rename** → sweep every surface in Part A (name, repo URL, bundle id).
 - **Changed visual identity** (orb gradient, colors, font) → `dev-docs/style.md`,
   the site CSS + app CSS (kept in sync), all icon/share-image sources, regenerate
