@@ -4746,11 +4746,12 @@ p.clouds-hint-row {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-sm);
+    /* Centered, as the methods panel's text is. */
+    justify-content: center;
+    margin-bottom: 0.6rem;
 }
 .info-panel-link {
     margin-top: 0.75rem;
-    font-size: 0.95rem;
-    font-weight: 600;
 }
 
 .settings-desc {
@@ -6048,7 +6049,7 @@ input[type="range"].preview-range {
     z-index: 60;
 }
 
-/* The methods panel's "Take the full tour" link starts the very tour that
+/* The methods panel's "Take the full tour" button starts the very tour that
    spotlights that panel, so during a tour it reads as a live link to where you
    already are - and startGuide() ignores it. Hide it for the duration. */
 body.guide-running .info-panel-link {

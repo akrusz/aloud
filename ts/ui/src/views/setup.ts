@@ -258,7 +258,7 @@ let setupMounts = 0;
  *  been replaced is cut when the next one mounts: its mic would hear it. */
 let liveSpeaker: SetupSpeaker | null = null;
 
-/** The combinations the attention focus panel offers, applied whole: each
+/** The combinations the Exploration explainer offers, applied whole: each
  *  replaces the focuses and the vibes. */
 const EXPLORATION_PRESETS: Readonly<Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[] }>> = {
     jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'] },
@@ -2417,10 +2417,11 @@ export async function mountSetupView(
      * The `?` info buttons themselves need no wiring: tour/index-guide.ts
      * installs one delegated document-level handler for all
      * `.info-btn[data-info]` clicks (accordion toggle, suppressed while the
-     * tour is running). Only the "Take the full tour" link is wired here.
+     * tour is running). Only the "Take the full tour" button and the
+     * combination buttons are wired here.
      */
     function wireInfoButtons(): void {
-        const guideLink = root.querySelector<HTMLAnchorElement>('#start-guide-link');
+        const guideLink = root.querySelector<HTMLButtonElement>('#start-guide-link');
         if (guideLink) {
             guideLink.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -2945,7 +2946,13 @@ function renderSetupHTML(
         <div class="info-panel hidden" id="info-methods">
             <div data-method="exploration">
                 <p><strong>${t('Exploration')}</strong>: ${t('This is a dyadic meditation format where you speak about what you are experiencing in the moment and the facilitator asks brief questions to help you explore.')}</p>
-                <p>${t("In this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads. In my personal experience, this sort of exploration has been helpful in experiencing jhana states if approached with enough openheartedness.")}</p>
+                <p>${t("In this mode, you optionally set an intention and then mix and match <strong>attention focuses</strong> with <strong>vibes</strong> to build your own style. There's a guidance slider so you can dial in how actively it leads.")}</p>
+                <p>${t('Combinations to try:')}</p>
+                <div class="info-presets">
+                    <button type="button" class="btn btn-small btn-secondary" data-preset="jhana">${t('Jhana 1/2')}</button>
+                    <button type="button" class="btn btn-small btn-secondary" data-preset="lovingKindness">${t('Loving Kindness')}</button>
+                    <button type="button" class="btn btn-small btn-secondary" data-preset="partsWork">${t('Parts Work')}</button>
+                </div>
                 <p>${t('Thanks to')} <a href="https://lovingawakening.net/" target="_blank" rel="noopener">Maija Haavisto</a> ${t('and')} <a href="https://www.jhourney.io/" target="_blank" rel="noopener">Jhourney</a> ${t('for guiding me in similar practices.')}</p>
             </div>
             <div data-method="noting" class="hidden">
@@ -2956,7 +2963,7 @@ function renderSetupHTML(
                 <p><strong>${t('Felt Sense')}</strong>: ${t('This mode follows a six step process: settling in, letting a vague body-sense of one thing form, finding words that fit it, checking them against the body, asking into it, and receiving whatever comes up. The facilitator keeps track of the steps; you talk and take your time.')}</p>
                 <p>${t('Adapted from')} <a href="https://focusing.org/" target="_blank" rel="noopener">${t("Eugene Gendlin's Focusing")}</a>${t(', which deserves the credit for the method.')}</p>
             </div>
-            <p class="info-panel-link"><a href="#" id="start-guide-link">${t('Take the full tour')} &rarr;</a></p>
+            <p class="info-panel-link"><button type="button" class="btn btn-small btn-secondary" id="start-guide-link">${t('Take the full tour')}</button></p>
         </div>
     </div>
 
@@ -2983,12 +2990,6 @@ function renderSetupHTML(
                             <p><strong>${t('Emotions &amp; feeling tone:')}</strong> ${t('More complex collections of sensations and labels - joy, anger, something unnamed.')}</p>
                             <p><strong>${t('Parts &amp; inner world:')}</strong> ${t('Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.')}</p>
                             <p>${t('You can also select multiple, or leave all unchecked to keep things open.')}</p>
-                            <p>${t('Combinations to try:')}</p>
-                            <div class="info-presets">
-                                <button type="button" class="btn btn-small btn-secondary" data-preset="jhana">${t('Jhana 1/2')}</button>
-                                <button type="button" class="btn btn-small btn-secondary" data-preset="lovingKindness">${t('Loving Kindness')}</button>
-                                <button type="button" class="btn btn-small btn-secondary" data-preset="partsWork">${t('Parts Work')}</button>
-                            </div>
                         </div>
                         <div class="modifier-toggles">${focusToggles}</div>
                     </div>
