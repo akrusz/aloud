@@ -34,9 +34,10 @@ rest are Alex's. Delete this section once the open test is live.
 
 Where things stand (2026-11-21): the Play Console steps that need no build
 are done (content rating, target audience 13 and up, countries, the
-description; `meditation-pal-p6ml.1`), and Data safety needed no change. The
-server is deployed with Harper's lead check, so nothing below needs a server
-deploy again unless `ts/server/` changes. The tour has been run on the phone
+description; `meditation-pal-p6ml.1`), and Data safety needed no change. `ts/server/`
+changed on 2026-11-21 (the keep-alive route, the badges, the minimum app
+version), and all of it goes out with the release's own server deploy in
+step A. The tour has been run on the phone
 and called ready. Alex called the rest of the phone pass fine or not worth
 holding the release for; what is left of it is under "Nice to have".
 
@@ -52,9 +53,11 @@ never picked hears the tour on GPT, which gets the names as hints
 - [ ] **Push**: `git push` from `main`. Do not push `pending/open-beta-site`
       (step C).
 - [ ] (Claude) **"Run the pre-release check"**
-      ([pre-release-checklist.md](pre-release-checklist.md)) only if more
-      than notes has been committed since 2026-11-21, when the last one ran
-      and found nothing blocking.
+      ([pre-release-checklist.md](pre-release-checklist.md)), or let
+      `scripts/release.sh` run it: due, since the keep-alive, the rebadge and
+      the update screen landed after the last run on 2026-11-21. Its reply
+      now ends with a minimum-version recommendation (Part D); expect none,
+      since no build before this one has the check.
 - [ ] **`scripts/release.sh`** (patch by default, `scripts/release.sh minor`
       for a minor). It publishes the release, which deploys the server and
       then the web app. At "Mobile builds" answer `p` for Play only. The
@@ -79,7 +82,11 @@ never picked hears the tour on GPT, which gets the names as hints
       no buy button anywhere (Account shows "at aloud.rest/account" as plain
       text); the app opens with no age screen; change the voice and one
       setting, close the app and open it again, and both are as left (stored
-      settings changed shape on 2026-11-21 and have never run on a phone).
+      settings changed shape on 2026-11-21 and have never run on a phone); in a hosted
+      session stay quiet for over 5 minutes and speak again, then open that
+      session's calls page in the admin panel: keep-alive rows in the gap
+      and no cold call after it ("Prompt-cache keep-alive" in
+      [ts-server.md](ts-server.md)).
 
 **B. Open testing, in Play Console**
 
