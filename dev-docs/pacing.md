@@ -5,6 +5,8 @@ timestamps (last speech, last response, hold start): respond once the response
 delay has passed, check in after a silence interval, stay quiet in a hold.
 This doc covers what a check-in says, when it fires, and the meditation timer
 that uses the same path. Silence holds themselves: [silence-mode.md](silence-mode.md).
+The requests the app sends while a sit is quiet to keep the prompt cache warm,
+which nobody hears: [ts-server.md](ts-server.md#prompt-cache-keep-alive).
 
 ## Check-ins
 

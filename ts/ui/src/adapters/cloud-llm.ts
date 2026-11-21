@@ -19,7 +19,7 @@ import type {
     Message,
     StreamChunk,
 } from '../../../src/llm/index.js';
-import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
+import { ensureCloudToken, clearCloudToken, getCloudToken } from '../cloud-auth.js';
 import { cloudUrl } from '../cloud-base.js';
 import { setKnownBalance } from '../cloud-balance.js';
 import { getCloudSessionId } from '../cloud-session.js';
@@ -30,6 +30,7 @@ import { isNetworkFailure, sendWithNetworkRetry } from '../net-retry.js';
 export type CloudProviderId = 'anthropic' | 'groq' | 'openrouter' | 'google';
 
 const ENDPOINT = '/llm/complete';
+const KEEPALIVE_ENDPOINT = '/llm/keepalive';
 const DEFAULT_MAX_TOKENS = 512;
 
 // Stall guard: the proxy going quiet this long (no response, or no further SSE
@@ -85,12 +86,22 @@ interface ApiErrorBody {
     error?: { code?: string; message?: string };
 }
 
+interface KeepAliveResponseBody {
+    kept: boolean;
+    creditsCharged: number;
+    creditsRemaining?: number;
+}
+
 export class CloudLlmProvider implements LLMProvider {
     readonly model: string;
     private readonly provider: CloudProviderId;
     private readonly maxTokens: number;
     private readonly purpose: 'facilitation' | 'utility';
     private readonly fetchImpl: typeof fetch;
+    /** Set only for an Anthropic model: no other hosted provider's cache is
+     *  one a read keeps alive, so a session never arms the keep-alive for
+     *  them (LLMProvider.keepAlive). */
+    readonly keepAlive?: (messages: Message[], options?: CompletionOptions) => Promise<CompletionResult>;
 
     constructor(options: CloudLlmProviderOptions) {
         this.provider = options.provider;
@@ -98,6 +109,41 @@ export class CloudLlmProvider implements LLMProvider {
         this.maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
         this.purpose = options.purpose ?? 'facilitation';
         this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+        if (options.provider === 'anthropic') {
+            this.keepAlive = (messages, opts = {}) => this.ping(messages, opts);
+        }
+    }
+
+    /**
+     * POST /cloud/v1/llm/keepalive with the cached session token. Never signs
+     * in, retries or re-sends: any failure, or the server answering that it
+     * kept nothing, throws, and the session's keep-alive stops quietly. An
+     * older server 404s here, which ends it the same way.
+     */
+    private async ping(messages: Message[], options: CompletionOptions): Promise<CompletionResult> {
+        const token = await getCloudToken();
+        if (!token) throw new Error('aloud cloud keep-alive: not signed in');
+        const sessionId = getCloudSessionId();
+        const res = await withTimeout(
+            this.fetchImpl(cloudUrl(KEEPALIVE_ENDPOINT), {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    provider: this.provider,
+                    model: this.model,
+                    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+                    ...(options.system ? { system: options.system } : {}),
+                    ...(sessionId ? { sessionId } : {}),
+                }),
+            }),
+            CLOUD_STALL_MS,
+            'aloud cloud did not respond in time.'
+        );
+        if (!res.ok) return this.throwFromError(res);
+        const data = (await res.json()) as KeepAliveResponseBody;
+        if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
+        if (!data.kept) throw new Error('aloud cloud keep-alive: nothing kept');
+        return { text: '', finishReason: 'max_tokens', tokensUsed: null };
     }
 
     private body(messages: Message[], options: CompletionOptions, stream: boolean): string {

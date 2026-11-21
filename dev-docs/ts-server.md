@@ -136,6 +136,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `DELETE /cloud/v1/me` | session | soft-delete the account (see deploy.md → Sign-in methods). Also clears the email-updates opt-in with the scrubbed address |
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). `messages` must be role + string content. A turn is refused (402) when its worst-case estimate runs more than `MAX_UNCOVERED_CREDITS` past its hold, counted across the account's turns in flight (`deps.overdraft`): a near-empty account still finishes its last turn, but can't run an oversized prompt, or a burst of turns, on credits it doesn't have. When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility` |
+| `POST /cloud/v1/llm/keepalive` | session | prompt-cache keep-alive (see Prompt-cache keep-alive below): `{provider,model,messages,system?,sessionId?}`, the session's last facilitation request without its reply, forwarded at `max_tokens: 0` → `{kept,creditsCharged,creditsRemaining?}`. Same auth, rate guard and request checks as `/llm/complete` (`routes/llm.ts` `checkCall`). A non-Anthropic model, a paused account, or a balance that couldn't cover the prompt written again in full answers `kept: false` and sends nothing upstream; otherwise billed at provider cost through the STT/TTS money path (`upfront-charge.ts`), retreat passes honoured, usage row `purpose: 'keepalive'`. An upstream failure is a 502 and one `llm_error` incident (`keepalive: ...`) |
 | `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send for "GPT"), or OpenRouter for `moondream/parakeet-ultra` ("Parakeet", not offered in zh) and `x-ai/grok-stt-2.0` ("Grok", zh only), each pinned to its host (`providers/stt.ts` `OPENROUTER_STT_MODELS`, needs `OPENROUTER_API_KEY`) → transcript; debits by the seconds the provider bills (`sttBilledSeconds`: gpt-transcribe rounds each request up to a whole second; OpenRouter bills the exact second, plus its credit fee via `viaOpenRouter`). An `x-stt-prior` header (the turn's transcript so far, percent-encoded; incremental passes send it) becomes the Whisper backend's prompt (`routes/stt.ts` `sttPrior`): never logged, not sent to the OpenRouter models or to a model that bills prompt text (`sttPromptIsBilled`). `?setup=1` is the setup screen's listening: prompted with core `setupVocabulary`, free while the clip is under `SETUP_MAX_CLIP_SECONDS` and the account has `SETUP_STT_SECONDS_PER_DAY` left (`deps.ts`, with an all-accounts ceiling), else metered as usual; usage rows carry `purpose: 'setup'` ([voice-commands.md](voice-commands.md#the-mic)) |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?,marks?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers, and with `marks` (a whole reply, see Whole replies below) where each marked sentence begins, in `X-Mark-Times`. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`; the store apps ask for `insufficient_credits_plain`, the wording with no purchase in it) → audio/mpeg; unmetered, no balance gate, cached per voice |
@@ -155,7 +156,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/admin/incidents` | admin | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, replies cut off at max_tokens (`llm_max_tokens`), safety-classifier refusals (`refusal=<category>` on the row) and turns Anthropic's server-side fallback answered instead (`llm_fallback`), upstream LLM/STT/TTS failures (voice previews and canned clips included, throttled to a row a minute), Stripe checkout failures (`billing_error`), retired models the liveness sweep dropped (`model_retired`), refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`) |
 | `GET /cloud/v1/admin/calls` | none* | per-call page HTML: one session's every metered call (`admin/calls-page.ts`); reuses the panel's stored credential |
 | `GET /cloud/v1/admin/sessions` | admin | sessions by client session id (`?sinceHours=`, default 7d) with cost per leg and cold-cache call count; `ALOUD_ADMIN_EMAILS` accounts only |
-| `GET /cloud/v1/admin/sessions/:id` | admin | one session's calls in order (gap since the previous facilitation call, cache read/write, cost), facilitation spend by token type, and its incidents; 404 for a non-admin session |
+| `GET /cloud/v1/admin/sessions/:id` | admin | one session's calls in order (gap since the previous facilitation call or keep-alive, cache read/write, cost; keep-alives listed as their own kind, never turns or cold calls), facilitation spend by token type, and its incidents; 404 for a non-admin session |
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
@@ -213,6 +214,54 @@ granted credits, the facilitator says "come back later," TTS speaks it, and the
 session saves normally. STT/TTS stay open so that message can be heard; tester
 emails bypass the pause entirely. In-flight clients only see it on their next
 turn.
+
+## Prompt-cache keep-alive
+
+A sit's Anthropic prompt cache is one entry, written at the tail of each
+facilitation request (`anthropic.ts` `buildRequest`, one 5-minute breakpoint),
+and it lives five minutes from the start of the request that last wrote or
+read it. A quiet stretch longer than that (a hold, a long silence between
+check-ins) used to make the next turn write the whole prefix again: on Opus 5.5
+about 0.4 to 0.8 credits, against 0.08 for a warm turn.
+
+So while a sit is quiet the app re-sends its last facilitation request at
+`max_tokens: 0`: same system prompt, same rendered conversation, same tail
+breakpoint, same thinking and effort settings (both render into the cached
+prompt), not streamed. That is a cache read and nothing else, about 0.02
+credits on Opus 5.5, and it restarts the entry's five minutes.
+
+- **When.** `CacheKeepAlive` (`ts/src/llm/keep-alive.ts`) pings 270 s after the
+  start of the last facilitation request or ping, at most 13 in a row (about an
+  hour), and never while a facilitation request is in flight. A timer that runs
+  more than 295 s after the last start (a phone throttling a background tab) is
+  skipped, and nothing more goes until the next real request: the entry is
+  already gone. Any failure, a 404 from an older server, or a ping that read
+  nothing stops it for the rest of the session, silently.
+- **What it re-sends.** The session view (`ui/src/views/session.ts`
+  `facilitationRequest`, plus the smart check-in and the timer notice) tells it
+  about each facilitation request, and passes the request's messages only when
+  they stay a prefix of the log: a check-in that passed never logged its event,
+  so its request is not the one to keep. Side calls (classifiers, recaps) never
+  report to it, even where they share the facilitation provider.
+- **Where.** Only where a read keeps the cache alive: BYOK Anthropic
+  (`AnthropicProvider.keepAlive`, which sends one request with none of `send()`'s
+  retries, so a ping refused for any reason can't change what the real turns
+  send) and aloud cloud on an Anthropic model (`CloudLlmProvider.keepAlive` →
+  `POST /cloud/v1/llm/keepalive` → `Forwarder.keepAlive`, the same provider
+  construction as the turn). Not the Claude subscription, Ollama, OpenAI or
+  OpenRouter.
+- **Why no 1-hour write.** The code used to set a second, 1-hour breakpoint
+  some messages behind the tail. It was never written while the cache was
+  warm: it landed on a message that already had a 5-minute entry, and reading a
+  5-minute entry only restarts its five minutes, even from a request that marks
+  the block 1-hour. A replay of all production sessions found any 1-hour write
+  strategy costs more than none, since most sessions are short, while a read
+  every 4.5 quiet minutes cuts input-side cost 10 to 22%. `ephemeral_1h_input_tokens`
+  is still parsed and the `cacheCreation1h` rates kept, for old usage rows.
+
+In the cost report (`credits/usage.ts`) a keep-alive is the facilitator's cost
+but never a turn or a utility call, and its read counts toward neither the hit
+ratio nor the savings: without the cache there would be no ping.
 
 ## Hosted voices & auditioning new ones
 

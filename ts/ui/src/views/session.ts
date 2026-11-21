@@ -65,16 +65,19 @@ import {
     localizePool,
     EMPTY_REPLY_FALLBACKS,
     CLAUDE_STALLED_APOLOGIES,
+    llmUsageOf,
 } from '../../../src/facilitation/index.js';
 import type { SessionState } from '../../../src/facilitation/session.js';
 import {
     AnthropicProvider,
+    CacheKeepAlive,
     OllamaProvider,
     OpenAIProvider,
     OpenRouterProvider,
     VeniceProvider,
     GroqProvider,
     type LLMProvider,
+    type Message,
 } from '../../../src/llm/index.js';
 import type { SttEngine, TtsEngine, TtsOptions } from '../../../src/platform/index.js';
 import { isNonSpeechOnly } from '../../../src/platform/index.js';
@@ -544,6 +547,36 @@ export async function mountSessionView(
     const recapProvider = await buildRecapProvider(setup, utilityProvider).catch(
         () => utilityProvider
     );
+
+    // Keeps the prompt cache warm while the sit is quiet (core keep-alive.ts),
+    // on Anthropic direct or through aloud cloud. Only the facilitation
+    // requests report to it (facilitationRequest, the check-in and the timer
+    // notice), never the side calls that can share this provider.
+    const keepAliveOf = provider.keepAlive?.bind(provider);
+    const cacheKeepAlive = keepAliveOf
+        ? new CacheKeepAlive({ ping: keepAliveOf, onPing: (r) => session.recordLlmUsage(llmUsageOf(r)) })
+        : null;
+
+    /**
+     * Send one facilitation request (`run` sends `messages` with `system`) and
+     * tell the keep-alive. `keeps` is asked once it completes: true when its
+     * cache entry is the one the next request will extend.
+     */
+    async function facilitationRequest<T>(
+        messages: Message[],
+        system: string,
+        run: () => Promise<T>,
+        keeps: (result: T) => boolean
+    ): Promise<T> {
+        const ticket = cacheKeepAlive?.begin();
+        try {
+            const result = await run();
+            ticket?.end(keeps(result) ? { messages, options: { system } } : undefined);
+            return result;
+        } finally {
+            ticket?.end();
+        }
+    }
 
     // Jev (TypeSafe) for the silence classifiers and the spoken commands. Always
     // on for aloud cloud; an opt-in everywhere else (voice-commands.ts). Up here
@@ -2524,23 +2557,33 @@ export async function mountSessionView(
             const attemptCompletion = (
                 target: typeof bubble,
                 gated?: { signal: AbortSignal; speakGate: () => Promise<boolean> }
-            ) =>
-                streamCompletionWithChunkedTts(provider, tts, session.getContextMessages(), {
+            ) => {
+                const messages = session.getContextMessages();
+                const signal = gated?.signal ?? myFullAbort.signal;
+                return facilitationRequest(
+                    messages,
                     system,
-                    ttsOptions: { rate: setup.ttsRate },
-                    wholeReply: replyWhole(),
-                    onTtsError: handleTtsError,
-                    signal: gated?.signal ?? myFullAbort.signal,
-                    ttsSignal: myTtsAbort.signal,
-                    ...(gated && { speakGate: gated.speakGate }),
-                    onSpeakStart: (sentence) => {
-                        if (!superseded()) {
-                            clearSlowResponseStatus();
-                            setStatus(t('Speaking…'));
-                            target.reveal(sentence);
-                        }
-                    },
-                });
+                    () =>
+                        streamCompletionWithChunkedTts(provider, tts, messages, {
+                            system,
+                            ttsOptions: { rate: setup.ttsRate },
+                            wholeReply: replyWhole(),
+                            onTtsError: handleTtsError,
+                            signal,
+                            ttsSignal: myTtsAbort.signal,
+                            ...(gated && { speakGate: gated.speakGate }),
+                            onSpeakStart: (sentence) => {
+                                if (!superseded()) {
+                                    clearSlowResponseStatus();
+                                    setStatus(t('Speaking…'));
+                                    target.reveal(sentence);
+                                }
+                            },
+                        }),
+                    // A paused account's canned turn never reached a model.
+                    (r) => !signal.aborted && r.finishReason !== BILLING_PAUSED_FINISH
+                );
+            };
             let completion: Awaited<ReturnType<typeof attemptCompletion>> | null = null;
             if (troubleStillOut) {
                 // The reply is asked for now and the verdict is awaited beside
@@ -3487,24 +3530,27 @@ export async function mountSessionView(
             if (!resuming && provider instanceof OllamaProvider) {
                 setFacilitatorHint(await provider.coldLoadMessage());
             }
-            const { text: rawText, ttsDone, usage, finishReason, heard } = await streamCompletionWithChunkedTts(
-                provider,
-                tts,
-                session.getContextMessages(),
-                {
-                    system: systemPrompt(),
-                    ttsOptions: { rate: setup.ttsRate },
-                    wholeReply: replyWhole(),
-                    onTtsError: handleTtsError,
-                    signal: turn.signal,
-                    ttsSignal: turn.ttsSignal,
-                    onSpeakStart: (sentence) => {
-                        if (turn.superseded()) return;
-                        clearSlowResponseStatus();
-                        setStatus(t('Speaking…'));
-                        reveal.reveal(sentence);
-                    },
-                }
+            const messages = session.getContextMessages();
+            const system = systemPrompt();
+            const { text: rawText, ttsDone, usage, finishReason, heard } = await facilitationRequest(
+                messages,
+                system,
+                () =>
+                    streamCompletionWithChunkedTts(provider, tts, messages, {
+                        system,
+                        ttsOptions: { rate: setup.ttsRate },
+                        wholeReply: replyWhole(),
+                        onTtsError: handleTtsError,
+                        signal: turn.signal,
+                        ttsSignal: turn.ttsSignal,
+                        onSpeakStart: (sentence) => {
+                            if (turn.superseded()) return;
+                            clearSlowResponseStatus();
+                            setStatus(t('Speaking…'));
+                            reveal.reveal(sentence);
+                        },
+                    }),
+                (r) => !turn.signal.aborted && r.finishReason !== BILLING_PAUSED_FINISH
             );
             if (turn.superseded()) {
                 reveal.discard();
@@ -3643,6 +3689,8 @@ export async function mountSessionView(
             total
         );
         const speakNotice = async (line: string): Promise<void> => {
+            // The closing word: nothing is worth keeping warm past it.
+            if (endsSession) cacheKeepAlive?.stop();
             await respondWithFacilitatorLine(
                 line,
                 kind === 'approach' ? 'timer-approach' : 'timer-completion'
@@ -3650,6 +3698,7 @@ export async function mountSessionView(
             if (endsSession) void closeAfterTimer();
             else restoreHoldAfterNotice();
         };
+        const keepAliveTicket = cacheKeepAlive?.begin();
         try {
             const eventText =
                 kind === 'approach'
@@ -3657,15 +3706,13 @@ export async function mountSessionView(
                     : buildTimerCompletionEvent(total, { staged, endsSession });
             debugLog(`timer ${kind} event sent (${total}m)`);
             const timerStart = Date.now();
-            const { reply, usage } = await runSmartCheckin(
-                provider,
-                [...session.getContextMessages(), { role: 'user', content: eventText }],
-                {
-                    system: systemPrompt(),
-                    signal: myAbort.signal,
-                    maxChars: SESSION_TIMER_MAX_CHARS,
-                }
-            );
+            const messages: Message[] = [...session.getContextMessages(), { role: 'user', content: eventText }];
+            const system = systemPrompt();
+            const { reply, usage } = await runSmartCheckin(provider, messages, {
+                system,
+                signal: myAbort.signal,
+                maxChars: SESSION_TIMER_MAX_CHARS,
+            });
             tapCall(`timer-${kind}`, Date.now() - timerStart);
             if (torn) return;
             if (myArm !== sessionClock.armGeneration()) {
@@ -3693,9 +3740,11 @@ export async function mountSessionView(
             // The event turn enters history with the line, so later turns know
             // why the facilitator spoke about time unprompted.
             session.addControlMessage('user', eventText, 'event');
+            keepAliveTicket?.end({ messages, options: { system } });
             tapTurn('user', 'event', eventText);
             await speakNotice(line);
         } catch {
+            keepAliveTicket?.end();
             if (torn || myArm !== sessionClock.armGeneration()) return;
             if (myGen !== turnGen || busy || stt?.userSpeechActive) {
                 sessionClock.requeue(kind, myArm);
@@ -3706,6 +3755,7 @@ export async function mountSessionView(
             tapTurn('user', 'event', `[Timer: ${kind}]`);
             await speakNotice(canned);
         } finally {
+            keepAliveTicket?.end();
             timerNoticeInFlight = false;
         }
     }
@@ -3828,6 +3878,7 @@ export async function mountSessionView(
         const myGen = turnGen;
         const myAbort = new AbortController();
         activeFullAbort = myAbort;
+        const keepAliveTicket = cacheKeepAlive?.begin();
         try {
             smartCheckinStreak++;
             const smartTiming = checkinTiming === 'smart';
@@ -3849,14 +3900,12 @@ export async function mountSessionView(
             );
             debugLog(`event #${smartCheckinStreak} sent (silence ${Math.round(silenceSec)}s)`);
             const checkinStart = Date.now();
-            const { reply, usage } = await runSmartCheckin(
-                provider,
-                [...session.getContextMessages(), { role: 'user', content: eventText }],
-                {
-                    system: systemPrompt(),
-                    signal: myAbort.signal,
-                }
-            );
+            const messages: Message[] = [...session.getContextMessages(), { role: 'user', content: eventText }];
+            const system = systemPrompt();
+            const { reply, usage } = await runSmartCheckin(provider, messages, {
+                system,
+                signal: myAbort.signal,
+            });
             tapCall('checkin', Date.now() - checkinStart);
             if (torn || myGen !== turnGen || busy || stt?.userSpeechActive) return;
             // The call happened whether or not anything gets spoken; tally it.
@@ -3891,14 +3940,17 @@ export async function mountSessionView(
                 // Event turn enters history only when the model speaks, so
                 // the next turn's model sees why the facilitator piped up.
                 session.addControlMessage('user', eventText, 'event');
+                keepAliveTicket?.end({ messages, options: { system } });
                 tapTurn('user', 'event', eventText);
                 await respondWithFacilitatorLine(reply.text, 'checkin');
             } else {
+                keepAliveTicket?.end();
                 debugLog('→ fallback (canned)');
                 tapEvent('checkin', 'fallback', { streak: smartCheckinStreak });
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());
             }
         } catch {
+            keepAliveTicket?.end();
             // Provider hiccup, or aborted by a real turn: canned fallback unless
             // a real turn took over.
             if (!torn && myGen === turnGen && !busy && !stt?.userSpeechActive) {
@@ -3909,6 +3961,7 @@ export async function mountSessionView(
                 await respondWithFacilitatorLine(builder.getCheckInPrompt());
             }
         } finally {
+            keepAliveTicket?.end();
             checkinInFlight = false;
         }
     }
@@ -3966,6 +4019,7 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        cacheKeepAlive?.stop();
         unwatchHeadphones();
         unmountVolumeNotice();
         downloadSttClips();

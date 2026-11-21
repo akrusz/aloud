@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { CloudLlmProvider } from '../ui/src/adapters/cloud-llm.js';
 import { setCloudAuthBackend, setCloudAuthFetch } from '../ui/src/cloud-auth.js';
+import { getKnownBalance } from '../ui/src/cloud-balance.js';
+import { clearCloudSession, startCloudSession } from '../ui/src/cloud-session.js';
 import type { KvStorage } from '../src/platform/storage.js';
 import type { StreamChunk } from '../src/llm/index.js';
 
@@ -313,5 +315,81 @@ describe('CloudLlmProvider on a dropped connection', () => {
         ac.abort();
         expect(seen!.aborted).toBe(true);
         await it.return?.(undefined);
+    });
+});
+
+describe('CloudLlmProvider.keepAlive', () => {
+    function pingProvider(
+        provider: 'anthropic' | 'openrouter',
+        reply: () => Response
+    ): { llm: CloudLlmProvider; seen: Array<{ url: string; auth: string; body: Record<string, unknown> }> } {
+        const seen: Array<{ url: string; auth: string; body: Record<string, unknown> }> = [];
+        const llm = new CloudLlmProvider({
+            provider,
+            model: provider === 'anthropic' ? 'claude-opus-5-5' : 'moonshotai/kimi-k2',
+            fetchImpl: async (url, init) => {
+                seen.push({
+                    url: String(url),
+                    auth: (init?.headers as Record<string, string>)['authorization'] ?? '',
+                    body: JSON.parse(init?.body as string),
+                });
+                return reply();
+            },
+        });
+        return { llm, seen };
+    }
+
+    it('posts the last request to /llm/keepalive and publishes the balance', async () => {
+        await kv.set('server:token', 'tok-1');
+        const sessionId = startCloudSession();
+        const { llm, seen } = pingProvider(
+            'anthropic',
+            () => new Response(JSON.stringify({ kept: true, creditsCharged: 0.02, creditsRemaining: 12.5 }), { status: 200 })
+        );
+        const result = await llm.keepAlive!([{ role: 'user', content: 'hi' }], { system: 'be kind', maxTokens: 80 });
+        clearCloudSession();
+        expect(seen).toHaveLength(1);
+        expect(seen[0]!.url).toMatch(/\/cloud\/v1\/llm\/keepalive$/);
+        expect(seen[0]!.auth).toBe('Bearer tok-1');
+        expect(seen[0]!.body).toEqual({
+            provider: 'anthropic',
+            model: 'claude-opus-5-5',
+            messages: [{ role: 'user', content: 'hi' }],
+            system: 'be kind',
+            sessionId,
+        });
+        expect(result.text).toBe('');
+        expect(getKnownBalance()).toBe(12.5);
+    });
+
+    it('throws when the server kept nothing, so the keep-alive stops', async () => {
+        await kv.set('server:token', 'tok-1');
+        const { llm } = pingProvider(
+            'anthropic',
+            () => new Response(JSON.stringify({ kept: false, creditsCharged: 0, creditsRemaining: 0 }), { status: 200 })
+        );
+        await expect(llm.keepAlive!([{ role: 'user', content: 'hi' }])).rejects.toThrow(/nothing kept/);
+    });
+
+    it('a server without the route (404) fails once, with no retry and no sign-in', async () => {
+        await kv.set('server:token', 'stale');
+        const { llm, seen } = pingProvider('anthropic', () => new Response('Not Found', { status: 404 }));
+        await expect(llm.keepAlive!([{ role: 'user', content: 'hi' }])).rejects.toThrow(/404/);
+        const expired = pingProvider('anthropic', () => new Response('{}', { status: 401 }));
+        await expect(expired.llm.keepAlive!([{ role: 'user', content: 'hi' }])).rejects.toThrow();
+        expect(seen).toHaveLength(1);
+        expect(expired.seen).toHaveLength(1);
+        expect(await kv.get('server:token')).toBe('stale');
+    });
+
+    it('signed out: no request at all', async () => {
+        const { llm, seen } = pingProvider('anthropic', () => new Response('{}', { status: 200 }));
+        await expect(llm.keepAlive!([{ role: 'user', content: 'hi' }])).rejects.toThrow(/not signed in/);
+        expect(seen).toHaveLength(0);
+    });
+
+    it('is offered only for an Anthropic model', () => {
+        expect(pingProvider('anthropic', () => new Response()).llm.keepAlive).toBeTypeOf('function');
+        expect(pingProvider('openrouter', () => new Response()).llm.keepAlive).toBeUndefined();
     });
 });
