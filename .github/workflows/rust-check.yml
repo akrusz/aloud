@@ -48,9 +48,19 @@ jobs:
             librsvg2-dev \
             cmake build-essential
 
+      # The cached target dir holds the CMake build trees of whisper-rs and
+      # espeak-rs, which name the CMake that configured them. When a runner
+      # image moves to a new CMake, a restored tree fails to configure, so
+      # the CMake version is part of the cache key.
+      - name: Read the CMake version
+        id: cmake
+        shell: bash
+        run: echo "version=$(cmake --version | head -n1 | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ts/src-tauri
+          key: cmake-${{ steps.cmake.outputs.version }}
 
       - name: cargo check
         run: cargo check --manifest-path ts/src-tauri/Cargo.toml --locked
