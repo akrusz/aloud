@@ -168,6 +168,23 @@ release/Play builds still go through the signed `.aab` path
 Studio is only needed for native debugging; the webview console is available
 directly with `adb logcat -s Capacitor/Console Capacitor`.
 
+**Reading a test pass afterwards.** The raw console stream is never kept: it
+logs Preferences reads, tokens among them. With dev mode on in the app, keep
+only the audio and timing lines, which carry lengths and never words:
+
+```bash
+adb logcat -T 1 -v time -s Capacitor/Console:I \
+  | grep --line-buffered -E "\[(vad|stt-[a-z]+|echo-guard|turn|signature|setup-clip|age-check)\]" \
+  >> .probe-data/phone-$(date +%F)/diag-live.log
+```
+
+`npm --prefix ts run stt:clip-sink` saves the speech clips the app sends (its
+"save my speech clips" switch) under `.probe-data/phone-captures/`; they are
+the developer's speech and stay on his machine. `adb shell dumpsys audio`,
+taken within a couple of minutes of a run, has the call-mode changes ("phone
+state") and each player's starts and stops ("playback activity"); its
+timestamps are not local time on every phone.
+
 After any UI change re-run `cap:android:run` (or `cap:sync`; `npx cap copy`
 suffices for web-asset-only changes). Rebuilding from inside Android Studio
 does NOT rebuild `ui/dist` - it repackages the last-synced bundle. For fast
