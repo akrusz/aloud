@@ -44,7 +44,8 @@ tag: [iOS], [Android], [Mobile], [Desktop], [Web], or several ([iOS, Web]).
 GitHub shows them all; the closing what's-new blocks, one per store, keep
 the untagged bullets and that store's own, tag stripped. Then the
 pre-release doc check: Y run, n skip, q abort; if it leaves items, f fixes
-them in a claude session here.
+them in a claude session here. When it recommends raising the minimum app
+version aloud cloud serves, Enter writes and commits it, n leaves it.
 
 Last, once the release is out, the mobile builds: Enter both, a App Store
 only (iOS archive + TestFlight upload), p Play only (Android .aab), n neither.
@@ -454,6 +455,17 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
     # interactive claude session in this terminal with the punch list
     # preloaded (fix together, commit, exit to resume the release), [c]
     # continues without fixing.
+    # The check also recommends whether to raise the minimum app version aloud
+    # cloud serves (scripts/lib/min-version.sh), applied below on your yes. Not
+    # on a prerelease: the desktop updater never offers one, and a phone
+    # minimum waits for a stable release.
+    CHECK_OUT=""
+    MINVERSION_ASK=""
+    if [ "$PRERELEASE" = false ]; then
+        MINVERSION_ASK="
+
+Last, the minimum client version for this release, v${VERSION}: follow Part D of the checklist (minimum client version), reading ts/server/src/min-client-version.ts and the store state, but never edit that file yourself. After the PRERELEASE line, end your reply with a line 'Minimum versions:', then two to four plain lines of reasoning (per platform: raise or not, to which version, and why), then a final line that is exactly 'MINVERSION: none' or 'MINVERSION: ' followed by platform=version pairs for only the platforms to raise, e.g. 'MINVERSION: desktop=${VERSION} android=2.17.0'."
+    fi
     printf "  Run the pre-release check? [Y/n/q] "
     read -r PRECHECK
     case "$PRECHECK" in
@@ -473,7 +485,7 @@ No headings, no preamble, no closing note. No em-dashes (use ' - ' or a comma). 
 
 Fix what you find ONLY when it's safely developer-facing or mechanical: dev-docs/, README.md, CLAUDE.md, code and config comments, and perfunctory legal pages (privacy policy, terms). HOLD OFF and report instead when a change would face a user in the app (settings/UI copy, toasts, store listings), a non-perfunctory website page (landing, FAQ, anything marketing-toned), or an internal LLM prompt (the facilitation prompts) - the developer words those himself. Commit only the files you fixed, message 'docs: pre-release sync'.
 
-Be concise: what you fixed (one line each), then a punch list of anything left for the developer. End your reply with a line that is exactly 'PRERELEASE: CLEAN' if nothing needed changing, 'PRERELEASE: FIXED' if you fixed everything you found, or 'PRERELEASE: ISSUES' if anything still needs the developer." </dev/null)
+Be concise: what you fixed (one line each), then a punch list of anything left for the developer. Then a line that is exactly 'PRERELEASE: CLEAN' if nothing needed changing, 'PRERELEASE: FIXED' if you fixed everything you found, or 'PRERELEASE: ISSUES' if anything still needs the developer.${MINVERSION_ASK}" </dev/null)
                 printf '%s\n\n' "$CHECK_OUT"
                 if printf '%s' "$CHECK_OUT" | grep -q 'PRERELEASE: CLEAN'; then
                     : # clean - proceed silently
@@ -506,6 +518,13 @@ ${CHECK_OUT}"
             fi
             ;;
     esac
+
+    # Raise the minimum app version if the check recommended it and you agree:
+    # written and committed here, ahead of the version bump. No check, no bump.
+    if [ -n "$CHECK_OUT" ] && [ "$PRERELEASE" = false ]; then
+        . scripts/lib/min-version.sh
+        propose_min_versions "$CHECK_OUT" "$VERSION"
+    fi
 
     # The check or fix session may have left edits uncommitted (or you bailed
     # out of one mid-fix). The bump commit must not sweep those up, and nothing

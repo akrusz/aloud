@@ -4,8 +4,10 @@ Run this before cutting a release - or any time, by asking Claude to "run the
 pre-release check". The goal: catch documentation and copy that's drifted out of
 sync with code changes, plus other downstream consequences of a change.
 
-Claude: work through both parts below against the current diff / recent changes.
+Claude: work through the parts below against the current diff / recent changes.
 Report what's stale and propose fixes; don't assume - grep and read the actual files.
+Part D is a decision rather than drift: whether this release raises the oldest
+app version aloud cloud serves.
 
 ## Part A - surface inventory (everywhere the product is described)
 
@@ -279,3 +281,51 @@ check each of these still reflects reality:
   a new doc, a new marketing surface)? **Add it to Part A.**
 - Did it introduce a new **class of ripple effect**? Add it to Part B.
 - If a surface listed here was removed, delete its entry.
+
+## Part D - minimum client version
+
+`MIN_CLIENT_VERSION` in `ts/server/src/min-client-version.ts` holds the oldest
+app version aloud cloud still serves, per platform (desktop, Android, iOS;
+`0.0.0` is none). A build below its platform's minimum gets a blocking "Time to
+update" screen at load and at Begin (`ts/ui/src/update-gate.ts`). The web app
+has none: it is always the last release. A raise ships with this release's
+server deploy. `scripts/release.sh` asks the pre-release check for a
+recommendation and applies it once the developer confirms; this part is what
+the recommendation rests on.
+
+**Default: no change.** Raise a platform only for one of these, and say which:
+
+- **A breaking change**: the server in this release no longer serves older
+  builds correctly (a field, route or behavior they depend on is gone or
+  reshaped). The contract is meant to stay backward-compatible, so this is
+  rare and usually a mistake to fix instead.
+- **A cost saving older builds miss**: a client fix that cuts what a session
+  bills by a meaningful share, about a fifth or more for the people it
+  affects, or that stops a build paying for work it repeats. The builds from
+  before 2026-09-22 re-sent growing audio and billed desktop users for speech
+  recognition several times over: that is the bar.
+- **A judgment call**: anything else that makes an old build harmful to keep
+  running (a privacy, safety or data-loss fix). Spell out why.
+
+**Which version, per platform.** The oldest version that has the fix (or
+speaks the new server), not simply the newest one:
+
+- **Desktop** may go as far as the version being released. A desktop build
+  blocks only once the updater offers a version at or above the minimum, so
+  the minutes before the release's bundles exist strand nobody.
+- **Android and iOS** may go only to a version already live in that store
+  (Play's track, TestFlight, later the App Store: "Where we are" in
+  [store-submission-checklist.md](store-submission-checklist.md)), never to
+  the version being released, which no phone can install yet. Phones trail.
+  Each release also asks whether a phone can now catch up to a cutoff desktop
+  got earlier. When a phone raise has to wait for a build to go live, file a
+  bead for it (the platform, the version, the reason).
+- Never lower a minimum, and leave it alone on a prerelease: the script
+  refuses the first and skips the step for the second.
+
+**The reply ends with** a line `Minimum versions:`, two to four plain lines of
+reasoning, and a last line `MINVERSION: none`, or `MINVERSION:` with only the
+platforms to raise (`MINVERSION: desktop=2.21.0 android=2.17.0`). Don't edit
+the file: the script shows the reasoning and the change, asks (Enter is yes),
+then writes and commits it ahead of the version bump
+(`scripts/lib/min-version.sh`).
