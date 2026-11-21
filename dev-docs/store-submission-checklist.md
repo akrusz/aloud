@@ -47,7 +47,7 @@ below needs a server deploy again unless `ts/server/` changes.
       is what tells Play who the app is for. Leave "Restrict Minor Access"
       off (it hides the app from every known minor). The age signals page
       stays on its default ranges.
-- [ ] **Countries**: every country except Brazil, Russia, Belarus, Hong
+- [x] **Countries**: every country except Brazil, Russia, Belarus, Hong
       Kong and Macau (why: "Countries" in section 2).
 - [ ] **Description**: paste the full description again from
       [store-descriptions.md](store-descriptions.md). Two things changed:
