@@ -64,7 +64,7 @@ check each of these still reflects reality:
 - **Store screenshots** - **generated** by `node scripts/store-screenshots.mjs`
   (with `web:dev` up) into the gitignored `assets/store/screenshots/`, each
   with a captioned copy whose headline and line are `SHOTS[].caption` in that
-  script. A setup or session UI change, or a caption that no longer holds,
+  script. A setup, session or noting UI change, or a caption that no longer holds,
   means a re-run and a fresh upload to both consoles.
 - **Promo video** - `assets/store/video-title-card.*` / `video-end-card.*`
   (tagline + card copy) and `scripts/build-promo-video.sh`; rebuilt output must

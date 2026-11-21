@@ -353,21 +353,26 @@ live view. Change `--width` and update the `width`/`height` attributes on the
 Store screenshots come from the same machinery (`scripts/lib/app-shots.mjs`),
 at each console's exact pixel size: App Store iPhone large and medium display
 (medium is the required slot) and iPad 13", Play phone 9:16 and 10" tablet.
-Session, setup and kasina, both themes (kasina is dark-only), into the
-gitignored `assets/store/screenshots/<device>/` as `raw-*.png`, plus a
-captioned copy of each as `cap-*.png`: the headline and line in
-`SHOTS[].caption` over the shot, framed like the landing page's screenshot.
+One set per device, alternating light and dark down the listing: an
+exploration session (light), setup (dark), a noting circle (light), kasina
+(dark), each with its theme in `SHOTS`. They land in the gitignored
+`assets/store/screenshots/<device>/` as `raw-*.png`, plus a captioned copy
+of each as `cap-*.png`: the headline and line in `SHOTS[].caption` over the
+shot, framed like the landing page's screenshot. A full run first deletes
+the device's old `raw-*`/`cap-*`, so the folder is exactly the set to upload.
 
 ```bash
 npm run web:dev                                   # must be up, as above
 node scripts/store-screenshots.mjs                # every device (~1 min)
-node scripts/store-screenshots.mjs --device iphone-medium --only session --theme dark
+node scripts/store-screenshots.mjs --device iphone-medium --only noting
+node scripts/store-screenshots.mjs --only session --theme dark   # one-off look in the other theme
 ```
 
 It's the web UI dressed as the native shell (`?mode=web`, `data-platform`,
 the safe-area insets, a drawn 9:41 status bar), not a simulator capture. It
 fakes a signed-in account by answering `GET /cloud/v1/me` in the browser and
-holding every metered call, so nothing is billed. New screens go in `SHOTS`.
+holding every metered call, so nothing is billed. New screens go in `SHOTS`,
+each with its own `theme`.
 
 Release (bumps version, lints both stacks, tags, pushes, creates the GitHub
 release that triggers CI):

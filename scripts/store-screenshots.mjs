@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Shoot the app-store screenshots: each screen in SHOTS, on each device in
- * DEVICES, in both themes, at the exact pixel size the store asks for.
+ * DEVICES, in the theme that shot carries (the set alternates light and dark
+ * down the listing), at the exact pixel size the store asks for.
  *
  * Same approach as site-screenshots.mjs (headless Chrome over CDP, no npm
  * dependencies): the web UI is the mobile app's UI, so it's shot in Chrome
@@ -21,21 +22,27 @@
  *
  * Usage:
  *   npm run web:dev                       # UI :4649 + Hono :8787 (catalogs)
- *   node scripts/store-screenshots.mjs [--device iphone] [--only session]
+ *   node scripts/store-screenshots.mjs [--device iphone-medium] [--only noting]
  *                                      [--theme dark] [--out <dir>]
+ *
+ * --theme shoots the selected shots in that theme instead of their own, for a
+ * one-off look; the listing set is a run without it.
  *
  * Writes <out>/<device>/raw-<nn>-<shot>-<theme>.png, and cap-<same> with the
  * shot's headline over it (renderCaption). RGB
  * with no alpha channel: both stores reject transparency. The default <out> is
  * assets/store/screenshots/, which is gitignored: the consoles hold the
- * uploaded copies.
+ * uploaded copies. A full run for a device (no --only, no --theme) first
+ * deletes that device's raw-*.png and cap-*.png, so the folder holds exactly
+ * the set to upload.
  *
- * The session transcript is sample copy written into the DOM (SAMPLE_TURNS in
- * lib/app-shots.mjs); everything around it is the live view.
+ * The transcripts are sample copy written into the DOM (SAMPLE_TURNS in
+ * lib/app-shots.mjs, NOTING_TURNS here); everything around them is the live
+ * view.
  */
 
 import { spawnSync } from 'node:child_process';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
@@ -119,30 +126,75 @@ const DEVICES = {
     },
 };
 
-/** What gets shot, in listing order (the number prefixes the file name).
- *  Each starts on the setup view; `session` stages the sample transcript
- *  first, and `prepare` runs last. `themes` narrows THEMES for one shot.
- *  `caption` is the headline and line under it on the captioned copy, in the
- *  landing page's voice (lowercase, like its section titles). */
+/**
+ * The noting circle's transcript, staged like SAMPLE_TURNS: the circle's
+ * opener, then rounds of you and two AI participants, a word or two each
+ * (lowercase, as generateNotingLabel returns them). The names have to be the
+ * voices the shot seeds into its circle, since that is what the view labels a
+ * participant's note with.
+ */
+const NOTING_TURNS = [
+    ['assistant', "On your turn, just say one or two words that describe something in your awareness. Let's begin.", 'Facilitator'],
+    ['user', 'breathing', 'You'],
+    ['assistant', 'warmth', 'Harper'],
+    ['assistant', 'sounds', 'Ethan'],
+    ['user', 'tight shoulders', 'You'],
+    ['assistant', 'heaviness', 'Harper'],
+    ['assistant', 'cool air', 'Ethan'],
+    ['user', 'softening', 'You'],
+    ['assistant', 'tingling', 'Harper'],
+    ['assistant', 'planning', 'Ethan'],
+    ['user', 'thinking', 'You'],
+    ['assistant', 'stillness', 'Harper'],
+    ['assistant', 'birds', 'Ethan'],
+    ['user', 'belly rising', 'You'],
+    ['assistant', 'smiling', 'Harper'],
+    ['assistant', 'ease', 'Ethan'],
+];
+
+/** An AI participant in the noting circle, as the setup's add button makes
+ *  one (newParticipant in views/setup.ts) but with its own voice. */
+const aiParticipant = (voice) => ({ type: 'llm', voice: `aloud:${voice}`, reactive: 'low', timing: 'adaptive', fixedDelaySec: 4 });
+
+/** What gets shot, in listing order (the number prefixes the file name), each
+ *  in its own `theme`. Each starts on the setup view; `setup` is seeded over
+ *  the default session setup before boot, `session` begins and stages `turns`
+ *  (SAMPLE_TURNS unless given) with `status` on the status line, and
+ *  `prepare` runs last. `caption` is the headline and line under it on the
+ *  captioned copy, in the landing page's voice (lowercase, like its section
+ *  titles). */
 const SHOTS = [
     {
         id: 'session',
+        theme: 'light',
         session: true,
         caption: ['meditate by talking', "say what you're noticing. it listens, and asks short questions back."],
     },
     {
         id: 'setup',
+        theme: 'dark',
         session: false,
         caption: ['three ways to practice', 'exploration, felt sense, and noting. choose what it focuses on and how much it leads.'],
     },
     {
+        id: 'noting',
+        theme: 'light',
+        session: true,
+        // Two voices rather than the default circle's sound participant,
+        // whose turns show as a bracketed sound name.
+        setup: { meditationType: 'noting', notingParticipants: [aiParticipant('Harper'), aiParticipant('Ethan')] },
+        turns: NOTING_TURNS,
+        // The meditator's turn, as startUserTurn (views/noting-session.ts)
+        // words it.
+        status: 'Your turn. Say something you notice now, 1-2 words.',
+        caption: ['also try noting meditation', 'add sound effects or virtual participants to help you stay present and alert'],
+    },
+    {
         id: 'kasina',
+        // Gazing turns the theme dark whatever it was.
+        theme: 'dark',
         session: true,
         caption: ['eyes open, if you like', 'tap the orb and it becomes a light to rest your gaze on.'],
-        // Gazing mode: the orb leaves the nav for the middle of the screen,
-        // and the theme goes dark whatever the run's theme is - so a light
-        // one would be a copy.
-        themes: ['dark'],
         prepare: (cdp) =>
             cdp.eval(`(() => {
                 const toggle = document.querySelector('#kasina-toggle');
@@ -151,8 +203,6 @@ const SHOTS = [
             })()`),
     },
 ];
-
-const THEMES = ['light', 'dark'];
 
 /** The signed-in account the fake GET /cloud/v1/me returns. */
 const ACCOUNT = {
@@ -268,9 +318,9 @@ async function dressAsMobile(cdp, device, theme) {
     })()`);
 }
 
-/** Load the app with a known theme, a not-a-first-run profile and a token for
- *  the fake account. */
-async function loadApp(cdp, theme) {
+/** Load the app with a known theme, a not-a-first-run profile, a token for
+ *  the fake account, and the shot's `setup`, if any. */
+async function loadApp(cdp, theme, setup) {
     const settings = {
         // A 20 minute timer, so the clock in the input row reads as a timer
         // rather than a two-second elapsed count. Partial settings are merged
@@ -287,6 +337,9 @@ async function loadApp(cdp, theme) {
         'aloud:aloud-client-id': '1',
         'aloud:app:settings': JSON.stringify(settings),
         'aloud:server:token': 'store-shot',
+        // The setup view's saved setup (loadSetup in settings.ts), merged
+        // over the defaults like the app settings above.
+        ...(setup && { 'aloud:preview:setup': JSON.stringify(setup) }),
     });
 }
 
@@ -317,6 +370,9 @@ const escapeHtml = (text) =>
  * at the device's own metrics, so it comes out at the store size like the
  * plain one. Sizes are the site's at a 956px-tall phone, scaled to the device.
  */
+/** How far renderCaption may shrink a title to keep it on one line. */
+const TITLE_MIN_SCALE = 0.9;
+
 async function renderCaption(cdp, { shotPath, rawPath, theme, device, caption: [title, lead] }) {
     const c = SITE[theme];
     const s = device.css[1] / 956;
@@ -360,6 +416,17 @@ async function renderCaption(cdp, { shotPath, rawPath, theme, device, caption: [
     await writeFile(page, html);
     await cdp.send('Page.navigate', { url: pathToFileURL(page).href });
     await cdp.once('Page.loadEventFired');
+    // A title a little too wide for one line (the iPhones are the tightest)
+    // is set smaller, down to TITLE_MIN_SCALE, rather than wrapped: a second
+    // line pushes the frame down and out of line with the rest of the set.
+    const wraps = await cdp.eval(`(() => {
+        const h1 = document.querySelector('h1');
+        const full = parseFloat(getComputedStyle(h1).fontSize);
+        const twoLines = () => h1.getBoundingClientRect().height > parseFloat(getComputedStyle(h1).fontSize) * 1.2 * 1.5;
+        for (let size = full; twoLines() && size > full * ${TITLE_MIN_SCALE}; size -= 0.25) h1.style.fontSize = size + 'px';
+        return twoLines();
+    })()`);
+    if (wraps) console.warn(`  ! "${title}" still takes two lines here: shorten it`);
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
     await writeFile(rawPath, Buffer.from(data, 'base64'));
 }
@@ -368,6 +435,9 @@ async function main() {
     const devices = Object.entries(DEVICES).filter(([id]) => !ONLY_DEVICE || id === ONLY_DEVICE);
     if (devices.length === 0) {
         throw new Error(`--device: one of ${Object.keys(DEVICES).join(', ')}`);
+    }
+    if (ONLY_THEME && !(ONLY_THEME in SITE)) {
+        throw new Error(`--theme: one of ${Object.keys(SITE).join(', ')}`);
     }
     await preflight(URL_BASE);
 
@@ -389,38 +459,40 @@ async function main() {
             await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
             const dir = join(OUT_DIR, deviceId);
             await mkdir(dir, { recursive: true });
+            if (!ONLY_SHOT && !ONLY_THEME) {
+                for (const file of await readdir(dir)) {
+                    if (/^(raw|cap)-.*\.png$/.test(file)) await rm(join(dir, file));
+                }
+            }
             console.log(`${device.label} (${device.out.join('x')})`);
 
-            for (const theme of THEMES) {
-                if (ONLY_THEME && ONLY_THEME !== theme) continue;
-                for (const [i, shot] of SHOTS.entries()) {
-                    if (ONLY_SHOT && ONLY_SHOT !== shot.id) continue;
-                    if (shot.themes && !shot.themes.includes(theme)) continue;
-                    await loadApp(cdp, theme);
-                    await waitFor(cdp, '#begin-btn');
-                    await dressAsMobile(cdp, device, theme);
-                    if (shot.session) await enterSession(cdp);
-                    await shot.prepare?.(cdp);
-                    // Let the orb's entrance animation and the theme
-                    // transition finish before the shutter.
-                    await sleep(1200);
-                    await clearTransients(cdp, { session: shot.session });
-                    await cdp.eval(`document.activeElement?.blur(); window.scrollTo(0, 0)`);
+            for (const [i, shot] of SHOTS.entries()) {
+                if (ONLY_SHOT && ONLY_SHOT !== shot.id) continue;
+                const theme = ONLY_THEME ?? shot.theme;
+                await loadApp(cdp, theme, shot.setup);
+                await waitFor(cdp, '#begin-btn');
+                await dressAsMobile(cdp, device, theme);
+                if (shot.session) await enterSession(cdp, shot.turns);
+                await shot.prepare?.(cdp);
+                // Let the orb's entrance animation and the theme
+                // transition finish before the shutter.
+                await sleep(1200);
+                await clearTransients(cdp, { session: shot.session, status: shot.status });
+                await cdp.eval(`document.activeElement?.blur(); window.scrollTo(0, 0)`);
 
-                    const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
-                    const name = `${String(i + 1).padStart(2, '0')}-${shot.id}-${theme}`;
-                    const raw = join(profile, `${deviceId}-${name}.png`);
-                    await writeFile(raw, Buffer.from(data, 'base64'));
-                    const out = join(dir, `raw-${name}.png`);
-                    finish(raw, out, device.out);
-                    console.log(`  ${out}`);
+                const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+                const name = `${String(i + 1).padStart(2, '0')}-${shot.id}-${theme}`;
+                const raw = join(profile, `${deviceId}-${name}.png`);
+                await writeFile(raw, Buffer.from(data, 'base64'));
+                const out = join(dir, `raw-${name}.png`);
+                finish(raw, out, device.out);
+                console.log(`  ${out}`);
 
-                    const captionedRaw = join(profile, `${deviceId}-${name}-captioned.png`);
-                    await renderCaption(cdp, { shotPath: out, rawPath: captionedRaw, theme, device, caption: shot.caption });
-                    const captioned = join(dir, `cap-${name}.png`);
-                    finish(captionedRaw, captioned, device.out);
-                    console.log(`  ${captioned}`);
-                }
+                const captionedRaw = join(profile, `${deviceId}-${name}-captioned.png`);
+                await renderCaption(cdp, { shotPath: out, rawPath: captionedRaw, theme, device, caption: shot.caption });
+                const captioned = join(dir, `cap-${name}.png`);
+                finish(captionedRaw, captioned, device.out);
+                console.log(`  ${captioned}`);
             }
         }
     } finally {

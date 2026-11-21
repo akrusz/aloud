@@ -53,7 +53,7 @@ below needs a server deploy again unless `ts/server/` changes.
       [store-descriptions.md](store-descriptions.md). Two things changed:
       the modes are in the order Exploration, Felt Sense, Noting, and there
       is a new last paragraph ("The facilitator is an AI, not a person...").
-- [ ] Data safety needs no change: the age check collects nothing.
+- [x] Data safety needs no change: the age check collects nothing.
 
 **B. One real session on the phone** (the debug build already on it)
 
@@ -93,7 +93,7 @@ for two minutes after the session. Dev mode on in the app; aloud cloud speech.
 Known and parked until after the release, so not a failure here: the opening
 and closing sounds drop in level partway and sound thinner than the promo
 video (`meditation-pal-grfo`); on Parakeet "Harper" and "back" said over a
-line are sometimes misheard (a tap always works; GPT, the default, gets the
+line are sometimes misheard (a tap always works; GPT, in the picker, gets the
 names as hints).
 
 **C. The release**
@@ -111,9 +111,10 @@ names as hints).
 - [ ] **Screenshots**, since the setup screen changed:
       `node scripts/site-screenshots.mjs` for the site (commit and push
       them). The listing's were shot from `main` on 2026-11-20
-      (`node scripts/store-screenshots.mjs`, `<device>/cap-*.png`, uploaded
-      in step D by hand: nothing here uploads to a store); run it again only
-      if the setup or session screen changes before the release.
+      (`node scripts/store-screenshots.mjs`, the four `<device>/cap-*.png`,
+      uploaded in step D by hand: nothing here uploads to a store); run it
+      again only if the setup, session or noting screen changes before the
+      release.
 - [ ] **Internal testing first** (no review): Play Console → Testing →
       Internal testing → Create new release → upload the `.aab`. On the
       phone, uninstall the debug build (same `applicationId`, different key)
@@ -283,7 +284,7 @@ later, not for approval.
       both consoles.
 - [ ] Data handling changed? Data Safety + App Privacy change with the privacy
       policy, same pass.
-- [ ] Setup or session screen changed? `node scripts/store-screenshots.mjs`.
+- [ ] Setup, session or noting screen changed? `node scripts/store-screenshots.mjs`.
 - [ ] Promo video rebuilt? A new YouTube id. Play takes the full `watch?v=`
       URL (no `youtu.be`, playlist or timestamp params, age restriction or
       ads). The site carries the same id (`#film` in `docs/index.html`).

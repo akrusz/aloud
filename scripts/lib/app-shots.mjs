@@ -203,14 +203,16 @@ export async function launchChrome({ width, height }) {
  * rather than written into a loaded page: theme.ts reads themeMode at boot, and
  * the setup view saves its voice pick into app settings when its catalog
  * lands, which can overwrite a write made after load. `storage` maps raw
- * localStorage keys to string values.
+ * localStorage keys to string values, written over a cleared localStorage:
+ * one Chrome profile serves the whole run, and what an earlier shot's app
+ * saved (its setup's mode, say) would otherwise carry into the next.
  */
 export async function bootApp(cdp, url, storage) {
     const writes = Object.entries(storage)
         .map(([k, v]) => `localStorage.setItem(${JSON.stringify(k)}, ${JSON.stringify(v)});`)
         .join('\n');
     const { identifier } = await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-        source: `try { ${writes} } catch { /* a document with no storage (about:blank) */ }`,
+        source: `try { localStorage.clear(); ${writes} } catch { /* a document with no storage (about:blank) */ }`,
     });
     await cdp.send('Page.navigate', { url });
     await cdp.once('Page.loadEventFired');
@@ -229,9 +231,10 @@ export async function waitFor(cdp, selector, tries = 100) {
 
 /**
  * Begin a session and stage the transcript: `turns` written straight into the
- * DOM, since a real exchange needs a mic, an LLM and a person. Whatever the
- * session view put there on mount (an opener, or a provider error, since
- * nothing is configured here) is cleared first.
+ * DOM, since a real exchange needs a mic, an LLM and a person. A turn is
+ * [role, text], or [role, text, sender] for a view that names who spoke (the
+ * noting circle). Whatever the session view put there on mount (an opener, or
+ * a provider error, since nothing is configured here) is cleared first.
  */
 export async function enterSession(cdp, turns = SAMPLE_TURNS) {
     await cdp.eval(`document.querySelector('#begin-btn').click()`);
@@ -255,9 +258,15 @@ export async function enterSession(cdp, turns = SAMPLE_TURNS) {
         // Everything but the typing indicator: bubbles from the opener, and
         // any provider notice ("Loading <model> into memory...").
         for (const child of [...conv.children]) if (child !== typing) child.remove();
-        for (const [role, text] of ${JSON.stringify(turns)}) {
+        for (const [role, text, sender] of ${JSON.stringify(turns)}) {
             const el = document.createElement('div');
             el.className = 'message ' + (role === 'assistant' ? 'facilitator' : 'user');
+            if (sender) {
+                const name = document.createElement('div');
+                name.className = 'message-sender';
+                name.textContent = sender;
+                el.appendChild(name);
+            }
             const content = document.createElement('div');
             content.className = 'message-content';
             content.textContent = text;
@@ -266,20 +275,28 @@ export async function enterSession(cdp, turns = SAMPLE_TURNS) {
             else conv.appendChild(el);
         }
         if (typing) typing.classList.add('hidden');
+        // More than fits: scrolled to the end, the oldest bubble shows half
+        // under the top edge, which in a still reads as a cropping mistake.
+        // Drop the oldest until the first starts below that edge: it sits at
+        // the top padding, so it is cut once the overflow is more than that.
+        const pad = parseFloat(getComputedStyle(conv).paddingTop);
+        while (conv.scrollHeight - conv.clientHeight > pad && conv.firstElementChild && conv.firstElementChild !== typing) {
+            conv.firstElementChild.remove();
+        }
         conv.scrollTop = conv.scrollHeight;
     })()`);
 }
 
 /** Last pass before the shutter: anything transient that drifted in while we
  *  waited (toasts, dialogs) is noise in a screenshot, and a session's status
- *  line should read as between turns rather than mid-error. */
-export async function clearTransients(cdp, { session }) {
+ *  line should read as between turns (`status`) rather than mid-error. */
+export async function clearTransients(cdp, { session, status = 'Listening…' }) {
     await cdp.eval(`(() => {
         for (const el of document.querySelectorAll('.error-toast, ${OVERLAYS}')) el.remove();
         ${
             session
                 ? `const status = document.querySelector('#voice-status');
-                   if (status) status.textContent = 'Listening…';`
+                   if (status) status.textContent = ${JSON.stringify(status)};`
                 : ''
         }
     })()`);
