@@ -259,11 +259,14 @@ let setupMounts = 0;
 let liveSpeaker: SetupSpeaker | null = null;
 
 /** The combinations the Exploration explainer offers, applied whole: each
- *  replaces the focuses and the vibes. */
-const EXPLORATION_PRESETS: Readonly<Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[] }>> = {
-    jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'] },
-    lovingKindness: { focuses: ['emotions'], qualities: ['loving', 'feeling_good'] },
-    partsWork: { focuses: ['inner_parts'], qualities: ['compassionate'] },
+ *  replaces the focuses and the vibes and sets the guidance level. `dirStep`
+ *  counts from 0; the slider shows it as one more (2, 2 and 3). */
+const EXPLORATION_PRESETS: Readonly<
+    Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[]; dirStep: number }>
+> = {
+    jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'], dirStep: 1 },
+    lovingKindness: { focuses: ['emotions'], qualities: ['loving', 'feeling_good'], dirStep: 1 },
+    partsWork: { focuses: ['inner_parts'], qualities: ['compassionate'], dirStep: 2 },
 };
 
 export async function mountSetupView(
@@ -2440,6 +2443,7 @@ export async function mountSetupView(
                 if (!preset) return;
                 setupForm.setFocuses([...preset.focuses]);
                 setQualities([...preset.qualities]);
+                setGuidance(preset.dirStep);
             });
         });
     }
