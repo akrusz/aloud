@@ -72,9 +72,9 @@ export function llmCostUsd(provider: ProviderId, model: string, usage: LlmUsage,
     const p = pricingFor(provider, model);
     if (!p) return 0;
     // Cache CREATION is billed and split by TTL: the 5m default costs ~1.25x
-    // input, the 1h "anchor" write ~2x. Bill the 1h portion (Anthropic's
-    // reported ephemeral_1h_input_tokens) at the higher rate and the rest at the
-    // 5m rate, or the proxy under-bills the anchor. Cache READ is the ~0.1x leg.
+    // input, a 1h write ~2x. Bill the 1h portion (Anthropic's reported
+    // ephemeral_1h_input_tokens) at the higher rate and the rest at the 5m
+    // rate, or a 1h write is under-billed. Cache READ is the ~0.1x leg.
     const cacheCreation = usage.cacheCreation ?? 0;
     const cacheCreation1h = Math.min(cacheCreation, Math.max(0, usage.cacheCreation1h ?? 0));
     const cacheCreation5m = cacheCreation - cacheCreation1h;

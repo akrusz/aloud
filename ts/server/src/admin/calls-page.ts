@@ -56,7 +56,7 @@ ${ADMIN_STYLE}
     <div id="detail" class="hidden">
       <h2 id="detailTitle">Session</h2>
       <div class="grid" id="stats"></div>
-      <p class="sub help-text"><b>Facilitation spend by token type.</b> Output includes hidden thinking. Cache writes cost 1.25x input (5m) or 2x (1h anchor); reads are cheap, so a big write column means the cache went cold.</p>
+      <p class="sub help-text"><b>Facilitation spend by token type.</b> Output includes hidden thinking. Keep-alives included. Cache writes cost 1.25x input (5m) or 2x (1h, older sessions only); reads are cheap, so a big write column means the cache went cold.</p>
       <div class="grid" id="split"></div>
       <h2>Calls
         <span class="controls">
@@ -65,7 +65,7 @@ ${ADMIN_STYLE}
           <label class="check"><input type="checkbox" id="showTts"> TTS</label>
         </span>
       </h2>
-      <p class="sub help-text"><b>Gap</b> is the time since the previous facilitation call; past the 5-minute cache TTL, the next call re-writes the prefix. <b>Cold</b> rows wrote more cache than they read. Incident rows (red) come from the same session: cut-off replies, blank turns, errors.</p>
+      <p class="sub help-text"><b>Gap</b> is the time since the previous facilitation call or keep-alive; past the 5-minute cache TTL, the next call re-writes the prefix. A <b>keep-alive</b> re-reads the cache while the session is quiet, generating nothing. <b>Cold</b> rows wrote more cache than they read. Incident rows (red) come from the same session: cut-off replies, blank turns, errors.</p>
       <div class="card table-wrap">
         <table>
           <thead><tr><th>t</th><th class="num">Gap</th><th>Call</th><th class="num">In</th><th class="num">Out</th><th class="num">Read</th><th class="num">Write</th><th class="num">1h</th><th class="num">$</th></tr></thead>
@@ -175,7 +175,7 @@ ${ADMIN_STYLE}
 
   function renderCalls() {
     if (!detail) return;
-    var show = { facilitation: true, utility: $('showUtil').checked, stt: $('showStt').checked, tts: $('showTts').checked };
+    var show = { facilitation: true, keepalive: true, utility: $('showUtil').checked, stt: $('showStt').checked, tts: $('showTts').checked };
     var t0 = detail.session.startTs;
     var items = detail.calls.filter(function (x) { return show[x.role]; })
       .map(function (x) { return { ts: x.ts, call: x }; })
@@ -189,6 +189,7 @@ ${ADMIN_STYLE}
       }
       var x = it.call;
       var what = x.role === 'facilitation' ? model(x.model)
+        : x.role === 'keepalive' ? 'keep-alive · ' + model(x.model)
         : x.role === 'utility' ? 'util · ' + model(x.model)
         : x.role === 'stt' ? 'STT · ' + x.seconds.toFixed(1) + 's'
         : 'TTS · ' + int(x.chars) + ' chars';

@@ -12,6 +12,8 @@
  * Streaming (SSE) and non-streaming both return creditsCharged +
  * creditsRemaining so the client's cost meter (meditation-pal-14s) updates
  * without a second round-trip.
+ *
+ * POST /cloud/v1/llm/keepalive, the prompt-cache keep-alive, is at the end.
  */
 
 import { Hono } from 'hono';
@@ -21,6 +23,8 @@ import {
     type CompleteChunk,
     type CompleteRequest,
     type CompleteResponse,
+    type KeepAliveRequest,
+    type KeepAliveResponse,
     type ProviderId,
 } from '../contract.js';
 import type { Deps } from '../deps.js';
@@ -35,8 +39,10 @@ import {
     priceLlmTurn,
     turnMaxTokens,
     MAX_UNCOVERED_CREDITS,
+    USD_PER_CREDIT,
 } from '../pricing/meter.js';
 import { usageOf } from '../providers/forward.js';
+import { chargeUpfront, gateUpfront } from './upfront-charge.js';
 import { InsufficientCreditsError } from '../credits/ledger.js';
 import { recordUsage } from '../credits/usage.js';
 import { serverIncidents } from '../credits/incidents.js';
@@ -132,6 +138,27 @@ function validMessages(messages: unknown): messages is CompleteRequest['messages
 // 'openai', bouncing every gpt-5.x turn as bad_request.)
 const VALID_PROVIDERS = new Set<string>(allowedModels().map((m) => m.provider));
 
+type CallCheck =
+    | { ok: true; provider: ProviderId; model: string; messages: CompleteRequest['messages'] }
+    | { ok: false; code: 'bad_request' | 'model_not_allowed'; message: string };
+
+/** The checks /complete and /keepalive share: a provider, an allowlisted
+ *  model, role + string messages, and a string system prompt if any. */
+function checkCall(body: Partial<CompleteRequest>): CallCheck {
+    const { provider, model, messages } = body;
+    if (!provider || !VALID_PROVIDERS.has(provider) || typeof model !== 'string' || !model || !validMessages(messages)) {
+        return { ok: false, code: 'bad_request', message: 'provider, model, messages required' };
+    }
+    // null is "none", as an absent field is; only a wrong type is refused.
+    if (body.system != null && typeof body.system !== 'string') {
+        return { ok: false, code: 'bad_request', message: 'system must be a string' };
+    }
+    if (!isModelAllowed(provider, model)) {
+        return { ok: false, code: 'model_not_allowed', message: `model not available on aloud cloud: ${provider}/${model}` };
+    }
+    return { ok: true, provider, model, messages };
+}
+
 export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
     const app = new Hono<{ Variables: AuthVars }>();
 
@@ -141,17 +168,9 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
 
         const body = (await c.req.json().catch(() => ({}))) as Partial<CompleteRequest>;
-        const { provider, model, messages } = body;
-        if (!provider || !VALID_PROVIDERS.has(provider) || typeof model !== 'string' || !model || !validMessages(messages)) {
-            return errorJson(c, 'bad_request', 'provider, model, messages required');
-        }
-        // null is "none", as an absent field is; only a wrong type is refused.
-        if (body.system != null && typeof body.system !== 'string') {
-            return errorJson(c, 'bad_request', 'system must be a string');
-        }
-        if (!isModelAllowed(provider, model)) {
-            return errorJson(c, 'model_not_allowed', `model not available on aloud cloud: ${provider}/${model}`);
-        }
+        const checked = checkCall(body);
+        if (!checked.ok) return errorJson(c, checked.code, checked.message);
+        const { provider, model, messages } = checked;
 
         // Soft-launch pause: a non-tester account can't spend on conversation
         // yet. Erroring would break a session mid-flow, so return a graceful
@@ -361,6 +380,82 @@ export function llmRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             if (holdId) await deps.ledger.releaseHold(account.id, holdId);
             return errorJson(c, 'provider_error', 'upstream provider error');
         }
+    });
+
+    /**
+     * POST /cloud/v1/llm/keepalive: a max_tokens 0 read that keeps a quiet
+     * session's prompt-cache entry alive (core keep-alive.ts). Checked like a
+     * turn; billed at the provider's cost like STT/TTS (upfront-charge.ts),
+     * since a ping can cost at most its prompt as a cache write, and that is
+     * what the balance gate is sized on. Usage rows carry purpose
+     * 'keepalive', which the cost report counts as neither a turn nor a cold
+     * call.
+     */
+    app.post('/keepalive', requireAuth(deps), async (c) => {
+        const account = c.get('account');
+
+        if (!deps.rateGuard.allow(account.id)) return tooManyRequests(c);
+
+        const body = (await c.req.json().catch(() => ({}))) as Partial<KeepAliveRequest>;
+        const checked = checkCall(body);
+        if (!checked.ok) return errorJson(c, checked.code, checked.message);
+        const { provider, model, messages } = checked;
+        const notKept = (creditsRemaining?: number): KeepAliveResponse => ({
+            kept: false,
+            creditsCharged: 0,
+            ...(creditsRemaining !== undefined && { creditsRemaining }),
+        });
+
+        // Only Anthropic's cache is one a read keeps alive.
+        if (provider !== 'anthropic') return c.json(notKept());
+        if (isMeteredBlocked(deps, account.email)) return c.json(notKept(await deps.ledger.balance(account.id)));
+
+        const promptTexts = [body.system ?? '', ...messages.map((m) => m.content)];
+        const worstCase = estimateTurnCredits(provider, model, promptTexts, 0);
+        const gate = await gateUpfront(deps, account.id, {
+            credits: worstCase,
+            providerCostUsd: worstCase * USD_PER_CREDIT,
+        });
+        if (!gate.fits) {
+            gate.release();
+            return c.json(notKept(gate.balance));
+        }
+
+        const sessionId = sessionIdOf(body.sessionId);
+        let result: CompletionResult;
+        try {
+            result = await deps.forwarder.keepAlive(messages, {
+                provider,
+                model,
+                ...(body.system ? { system: body.system } : {}),
+            });
+        } catch (err) {
+            gate.release();
+            log.warn('keepalive forward failed', { err: String(err), provider });
+            // At most one a session: the client stops pinging on any failure.
+            serverIncidents(deps.store, { accountId: account.id, provider, model, sessionId })(
+                'llm_error',
+                `keepalive: ${String(err)}`
+            );
+            return errorJson(c, 'provider_error', 'upstream provider error');
+        }
+        // One model's usage: a ping generates nothing, so there is no refusal
+        // for the fallback to answer (CompletionResult.attempts).
+        const usage = usageOf(result);
+        const charged = await chargeUpfront(deps, gate, priceLlmTurn(provider, model, usage), `keepalive:${provider}:${model}`, {
+            accountId: account.id,
+            kind: 'llm',
+            provider,
+            model,
+            sessionId,
+            purpose: 'keepalive',
+            tokensIn: usage.tokensIn ?? 0,
+            tokensOut: usage.tokensOut ?? 0,
+            cacheRead: usage.cacheRead ?? 0,
+            cacheCreation: usage.cacheCreation ?? 0,
+            cacheCreation1h: usage.cacheCreation1h ?? 0,
+        });
+        return c.json({ kept: (usage.cacheRead ?? 0) > 0, ...charged } satisfies KeepAliveResponse);
     });
 
     return app;

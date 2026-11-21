@@ -683,8 +683,9 @@ ${ADMIN_STYLE}</style>
         ['Fresh input tok', int(lc.freshInputTokens)],
         ['Cache reads tok', int(lc.cacheReadTokens)],
         ['Cache writes tok', int(lc.cacheCreationTokens)],
-        // 1h-TTL writes (the anchor, billed 2x). Rising = holds forcing re-anchors.
-        ['1h-anchor writes', int(lc.cacheCreation1hTokens || 0)],
+        // 1h-TTL writes, billed 2x. Only the retired 1h anchor wrote them, so
+        // this stays 0 in a window after it.
+        ['1h writes tok', int(lc.cacheCreation1hTokens || 0)],
         ['LLM cost', usdp(lc.costUsd)],
         ['Cost w/o cache', usdp(lc.costNoCacheUsd)],
         ['Saved by cache', usdp(lc.savedUsd) + ' (' + pct(savedPct) + ')'],

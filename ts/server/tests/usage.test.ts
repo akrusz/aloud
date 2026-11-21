@@ -115,6 +115,30 @@ describe('buildUsageReport', () => {
         expect(r.llmCacheByProvider[0]!.savedUsd).toBeCloseTo(noCache - actual, 12);
     });
 
+    it('a keep-alive is a cost of caching: no tokens in the hit ratio, nothing saved', () => {
+        const M = 1_000_000;
+        // Opus 5.5 rates: in 4/M, out 20/M, read 0.2/M.
+        const turnCost = (10 * 4 + 50 * 20 + 6000 * 0.2) / M;
+        const turnNoCache = (10 * 4 + 50 * 20 + 6000 * 4) / M;
+        const pingCost = (4 * 4 + 6000 * 0.2) / M;
+        const opus = { kind: 'llm' as const, provider: 'anthropic', model: 'claude-opus-5-5', sessionId: 's1' };
+        const events = [
+            ev({ ...opus, ts: 1000, purpose: 'facilitation', tokensIn: 10, tokensOut: 50, cacheRead: 6000, providerCostUsd: turnCost }),
+            ev({ ...opus, ts: 1270, purpose: 'keepalive', tokensIn: 4, cacheRead: 6000, providerCostUsd: pingCost }),
+        ];
+        const r = buildUsageReport(events, 2000, 0);
+        expect(r.llmCache.cacheReadTokens).toBe(6000);
+        expect(r.llmCache.freshInputTokens).toBe(10);
+        expect(r.llmCache.hitRatio).toBeCloseTo(6000 / 6010, 9);
+        expect(r.llmCacheHitRatio).toBeCloseTo(6000 / 6010, 9);
+        expect(r.llmCache.costUsd).toBeCloseTo(turnCost + pingCost, 12);
+        expect(r.llmCache.savedUsd).toBeCloseTo(turnNoCache - turnCost - pingCost, 12);
+        expect(r.llmCacheByProvider[0]!.cacheReadTokens).toBe(6000);
+        expect(r.llmCacheByProvider[0]!.savedUsd).toBeCloseTo(turnNoCache - turnCost - pingCost, 12);
+        // Still an LLM call, and the model's cost.
+        expect(r.byService.find((x) => x.kind === 'llm')!.providerCostUsd).toBeCloseTo(turnCost + pingCost, 12);
+    });
+
     it('unknown-model cache savings is zero (no price table → actual cost as baseline)', () => {
         const events = [
             ev({
@@ -390,6 +414,31 @@ describe('buildUsageReport', () => {
         const w2 = Math.sqrt(0.02);
         expect(r.perHour.creditsPerHour).toBeCloseTo((w1 * 6 + w2 * 2) / (w1 + w2), 9);
         expect(r.perHour.accounts).toBe(2);
+    });
+
+    it("keep-alives are no turns, sit on the facilitator model's row, and are no utility calls", () => {
+        const opus = { kind: 'llm' as const, provider: 'anthropic', model: 'claude-opus-5-5', sessionId: 's1' };
+        const events = [
+            ev({ ...opus, ts: 1000, purpose: 'facilitation', credits: 1, providerCostUsd: 0.05 }),
+            ev({ ...opus, ts: 1270, purpose: 'keepalive', credits: 0.02, providerCostUsd: 0.001 }),
+            ev({ ...opus, ts: 1540, purpose: 'keepalive', credits: 0.02, providerCostUsd: 0.001 }),
+            ev({ ...opus, ts: 1000 + 3600, purpose: 'facilitation', credits: 1, providerCostUsd: 0.05 }),
+        ];
+        const r = buildUsageReport(events, 1_000_000, 0, {
+            realSit: { minTurns: 0 },
+            sessionRowsFor: new Set(['a1']),
+        });
+        expect(r.sessions.turns.max).toBe(2);
+        expect(r.perHour.turnsPerHour).toBeCloseTo(2, 9);
+        const rows = r.perHour.byModel.filter((m) => m.model === 'claude-opus-5-5');
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.utility).toBe(false);
+        expect(rows[0]!.unitsPerHour).toBeCloseTo(2, 9);
+        expect(rows[0]!.creditsPerHour).toBeCloseTo(2.04, 9);
+        const row = r.sessionRows[0]!;
+        expect(row.llmTurns).toBe(2);
+        expect(row.utilityCalls).toBe(0);
+        expect(row.byService.llm).toBeCloseTo(2.04, 9);
     });
 
     it('distributions and perHour share the one bar', () => {

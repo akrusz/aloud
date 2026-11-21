@@ -25,8 +25,9 @@ export interface TokenRates {
     /** Cache-write (creation) input token at the DEFAULT 5-minute TTL
      *  (Anthropic ~1.25x input). */
     cacheCreation: number;
-    /** Cache-write at the 1-hour TTL (Anthropic 2x input). Used by the
-     *  "anchor" breakpoint that survives long [HOLD] silences. Providers with
+    /** Cache-write at the 1-hour TTL (Anthropic 2x input). Nothing writes
+     *  one now (the keep-alive replaced the 1h anchor breakpoint), but a
+     *  reported 1h write is still billed at this rate. Providers with
      *  automatic caching (OpenAI/Google) have no 1h write and report none, so
      *  this sits at the input rate and never accrues. */
     cacheCreation1h: number;

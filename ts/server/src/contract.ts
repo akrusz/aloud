@@ -69,6 +69,32 @@ export interface CompleteChunk {
     result?: CompleteResponse;
 }
 
+// ---- POST /cloud/v1/llm/keepalive -------------------------------------------------
+
+/** The session's last facilitation request again, as CompleteRequest sent it
+ *  and without the reply, for a max_tokens 0 read of the prompt-cache entry it
+ *  left (core keep-alive.ts). Its own path rather than a flag on
+ *  /llm/complete, which takes maxTokens 0 as "not specified": a server older
+ *  than this route answers 404, not a full billed reply. */
+export interface KeepAliveRequest {
+    provider: ProviderId;
+    model: string;
+    messages: Message[];
+    system?: string;
+    /** See CompleteRequest.sessionId. */
+    sessionId?: string;
+}
+
+export interface KeepAliveResponse {
+    /** True when the ping read the session's cache entry. False when nothing
+     *  went upstream (a provider whose cache a read doesn't keep, a paused or
+     *  empty account) or the read found no entry; the client stops pinging. */
+    kept: boolean;
+    creditsCharged: number;
+    /** Absent when the answer looked at no account. */
+    creditsRemaining?: number;
+}
+
 // ---- POST /cloud/v1/judge ---------------------------------------------------------
 
 export interface JudgeRequest {

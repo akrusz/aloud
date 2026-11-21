@@ -73,6 +73,39 @@ describe('buildSessionDetail', () => {
     });
 });
 
+describe('buildSessionDetail with keep-alives', () => {
+    // A turn, then a quiet stretch kept warm by two pings, then the next turn.
+    const KEPT: UsageEvent[] = [
+        ev({ id: 't1', ts: 1000, cacheCreation: 2300, tokensOut: 20, providerCostUsd: 0.03 }),
+        ev({ id: 'k1', ts: 1270, purpose: 'keepalive', tokensIn: 4, cacheRead: 2300, providerCostUsd: 0.0006 }),
+        // A ping that found the entry gone: wrote more than it read, still no cold call.
+        ev({ id: 'k2', ts: 1540, purpose: 'keepalive', tokensIn: 4, cacheCreation: 2300, providerCostUsd: 0.03 }),
+        ev({ id: 't2', ts: 1700, cacheRead: 2300, cacheCreation: 50, tokensOut: 16, providerCostUsd: 0.002 }),
+    ];
+    const d = buildSessionDetail(KEPT, [], 's1')!;
+
+    it('shows them as their own kind, never as turns', () => {
+        expect(d.calls.map((c) => c.role)).toEqual(['facilitation', 'keepalive', 'keepalive', 'facilitation']);
+        expect(d.session.turns).toBe(2);
+    });
+
+    it('times the cache clock from the last turn or keep-alive', () => {
+        expect(d.calls.map((c) => c.gapSec)).toEqual([null, 270, 270, 160]);
+    });
+
+    it('never counts one as a cold call', () => {
+        expect(d.calls.map((c) => c.cold)).toEqual([false, false, false, false]);
+        expect(d.session.coldCalls).toBe(0);
+    });
+
+    it("puts their cost with the session's LLM spend", () => {
+        expect(d.session.costUsd.facilitation).toBeCloseTo(0.0626);
+        expect(d.session.costUsd.utility).toBe(0);
+        expect(d.facilitationTokens.cacheRead).toBe(4600);
+        expect(d.facilitationTokens.input).toBe(8);
+    });
+});
+
 describe('buildSessionList', () => {
     it('lists sessions newest first, skipping rows without a session id and older starts', () => {
         const rows = [

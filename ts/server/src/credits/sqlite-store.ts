@@ -142,10 +142,10 @@ CREATE TABLE IF NOT EXISTS usage_events (
     -- Retreat pass that covered this call (meditation-pal-414), or NULL when
     -- metered normally. Lets the admin attribute per-retreat spend.
     pass_id           TEXT,
-    -- Subset of cache_creation written at the 1h TTL (the anchor breakpoint),
-    -- billed at 2x input. Added after the table existed → also a migration.
+    -- Subset of cache_creation written at the 1h TTL (the retired anchor
+    -- breakpoint), billed at 2x input. Added after the table existed → also a migration.
     cache_creation_1h INTEGER NOT NULL DEFAULT 0,
-    purpose           TEXT -- LLM rows: 'facilitation' | 'utility', NULL predates the tag; STT rows: 'setup' or NULL
+    purpose           TEXT -- LLM rows: 'facilitation' | 'utility' | 'keepalive', NULL predates the tag; STT rows: 'setup' or NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_events(ts);
 CREATE INDEX IF NOT EXISTS idx_usage_account ON usage_events(account_id);

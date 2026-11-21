@@ -13,16 +13,17 @@
 
 import type { ProviderId } from '../contract.js';
 import type { Incident } from '../credits/incidents.js';
-import { facilitationFilter, type LlmPurpose, type UsageEvent, type UsageKind } from '../credits/usage.js';
+import { facilitationFilter, isKeepAlive, type LlmPurpose, type UsageEvent, type UsageKind } from '../credits/usage.js';
 import { pricingFor } from '../pricing/providers.js';
 
 /** Anthropic's default cache TTL. A facilitation call further than this from
- *  the one before it finds the tail breakpoint expired and re-writes the
- *  prefix back to the 1h anchor (or all of it, before there is one). */
+ *  the call before it that read or wrote the cache (a turn or a keep-alive)
+ *  finds the entry expired and writes the prefix again. */
 export const CACHE_TTL_SEC = 5 * 60;
 
 /** The legs a session's spend splits into. */
 export interface LegCosts {
+    /** Keep-alives included. */
     facilitation: number;
     utility: number;
     stt: number;
@@ -58,8 +59,8 @@ export interface CallRow {
     ts: number;
     /** Seconds since the session's first call. */
     offsetSec: number;
-    /** Facilitation rows: seconds since the previous facilitation call (the
-     *  cache-TTL clock). Null elsewhere and on the first one. */
+    /** Facilitation and keep-alive rows: seconds since the previous one of
+     *  either (the cache-TTL clock). Null elsewhere and on the first one. */
     gapSec: number | null;
     role: CallRole;
     kind: UsageKind;
@@ -79,7 +80,8 @@ export interface CallRow {
 
 export interface SessionDetail {
     session: SessionListRow;
-    /** Facilitation spend by token type, the question "why so expensive". */
+    /** Facilitation spend by token type, the question "why so expensive".
+     *  Keep-alives included. */
     facilitationCosts: TokenCosts;
     facilitationTokens: { input: number; output: number; cacheRead: number; cacheWrite: number; cacheWrite1h: number };
     calls: CallRow[];
@@ -101,6 +103,7 @@ function bySession(events: UsageEvent[]): Map<string, UsageEvent[]> {
 
 function roleOf(e: UsageEvent, isFacilitation: (e: UsageEvent) => boolean): CallRole {
     if (e.kind !== 'llm') return e.kind;
+    if (isKeepAlive(e)) return 'keepalive';
     return isFacilitation(e) ? 'facilitation' : 'utility';
 }
 
@@ -110,25 +113,27 @@ function analyze(sessionId: string, rows: UsageEvent[]): { session: SessionListR
     const t0 = rows[0]!.ts;
     const costUsd: LegCosts = { facilitation: 0, utility: 0, stt: 0, tts: 0, total: 0 };
     const modelCost = new Map<string, number>();
-    let lastFacilitationTs: number | null = null;
+    let lastCacheTs: number | null = null;
     let turns = 0;
     let coldCalls = 0;
 
     const calls = rows.map((e): CallRow => {
         const role = roleOf(e, isFacilitation);
-        costUsd[role] += e.providerCostUsd;
+        costUsd[role === 'keepalive' ? 'facilitation' : role] += e.providerCostUsd;
         costUsd.total += e.providerCostUsd;
         let gapSec: number | null = null;
         let cold = false;
+        if (role === 'facilitation' || role === 'keepalive') {
+            if (lastCacheTs !== null) gapSec = e.ts - lastCacheTs;
+            lastCacheTs = e.ts;
+        }
         if (role === 'facilitation') {
             const key = `${e.provider}:${e.model}`;
             modelCost.set(key, (modelCost.get(key) ?? 0) + e.providerCostUsd);
-            if (lastFacilitationTs !== null) {
-                gapSec = e.ts - lastFacilitationTs;
+            if (gapSec !== null) {
                 cold = e.cacheCreation > e.cacheRead;
                 if (cold) coldCalls++;
             }
-            lastFacilitationTs = e.ts;
             turns++;
         }
         return {
@@ -191,7 +196,7 @@ export function buildSessionDetail(
     const facilitationCosts: TokenCosts = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cacheWrite1h: 0 };
     const facilitationTokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cacheWrite1h: 0 };
     for (const c of calls) {
-        if (c.role !== 'facilitation') continue;
+        if (c.role !== 'facilitation' && c.role !== 'keepalive') continue;
         const write1h = Math.min(c.cacheCreation, c.cacheCreation1h);
         const write5m = c.cacheCreation - write1h;
         facilitationTokens.input += c.tokensIn;

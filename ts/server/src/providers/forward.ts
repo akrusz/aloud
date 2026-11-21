@@ -110,6 +110,19 @@ export class Forwarder {
         return provider.complete(messages, opts.system ? { system: opts.system } : {});
     }
 
+    /** A max_tokens 0 read of the cache entry `complete`/`stream` left for the
+     *  same messages and options: built by the same provider construction, so
+     *  the prefix is byte-identical (the turn's maxTokens never reaches it).
+     *  Throws for a provider without one. */
+    async keepAlive(
+        messages: Message[],
+        opts: ForwardOptions & { system?: string }
+    ): Promise<CompletionResult> {
+        const provider = buildProvider(this.keys, opts);
+        if (!provider.keepAlive) throw new Error(`no keep-alive for provider ${opts.provider}`);
+        return provider.keepAlive(messages, opts.system ? { system: opts.system } : {});
+    }
+
     /** Yields deltas; the final chunk (done: true) carries usage. Falls back to
      *  a single synthetic chunk if the provider lacks streaming. */
     async *stream(

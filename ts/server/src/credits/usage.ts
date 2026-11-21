@@ -26,9 +26,17 @@ import type { ProviderId } from '../contract.js';
 
 export type UsageKind = 'llm' | 'stt' | 'tts';
 
-/** What an LLM call was for: a facilitator turn, or the background calls
- *  made alongside it (classifiers, the Jev judge, noting labels, recaps). */
-export type LlmPurpose = 'facilitation' | 'utility';
+/** What an LLM call was for: a facilitator turn, the background calls made
+ *  alongside it (classifiers, the Jev judge, noting labels, recaps), or a
+ *  read that kept the facilitator's prompt cache alive through a quiet
+ *  stretch (routes/llm.ts /keepalive). A keep-alive is the facilitator's
+ *  cost but never a turn, and its cache read is no saving: without the
+ *  cache there would be no ping. */
+export type LlmPurpose = 'facilitation' | 'utility' | 'keepalive';
+
+export function isKeepAlive(e: Pick<UsageEvent, 'kind' | 'purpose'>): boolean {
+    return e.kind === 'llm' && e.purpose === 'keepalive';
+}
 
 /** What a call was for, where its kind doesn't say: an LLM call's LlmPurpose,
  *  or 'setup' on a call from the setup screen, which happens before any
@@ -75,9 +83,10 @@ export interface UsageEvent {
     tokensOut: number;
     cacheRead: number;
     cacheCreation: number;
-    /** Subset of cacheCreation written at the 1h TTL (the anchor breakpoint),
-     *  billed at 2x input vs the 5m default's 1.25x. Zero for non-LLM legs and
-     *  providers without a TTL breakdown. */
+    /** Subset of cacheCreation written at the 1h TTL, billed at 2x input vs
+     *  the 5m default's 1.25x. Only rows from before the keep-alive replaced
+     *  the 1h anchor breakpoint carry any; zero for non-LLM legs and providers
+     *  without a TTL breakdown. */
     cacheCreation1h: number;
     seconds: number; // STT audio seconds
     chars: number; // TTS characters
@@ -207,9 +216,8 @@ export interface CacheAgg {
     /** Tokens written to cache (Anthropic ~1.25x input at 5m TTL; 0 for the
      *  OpenAI/Google auto-cache shapes, which don't surface a write count). */
     cacheCreationTokens: number;
-    /** Subset of cacheCreationTokens written at the 1h TTL (the anchor, billed
-     *  at 2x). Rising means holds are forcing 1h re-anchors: the signal for
-     *  whether the anchor strategy earns its 2x premium. */
+    /** Subset of cacheCreationTokens written at the 1h TTL, billed at 2x. Only
+     *  the retired 1h anchor wrote these. */
     cacheCreation1hTokens: number;
     /** cacheRead / (fresh + read + creation), 0..1. */
     hitRatio: number;
@@ -600,23 +608,29 @@ export function buildUsageReport(
         // Jev (the judge) is an LLM row for the cost split but has no prompt
         // cache; counting it would read as a cold facilitator.
         if (e.kind === 'llm' && e.provider !== 'typesafe') {
-            cacheReadTokens += e.cacheRead;
-            cacheableTokens += e.tokensIn + e.cacheRead + e.cacheCreation;
+            // A keep-alive is a cost of caching: it adds to what caching cost
+            // and nothing to the tokens a turn read or what it saved.
+            const ping = isKeepAlive(e);
+            const tokens = ping ? { tokensIn: 0, cacheRead: 0, cacheCreation: 0, cacheCreation1h: 0 } : e;
+            cacheReadTokens += tokens.cacheRead;
+            cacheableTokens += tokens.tokensIn + tokens.cacheRead + tokens.cacheCreation;
 
             // Cost with NO caching: every cached token (read + write) re-priced
             // at full input. Unknown models contribute their actual cost, so a
             // missing rate can't inflate savings.
             const p = pricingFor(e.provider as ProviderId, e.model);
-            const noCache = p
-                ? e.tokensIn * p.input +
-                  e.tokensOut * p.output +
-                  (e.cacheRead + e.cacheCreation) * p.input
-                : e.providerCostUsd;
+            const noCache = ping
+                ? 0
+                : p
+                  ? e.tokensIn * p.input +
+                    e.tokensOut * p.output +
+                    (e.cacheRead + e.cacheCreation) * p.input
+                  : e.providerCostUsd;
 
-            llmFresh += e.tokensIn;
-            llmRead += e.cacheRead;
-            llmCreate += e.cacheCreation;
-            llmCreate1h += e.cacheCreation1h;
+            llmFresh += tokens.tokensIn;
+            llmRead += tokens.cacheRead;
+            llmCreate += tokens.cacheCreation;
+            llmCreate1h += tokens.cacheCreation1h;
             llmCost += e.providerCostUsd;
             llmNoCacheCost += noCache;
 
@@ -631,10 +645,10 @@ export function buildUsageReport(
                 noCache: 0,
             };
             pc.events += 1;
-            pc.fresh += e.tokensIn;
-            pc.read += e.cacheRead;
-            pc.create += e.cacheCreation;
-            pc.create1h += e.cacheCreation1h;
+            pc.fresh += tokens.tokensIn;
+            pc.read += tokens.cacheRead;
+            pc.create += tokens.cacheCreation;
+            pc.create1h += tokens.cacheCreation1h;
             pc.cost += e.providerCostUsd;
             pc.noCache += noCache;
             providerCache.set(e.provider, pc);
@@ -764,7 +778,9 @@ export function buildUsageReport(
             } else if (e.kind === 'tts') addToAccount(accountId, 'ttsChars', e.chars);
             addToAccount(accountId, `svc:${e.kind}`, e.credits);
             addToAccount(accountId, `svcCost:${e.kind}`, e.providerCostUsd);
-            const utility = e.kind === 'llm' && !isTurn(e);
+            // A keep-alive goes on its facilitator model's row, priced but
+            // not counted as a turn.
+            const utility = e.kind === 'llm' && !isTurn(e) && !isKeepAlive(e);
             const key = `${e.kind}:${e.provider}:${e.model}:${utility}`;
             const m = phModels.get(key) ?? {
                 kind: e.kind,
@@ -778,7 +794,7 @@ export function buildUsageReport(
             };
             m.credits += e.credits;
             m.cost += e.providerCostUsd;
-            m.units += unitsOf(e);
+            if (!isKeepAlive(e)) m.units += unitsOf(e);
             // This session's hours count once per model, not once per event.
             if (!modelsInSession.has(key)) m.hours += sessionHours;
             modelsInSession.add(key);
@@ -957,7 +973,7 @@ function sessionRow(s: UsageEvent[], minutes: number): SessionRow {
             tok.output += e.tokensOut;
             tok.cacheRead += e.cacheRead;
             tok.cacheCreation += e.cacheCreation;
-        } else utilityCalls += 1;
+        } else if (!isKeepAlive(e)) utilityCalls += 1;
     }
     const perTurn = (x: number): number => (llmTurns > 0 ? x / llmTurns : 0);
     return {
