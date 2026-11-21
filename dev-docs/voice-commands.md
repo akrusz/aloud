@@ -678,10 +678,12 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   (`biasPhrases`: `contextualStrings` on iOS, `EXTRA_BIASING_STRINGS` on
   Android 13+, in the patched plugin; both compile, neither has run on a
   phone). Hosted recognition gets a flag and the server builds the prompt
-  itself, below. Chrome's browser recognizer gets nothing: its phrase biasing
-  is on-device only and makes a cloud recognizer fail at start. "Begin" is in
-  none of it, since a prompted word is the one a recognizer writes over
-  noise. A session sends none of it.
+  itself, below; only GPT takes it, so Parakeet (the English default) and
+  Grok hear this screen unprompted, and `tour-command.ts` matches their near
+  misses of the tour's words. Chrome's browser recognizer gets nothing: its
+  phrase biasing is on-device only and makes a cloud recognizer fail at
+  start. "Begin" is in none of it, since a prompted word is the one a
+  recognizer writes over noise. A session sends none of it.
 - **zh has phrases and no prompt.** Measured (below), the zh prompt wrote its
   own words over unclear speech: 开始 came out 开阔 and 跟随 came out 均衡. About
   one request in 25 changed the wrong thing against none without it, and 开始

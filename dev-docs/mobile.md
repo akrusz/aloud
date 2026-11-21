@@ -305,8 +305,7 @@ device/simulator and are tracked separately:
   category-and-cost logic) in
   [mobile-device-validation.md](mobile-device-validation.md). Beads `0ao`
   (STT), `g0ox` (TTS). If native cuts off, the cloud fallbacks
-  (`aloud-gpt-transcribe` STT - the choice labelled "GPT" - / cloud
-  voices) already work on mobile.
+  (aloud cloud STT / cloud voices) already work on mobile.
 - **Keep-awake** actually holding the screen on across a full session.
 - **Native sign-in on iOS** - works on Android; iOS still needs the Google iOS
   client + URL scheme ([mobile-signin-setup.md](mobile-signin-setup.md)) and a

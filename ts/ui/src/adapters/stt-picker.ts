@@ -11,8 +11,9 @@
  *   whisper         - the desktop Rust shell's /app/v1/stt/whisper, so the
  *                     reliable desktop path
  *   aloud-*         - aloud cloud's /cloud/v1/stt through the same PCM
- *                     engine, one choice per hosted model (HOSTED_STT); GPT is
- *                     the fallback every mode and language can reach
+ *                     engine, one choice per hosted model (HOSTED_STT); the
+ *                     first the language takes is aloud cloud's default
+ *                     (hostedSttDefault)
  */
 
 import type { SttEngine } from '../../../src/platform/stt.js';
@@ -105,6 +106,9 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
  * whether the model takes a prompt (incrementalFor). Moving a choice to a
  * newer model means moving `model` here and the server's allowlist together;
  * the choice id stays.
+ *
+ * The ORDER is the picker's, and the first entry a language offers is aloud
+ * cloud's default there (hostedSttDefault): Parakeet in English, GPT in 中文.
  */
 const HOSTED_STT: Record<
     HostedSttChoice,
@@ -116,20 +120,23 @@ const HOSTED_STT: Record<
         takesPrompt: boolean;
     }
 > = {
-    'aloud-gpt-transcribe': {
-        model: 'gpt-transcribe',
-        label: 'GPT',
-        seedCreditsPerHour: 2.11,
-        offeredIn: () => true,
-        takesPrompt: true,
-    },
-    // Parakeet knows European languages, not Chinese.
+    // Parakeet knows European languages, not Chinese. Listed first, so it is
+    // the English default: as fast and as accurate as GPT on a phone at about
+    // a fifth of the cost, though it takes no vocabulary hints
+    // (meditation-pal-gxk8).
     'aloud-parakeet': {
         model: 'moondream/parakeet-ultra',
         label: 'Parakeet',
         seedCreditsPerHour: 0.49,
         offeredIn: (lang) => lang !== 'zh',
         takesPrompt: false,
+    },
+    'aloud-gpt-transcribe': {
+        model: 'gpt-transcribe',
+        label: 'GPT',
+        seedCreditsPerHour: 2.11,
+        offeredIn: () => true,
+        takesPrompt: true,
     },
     // The cheap alternative for Chinese only (dev call, 2026-11-15).
     'aloud-grok': {
@@ -379,8 +386,7 @@ export function sttEngineOptions(
     if (!isTauri() && !isCapacitor() && isWebSpeechSupported()) {
         out.push({ value: 'web-speech', label: 'Browser' });
     }
-    // aloud cloud, labelled by model. GPT is offered in every mode and
-    // language, so it's the fallback every session can reach.
+    // aloud cloud, labelled by model, in HOSTED_STT's order.
     for (const choice of Object.keys(HOSTED_STT) as HostedSttChoice[]) {
         const h = HOSTED_STT[choice];
         if (!h.offeredIn(lang)) continue;
@@ -426,10 +432,21 @@ export function defaultSttChoice(webMode: boolean, mode: MeditationType = 'explo
     return sttEngineOptions(webMode, mode)[0]!.value;
 }
 
+/** aloud cloud's default model for the mode and language: the first hosted
+ *  option (Parakeet in English, GPT in 中文). Null when none is offered. */
+export function hostedSttDefault(webMode: boolean, mode: MeditationType = 'exploration'): HostedSttChoice | null {
+    return (
+        sttEngineOptions(webMode, mode)
+            .map((o) => o.value)
+            .find(isHostedSttChoice) ?? null
+    );
+}
+
 /** The stored pick if this mode offers it, else the mode's flow default.
  *  Handles null (never chosen) and a stale pick carried across a mode change.
  *  A hosted pick the language doesn't offer (Parakeet in a Chinese session)
- *  stays on aloud cloud, on GPT, rather than dropping to a local default. */
+ *  stays on aloud cloud, on the language's default model, rather than
+ *  dropping to a local default. */
 export function resolveSttChoice(
     stored: SttEngineChoice | null,
     webMode: boolean,
@@ -437,6 +454,6 @@ export function resolveSttChoice(
 ): SttEngineChoice {
     const offered = sttEngineOptions(webMode, mode).map((o) => o.value);
     if (stored && offered.includes(stored)) return stored;
-    if (stored && isHostedSttChoice(stored) && offered.includes('aloud-gpt-transcribe')) return 'aloud-gpt-transcribe';
-    return defaultSttChoice(webMode, mode);
+    const hosted = stored && isHostedSttChoice(stored) ? hostedSttDefault(webMode, mode) : null;
+    return hosted ?? defaultSttChoice(webMode, mode);
 }

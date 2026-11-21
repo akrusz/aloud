@@ -128,6 +128,7 @@ import {
     resolveSttChoice,
     sttEngineOptions,
     isHostedSttChoice,
+    hostedSttDefault,
     type SttBackend,
 } from '../adapters/stt-picker.js';
 import { isWebMode } from '../app-mode.js';
@@ -1244,29 +1245,28 @@ export async function mountSessionView(
     }
     /**
      * Fill the trouble banner. When aloud cloud is an available STT option and
-     * we're on none of its models, offer a one-click switch to GPT, so a user whose browser blocks
-     * its speech recognizer (common on Edge/Windows) gets a working mic without
-     * leaving the session or hunting through Settings.
+     * we're on none of its models, offer a one-click switch to its default
+     * model (hostedSttDefault), so a user whose browser blocks its speech
+     * recognizer (common on Edge/Windows) gets a working mic without leaving
+     * the session or hunting through Settings.
      */
     function renderSttTrouble(): void {
         if (!sttTroubleEl) return;
-        const canSwitchToCloud =
-            !isHostedSttChoice(sttChoice) &&
-            sttEngineOptions(isWebMode()).some((o) => o.value === 'aloud-gpt-transcribe');
+        const cloudChoice = isHostedSttChoice(sttChoice) ? null : hostedSttDefault(isWebMode());
         sttTroubleEl.replaceChildren();
         const msg = document.createElement('span');
-        msg.textContent = canSwitchToCloud && !sttFailureIsConnection
+        msg.textContent = cloudChoice && !sttFailureIsConnection
             ? t('Trouble hearing you - your browser may be blocking its speech recognition.')
             : t(
                   "Trouble with speech to text. We're not catching your voice right now - check your connection, or change speech recognition in Settings."
               );
         sttTroubleEl.appendChild(msg);
-        if (canSwitchToCloud) {
+        if (cloudChoice) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'stt-trouble-btn';
             btn.textContent = t('Use aloud cloud speech');
-            btn.addEventListener('click', () => void switchSttEngine('aloud-gpt-transcribe'));
+            btn.addEventListener('click', () => void switchSttEngine(cloudChoice));
             sttTroubleEl.appendChild(btn);
         }
         sttTroubleEl.classList.remove('hidden');
