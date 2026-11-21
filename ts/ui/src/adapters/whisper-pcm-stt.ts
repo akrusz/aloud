@@ -280,6 +280,11 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** The longest pause that ends a turn begun while a line plays. Default
      *  none: the adaptive window alone. */
     overLineSilenceMs?: number;
+    /** How long after a frame cleared the bar while a line plays a frame
+     *  under it still counts, if Silero calls it speech. Silero's verdict
+     *  trails a word's loudest part, so the two need not fall on one frame.
+     *  Default 0: both on the same frame. */
+    overLineLatchMs?: number;
     /** Hard cap on a single utterance - auto-submit after this. Default 120s.
      *  A runaway valve (background speech can hold the VAD open forever), NOT a
      *  conversational boundary: it cuts mid-sentence and the post-cut hole grows
@@ -341,6 +346,8 @@ export class WhisperPcmSttEngine implements SttEngine {
     private liveWaiters: Array<() => void> = [];
     /** Waiting for the next frame with sound in it (whenHearing). */
     private hearingWaiters: Array<() => void> = [];
+    /** When a frame last cleared the bar while a line played (isSpeechFrame). */
+    private overBarAt = -Infinity;
     /** A capture being opened with no other of ours open (coldOpening). */
     private coldOpen: { settled: Promise<void>; since: number; heard: boolean; end: () => void } | null = null;
     private processor: ScriptProcessorNode | null = null;
@@ -488,6 +495,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             overLineMinSpeechMs:
                 options.overLineMinSpeechMs ?? options.minSpeechDurationMs ?? defaultPacingConfig.minSpeechDurationMs,
             overLineSilenceMs: options.overLineSilenceMs ?? Infinity,
+            overLineLatchMs: options.overLineLatchMs ?? 0,
             maxUtteranceMs: options.maxUtteranceMs ?? 120_000,
             speculation: options.speculation ?? true,
             incremental: options.incremental ?? false,
@@ -681,8 +689,12 @@ export class WhisperPcmSttEngine implements SttEngine {
      *  verdict, plus the energy bar while TTS plays (echo IS speech to Silero,
      *  so speaker separation needs the energy reference - 8h1x). Degraded
      *  (silero null): the energy gate over the adaptive noise floor. */
-    private isSpeechFrame(energy: number, bar: number): boolean {
-        if (this.silero) return this.silero.speaking && (bar === 0 || energy > bar);
+    private isSpeechFrame(energy: number, bar: number, now: number): boolean {
+        if (this.silero) {
+            if (bar === 0) return this.silero.speaking;
+            if (energy > bar) this.overBarAt = now;
+            return this.silero.speaking && now - this.overBarAt <= this.opts.overLineLatchMs;
+        }
         let threshold = Math.max(FALLBACK_ENERGY_THRESHOLD, this.noiseFloor * 3);
         if (bar > 0) threshold = Math.max(threshold, bar);
         return energy > threshold;
@@ -861,7 +873,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // pre-buffer stays warm for the no-resume case. A cap cut never
             // resumes, so its frames go to the pre-buffer only: kept here too,
             // the ones before the final pass snapshots would be sent twice.
-            if (this.isSpeechFrame(energy, speechBar)) {
+            if (this.isSpeechFrame(energy, speechBar, now)) {
                 this.postSubmitSpeech = true;
                 this.lastSpeechMs = now;
                 this.peakEnergy = Math.max(this.peakEnergy, energy);
@@ -879,7 +891,7 @@ export class WhisperPcmSttEngine implements SttEngine {
         // The barge-in-grade energy bar during TTS (isSpeechFrame) prevents a
         // session-start phantom turn (8h1x): greeting echo at ~0.016 RMS
         // clears a 0.015 floor before the echo EMA has calibrated.
-        if (this.isSpeechFrame(energy, speechBar)) {
+        if (this.isSpeechFrame(energy, speechBar, now)) {
             if (!this.speechStarted) {
                 this.speechStarted = true;
                 this.startedWhileTtsActive = this.ttsActive;

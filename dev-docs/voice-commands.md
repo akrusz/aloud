@@ -810,7 +810,10 @@ voices and would move them off it.
   read by `speechBar` and `start` in `whisper-pcm-stt.ts` for a turn begun
   while a line plays), since a miss here costs one short transcription and
   the line plays on, where a session's false barge-in cuts the facilitator
-  off. At a session's bar (`BARGE_IN_THRESHOLD`, 0.03) and 200ms minimum,
+  off. A frame under the bar still counts for 0.4s after one over
+  it when Silero calls it speech (`overLineLatchMs`): Silero's verdict
+  trails a word's loudest part, and a "next" that peaked at 0.055 on a phone
+  opened no turn without it (2026-11-20). At a session's bar (`BARGE_IN_THRESHOLD`, 0.03) and 200ms minimum,
   seven of ten commands said over lines on MacBook speakers (2026-11-20)
   were dropped as coughs: only frames over the bar count as speech while a
   line plays, so a one-syllable word measured 0 to 171ms. The phone's

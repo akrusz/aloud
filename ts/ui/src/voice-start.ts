@@ -195,6 +195,11 @@ export const LOBBY_STT = {
     // cuts the line sooner. Long enough to keep "go back" whole; a word said
     // after it, while the turn is being transcribed, still joins it.
     overLineSilenceMs: 450,
+    // Silero's verdict trails a word's loudest part: a "next" that peaked at
+    // 0.055 over a line had dropped to the bar by the time Silero called it
+    // speech, and opened no turn (a phone, 2026-11-20). A frame under the bar
+    // this soon after one over it still counts.
+    overLineLatchMs: 400,
     speculation: false,
     maxUtteranceMs: 10_000,
     // Tells each recognizer what the setup screen expects to hear (stt-picker.ts),

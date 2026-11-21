@@ -20,7 +20,13 @@ vi.mock('../ui/src/adapters/silero-vad.js', () => ({
 useWhisperHarness();
 
 /** LOBBY_STT as a session would have it: nothing of its own over a line. */
-const { overLineBar: _bar, overLineMinSpeechMs: _min, overLineSilenceMs: _pause, ...session } = LOBBY_STT;
+const {
+    overLineBar: _bar,
+    overLineMinSpeechMs: _min,
+    overLineSilenceMs: _pause,
+    overLineLatchMs: _latch,
+    ...session
+} = LOBBY_STT;
 
 const engineOf = (engine: Engine): WhisperPcmSttEngine => engine as unknown as WhisperPcmSttEngine;
 
