@@ -24,7 +24,7 @@ PODS:
   - CapacitorCordova (8.6.0)
   - CapacitorPreferences (8.0.1):
     - Capacitor
-  - CapgoCapacitorSocialLogin (8.7.6):
+  - CapgoCapacitorSocialLogin (8.7.9):
     - Capacitor
     - GoogleSignIn (~> 9.0.0)
   - GoogleSignIn (9.0.0):
@@ -100,7 +100,7 @@ SPEC CHECKSUMS:
   CapacitorCommunitySpeechRecognition: 3e03566c44c2bb3b52391a33d4518b1adbdeb38f
   CapacitorCordova: 922f0a94dae286165215f0c7cf16fbde662d5ee4
   CapacitorPreferences: cca2021f386efb75947c850334447d9ff22b14f1
-  CapgoCapacitorSocialLogin: 6dcdde6fc6a5d69824da03d9d6e778e548031b3e
+  CapgoCapacitorSocialLogin: 4c062622e9eb291181b06c68528f942d17bab5e6
   GoogleSignIn: c7f09cfbc85a1abf69187be091997c317cc33b77
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
