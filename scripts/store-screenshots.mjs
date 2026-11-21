@@ -187,7 +187,7 @@ const SHOTS = [
         // The meditator's turn, as startUserTurn (views/noting-session.ts)
         // words it.
         status: 'Your turn. Say something you notice now, 1-2 words.',
-        caption: ['also try noting meditation', 'add sound effects or virtual participants to help you stay present and alert'],
+        caption: ['try noting meditation', 'add sound effects or virtual participants to help you stay present and alert'],
     },
     {
         id: 'kasina',
