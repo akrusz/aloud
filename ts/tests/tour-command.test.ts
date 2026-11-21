@@ -64,6 +64,10 @@ describe('parseTourCommand', () => {
         }
     });
 
+    it('takes what a recognizer writes for "back" said over a line', () => {
+        for (const text of ['Так', 'так.', 'Bak']) expect(parseTourCommand(text), text).toEqual({ kind: 'back' });
+    });
+
     it('takes a voice by name, by place, or by how it sounds', () => {
         const cases: Array<[string, number]> = [
             ['Harper', 0],
@@ -74,6 +78,7 @@ describe('parseTourCommand', () => {
             ['Happy', 0],
             ['Happen.', 0],
             ['Harbor', 0],
+            ['Hopper.', 0],
             ["I'd like Harper please", 0],
             ['the first one', 0],
             ['first', 0],

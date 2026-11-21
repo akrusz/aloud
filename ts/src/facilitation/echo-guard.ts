@@ -136,7 +136,7 @@ export function looksLikePartOfLine(utterance: string, spoken: string): boolean 
 }
 
 /** How far behind and ahead of the line's position partOfLineNear looks, in seconds. */
-const HEARD_BACK_S = 6;
+const HEARD_BACK_S = 4;
 const HEARD_AHEAD_S = 1.5;
 
 /**

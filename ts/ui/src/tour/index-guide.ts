@@ -802,9 +802,10 @@ const MORE_BELOW_SEEN_PX = 72;
  * A panel opened on a phone can run the section on under the card docked at
  * the foot of the screen: a chevron over the card says there is more below,
  * until the page has been scrolled a little (syncMoreBelow). It goes with the
- * card. A tap jumps to the section's controls, the panel's next sibling, put
- * just under the nav; a panel with nothing after it moves on by the room above
- * the card.
+ * card. A tap jumps to the section's controls, the panel's next sibling: their
+ * top just under the nav, or their foot just above the card where that is the
+ * shorter way. A panel with nothing after it moves on by the room above the
+ * card.
  */
 function addMoreBelow(target: HTMLElement, panel: HTMLElement): void {
     const cue = document.createElement('div');
@@ -817,8 +818,13 @@ function addMoreBelow(target: HTMLElement, panel: HTMLElement): void {
     const max = document.documentElement.scrollHeight - window.innerHeight;
     cue.dataset['from'] = String(Math.min(max, Math.max(0, lands)));
     cue.addEventListener('click', () => {
-        const top = (panel.nextElementSibling ?? cue).getBoundingClientRect().top;
-        window.scrollBy({ top: top - getNavHeight(), behavior: 'instant' });
+        // To the controls' top under the nav, but no further than brings
+        // their foot to just above the card: a short set would leave a gap.
+        const controls = (panel.nextElementSibling ?? cue).getBoundingClientRect();
+        const room = (cardEl?.getBoundingClientRect().top ?? window.innerHeight) - PADDING;
+        const by = panel.nextElementSibling ? Math.min(controls.top - getNavHeight(), controls.bottom - room) : controls.top - getNavHeight();
+        cue.remove();
+        window.scrollBy({ top: by, behavior: 'instant' });
     });
     cardEl?.appendChild(cue);
     syncMoreBelow(target);

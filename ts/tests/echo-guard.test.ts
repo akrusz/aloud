@@ -108,15 +108,15 @@ describe('partOfLineNear', () => {
     const tip = "By the way, you can say 'back' or 'next' to control this tour.";
     it('keeps the words near where the line has got to, generously', async () => {
         const { partOfLineNear } = await import('../src/facilitation/echo-guard.js');
-        // 20 words over 20s: one a second, 6s behind and 1.5s ahead.
+        // 20 words over 20s: one a second, 4s behind and 1.5s ahead.
         const line = Array.from({ length: 20 }, (_, i) => `w${i}`).join(' ');
-        expect(partOfLineNear(line, 10, 20)).toBe('w4 w5 w6 w7 w8 w9 w10 w11');
+        expect(partOfLineNear(line, 10, 20)).toBe('w6 w7 w8 w9 w10 w11');
         expect(partOfLineNear(line, 0.5, 20)).toBe('w0 w1');
-        expect(partOfLineNear(line, 19.9, 20)).toBe('w13 w14 w15 w16 w17 w18 w19');
+        expect(partOfLineNear(line, 19.9, 20)).toBe('w15 w16 w17 w18 w19');
     });
     it('still lets go "next" over the short line that teaches it, once the line is near it', async () => {
         const { partOfLineNear, looksLikePartOfLine } = await import('../src/facilitation/echo-guard.js');
-        expect(partOfLineNear(tip, 4.5, 4.63)).toBe(tip);
+        expect(partOfLineNear(tip, 4.5, 4.63)).toContain("'back' or 'next'");
         for (const at of [2, 3, 4.5]) expect(looksLikePartOfLine('Next.', partOfLineNear(tip, at, 4.63))).toBe(true);
     });
     it('is the whole line where its length is not known', async () => {
@@ -127,7 +127,7 @@ describe('partOfLineNear', () => {
     it('counts zh by its characters', async () => {
         const { partOfLineNear } = await import('../src/facilitation/echo-guard.js');
         const zh = '一二三四五六七八九十';
-        expect(partOfLineNear(zh, 9.5, 10)).toBe('四五六七八九十');
+        expect(partOfLineNear(zh, 9.5, 10)).toBe('六七八九十');
     });
 });
 

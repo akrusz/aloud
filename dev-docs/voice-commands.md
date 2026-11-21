@@ -800,7 +800,7 @@ voices and would move them off it.
   teaches it, near the word, is let go. Of a clip still playing only the
   stretch near where it has got to counts (`partOfLineNear`, read from the
   element's clock by `playingAt`): clips have no word timings, so each word
-  is taken to fill an equal share of the clip, and the stretch runs 6s
+  is taken to fill an equal share of the clip, and the stretch runs 4s
   behind and 1.5s ahead, since the transcript is read 1.4 to 2s after the
   words end. Checked against the whole line, "Back." said 12.5s into the
   focus card's line, which opens "Back to Exploration", was let go

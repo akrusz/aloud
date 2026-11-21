@@ -47,6 +47,11 @@ const SAID_ZH: ReadonlyArray<readonly [TourCommand['kind'], readonly string[]]> 
 
 const POLITE = new Set(['please', 'ok', 'okay', 'hey', 'aloud', 'thanks', 'now', 'yes', 'yeah', 'sure']);
 
+/** What a recognizer wrote for a command said over a line, where the echo
+ *  canceller thins the voice: Parakeet gave "Так" twice for "back" on a phone
+ *  (2026-11-20). The whole utterance, lowercased, without punctuation. */
+const MISHEARD: Readonly<Record<string, TourCommand['kind']>> = { так: 'back', tak: 'back', bak: 'back' };
+
 /** A voice on offer at the voice step. */
 export interface OfferedVoice {
     name: string;
@@ -82,8 +87,8 @@ function words(utterance: string): string[] {
 /** The offered voice a word names, or -1: the name itself, the name with a
  *  letter or two run on ("Harperd", "Harper's"), one letter off and sounding
  *  the same ("Ethen"), or five letters or more opening on the name's first
- *  two and no more than half its length away ("Happy", "Happen" for Harper, as a phone
- *  heard it twice running, 2026-11-20). Loose, because only two voices are on
+ *  and no more than half its length away ("Happy", "Happen", "Hopper" for
+ *  Harper, as a phone on Parakeet heard it in three tours, 2026-11-20). Loose, because only two voices are on
  *  offer and the card takes a tap; never a word that could be either. */
 function namedVoice(word: string, voices: readonly OfferedVoice[]): number {
     const bare = word.replace(/'/g, '');
@@ -94,7 +99,7 @@ function namedVoice(word: string, voices: readonly OfferedVoice[]): number {
         const off = editDistance(bare, name);
         const runOn = bare.startsWith(name) && bare.length - name.length <= 2;
         const sounds = soundKey(bare) === soundKey(name) && off <= 1;
-        const opens = bare.length >= 5 && bare.slice(0, 2) === name.slice(0, 2) && off <= Math.floor(name.length / 2);
+        const opens = bare.length >= 5 && bare[0] === name[0] && off <= Math.floor(name.length / 2);
         return runOn || sounds || opens ? [i] : [];
     });
     return near.length === 1 ? near[0]! : -1;
@@ -166,6 +171,8 @@ export function parseTourCommand(utterance: string, voices?: readonly OfferedVoi
         }
         return null;
     }
+    const misheard = MISHEARD[utterance.toLowerCase().replace(/[\s.,!?…]+/gu, '')];
+    if (misheard) return { kind: misheard } as TourCommand;
     const said = words(utterance)
         .filter((w) => !POLITE.has(w))
         .join(' ');
