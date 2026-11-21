@@ -4742,6 +4742,11 @@ p.clouds-hint-row {
 .info-panel a:hover {
     text-decoration: underline;
 }
+.info-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
 .info-panel-link {
     margin-top: 0.75rem;
     font-size: 0.95rem;

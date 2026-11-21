@@ -258,6 +258,14 @@ let setupMounts = 0;
  *  been replaced is cut when the next one mounts: its mic would hear it. */
 let liveSpeaker: SetupSpeaker | null = null;
 
+/** The combinations the attention focus panel offers, applied whole: each
+ *  replaces the focuses and the vibes. */
+const EXPLORATION_PRESETS: Readonly<Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[] }>> = {
+    jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'] },
+    lovingKindness: { focuses: ['emotions'], qualities: ['loving', 'feeling_good'] },
+    partsWork: { focuses: ['inner_parts'], qualities: ['compassionate'] },
+};
+
 export async function mountSetupView(
     root: HTMLElement,
     onBegin: (setup: SessionSetup, continueFrom: SessionState | null) => void | Promise<void>
@@ -2425,6 +2433,14 @@ export async function mountSetupView(
             });
         }
         wireCloudsExplainer(root, 'clouds-help');
+        root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const preset = EXPLORATION_PRESETS[btn.dataset['preset'] ?? ''];
+                if (!preset) return;
+                setupForm.setFocuses([...preset.focuses]);
+                setQualities([...preset.qualities]);
+            });
+        });
     }
 
     // ---- Noting circle participants ----
@@ -2967,7 +2983,12 @@ function renderSetupHTML(
                             <p><strong>${t('Emotions &amp; feeling tone:')}</strong> ${t('More complex collections of sensations and labels - joy, anger, something unnamed.')}</p>
                             <p><strong>${t('Parts &amp; inner world:')}</strong> ${t('Different aspects of yourself that carry their own perspectives: protectors, younger parts, inner critics. Physical body parts can hold emotion as well.')}</p>
                             <p>${t('You can also select multiple, or leave all unchecked to keep things open.')}</p>
-                            <p>${t('Some combinations to try: body &amp; emotions with playful and feeling good; emotions with loving and feeling good; parts with compassionate.')}</p>
+                            <p>${t('Combinations to try:')}</p>
+                            <div class="info-presets">
+                                <button type="button" class="btn btn-small btn-secondary" data-preset="jhana">${t('Jhana 1/2')}</button>
+                                <button type="button" class="btn btn-small btn-secondary" data-preset="lovingKindness">${t('Loving Kindness')}</button>
+                                <button type="button" class="btn btn-small btn-secondary" data-preset="partsWork">${t('Parts Work')}</button>
+                            </div>
                         </div>
                         <div class="modifier-toggles">${focusToggles}</div>
                     </div>
