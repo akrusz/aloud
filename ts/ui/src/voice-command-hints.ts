@@ -45,6 +45,22 @@ export function claimIntroSession(): boolean {
     }
 }
 
+/** Every hint shows again, the invitation included (settings-reset.ts). Plain
+ *  localStorage on every platform, phones too: these never went through the
+ *  platform KV. */
+export function forgetVoiceHints(): void {
+    try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k?.startsWith(KEY_PREFIX)) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
+    } catch {
+        /* no storage: nothing was remembered */
+    }
+}
+
 // English source strings; callers pass them through t().
 
 // The phrase has to survive mediocre speech-to-text: "list voice commands" came

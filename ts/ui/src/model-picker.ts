@@ -15,7 +15,7 @@ import { getApiKey, hasApiKey } from './api-keys.js';
 import { probeOllamaDirect } from './ollama-direct.js';
 import { rateSuffix } from './credit-rate.js';
 import { setCloudSttCreditsPerHour } from './adapters/stt-picker.js';
-import { loadAppSettings, saveAppSettings } from './app-settings.js';
+import { loadAppSettings, patchAppSettings } from './app-settings.js';
 import { t, uiLang } from './i18n.js';
 import { escapeHtml } from './escape-html.js';
 import { providerNeedsKey, type Provider } from './settings.js';
@@ -185,8 +185,7 @@ async function loadShowAllModels(): Promise<boolean> {
 
 async function setShowAllModels(value: boolean): Promise<void> {
     showAllModels = value;
-    const s = await loadAppSettings();
-    await saveAppSettings({ ...s, showAllModels: value });
+    await patchAppSettings({ showAllModels: value });
 }
 
 /**
@@ -225,6 +224,15 @@ async function loadShortlistState(): Promise<void> {
 
 function saveDeliberatePicks(): void {
     if (deliberatePicks) void kv().set(DELIBERATE_PICKS_KEY, JSON.stringify([...deliberatePicks])).catch(() => {});
+}
+
+/** Forget the deliberate picks and the cached "Show all" state, so the next
+ *  picker reads both fresh (settings-reset.ts). A kept cache would write the
+ *  old picks back with the next one. */
+export async function forgetModelPickerState(): Promise<void> {
+    deliberatePicks = null;
+    showAllModels = null;
+    await kv().delete(DELIBERATE_PICKS_KEY);
 }
 
 /**

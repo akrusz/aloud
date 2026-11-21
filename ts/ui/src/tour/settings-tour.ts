@@ -530,6 +530,12 @@ function onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') dismissRemindLater();
 }
 
+/** Clear the dismissed / remind-later flags (settings-reset.ts). */
+export async function forgetSettingsTourDismissal(): Promise<void> {
+    await sharedKv.delete(TOUR_DISMISSED_KEY);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(TOUR_REMIND_KEY);
+}
+
 /** Clear the dismissed / remind-later flags and walk the wizard from the
  *  welcome step (the Settings "Setup guide" button). */
 export async function resetAndStart(options: TourOptions): Promise<void> {

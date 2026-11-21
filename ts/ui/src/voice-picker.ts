@@ -423,6 +423,21 @@ export function defaultVoicePick(voices: readonly ScoredVoice[], sessionLang = '
 }
 
 /**
+ * The voice a stored pick speaks with: the pick itself (under its new name if
+ * its hosted voice was renamed), or the default (defaultVoicePick) when there
+ * is none or its hosted voice is gone. Resolved at use and never stored, so
+ * someone who never picked follows a later default. With no voices to choose
+ * from, the stored value as it is.
+ */
+export function effectiveVoice(stored: string | null, voices: readonly ScoredVoice[], sessionLang = 'en'): string | null {
+    const renamed = renamedHostedVoice(stored, voices);
+    if (renamed) return renamed;
+    if (stripVoicePrefix(stored) && !isOrphanedHostedVoice(stored, voices)) return stored;
+    const top = defaultVoicePick(voices, sessionLang);
+    return top ? prefixedVoiceId(top.engine, top.name) : stored;
+}
+
+/**
  * The best voice in a buildScoredVoiceList result (best-first) that costs
  * nothing to speak with and is ready now: not hosted, not ElevenLabs (the
  * user's own metered key), not a Piper model still to download. One that speaks
@@ -1061,4 +1076,12 @@ export async function loadScoredVoices(language: string): Promise<ScoredVoice[]>
     }
     const [server, hosted] = await Promise.all([fetchServerVoices(), fetchCloudVoices()]);
     return buildScoredVoiceList(server, true, hosted, language);
+}
+
+/** A session's voice, with none picked resolved to the default over the full
+ *  catalog (effectiveVoice). For a Begin that beat the setup screen's own
+ *  catalog load. */
+export async function sessionVoice(voice: string | null, language: string): Promise<string | null> {
+    if (stripVoicePrefix(voice)) return voice;
+    return effectiveVoice(voice, await loadScoredVoices(language), language);
 }

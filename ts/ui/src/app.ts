@@ -25,6 +25,7 @@ import { detectCapabilities } from './capabilities.js';
 import { isCloudBuild } from './cloud-base.js';
 import { routePath, appPath } from './route-base.js';
 import { ensureCloudAccess } from './cloud-gate.js';
+import { sessionVoice } from './voice-picker.js';
 import { describeMicRequirement, micForBegin } from './mic-check.js';
 import { primeAudioPlayback } from './audio-unlock.js';
 import { diag } from './diag.js';
@@ -457,6 +458,10 @@ async function goSession(
 ): Promise<void> {
     setActiveNav('setup'); // session is still under Setup tab conceptually
     if (!(await ensureMicAvailable())) return;
+    // A voice nobody picked is never stored (app-settings.ts fieldsToStore),
+    // and resolved by the setup screen once its catalog loads; a Begin before
+    // that resolves it here, ahead of the sign-in check that asks about it.
+    setup.voice = await sessionVoice(setup.voice, setup.language);
     // Pre-flight hosted sign-in: if this session will hit a credit-metered cloud
     // service (hosted LLM, Cloud STT/TTS - all gated on a session token) and
     // we're not signed in, prompt now rather than failing on the first
@@ -501,6 +506,7 @@ async function ensureMicAvailable(): Promise<boolean> {
 async function goNotingSession(root: HTMLElement, setup: SessionSetup): Promise<void> {
     setActiveNav('setup');
     if (!(await ensureMicAvailable())) return;
+    setup.voice = await sessionVoice(setup.voice, setup.language);
     // Same sign-in pre-flight as goSession; 'noting' so participant voices
     // count toward the cloud-usage decision.
     if (!(await ensureCloudAccess(setup, await loadAppSettings(), 'noting'))) return;

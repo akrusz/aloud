@@ -5,6 +5,13 @@
  *
  * Persisted to KvStorage under one key, with no version normalization: added
  * fields get defaults from the loader, removed ones are silently dropped.
+ *
+ * Only an active pick is stored (fieldsToStore): a field nobody changed stays
+ * out of storage and follows the default, including a default a later release
+ * changes. A page that edits the whole object passes it to saveAppSettings,
+ * which drops what merely equals the default; a caller that knows what was
+ * chosen names it to patchAppSettings. Something resolved from the defaults at use (the voice,
+ * defaultVoicePick) is resolved in memory and never saved as if picked.
  */
 
 import { createKv } from './adapters/kv.js';
@@ -244,33 +251,128 @@ function kv(): KvStorage {
     return lazyKv;
 }
 
-export async function loadAppSettings(): Promise<AppSettings> {
-    const raw = await kv().get(KEY);
-    // No stored settings, or none with an explicit language: seed from the
-    // browser locale. An explicit stored choice wins.
+/** What loadAppSettings gives a field nothing is stored for. */
+function appDefaults(): AppSettings {
     // On a phone the setup screen's mic starts switched off: opening it there
     // puts Android into call audio (Bluetooth drops to call quality, other
     // apps' sound is affected) before anyone has asked for anything. The mic
-    // still shows, and a tap switches it on for good.
-    const defaults: AppSettings = { ...DEFAULT_APP_SETTINGS, setupVoice: !isCapacitor() };
-    if (!raw) return { ...defaults, language: detectLocale() };
+    // still shows, and a tap switches it on for good. Language is seeded from
+    // the browser locale.
+    return { ...DEFAULT_APP_SETTINGS, setupVoice: !isCapacitor(), language: detectLocale() };
+}
+
+/** The stored object as written, {} when there is none or it can't be read
+ *  (both load as the defaults). */
+export function parseStoredSettings(raw: string | null): Record<string, unknown> {
+    if (!raw) return {};
     try {
-        const parsed = JSON.parse(raw) as Partial<AppSettings>;
-        // Language must be an offered code: the pre-c3a0 list had ~30, so a
-        // stored 'es'/'ja' from that era normalizes back to the browser seed
-        // rather than persisting invisibly under a select that can't show it.
-        const language =
-            parsed.language && SUPPORTED_LANGUAGE_CODES.has(parsed.language)
-                ? parsed.language
-                : detectLocale();
-        return { ...defaults, ...parsed, language };
+        const parsed: unknown = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
     } catch {
-        return { ...defaults, language: detectLocale() };
+        return {};
     }
 }
 
-export async function saveAppSettings(settings: AppSettings): Promise<void> {
-    await kv().set(KEY, JSON.stringify(settings));
+/**
+ * What a save writes, given what is stored, the object being saved and the
+ * defaults the loader would fill in. A field is written when it is already
+ * stored (an active pick, kept even once it is back at the default) or when
+ * it differs from its default; otherwise it stays out, so it follows the
+ * default, today's and any later one. Stored fields `next` lacks are kept.
+ */
+export function fieldsToStore(
+    stored: Readonly<Record<string, unknown>>,
+    next: object,
+    defaults: object
+): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...stored };
+    const fallback = defaults as Record<string, unknown>;
+    for (const [field, value] of Object.entries(next)) {
+        if (Object.hasOwn(stored, field) || !sameSetting(value, fallback[field])) out[field] = value;
+    }
+    return out;
+}
+
+/** Deep equality over JSON-shaped values: some settings are arrays or objects. */
+function sameSetting(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    const ka = Object.keys(a).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
+    const kb = Object.keys(b).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => sameSetting((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+// Every write reads what is stored before writing, so writes run one at a
+// time in the order asked. A load waits for the writes asked before it: a
+// write lands a few turns after the call, and a view remounted straight after
+// a save (a language change) must read it back.
+let writes: Promise<void> = Promise.resolve();
+function queueWrite(write: () => Promise<void>): Promise<void> {
+    const done = writes.then(write);
+    writes = done.catch(() => undefined);
+    return done;
+}
+
+export async function loadAppSettings(): Promise<AppSettings> {
+    await writes;
+    const defaults = appDefaults();
+    const parsed = parseStoredSettings(await kv().get(KEY)) as Partial<AppSettings>;
+    // Language must be an offered code: the pre-c3a0 list had ~30, so a
+    // stored 'es'/'ja' from that era normalizes back to the browser seed
+    // rather than persisting invisibly under a select that can't show it.
+    const language =
+        parsed.language && SUPPORTED_LANGUAGE_CODES.has(parsed.language) ? parsed.language : defaults.language;
+    return { ...defaults, ...parsed, language };
+}
+
+/** Save the settings, storing only the active picks (fieldsToStore). */
+export function saveAppSettings(settings: AppSettings): Promise<void> {
+    return queueWrite(async () => {
+        const raw = await kv().get(KEY);
+        const out = fieldsToStore(parseStoredSettings(raw), settings, appDefaults());
+        if (raw === null && Object.keys(out).length === 0) return;
+        await kv().set(KEY, JSON.stringify(out));
+    });
+}
+
+/**
+ * Store what someone just chose, whatever its value: a choice that happens to
+ * equal today's default ("twenty minutes") is still one, and saveAppSettings
+ * cannot tell it from a field nobody touched. For the caller that knows which
+ * fields were chosen; a page that edits a whole object uses saveAppSettings.
+ */
+export function patchAppSettings(patch: Partial<AppSettings>): Promise<void> {
+    return queueWrite(async () => {
+        const stored = parseStoredSettings(await kv().get(KEY));
+        await kv().set(KEY, JSON.stringify({ ...stored, ...patch }));
+    });
+}
+
+/** The fields the stored settings hold; every other one follows its default. */
+export async function storedAppSettingFields(): Promise<ReadonlySet<string>> {
+    await writes;
+    return new Set(Object.keys(parseStoredSettings(await kv().get(KEY))));
+}
+
+/** Drop fields from the stored settings, so loadAppSettings fills them from
+ *  the defaults again, today's and any later ones (settings-reset.ts). Removed,
+ *  not written with the current default, which would freeze it. */
+export function unsetAppSettings(fields: readonly (keyof AppSettings)[]): Promise<void> {
+    return queueWrite(async () => {
+        const raw = await kv().get(KEY);
+        if (!raw) return;
+        let stored: Record<string, unknown>;
+        try {
+            stored = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+            // Unreadable already loads as the defaults.
+            return;
+        }
+        for (const field of fields) delete stored[field];
+        await kv().set(KEY, JSON.stringify(stored));
+    });
 }
 
 /**

@@ -39,7 +39,7 @@ import {
 } from './session.js';
 import { showErrorToast } from '../toast.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
-import { loadAppSettings, saveAppSettings } from '../app-settings.js';
+import { loadAppSettings, patchAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
 import { createSttForChoice, sttChoiceForMode } from '../adapters/stt-picker.js';
@@ -323,17 +323,12 @@ export async function mountNotingSessionView(
         appSettings.sessionTimerMin = choice.timerMin;
         appSettings.showSessionClock = choice.showClock;
         appSettings.endSessionOnTimer = choice.endOnComplete;
-        // Re-read before writing, so a stale in-memory copy can't clobber
-        // settings saved elsewhere since mount.
-        void loadAppSettings().then((s) =>
-            saveAppSettings({
-                ...s,
-                sessionClockMode: choice.mode,
-                sessionTimerMin: choice.timerMin,
-                showSessionClock: choice.showClock,
-                endSessionOnTimer: choice.endOnComplete,
-            })
-        );
+        void patchAppSettings({
+            sessionClockMode: choice.mode,
+            sessionTimerMin: choice.timerMin,
+            showSessionClock: choice.showClock,
+            endSessionOnTimer: choice.endOnComplete,
+        });
     });
 
     // Floating embers + kasina gazing, shared with exploration. The
@@ -759,14 +754,14 @@ export async function mountNotingSessionView(
             ownLabels[index]!.push(label);
             session.addAssistantMessage(label, name);
             appendMessage('facilitator', label, name);
-            await speakVia(p.voice, label);
+            await speakVia(p.voice ?? setup.voice, label);
         } else if (p.type === 'fixed') {
             const phrase = p.phrase.trim() || 'breathing';
             recentLabels.push(phrase);
             ownLabels[index]!.push(phrase);
             session.addAssistantMessage(phrase, name);
             appendMessage('facilitator', phrase, name);
-            await speakVia(p.voice, phrase);
+            await speakVia(p.voice ?? setup.voice, phrase);
         } else {
             // Sound effect: bracketed marker, then the clip.
             session.addAssistantMessage(`〈${name}〉`, name);

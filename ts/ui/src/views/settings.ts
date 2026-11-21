@@ -18,6 +18,8 @@ import {
     applyChromeSettings,
     loadAppSettings,
     saveAppSettings,
+    storedAppSettingFields,
+    unsetAppSettings,
 } from '../app-settings.js';
 import { sttEngineOptions, resolveSttChoice, isHostedSttChoice } from '../adapters/stt-picker.js';
 import { t, setUiLang, LANGUAGE_CHANGED_EVENT } from '../i18n.js';
@@ -73,6 +75,7 @@ import { mountModelPicker } from '../model-picker.js';
 import { mountOllamaSettings } from '../settings-ollama.js';
 import {
     downloadVoiceFromRow,
+    effectiveVoice,
     invalidateServerVoicesCache,
     loadScoredVoices,
     prefixedVoiceId,
@@ -106,7 +109,8 @@ import {
     privacyPolicyLink,
     showVoiceCommandExamples,
 } from '../voice-commands.js';
-import { showSavedTick } from '../toast.js';
+import { showErrorToast, showSavedTick, showSuccessToast } from '../toast.js';
+import { resetModelAndVoicePicks, resetSessionSetup, resetTourAndTips } from '../settings-reset.js';
 import {
     SIGNATURE_SOUNDS,
     previewSignatureSound,
@@ -153,8 +157,12 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     }
 
     // Entry snapshot for Undo. Safe to take here: unlike setup's, this
-    // loadVoiceCatalog doesn't mutate settings.
-    const baseline = undoSnapshot();
+    // loadVoiceCatalog doesn't mutate settings. Retaken after a reset
+    // (wireResetGroup).
+    let baseline = undoSnapshot();
+    // Which fields were stored then: Undo puts one nobody had picked back to
+    // unpicked, not to a stored copy of its default.
+    let storedAtEntry = await storedAppSettingFields();
 
     // A debounced tick acknowledges each settled change, since there's no Save
     // button. Quiet during mount/refresh (self-repair persists aren't the user
@@ -216,6 +224,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         wireSessionLogsSection();
         wireUpdatesSection();
         wireAdvancedReveal();
+        wireResetGroup();
         wireDeveloperSection();
         wireFooter();
     }
@@ -1010,7 +1019,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         await loadVoiceCatalog();
         const listEl = root.querySelector<HTMLElement>('#settings-voice-modal-list');
         if (listEl) {
-            renderVoiceList(listEl, scoredVoices, stripVoicePrefix(settings.defaultVoice), {
+            renderVoiceList(listEl, scoredVoices, shownVoiceName(), {
                 showEngine: true,
                 showUninstall: true,
             });
@@ -1024,8 +1033,14 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         if (btn) updateVoiceButtonLabel(btn);
     }
 
+    /** The voice sessions get: the pick, or with none the default, shown but
+     *  not put in `settings`, whose next save would store it as a pick. */
+    function shownVoiceName(): string | null {
+        return stripVoicePrefix(effectiveVoice(settings.defaultVoice, scoredVoices, settings.language));
+    }
+
     function updateVoiceButtonLabel(btn: HTMLButtonElement): void {
-        const name = stripVoicePrefix(settings.defaultVoice);
+        const name = shownVoiceName();
         if (name) btn.textContent = `${voiceLabel(name)} · ${voiceRateLabel(name, scoredVoices, settings.defaultTtsRate)}`;
         else btn.textContent = scoredVoices.length > 0 ? t('Choose voice') : t('Default');
     }
@@ -1038,7 +1053,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
         const speedLabel = root.querySelector<HTMLElement>('#s-tts-rate-label');
         if (!modal || !listEl || !closeBtn || !speedSlider || !speedLabel) return;
 
-        const currentName = stripVoicePrefix(settings.defaultVoice);
+        const currentName = shownVoiceName();
         // Settings is the manage-voices surface, so downloaded Piper voices get
         // an Uninstall action here (setup's picker doesn't).
         renderVoiceList(listEl, scoredVoices, currentName, {
@@ -1488,13 +1503,74 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
     // ---- Advanced section (expert controls shelf) ----------------------
     // Only the reveal; the controls inside are wired by their own sections.
     function wireAdvancedReveal(): void {
-        const toggle = root.querySelector<HTMLButtonElement>('#s-advanced-toggle');
         const body = root.querySelector<HTMLElement>('#s-advanced-body');
-        toggle?.addEventListener('click', () => {
-            const shown = body?.classList.toggle('hidden') === false;
-            toggle.textContent = shown ? t('Hide advanced settings') : t('Show advanced settings');
-            toggle.setAttribute('aria-expanded', String(shown));
+        root.querySelector('#s-advanced-toggle')?.addEventListener('click', () => {
+            setAdvancedShown(body?.classList.contains('hidden') === true);
         });
+    }
+
+    function setAdvancedShown(shown: boolean): void {
+        const toggle = root.querySelector<HTMLButtonElement>('#s-advanced-toggle');
+        root.querySelector('#s-advanced-body')?.classList.toggle('hidden', !shown);
+        if (!toggle) return;
+        toggle.textContent = shown ? t('Hide advanced settings') : t('Show advanced settings');
+        toggle.setAttribute('aria-expanded', String(shown));
+    }
+
+    // ---- Reset (inside Advanced) ---------------------------------------
+    // Each button clears one area of stored settings (settings-reset.ts).
+    // The view then reloads its copy before redrawing: persist() stores
+    // whatever in it differs from the defaults, so a stale copy would put the
+    // old picks back with the next change. Undo starts over from the reset,
+    // since it could only bring back the part of it that lives in AppSettings.
+    function wireResetGroup(): void {
+        const actions: ReadonlyArray<{ id: string; reset: () => Promise<void>; ask: string; done: string }> = [
+            {
+                id: 's-reset-picks',
+                reset: resetModelAndVoicePicks,
+                ask: t('Speech recognition, voice and model go back to their defaults.'),
+                done: t('Model and voice picks reset.'),
+            },
+            {
+                id: 's-reset-setup',
+                reset: resetSessionSetup,
+                ask: t('The setup screen goes back to its defaults: method, intention, timer and the rest.'),
+                done: t('Session setup reset.'),
+            },
+            {
+                id: 's-reset-tips',
+                reset: resetTourAndTips,
+                ask: t('The welcome card, tour and one-time tips show again.'),
+                done: t('The tour and tips will show again.'),
+            },
+        ];
+        for (const { id, reset, ask, done } of actions) {
+            root.querySelector(`#${id}`)?.addEventListener('click', () => {
+                void (async () => {
+                    if (!(await confirmDialog(ask, { okLabel: t('Reset') }))) return;
+                    // A failure can leave part of the area cleared, so the
+                    // view reloads either way.
+                    const failed = await reset().then(
+                        () => null,
+                        (err: unknown) => (err instanceof Error ? err.message : String(err))
+                    );
+                    Object.assign(settings, await loadAppSettings());
+                    Object.assign(pendingChrome, pickChrome(settings));
+                    const scrollY = window.scrollY;
+                    await refresh();
+                    // After the redraw, whose self-repairs (a provider this
+                    // build can't offer) are part of the defaults.
+                    baseline = undoSnapshot();
+                    storedAtEntry = await storedAppSettingFields();
+                    setAdvancedShown(true);
+                    window.scrollTo(0, scrollY);
+                    updateUndoState();
+                    updateApplyDisplayState();
+                    if (failed === null) showSuccessToast(done);
+                    else showErrorToast(t('Could not reset: {message}', { message: failed }));
+                })();
+            });
+        }
     }
 
     // ---- Footer --------------------------------------------------------
@@ -1520,7 +1596,9 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             else localStorage.setItem(ELEVENLABS_KEY_STORE, restored.elevenKey);
             Object.assign(pendingChrome, pickChrome(settings));
             applyChromeSettings(settings);
+            // Writes to the settings run in the order asked (app-settings.ts).
             void saveAppSettings(settings);
+            void unsetAppSettings((Object.keys(restored.s) as (keyof AppSettings)[]).filter((k) => !storedAtEntry.has(k)));
             if (revertedEl) {
                 revertedEl.classList.remove('hidden');
                 setTimeout(() => revertedEl.classList.add('hidden'), 1200);
@@ -2288,6 +2366,14 @@ function renderAdvancedSettingsSection(s: AppSettings): string {
                     </label>
                     <span class="form-hint">${t('Shows your words as you speak and waits through mid-thought pauses. Smoother experience, but uses more transcription calls (more ☁ if using aloud cloud).')}</span>
                 </div>
+            </div>
+            <!-- Wired in wireResetGroup; what each clears is settings-reset.ts. -->
+            <h3 class="settings-subhead">${t('Reset')}</h3>
+            <p class="form-hint settings-reset-note">${t('Put settings back to their defaults. Your account, history and keys stay.')}</p>
+            <div class="settings-reset-actions">
+                <button type="button" class="btn btn-small btn-secondary" id="s-reset-picks">${t('Reset model and voice picks')}</button>
+                <button type="button" class="btn btn-small btn-secondary" id="s-reset-setup">${t('Reset session setup')}</button>
+                <button type="button" class="btn btn-small btn-secondary" id="s-reset-tips">${t('Show the tour and tips again')}</button>
             </div>
         </div>
     </section>`;

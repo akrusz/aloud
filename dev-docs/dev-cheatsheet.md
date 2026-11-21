@@ -135,6 +135,46 @@ so it works in bundled builds too. Sticky for the tab; `?debug=off` clears it
 (the Settings toggle is separate and persists). Adopted in `dev-mode.ts`
 (`adoptCheckinDebugParam`), read by `isCheckinDebugOn`.
 
+### Stored settings hold only picks
+
+`app:settings` and `preview:setup` hold a field only once someone has picked
+it. `saveAppSettings` and `saveSetup` take whole objects but write a field only
+when it is already stored or differs from the default the loader would fill in
+(`fieldsToStore` in `ui/src/app-settings.ts`, pinned by
+`tests/settings-sparse-save.test.ts`). So a default a release changes reaches
+everyone who never touched that field, and a field once stored stays stored,
+even back at its default. A caller that knows what was chosen (a timer said
+aloud, a voice picked) names it to `patchAppSettings`, which stores those
+fields whatever their values: "twenty minutes" is a pick even while twenty is
+the default. A value resolved from the defaults at use stays in
+memory: the voice (`effectiveVoice` in `ui/src/voice-picker.ts`, used by the
+setup screen's `loadVoiceCatalog`, the Settings voice button and `sessionVoice`
+at Begin in `app.ts`) and speech-to-text (`resolveSttChoice`). Code that saves
+such a value, or writes several fields when the person changed one (the voice
+along with its speed), freezes today's default for them. The model is the
+exception for now: the model picker hands back its promoted default as the
+value, so the setup screen and Settings store it on first load, and on the web
+the setup screen stores the provider it falls back to (`resolveSetupProvider`).
+
+### Back to defaults (Settings → Advanced → Reset)
+
+Three buttons at the foot of Settings → Advanced, one function each in
+`ui/src/settings-reset.ts`: `resetModelAndVoicePicks` (speech-to-text, the
+voice and its speed, the house voice, provider and model, the model picker's
+shortlist state), `resetSessionSetup` (what the setup screen remembers, the
+session clock included) and `resetTourAndTips` (the welcome card, the tour and
+the one-time hints show again; also the way to see the first-run card without
+clearing app data). Each removes what it covers rather than writing today's
+default, so a default that depends on there being no stored pick
+(`resolveSttChoice`, `setupHostedChoice`, `defaultVoicePick`) reaches that
+person again, and a later save of something else leaves it out (above). The
+model and the web's provider are stored again on the next visit to the setup
+screen or Settings, as on a fresh install.
+Sign-in, own keys, history, the age tier, language, theme, the consents and
+the Settings page's own preferences are left alone; a new stored key goes in
+one of the three areas or in that list, and `tests/settings-reset.test.ts`
+pins which.
+
 ### Developer mode (hidden settings section)
 
 Tap the **version line in the About box 7 times** to toggle developer mode
@@ -189,7 +229,11 @@ Four switches also live there with no URL twin:
 
 Dev mode is also what turns the diagnostic console lines on in a release build
 (`diag()`, `ui/src/diag.ts`): `[vad]`, `[stt-cost]`, `[stt-native]`, `[stt-text]`,
-`[judge]`, `[command]`. Dev builds always print them. They carry character counts, never
+`[judge]`, `[command]`. Dev builds always print them, and one served by Vite
+(`tauri:dev`, `web:dev`) also appends the audio lines to
+`.probe-data/dev-diag/<date>.log` (`fileLine` in `ui/src/diag.ts`, the
+`diag-file` plugin in `ui/vite.config.ts`), so a desktop test pass can be read
+afterwards without the Web Inspector. They carry character counts, never
 transcript text. Failures stay on `console.warn`/`error`, which is what the
 bug-report block records. With dev mode on, "Report a bug" also carries the
 last 40 audio lines (`[vad]`, `[stt-*]`, `[echo-guard]`, `[signature]`,

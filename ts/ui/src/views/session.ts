@@ -153,7 +153,7 @@ import {
 } from '../settings.js';
 import {
     loadAppSettings,
-    saveAppSettings,
+    patchAppSettings,
     type AppSettings,
     type SttEngineChoice,
     LANGUAGES,
@@ -4139,10 +4139,10 @@ export async function mountSessionView(
     };
 }
 
-/** Save a few settings mid-session. Re-reads first: the view's copy was loaded
- *  at mount and must not clobber anything saved since. */
-async function persistSettings(patch: Partial<AppSettings>): Promise<void> {
-    await saveAppSettings({ ...(await loadAppSettings()), ...patch });
+/** Save a few settings mid-session, as what was just chosen. Not the view's
+ *  copy, which was loaded at mount and would clobber anything saved since. */
+function persistSettings(patch: Partial<AppSettings>): Promise<void> {
+    return patchAppSettings(patch);
 }
 
 function sleep(ms: number): Promise<void> {

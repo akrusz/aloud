@@ -98,8 +98,11 @@ describe('who synthesizes', () => {
     it('only a local voice does', () => {
         expect(isLocalVoice('server:en_US-lessac')).toBe(true);
         expect(isLocalVoice('browser:Samantha')).toBe(true);
-        expect(isLocalVoice(null)).toBe(true);
         expect(isLocalVoice('aloud:Harper')).toBe(false);
+    });
+    it('none picked yet speaks the house clips, not the browser voice', () => {
+        expect(isLocalVoice(null)).toBe(false);
+        expect(houseVoiceFor(null, null, 'en')).toBe('Harper');
     });
 });
 

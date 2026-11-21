@@ -969,6 +969,13 @@ export async function resetAndStart(): Promise<void> {
     startGuide();
 }
 
+/** Back to a first run: the welcome card on the next visit to setup, the tour
+ *  read aloud again (settings-reset.ts). */
+export async function forgetGuideProgress(): Promise<void> {
+    for (const key of [GUIDE_DONE_KEY, CLIENT_ID_KEY, FOLLOW_UP_KEY, QUIET_KEY]) await sharedKv.delete(key);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(GUIDE_REMIND_KEY);
+}
+
 // The auto-start's delayed timer, so leaving the setup view can cancel it.
 let pendingAutoStart: ReturnType<typeof setTimeout> | null = null;
 

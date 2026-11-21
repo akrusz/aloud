@@ -13,7 +13,7 @@ import type { KvStorage } from '../../src/platform/storage.js';
 import { createKv } from './adapters/kv.js';
 import { LocalStorageKv } from './adapters/localstorage-kv.js';
 import { isCapacitor } from './is-desktop.js';
-import { loadAppSettings } from './app-settings.js';
+import { fieldsToStore, loadAppSettings, parseStoredSettings, type AppSettings } from './app-settings.js';
 import type { Capability, Capabilities } from './capabilities.js';
 
 export type Provider =
@@ -165,8 +165,10 @@ export interface SessionSetup {
     model: string;
     /**
      * Prefixed voice id (voice-picker.ts prefixedVoiceId): 'browser:<name>',
-     * 'aloud:<name>' or 'server:<name>'. null = no pick, the pipeline's default
-     * voice.
+     * 'aloud:<name>' or 'server:<name>'. null = none picked: the setup screen
+     * and a session start resolve it to the default (voice-picker.ts
+     * effectiveVoice) in memory, and it stays unstored. A null that reaches a
+     * TTS engine speaks in the browser's voice.
      */
     voice: string | null;
     /** TTS rate in words-per-minute. Browser TTS normalizes; server TTS passes through. */
@@ -232,7 +234,7 @@ export function notingSoundLabel(name: string): string {
 export type NotingParticipantConfig =
     | {
           type: 'llm';
-          /** Prefixed voice id, as SessionSetup.voice. */
+          /** Prefixed voice id, as SessionSetup.voice; null speaks in that one. */
           voice: string | null;
           /** How much this participant reacts to what others have noted. */
           reactive: NotingReactive;
@@ -384,38 +386,50 @@ async function loadRawSetup(): Promise<string | null> {
     }
 }
 
-export async function loadSetup(): Promise<SessionSetup> {
-    // Two inheritance rules, on purpose:
-    //
-    //  - provider/model: the app default only *seeds* a fresh setup; a
-    //    per-session override in 'preview:setup' wins.
-    //
-    //  - voice/ttsRate: the app-level default is canonical and ALWAYS wins.
-    //    There is no per-session voice; the setup picker writes through to app
-    //    settings (views/setup.ts persistDefaultVoice). Otherwise a stored
-    //    setup.voice shadows the Settings default forever (meditation-pal-9hu).
-    const s = await loadAppSettings();
-    const base: SessionSetup = {
+// One at a time, and loads wait for them, as with app settings (app-settings.ts).
+let setupWrites: Promise<void> = Promise.resolve();
+function queueSetupWrite(write: () => Promise<void>): Promise<void> {
+    const done = setupWrites.then(write);
+    setupWrites = done.catch(() => undefined);
+    return done;
+}
+
+/** What loadSetup gives a field nothing is stored for. Two inheritance rules,
+ *  on purpose:
+ *
+ *  - provider/model: the app default only *seeds* a fresh setup; a
+ *    per-session override in 'preview:setup' wins.
+ *
+ *  - voice/ttsRate/language (MIRRORED_FIELDS): the app-level value is
+ *    canonical and ALWAYS wins. There is no per-session voice; the setup
+ *    picker writes through to app settings (views/setup.ts
+ *    persistDefaultVoice). Otherwise a stored setup.voice shadows the Settings
+ *    default forever (meditation-pal-9hu). */
+function setupDefaults(s: AppSettings): SessionSetup {
+    return {
         ...defaultSetup,
         provider: s.defaultProvider,
         model: s.defaultModel,
+        voice: s.defaultVoice,
+        ttsRate: s.defaultTtsRate,
         language: s.language,
     };
+}
+
+/** Copies of app settings that loadSetup always takes from there, so a save
+ *  never writes them. */
+const MIRRORED_FIELDS = ['voice', 'ttsRate', 'language'] as const satisfies readonly (keyof SessionSetup)[];
+
+export async function loadSetup(): Promise<SessionSetup> {
+    await setupWrites;
+    const s = await loadAppSettings();
+    const base = setupDefaults(s);
     const raw = await loadRawSetup();
-    let merged = base;
-    if (raw) {
-        try {
-            merged = { ...base, ...(JSON.parse(raw) as Partial<SessionSetup>) };
-        } catch {
-            merged = base;
-        }
-    }
+    const merged: SessionSetup = { ...base, ...(parseStoredSettings(raw) as Partial<SessionSetup>) };
     // App-level voice/rate win; clobber anything an older 'preview:setup' has.
-    merged.voice = s.defaultVoice;
-    merged.ttsRate = s.defaultTtsRate;
-    // Language follows the voice/rate rule: the Settings value is canonical and
-    // always wins (loadAppSettings already normalized it against LANGUAGES).
-    merged.language = s.language;
+    // Language follows the same rule (loadAppSettings already normalized it
+    // against LANGUAGES).
+    for (const field of MIRRORED_FIELDS) Object.assign(merged, { [field]: base[field] });
     // `intention` is canonical for the active mode, so another tab's value
     // can't leak in.
     merged.intention = merged.intentionByMode[merged.meditationType] ?? '';
@@ -430,6 +444,51 @@ export async function loadSetup(): Promise<SessionSetup> {
     return merged;
 }
 
-export async function saveSetup(setup: SessionSetup): Promise<void> {
-    await kv().set(SETTINGS_KEY, JSON.stringify(setup));
+/** Save the setup, storing only what differs from the defaults loadSetup
+ *  would fill in, or was stored already (app-settings.ts fieldsToStore). A
+ *  provider or model that merely mirrors the Settings default stays out and
+ *  keeps following it. */
+export function saveSetup(setup: SessionSetup): Promise<void> {
+    return queueSetupWrite(async () => {
+        const raw = await loadRawSetup();
+        const next: Partial<SessionSetup> = { ...setup };
+        for (const field of MIRRORED_FIELDS) delete next[field];
+        const out = fieldsToStore(parseStoredSettings(raw), next, setupDefaults(await loadAppSettings()));
+        if (raw === null && Object.keys(out).length === 0) return;
+        await kv().set(SETTINGS_KEY, JSON.stringify(out));
+    });
+}
+
+/** Drop fields from the stored setup, so loadSetup fills them from the
+ *  defaults again (settings-reset.ts). */
+export function unsetSetupFields(fields: readonly (keyof SessionSetup)[]): Promise<void> {
+    return editStoredSetup((stored) => {
+        for (const field of fields) delete stored[field];
+    });
+}
+
+/** The same, for every field but `kept`, so a field added later is covered. */
+export function unsetSetupFieldsExcept(kept: readonly (keyof SessionSetup)[]): Promise<void> {
+    return editStoredSetup((stored) => {
+        for (const field of Object.keys(stored)) {
+            if (!(kept as readonly string[]).includes(field)) delete stored[field];
+        }
+    });
+}
+
+function editStoredSetup(edit: (stored: Record<string, unknown>) => void): Promise<void> {
+    return queueSetupWrite(async () => {
+        const raw = await loadRawSetup();
+        if (raw === null) return;
+        let stored: Record<string, unknown>;
+        try {
+            stored = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+            // Unreadable already loads as the defaults.
+            return;
+        }
+        edit(stored);
+        if (Object.keys(stored).length === 0) await kv().delete(SETTINGS_KEY);
+        else await kv().set(SETTINGS_KEY, JSON.stringify(stored));
+    });
 }

@@ -4657,6 +4657,16 @@ p.clouds-hint-row {
 .settings-section .pacing-subhead-note {
     margin: 0 0 var(--space-xs);
 }
+/* Advanced > Reset: one line of explanation, then the three actions, wrapping
+   onto further lines on a narrow screen. */
+.settings-section .settings-reset-note {
+    margin: 0 0 var(--space-sm);
+}
+.settings-reset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
 /* A row directly under a subhead (or its note) keeps its labels tight - the
    subhead already provides the separation; the generic .form-group > label
    space-md below is for groups stacked without one. */

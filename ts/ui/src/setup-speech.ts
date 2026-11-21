@@ -85,9 +85,13 @@ export function clipFor(voice: string, id: SetupLineId, language: string): { url
     return { url: assetPath(`/voice-clips/${clip.file}`), fixedPace: entry.fixedPace === true };
 }
 
-/** A local voice synthesizes on the device; a hosted one (`aloud:`) does not. */
+/** A local voice synthesizes on the device; a hosted one (`aloud:`) does not.
+ *  Nor does none: a voice nobody picked is the default, resolved once the
+ *  setup screen's catalog loads (effectiveVoice), and until then its lines are
+ *  the house voice's clips, where that default lands whenever hosted voices
+ *  are on offer. */
 export function isLocalVoice(voiceId: string | null): boolean {
-    return !voiceId?.startsWith('aloud:');
+    return !!voiceId && !voiceId.startsWith('aloud:');
 }
 
 /** The speed setting (words a minute, 160 neutral) as a playback rate. */

@@ -5,6 +5,7 @@ import {
     defaultVoicePick,
     downloadPercent,
     downloadVoiceModel,
+    effectiveVoice,
     isOrphanedHostedVoice,
     prefixedVoiceId,
     previewErrorMessage,
@@ -582,5 +583,40 @@ describe('renamedHostedVoice (a hosted pick under a name the voice dropped)', ()
         expect(renamedHostedVoice('aloud:Harper', voices)).toBeNull();
         expect(renamedHostedVoice('browser:Yunfan', voices)).toBeNull();
         expect(renamedHostedVoice(null, voices)).toBeNull();
+    });
+});
+
+describe('effectiveVoice (what a stored pick, or none, speaks with)', () => {
+    const voices: ScoredVoice[] = [
+        { name: 'Harper', lang: 'en-US', score: 3, engine: 'aloud', hostedDefault: true },
+        { name: 'Xiaoyue', lang: 'en-US', score: 3, engine: 'aloud', zhNative: true },
+        { name: 'Dahai', lang: 'en-US', score: 3, engine: 'aloud', formerly: ['Yunfan'] },
+        { name: 'Samantha', lang: 'en-US', score: 1, engine: 'browser' },
+    ];
+
+    it('resolves none picked to the default, per language', () => {
+        expect(effectiveVoice(null, voices, 'en')).toBe('aloud:Harper');
+        expect(effectiveVoice(null, voices, 'zh')).toBe('aloud:Xiaoyue');
+        expect(effectiveVoice('aloud:', voices, 'en')).toBe('aloud:Harper');
+    });
+
+    it('follows the default when it changes', () => {
+        const later = voices.map((v) => ({ ...v, hostedDefault: v.name === 'Dahai' }));
+        expect(effectiveVoice(null, later, 'en')).toBe('aloud:Dahai');
+    });
+
+    it('keeps a pick, a renamed one under its new name', () => {
+        expect(effectiveVoice('browser:Samantha', voices, 'en')).toBe('browser:Samantha');
+        expect(effectiveVoice('aloud:Harper', voices, 'en')).toBe('aloud:Harper');
+        expect(effectiveVoice('aloud:Yunfan', voices, 'en')).toBe('aloud:Dahai');
+    });
+
+    it('moves a hosted pick that is gone to the default', () => {
+        expect(effectiveVoice('aloud:Pulcherrima', voices, 'en')).toBe('aloud:Harper');
+    });
+
+    it('leaves the stored value alone with no voices to judge by', () => {
+        expect(effectiveVoice('aloud:Pulcherrima', [], 'en')).toBe('aloud:Pulcherrima');
+        expect(effectiveVoice(null, [], 'en')).toBeNull();
     });
 });

@@ -32,7 +32,7 @@ import {
 import type { SessionState } from '../../../src/facilitation/session.js';
 import type { SttEngine } from '../../../src/platform/index.js';
 import {
-    defaultVoicePick,
+    effectiveVoice,
     isOrphanedHostedVoice,
     renamedHostedVoice,
     downloadVoiceFromRow,
@@ -145,7 +145,7 @@ import {
 import { alertDialog } from '../dialog.js';
 import { escapeHtml } from '../escape-html.js';
 import { wireCloudsExplainer } from '../clouds-explainer.js';
-import { loadAppSettings, saveAppSettings, type AppSettings, type SttEngineChoice } from '../app-settings.js';
+import { loadAppSettings, patchAppSettings, unsetAppSettings, type AppSettings, type SttEngineChoice } from '../app-settings.js';
 import { clampTimerMinutes, clockModeLabel, showSessionClockModal } from '../session-clock.js';
 import { canPlayUntouched } from '../audio-unlock.js';
 import { playChime, playCue, primeSounds } from '../sound-player.js';
@@ -265,6 +265,9 @@ export async function mountSetupView(
     const mountNo = ++setupMounts;
     const isLiveMount = (): boolean => mountNo === setupMounts;
     const setup = await loadSetup();
+    /** The stored voice pick, null when none: `setup.voice` also holds the
+     *  default resolved for a session (loadVoiceCatalog), which is not one. */
+    let pickedVoice = setup.voice;
     // Before first render so the provider menu shows only what's reachable.
     await detectCapabilities();
     const appSettings = await loadAppSettings();
@@ -626,10 +629,11 @@ export async function mountSetupView(
     // since the session reads its timer from storage.
     let settingsSaved: Promise<void> = Promise.resolve();
     function saveAppPatch(patch: Partial<AppSettings>): Promise<void> {
-        settingsSaved = settingsSaved
-            .then(() => loadAppSettings())
-            .then((stored) => saveAppSettings({ ...stored, ...patch }))
-            .catch(() => undefined);
+        settingsSaved = settingsSaved.then(() => patchAppSettings(patch)).catch(() => undefined);
+        return settingsSaved;
+    }
+    function unsetAppFields(fields: readonly (keyof AppSettings)[]): Promise<void> {
+        settingsSaved = settingsSaved.then(() => unsetAppSettings(fields)).catch(() => undefined);
         return settingsSaved;
     }
 
@@ -687,11 +691,14 @@ export async function mountSetupView(
     /**
      * Voice + rate are app-level defaults, not per-session state (see loadSetup
      * in settings.ts): this picker edits the same global default the Settings
-     * page does, so changes propagate to every session. Callers keep the
-     * in-memory `setup` in sync for the live form, then write through here.
+     * page does, so changes propagate to every session. A pick sets the voice
+     * here and writes it through; the rate is written on its own, so changing
+     * the speed never stores a voice nobody picked.
      */
-    function persistDefaultVoice(voice: string | null, rate: number): Promise<void> {
-        return saveAppPatch({ defaultVoice: voice, defaultTtsRate: rate });
+    function persistDefaultVoice(voiceId: string): Promise<void> {
+        pickedVoice = voiceId;
+        setup.voice = voiceId;
+        return saveAppPatch({ defaultVoice: voiceId });
     }
 
     /**
@@ -704,21 +711,19 @@ export async function mountSetupView(
         // loadSetup) hides incompatible voices in the picker.
         scoredVoices = await loadScoredVoices(setup.language);
         voicesLoaded = true;
-        // A pick stored under a hosted voice's old name follows it.
-        const renamed = renamedHostedVoice(setup.voice, scoredVoices);
-        if (renamed) {
-            setup.voice = renamed;
-            void persistDefaultVoice(setup.voice, setup.ttsRate);
+        // A pick stored under a hosted voice's old name follows it; one whose
+        // hosted voice is gone goes back to none picked.
+        const renamed = renamedHostedVoice(pickedVoice, scoredVoices);
+        if (renamed) void persistDefaultVoice(renamed);
+        else if (isOrphanedHostedVoice(pickedVoice, scoredVoices)) {
+            pickedVoice = null;
+            void unsetAppFields(['defaultVoice']);
         }
-        // Never leave the picker on a bare "Default", or on a hosted voice
-        // that is gone.
-        if (!stripVoicePrefix(setup.voice) || isOrphanedHostedVoice(setup.voice, scoredVoices)) {
-            const top = defaultVoicePick(scoredVoices, setup.language);
-            if (top) {
-                setup.voice = prefixedVoiceId(top.engine, top.name);
-                void persistDefaultVoice(setup.voice, setup.ttsRate);
-            }
-        }
+        // Never leave the picker on a bare "Default". The default it lands on
+        // is resolved from the pick on every load and not stored: a catalog
+        // that arrives without the hosted voices (aloud cloud not answering
+        // yet) must not leave its fallback standing as if it were picked.
+        setup.voice = effectiveVoice(pickedVoice, scoredVoices, setup.language);
         // A noting participant on one takes the session's voice.
         let moved = false;
         for (const p of setup.notingParticipants ?? []) {
@@ -915,8 +920,7 @@ export async function mountSetupView(
             if (target) {
                 target.onSelect(voiceId);
             } else {
-                setup.voice = voiceId;
-                void persistDefaultVoice(setup.voice, setup.ttsRate);
+                void persistDefaultVoice(voiceId);
                 updateVoiceButtonLabel();
             }
         };
@@ -924,7 +928,7 @@ export async function mountSetupView(
             const rate = Number(speedSlider.value);
             setup.ttsRate = rate;
             speedLabel.textContent = t('{rate} wpm', { rate });
-            void persistDefaultVoice(setup.voice, setup.ttsRate);
+            void saveAppPatch({ defaultTtsRate: rate });
             updateVoiceButtonLabel();
         };
         const closeModal = () => {
@@ -1569,8 +1573,7 @@ export async function mountSetupView(
         // participant's voice); else the session's voice.
         if (!openVoicePicker?.pick(pick.name)) {
             if (openVoicePicker) return;
-            setup.voice = prefixedVoiceId(findVoice(pick.name)?.engine, pick.name);
-            void persistDefaultVoice(setup.voice, setup.ttsRate);
+            void persistDefaultVoice(prefixedVoiceId(findVoice(pick.name)?.engine, pick.name));
             updateVoiceButtonLabel();
         }
         showVoiceNote(t('Voice: {name}', { name: voiceLabel(pick.name) }));
@@ -2119,8 +2122,9 @@ export async function mountSetupView(
         },
         pickVoice: (name) => {
             setup.voice = prefixedVoiceId(findVoice(name)?.engine, name);
+            pickedVoice = setup.voice;
             appSettings.houseVoice = name;
-            void saveAppPatch({ defaultVoice: setup.voice, defaultTtsRate: setup.ttsRate, houseVoice: name });
+            void saveAppPatch({ defaultVoice: setup.voice, houseVoice: name });
             updateVoiceButtonLabel();
         },
         mic: () => {

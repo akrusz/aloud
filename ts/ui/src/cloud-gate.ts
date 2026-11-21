@@ -66,7 +66,7 @@ function sessionUsesCloudBeyondNarrator(
     if (
         mode === 'noting' &&
         (setup.notingParticipants ?? []).some(
-            (p) => p.type !== 'sound' && p.voice?.startsWith('aloud:')
+            (p) => p.type !== 'sound' && (p.voice ?? setup.voice)?.startsWith('aloud:')
         )
     ) {
         return true;
@@ -126,6 +126,12 @@ export async function narratorSilencedForCloud(
 }
 
 const NARRATOR_NOTICE_SEEN_KEY = 'aloud-narrator-notice-seen';
+
+/** The notice below shows again (settings-reset.ts). */
+export async function forgetNarratorNotice(): Promise<void> {
+    const { sharedKv } = await import('./state.js');
+    await sharedKv.delete(NARRATOR_NOTICE_SEEN_KEY);
+}
 
 /** One-time notice for the account-free noting flow: the session goes ahead,
  *  the opener just isn't read aloud. Offers sign-in without requiring it -
@@ -217,7 +223,7 @@ export async function ensureCloudAccess(
         return true;
     }
     // A hosted voice on an otherwise free session is the one thing asking, and
-    // a fresh install gets one by default (views/setup.ts loadVoiceCatalog):
+    // a voice nobody picked resolves to one (voice-picker.ts effectiveVoice):
     // whichever prompt stops the start offers the way past it.
     const free: { voice: string | null } = { voice: null };
     const wayOn: WayOn = async () => {
@@ -271,6 +277,6 @@ async function switchVoice(setup: SessionSetup, voice: string): Promise<void> {
     setup.voice = voice;
     // Lazy for the reason state.js is, above: app-settings builds a storage
     // backend at import.
-    const { loadAppSettings, saveAppSettings } = await import('./app-settings.js');
-    await saveAppSettings({ ...(await loadAppSettings()), defaultVoice: voice });
+    const { patchAppSettings } = await import('./app-settings.js');
+    await patchAppSettings({ defaultVoice: voice });
 }
