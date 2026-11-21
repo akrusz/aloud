@@ -42,14 +42,14 @@ below needs a server deploy again unless `ts/server/` changes.
 - [x] **Content rating**: answered 2026-11-20. Truthful answers give
       Everyone / PEGI 3 / 3+ (Brazil 14), not Teen: the rating is computed,
       not picked, and it stays as it came out.
-- [ ] **Target audience and content** (same App content page): 13-15,
+- [x] **Target audience and content** (same App content page): 13-15,
       16-17 and 18+ ticked, the under-13 groups off. This, not the rating,
       is what tells Play who the app is for. Leave "Restrict Minor Access"
       off (it hides the app from every known minor). The age signals page
       stays on its default ranges.
 - [x] **Countries**: every country except Brazil, Russia, Belarus, Hong
       Kong and Macau (why: "Countries" in section 2).
-- [ ] **Description**: paste the full description again from
+- [x] **Description**: paste the full description again from
       [store-descriptions.md](store-descriptions.md). Two things changed:
       the modes are in the order Exploration, Felt Sense, Noting, and there
       is a new last paragraph ("The facilitator is an AI, not a person...").
@@ -110,8 +110,10 @@ names as hints).
       `ts/android/app/build/outputs/bundle/release/app-release.aab`.
 - [ ] **Screenshots**, since the setup screen changed:
       `node scripts/site-screenshots.mjs` for the site (commit and push
-      them) and `node scripts/store-screenshots.mjs` for the listing
-      (`<device>/cap-*.png`, uploaded in step D).
+      them). The listing's were shot from `main` on 2026-11-20
+      (`node scripts/store-screenshots.mjs`, `<device>/cap-*.png`, uploaded
+      in step D by hand: nothing here uploads to a store); run it again only
+      if the setup or session screen changes before the release.
 - [ ] **Internal testing first** (no review): Play Console → Testing →
       Internal testing → Create new release → upload the `.aab`. On the
       phone, uninstall the debug build (same `applicationId`, different key)
