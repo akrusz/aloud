@@ -1585,14 +1585,18 @@ export async function mountSetupView(
         );
     }
 
+    let turnClearOfEcho: (() => boolean) | null = null;
     /** Words begun while a tour line played, on a listener that hears through
      *  one (voice-start.ts hold): the tour's own commands act, and cut the
      *  line as a tap would. Anything that could be the line itself, or the one
-     *  just before it, come back past the echo canceller, is let go, and with
-     *  the voice picker up (it sits over the tour) the tour hears nothing. */
+     *  just before it, come back past the echo canceller, is let go, unless the
+     *  engine measured the turn as too loud to be echo (lastTurnClearOfEcho);
+     *  and with the voice picker up (it sits over the tour) the tour hears
+     *  nothing. */
     function heardOverTourLine(text: string): boolean {
         if (openVoicePicker) return false;
-        if (linesInTheRoom(speaker, SETUP_ECHO_WINDOW_MS).some((line) => looksLikePartOfLine(text, line))) return false;
+        const echo = !turnClearOfEcho?.() && linesInTheRoom(speaker, SETUP_ECHO_WINDOW_MS).some((line) => looksLikePartOfLine(text, line));
+        if (echo) return false;
         return tourHeard?.(text) ?? false;
     }
 
@@ -1784,6 +1788,7 @@ export async function mountSetupView(
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,
         });
+        turnClearOfEcho = engine instanceof WhisperPcmSttEngine ? () => engine.lastTurnClearOfEcho() : null;
         // A line that began while the engine was being built (a step of the
         // tour) is not to be heard by it.
         await speechSettled();

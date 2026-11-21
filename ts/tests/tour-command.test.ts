@@ -75,6 +75,7 @@ describe('parseTourCommand', () => {
             ['Harperd.', 0],
             ["Harper's", 0],
             ['Ethen', 1],
+            ['Eton', 1],
             ['Happy', 0],
             ['Happen.', 0],
             ['Harbor', 0],

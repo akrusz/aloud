@@ -805,7 +805,12 @@ voices and would move them off it.
   words end. Checked against the whole line, "Back." said 12.5s into the
   focus card's line, which opens "Back to Exploration", was let go
   (2026-11-20). A line said in a local voice, and the line before, are
-  checked whole. The bar is lower than a session's, and so is the
+  checked whole. The check is skipped for a turn the engine measured as too
+  loud to be echo (`lastTurnClearOfEcho` in `whisper-pcm-stt.ts`: five times
+  the loudest any line has been at the mic with nobody speaking over it): on
+  a phone whose canceller left 0.0001, "Ethan" said at 0.065 over Ethan's
+  own introduction was being let go as his (2026-11-20). Where the canceller
+  leaks (0.02 over a MacBook's first line) the words are still checked. The bar is lower than a session's, and so is the
   minimum (`overLineBar` 0.02 RMS and `overLineMinSpeechMs` 0 in `LOBBY_STT`,
   read by `speechBar` and `start` in `whisper-pcm-stt.ts` for a turn begun
   while a line plays), since a miss here costs one short transcription and

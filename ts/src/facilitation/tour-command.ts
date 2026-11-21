@@ -85,8 +85,8 @@ function words(utterance: string): string[] {
  * where the two differ that way). Both at once is no answer.
  */
 /** The offered voice a word names, or -1: the name itself, the name with a
- *  letter or two run on ("Harperd", "Harper's"), one letter off and sounding
- *  the same ("Ethen"), or five letters or more opening on the name's first
+ *  letter or two run on ("Harperd", "Harper's"), a letter or two off and
+ *  sounding the same ("Ethen", "Eton"), or five letters or more opening on the name's first
  *  and no more than half its length away ("Happy", "Happen", "Hopper" for
  *  Harper, as a phone on Parakeet heard it in three tours, 2026-11-20). Loose, because only two voices are on
  *  offer and the card takes a tap; never a word that could be either. */
@@ -98,7 +98,7 @@ function namedVoice(word: string, voices: readonly OfferedVoice[]): number {
         if (name.length < 4 || bare.length < 4) return [];
         const off = editDistance(bare, name);
         const runOn = bare.startsWith(name) && bare.length - name.length <= 2;
-        const sounds = soundKey(bare) === soundKey(name) && off <= 1;
+        const sounds = soundKey(bare) === soundKey(name) && off <= 2;
         const opens = bare.length >= 5 && bare[0] === name[0] && off <= Math.floor(name.length / 2);
         return runOn || sounds || opens ? [i] : [];
     });

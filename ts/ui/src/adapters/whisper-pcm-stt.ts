@@ -149,6 +149,9 @@ const ANSWER_MAX_SPEECH_MS = 2000;
 // its pass took "yes... no, not yet" for a yes and ended the sit. Words said
 // inside this join the turn.
 const ANSWER_YES_PAUSE_MS = 2000;
+// A turn this many times louder than any line has been at the mic with nobody
+// speaking over it is not that line come back (lastTurnClearOfEcho).
+const ECHO_CLEAR_MARGIN = 5;
 
 // Energy-only speech decision, active ONLY while the Silero session is
 // unavailable (create failed - 6z11): a frame is speech when it clears the max
@@ -389,6 +392,11 @@ export class WhisperPcmSttEngine implements SttEngine {
     // Loudest speech frame this utterance - diagnostic (how loud this user/mic
     // runs; informs the echo-gate margins).
     private peakEnergy = 0;
+    /** The peak of the turn last submitted (lastTurnClearOfEcho). */
+    private lastTurnPeak = 0;
+    /** The loudest a line has been at this mic with nobody speaking over it:
+     *  the device's echo as measured. Null until one has played through. */
+    private quietLineEcho: number | null = null;
     // Latest speculative transcript ends in a dangling clause. Set by the
     // polling loop in start(), read by the audio callback to extend the silence
     // window (INCOMPLETE_CLAUSE_EXTRA_MS).
@@ -453,7 +461,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     } | null = null;
     // Per-playback echo stats, logged when playback ends (setTtsActive). Null
     // between replies. Diagnostic only - nothing reads it.
-    private echoWatch: { frames: number; overGate: number; peak: number; sum: number } | null =
+    private echoWatch: { frames: number; overGate: number; peak: number; sum: number; spoken: boolean } | null =
         null;
     // Mic level per frame for the second after playback ends: how fast this
     // device's speaker echo dies away, the measurement behind the session's
@@ -700,6 +708,19 @@ export class WhisperPcmSttEngine implements SttEngine {
         return energy > threshold;
     }
 
+    /**
+     * Whether the turn last submitted was too loud to be a line's echo:
+     * ECHO_CLEAR_MARGIN over the loudest any line has measured here with
+     * nobody speaking. False until a line has played through unspoken over.
+     * Where the canceller leaves nothing (0.0001 on a phone against a voice at
+     * 0.065), a name or "back" said over a line that says it too is the
+     * person's; where it leaks, the caller's check of the words still stands.
+     */
+    lastTurnClearOfEcho(): boolean {
+        if (this.quietLineEcho === null) return false;
+        return this.lastTurnPeak > Math.max(this.opts.overLineBar, this.quietLineEcho * ECHO_CLEAR_MARGIN);
+    }
+
     /** Speech so far is short enough to be the answer expectAnswer waits for. */
     private answerSized(): boolean {
         return this.answer !== null && this.lastSpeechMs - this.speechStartMs <= ANSWER_MAX_SPEECH_MS;
@@ -709,6 +730,7 @@ export class WhisperPcmSttEngine implements SttEngine {
      *  run. `how` marks a turn that ended as an answer (expectAnswer). */
     private endUtterance(now: number, needed: number, how: 'pause' | 'answer'): void {
         this.utteranceDone = true;
+        this.lastTurnPeak = this.peakEnergy;
         this.hintAtSubmit = this.lastHintChunk;
         const speechDur = this.lastSpeechMs - this.speechStartMs;
         diag(
@@ -826,6 +848,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             w.sum += energy;
             w.peak = Math.max(w.peak, energy);
             if (energy > Math.max(echoGate, BARGE_IN_THRESHOLD)) w.overGate++;
+            if (this.speechStarted) w.spoken = true;
         }
 
         // Barge-in: watch this stream for the user's voice. Runs in BOTH idle
@@ -1314,7 +1337,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     setTtsActive(active: boolean): void {
         if (active === this.ttsActive) return;
         if (active) {
-            this.echoWatch = { frames: 0, overGate: 0, peak: 0, sum: 0 };
+            this.echoWatch = { frames: 0, overGate: 0, peak: 0, sum: 0, spoken: false };
         } else if (this.echoWatch) {
             // The decisive measurement for meditation-pal-oxmt: how loud this
             // device's echo actually was against the gates that are supposed to
@@ -1323,6 +1346,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             // real-speech territory and overGate counts the frames that leaked.
             const w = this.echoWatch;
             this.echoWatch = null;
+            if (!w.spoken && w.overGate === 0 && w.frames > 0) this.quietLineEcho = Math.max(this.quietLineEcho ?? 0, w.peak);
             const gate = this.echoGateLevel();
             diag(
                 `[vad] tts window: frames=${w.frames} ` +

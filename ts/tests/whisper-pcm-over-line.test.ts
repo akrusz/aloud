@@ -110,6 +110,29 @@ describe('a word over a tour line', () => {
     });
 });
 
+describe('a turn too loud to be the line come back', () => {
+    // setupEngine's first line measured this mic's echo at ECHO (0.01).
+    it('is one five times over the loudest a line has been with nobody speaking', async () => {
+        const e = await setupEngine(LOBBY_STT);
+        expect(await overLine(e, 0.06)).toBe(true);
+        expect(e.lastTurnClearOfEcho()).toBe(true);
+    });
+
+    it('is not one nearer the echo than that', async () => {
+        const e = await setupEngine(LOBBY_STT);
+        expect(await overLine(e, 0.03)).toBe(true);
+        expect(e.lastTurnClearOfEcho()).toBe(false);
+    });
+
+    it('is none before any line has been measured', async () => {
+        burst = { frames: 0, level: 0 };
+        rest = 0;
+        rig.amplitude = mic;
+        const e = engineOf(await engineWithMic(LOBBY_STT));
+        expect(e.lastTurnClearOfEcho()).toBe(false);
+    });
+});
+
 describe('the pause that ends the turn', () => {
     /** How long after the word's last frame the turn was sent. */
     async function sentAfter(e: WhisperPcmSttEngine, over: boolean): Promise<number> {
