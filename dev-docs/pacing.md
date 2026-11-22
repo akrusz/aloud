@@ -72,11 +72,17 @@ Two synthetic `[Timer: …]` event turns go through the smart-check-in path (eve
 → one short reply → canned fallback):
 
 - **Approach notice.** Its lead (`timerApproachLeadSec`) scales with the sit
-  and with the running average turn length, so it can't fall inside a silence.
-  The model may `[PASS]` here.
-- **Completion notice.** Never `[PASS]`. The one thing that fires **inside
-  `[HOLD]`**, and it puts the hold back afterwards (`restoreHoldAfterNotice`),
-  since silence mode must not be able to suppress the timer.
+  and with the running average turn length (at least 1.3 turns, at most a
+  third of the sit), so it is not still waiting for a turn to end when the
+  completion notice overtakes it (`SessionClock.timerDue` drops an approach
+  not yet said when the time is up). The model may `[PASS]` here.
+- **Completion notice.** Never `[PASS]`.
+
+Both fire **inside `[HOLD]`**: the timer's poll is deliberately not gated on
+silence mode (`timerPoll` in `views/session.ts`), and either notice puts the
+hold back afterwards (`restoreHoldAfterNotice`), since silence mode must not be
+able to suppress the timer. In a hold the approach notice can still `[PASS]`;
+the completion notice always speaks.
 
 Both wait for a turn boundary rather than barging in. Pacing only sees finished
 turns, so a check-in or notice also holds while the recognizer reports the

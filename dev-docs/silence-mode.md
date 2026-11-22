@@ -34,8 +34,10 @@ pause, and a soft word right after the question is heard
 ([voice-commands.md](voice-commands.md#the-two-that-need-no-judge), Hearing
 the answer).
 
-The one thing that speaks inside a hold is the session timer's completion
-notice, which puts the hold back afterwards: [pacing.md](pacing.md#session-timer).
+The session timer's notices speak inside a hold, the approach one only if the
+model does not `[PASS]`, and so does a spoken command's acknowledgment; each
+puts the hold back afterwards (`restoreHoldAfterNotice`):
+[pacing.md](pacing.md#session-timer).
 
 ## The judge (Jev)
 
