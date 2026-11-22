@@ -65,12 +65,14 @@ jobs:
           - platform: ubuntu-24.04
             args: --bundles appimage,deb
           # Windows: NSIS is the updater target; msi is download-only.
-          # windows-2025 is Visual Studio 2022. windows-latest moved to VS 2026,
+          # windows-2022 is the one label left on Visual Studio 2022:
+          # windows-latest and windows-2025 both resolve to the VS 2026 image,
           # whose MSVC 14.52 rejects espeak-ng's unguarded
           # `#if __has_include_next(...)` (C7780; espeak-rs-sys 0.2.0, under
-          # piper-rs), and defining the name from a forced include did not
-          # help. Back to windows-latest once espeak-rs-sys guards it.
-          - platform: windows-2025
+          # piper-rs). Defining the name from a forced include did not help.
+          # Back to windows-latest once espeak-rs-sys guards it
+          # (meditation-pal-x34j).
+          - platform: windows-2022
             args: --bundles nsis,msi
     runs-on: ${{ matrix.platform }}
     steps:

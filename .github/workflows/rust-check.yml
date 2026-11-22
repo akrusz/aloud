@@ -27,8 +27,8 @@ jobs:
       fail-fast: false
       matrix:
         # 24.04 to match tauri-release.yml (WebKitGTK 4.1 packages), and
-        # windows-2025 for the reason given there.
-        os: [ubuntu-24.04, windows-2025]
+        # windows-2022 for the reason given there.
+        os: [ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
