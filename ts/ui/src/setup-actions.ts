@@ -40,9 +40,9 @@ export interface SetupForm {
     setFocuses(list: SetupFocus[]): void;
     qualities(): readonly Quality[];
     setQualities(list: Quality[]): void;
-    /** The guidance slider's stop, 0 to GUIDANCE_STOPS - 1. */
+    /** The guidance level, 1 to GUIDANCE_STOPS. */
     guidance(): number;
-    setGuidance(step: number): void;
+    setGuidance(level: number): void;
     verbosity(): Verbosity;
     setVerbosity(value: Verbosity): void;
     /** The intention field of the mode on screen. */
@@ -107,8 +107,8 @@ export function applySetupAction(form: SetupForm, action: SetupAction): SetupOut
         case 'guidance': {
             const from = form.guidance();
             const to = action.to === 'up' ? from + 1 : action.to === 'down' ? from - 1 : action.to;
-            form.setGuidance(Math.max(0, Math.min(GUIDANCE_STOPS - 1, Math.round(to))));
-            return { kind: 'guidance', step: form.guidance() };
+            form.setGuidance(Math.max(1, Math.min(GUIDANCE_STOPS, Math.round(to))));
+            return { kind: 'guidance', level: form.guidance() };
         }
         case 'verbosity': {
             const at = VERBOSITY_ORDER.indexOf(form.verbosity());

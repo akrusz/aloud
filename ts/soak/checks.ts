@@ -223,8 +223,8 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     // prompt-verbiage tuning: sentences opening on a command verb, over the
     // MODEL-authored spoken turns only - `raw` is set exactly on those, so
     // canned copy (fallback openers, canned check-ins: our own words) stays
-    // out of the score. At directiveness 7+ commanding is the requested
-    // style, so the rate stays info-only there.
+    // out of the score. At the two directing levels commanding is the
+    // requested style, so the rate stays info-only there.
     const sentences = modelReplies
         .flatMap((t) => t.text.split(/(?<=[.!?…])\s+/))
         .map((s) => s.trim())
@@ -237,8 +237,8 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     if (sentences.length >= 5) {
         const rate = imperative.length / sentences.length;
         const detail = `${imperative.length}/${sentences.length} sentences open on a command verb (${(rate * 100).toFixed(0)}%)`;
-        const directiveness = result.scenario.directiveness ?? 5;
-        if (directiveness <= 5 && rate > 0.2) {
+        const directiveness = result.scenario.directiveness ?? 3;
+        if (directiveness <= 3 && rate > 0.2) {
             const sample = (imperative[0] ?? '').slice(0, 80);
             add('imperative-heavy', 'warn', `${detail} at guidance ${directiveness}; first: "${sample}"`);
         } else {

@@ -146,7 +146,7 @@ describe('imperative-rate check', () => {
             { waitSec: 10, end: true },
         ]);
         const result = await runSoakSession({
-            scenario: { ...baseScenario, directiveness: 3 },
+            scenario: { ...baseScenario, directiveness: 2 },
             facilitator,
             utility: utilityStub,
             simUser: sim,
@@ -155,7 +155,7 @@ describe('imperative-rate check', () => {
         expect(finding?.level).toBe('warn');
         expect(finding?.detail).toContain('5/');
         // The same transcript at high guidance is the requested style: info only.
-        const high = runChecks({ ...result, scenario: { ...baseScenario, directiveness: 7 } });
+        const high = runChecks({ ...result, scenario: { ...baseScenario, directiveness: 4 } });
         expect(high.find((f) => f.id === 'imperative-heavy')).toBeUndefined();
         expect(high.find((f) => f.id === 'imperative-rate')?.level).toBe('info');
     });

@@ -77,11 +77,12 @@ describe('buildSmartCheckinEvent', () => {
         expect(buildSmartCheckinEvent(300, 1, { withWaitHint: true })).toContain('[WAIT:Nm]');
     });
 
-    it('maps the guidance slider onto the tiers', () => {
-        expect(checkinSuggestionFor(0)).toBe('none');
+    it('maps the guidance levels onto the tiers', () => {
+        expect(checkinSuggestionFor(1)).toBe('none');
+        expect(checkinSuggestionFor(2)).toBe('offered');
         expect(checkinSuggestionFor(3)).toBe('offered');
-        expect(checkinSuggestionFor(7)).toBe('offered');
-        expect(checkinSuggestionFor(10)).toBe('expected');
+        expect(checkinSuggestionFor(4)).toBe('offered');
+        expect(checkinSuggestionFor(5)).toBe('expected');
     });
 
     it('scales how much the line may steer with the suggestion tier', () => {

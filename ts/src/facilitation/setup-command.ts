@@ -31,7 +31,7 @@ import { toSimplified, trimHeardZh } from './zh-script.js';
 /** The focuses the setup screen offers (open awareness is no checkbox there). */
 export type SetupFocus = 'body_sensations' | 'emotions' | 'inner_parts';
 
-/** The guidance slider's stops, 0 (following) to 4 (directing). */
+/** The guidance levels, 1 (following) to 5 (directing). */
 export const GUIDANCE_STOPS = 5;
 
 /** One change to the setup form. `views/setup.ts` applies them. */
@@ -46,7 +46,7 @@ export type SetupAction =
     | { kind: 'quality'; quality: Quality; on: boolean | 'toggle' }
     /** Uncheck every focus, or every vibe. */
     | { kind: 'clear'; group: 'focus' | 'quality' }
-    /** One stop along the guidance slider, or straight to a stop. */
+    /** One stop along the guidance slider, or straight to a level (1 to 5). */
     | { kind: 'guidance'; to: 'up' | 'down' | number }
     | { kind: 'verbosity'; to: 'up' | 'down' | Verbosity }
     /** The intention field of the mode on screen; '' empties it. */
@@ -85,8 +85,8 @@ type Meaning =
     | { t: 'mode'; mode: BeginMode }
     | { t: 'focus'; focus: SetupFocus }
     | { t: 'quality'; quality: Quality }
-    /** A word about who leads. `stop` is where the bare word puts the slider;
-     *  without one it only means something beside "more" or "less". */
+    /** A word about who leads. `stop` is the level the bare word sets (1 to
+     *  5); without one it only means something beside "more" or "less". */
     | { t: 'lead'; toward: 'up' | 'down'; stop?: number }
     | { t: 'length-word'; to: 'up' | 'down' | Verbosity }
     | { t: 'checkin' }
@@ -174,13 +174,13 @@ const PHRASES: Record<string, Entry> = {
     'feels good': also(quality('feeling_good')),
     pleasant: also(quality('feeling_good')),
 
-    following: named({ t: 'lead', toward: 'down', stop: 0 }),
-    'somewhat following': named({ t: 'lead', toward: 'down', stop: 1 }),
-    balanced: named({ t: 'lead', toward: 'up', stop: 2 }),
-    balance: also({ t: 'lead', toward: 'up', stop: 2 }),
-    'somewhat directing': named({ t: 'lead', toward: 'up', stop: 3 }),
-    directing: named({ t: 'lead', toward: 'up', stop: 4 }),
-    directive: also({ t: 'lead', toward: 'up', stop: 4 }),
+    following: named({ t: 'lead', toward: 'down', stop: 1 }),
+    'somewhat following': named({ t: 'lead', toward: 'down', stop: 2 }),
+    balanced: named({ t: 'lead', toward: 'up', stop: 3 }),
+    balance: also({ t: 'lead', toward: 'up', stop: 3 }),
+    'somewhat directing': named({ t: 'lead', toward: 'up', stop: 4 }),
+    directing: named({ t: 'lead', toward: 'up', stop: 5 }),
+    directive: also({ t: 'lead', toward: 'up', stop: 5 }),
     follow: named({ t: 'lead', toward: 'down' }),
     lead: named({ t: 'lead', toward: 'up' }),
     leading: named({ t: 'lead', toward: 'up' }),
@@ -302,7 +302,7 @@ const LEVELS: Record<string, Level> = {
     high: 'high',
     maximum: 'max', max: 'max', highest: 'max', full: 'max',
 };
-const LEVEL_GUIDANCE: Record<Level, number> = { min: 0, low: 1, medium: 2, high: 3, max: 4 };
+const LEVEL_GUIDANCE: Record<Level, number> = { min: 1, low: 2, medium: 3, high: 4, max: 5 };
 const LEVEL_VERBOSITY: Record<Level, Verbosity> = { min: 'low', low: 'low', medium: 'medium', high: 'high', max: 'high' };
 
 /** Said of the clock readout: "hide the clock", "show the timer". */
@@ -590,7 +590,7 @@ function numberAsWord(words: string[]): string[] {
     });
 }
 
-/** The numbers drawn under the guidance slider's stops, 1 to 5. */
+/** The numbers drawn under the guidance slider's stops: the levels, 1 to 5. */
 const STOP_NUMBERS: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5 };
 /** The number only in a request's own shape (`guidanceStops`): "one" is as
  *  often the pronoun, and a recognizer writes "for" and "to" for four and two
@@ -599,8 +599,8 @@ const STOP_IF_ASKED: Record<string, number> = { one: 1, to: 2, too: 2, for: 4 };
 /** "To" as a recognizer may write it. */
 const TO_HEARD = new Set(['to', 'too', 'two', '2']);
 /**
- * Stands in the words for a stop read by its number, followed by the stop
- * (0 to 4). No word out of `tokens` has one, and nothing after this pass reads
+ * Stands in the words for a stop read by its number, followed by the level
+ * (1 to 5). No word out of `tokens` has one, and nothing after this pass reads
  * it as a number: "guidance two please" stays a stop, not numberAsWord's "to".
  */
 const STOP_MARK = '#';
@@ -632,7 +632,7 @@ function guidanceStops(words: string[]): string[] {
         if (between.length > 2 || !between.every((w) => w === 'level' || TO_HEARD.has(w))) return;
         const opens = ahead.every((w) => POLITE.has(w)) || between.some((w) => TO_HEARD.has(w));
         const number = STOP_NUMBERS[said] ?? (opens ? STOP_IF_ASKED[said] : undefined);
-        if (number !== undefined) out[end - 1] = `${STOP_MARK}${number - 1}`;
+        if (number !== undefined) out[end - 1] = `${STOP_MARK}${number}`;
     });
     return out;
 }
@@ -975,9 +975,9 @@ const ZH_VALUES: ReadonlyArray<[RegExp, (on: boolean) => SetupAction | null]> = 
     // 记时器, 计时期: what Whisper writes for 计时器.
     [/^(?:[计记]时[器期计]?|定时器?)$/, (on) => (on ? null : { kind: 'no-timer' })],
     [/^(?:问[候号]我?|打扰我?)$/, (on) => ({ kind: 'checkins', on })],
-    [/^跟随$/, (on) => (on ? { kind: 'guidance', to: 0 } : null)],
-    [/^均衡$/, (on) => (on ? { kind: 'guidance', to: 2 } : null)],
-    [/^主导$/, (on) => (on ? { kind: 'guidance', to: 4 } : null)],
+    [/^跟随$/, (on) => (on ? { kind: 'guidance', to: 1 } : null)],
+    [/^均衡$/, (on) => (on ? { kind: 'guidance', to: 3 } : null)],
+    [/^主导$/, (on) => (on ? { kind: 'guidance', to: 5 } : null)],
 ];
 
 /** Whole phrases with a direction in them. */
@@ -1057,7 +1057,7 @@ function parseZh(utterance: string): SetupAction[] | null {
 
         const stop = ZH_GUIDANCE_STOP_RE.exec(part);
         if (stop) {
-            actions.push({ kind: 'guidance', to: ZH_STOP_NUMBERS[stop[1]!]! - 1 });
+            actions.push({ kind: 'guidance', to: ZH_STOP_NUMBERS[stop[1]!]! });
             continue;
         }
         const step = ZH_STEPS.find(([re]) => re.test(part));

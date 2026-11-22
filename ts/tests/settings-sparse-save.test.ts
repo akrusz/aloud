@@ -184,8 +184,8 @@ describe.each([
         const first = await launch();
         await first.saveSetup({ ...(await first.loadSetup()), meditationType: 'noting' });
         const later = await launch();
-        later.defaultSetup.dirStep = 3;
-        expect((await later.loadSetup()).dirStep).toBe(3);
+        later.defaultSetup.directiveness = 4;
+        expect((await later.loadSetup()).directiveness).toBe(4);
     });
 
     it("a setup provider and model that mirror Settings' default follow it", async () => {
@@ -193,8 +193,8 @@ describe.each([
         const { loadSetup, saveSetup, loadAppSettings, saveAppSettings } = await launch();
         const setup = await loadSetup();
         expect(setup.provider).toBe('anthropic');
-        await saveSetup({ ...setup, dirStep: 1 });
-        expect(stored('preview:setup')).toEqual({ dirStep: 1 });
+        await saveSetup({ ...setup, directiveness: 2 });
+        expect(stored('preview:setup')).toEqual({ directiveness: 2 });
         await saveAppSettings({ ...(await loadAppSettings()), defaultProvider: 'openai', defaultModel: 'gpt-a' });
         const next = await loadSetup();
         expect([next.provider, next.model]).toEqual(['openai', 'gpt-a']);
@@ -281,7 +281,7 @@ describe.each([
         voice: 'aloud:Ethan',
         ttsRate: 120,
         meditationType: 'noting',
-        dirStep: 4,
+        directiveness: 5,
         verbosity: 'low',
         customInstructions: 'speak softly',
         focuses: ['open_awareness'],
@@ -313,7 +313,7 @@ describe.each([
         });
         expect(stored('preview:setup')).toEqual({
             meditationType: 'noting',
-            dirStep: 4,
+            directiveness: 5,
             verbosity: 'high',
             customInstructions: 'speak softly',
             focuses: ['open_awareness'],

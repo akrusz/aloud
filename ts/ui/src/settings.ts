@@ -1,7 +1,8 @@
 /**
  * Typed setup state + persistence. Maps the setup-form shape onto the
- * PromptBuilder's config. The slider is 0-4 for UX; DIRECTIVENESS_VALUES maps
- * it to 0/3/5/7/10 to line up with the DIRECTIVENESS_ADDITIONS keys.
+ * PromptBuilder's config. The guidance level is 1 to 5 here as everywhere
+ * (DIRECTIVENESS_ADDITIONS keys); setups saved before that are read through
+ * upgradeStoredSetup.
  */
 
 import type {
@@ -135,19 +136,19 @@ export interface SessionSetup {
     intentionByMode: Partial<Record<MeditationType, string>>;
     focuses: Focus[];
     qualities: Quality[];
-    /** UI slider value 0-4. Map via DIRECTIVENESS_VALUES below. */
-    dirStep: number;
+    /** The guidance level, 1 (Following) to 5 (Directing). */
+    directiveness: number;
     /**
-     * Felt sense's "Check-in pace" slider (0-4). Same stops and mapping as
-     * dirStep but kept separate: it drives ONLY smart check-in timing (patient
-     * <-> attentive), never directiveness, which the felt-sense protocol owns.
+     * Felt sense's "Check-in pace" slider, 1 to 5 on the guidance scale but
+     * kept separate: it drives ONLY smart check-in timing (patient <->
+     * attentive), never the guidance, which the felt-sense protocol owns.
      */
-    feltSensePaceStep: number;
+    feltSensePace: number;
     /**
      * Felt sense's "Check in if I'm quiet" toggle. Felt sense owns its own
      * check-in timing rather than deferring to the app-level Check-In Timing
      * setting (which isn't reachable from the setup page): on = smart timing
-     * paced by feltSensePaceStep, off = no silence check-ins at all.
+     * paced by feltSensePace, off = no silence check-ins at all.
      */
     feltSenseCheckins: boolean;
     verbosity: Verbosity;
@@ -279,27 +280,25 @@ export function sessionNeedsLlm(
     return (participants ?? []).some((p) => p.type === 'llm');
 }
 
-export const DIRECTIVENESS_VALUES: readonly number[] = [0, 3, 5, 7, 10];
+/** Display names for the guidance levels. */
+export const GUIDANCE_LEVEL_LABELS: Readonly<Record<number, string>> = {
+    1: 'Following',
+    2: 'Somewhat following',
+    3: 'Balanced',
+    4: 'Somewhat directing',
+    5: 'Directing',
+};
 
-/** Display names for the five guidance-slider stops (indexed by dirStep). */
-export const GUIDANCE_LEVEL_LABELS: readonly string[] = [
-    'Following',
-    'Somewhat following',
-    'Balanced',
-    'Somewhat directing',
-    'Directing',
-];
-
-/** Display names for the five felt-sense check-in pace stops (indexed by
- *  feltSensePaceStep). Same wait mapping as the guidance stops (12m -> 30s),
- *  framed as presence during silence rather than directiveness. */
-export const CHECKIN_PACE_LABELS: readonly string[] = [
-    'Very patient',
-    'Patient',
-    'Moderate',
-    'Attentive',
-    'Very attentive',
-];
+/** Display names for the felt-sense check-in pace (feltSensePace). Same wait
+ *  mapping as the guidance levels (12m -> 30s), framed as presence during
+ *  silence rather than directiveness. */
+export const CHECKIN_PACE_LABELS: Readonly<Record<number, string>> = {
+    1: 'Very patient',
+    2: 'Patient',
+    3: 'Moderate',
+    4: 'Attentive',
+    5: 'Very attentive',
+};
 
 export const VERBOSITY_LABELS: Readonly<Record<Verbosity, string>> = {
     low: 'Brief',
@@ -323,19 +322,14 @@ export const QUALITY_LABELS: Readonly<Record<Quality, string>> = {
     feeling_good: 'Feeling good',
 };
 
-export function dirStepToBackend(step: number): number {
-    const v = DIRECTIVENESS_VALUES[Math.max(0, Math.min(step, DIRECTIVENESS_VALUES.length - 1))];
-    return v ?? 3;
-}
-
 export const defaultSetup: SessionSetup = {
     meditationType: 'exploration',
     intention: '',
     intentionByMode: {},
     focuses: ['body_sensations', 'emotions'],
     qualities: ['feeling_good'],
-    dirStep: 2,
-    feltSensePaceStep: 1,
+    directiveness: 3,
+    feltSensePace: 2,
     feltSenseCheckins: true,
     verbosity: 'medium',
     customInstructions: '',
@@ -386,6 +380,36 @@ async function loadRawSetup(): Promise<string | null> {
     }
 }
 
+/**
+ * Setups saved before the guidance level ran 1 to 5 hold the slider's
+ * position, 0 to 4, as `dirStep` and `feltSensePaceStep`. A value alone
+ * can't say which scale it is on (an old 2 is Balanced, a new 2 Somewhat
+ * following), so the field name does: an old field is read into the new one,
+ * a level up, and dropped, so the next save writes only the new field and it
+ * stays a pick. If both are there the new one wins.
+ */
+const STEP_FIELDS = [
+    ['dirStep', 'directiveness'],
+    ['feltSensePaceStep', 'feltSensePace'],
+] as const;
+
+export function upgradeStoredSetup(stored: Readonly<Record<string, unknown>>): Record<string, unknown> {
+    const out = { ...stored };
+    for (const [old, now] of STEP_FIELDS) {
+        if (!Object.hasOwn(out, old)) continue;
+        const step = out[old];
+        delete out[old];
+        if (!Object.hasOwn(out, now) && typeof step === 'number' && Number.isFinite(step)) {
+            out[now] = Math.max(1, Math.min(5, Math.round(step) + 1));
+        }
+    }
+    return out;
+}
+
+function parseStoredSetup(raw: string | null): Record<string, unknown> {
+    return upgradeStoredSetup(parseStoredSettings(raw));
+}
+
 // One at a time, and loads wait for them, as with app settings (app-settings.ts).
 let setupWrites: Promise<void> = Promise.resolve();
 function queueSetupWrite(write: () => Promise<void>): Promise<void> {
@@ -425,7 +449,7 @@ export async function loadSetup(): Promise<SessionSetup> {
     const s = await loadAppSettings();
     const base = setupDefaults(s);
     const raw = await loadRawSetup();
-    const merged: SessionSetup = { ...base, ...(parseStoredSettings(raw) as Partial<SessionSetup>) };
+    const merged: SessionSetup = { ...base, ...(parseStoredSetup(raw) as Partial<SessionSetup>) };
     // App-level voice/rate win; clobber anything an older 'preview:setup' has.
     // Language follows the same rule (loadAppSettings already normalized it
     // against LANGUAGES).
@@ -453,7 +477,7 @@ export function saveSetup(setup: SessionSetup): Promise<void> {
         const raw = await loadRawSetup();
         const next: Partial<SessionSetup> = { ...setup };
         for (const field of MIRRORED_FIELDS) delete next[field];
-        const out = fieldsToStore(parseStoredSettings(raw), next, setupDefaults(await loadAppSettings()));
+        const out = fieldsToStore(parseStoredSetup(raw), next, setupDefaults(await loadAppSettings()));
         if (raw === null && Object.keys(out).length === 0) return;
         await kv().set(SETTINGS_KEY, JSON.stringify(out));
     });
@@ -482,7 +506,7 @@ function editStoredSetup(edit: (stored: Record<string, unknown>) => void): Promi
         if (raw === null) return;
         let stored: Record<string, unknown>;
         try {
-            stored = JSON.parse(raw) as Record<string, unknown>;
+            stored = upgradeStoredSetup(JSON.parse(raw) as Record<string, unknown>);
         } catch {
             // Unreadable already loads as the defaults.
             return;

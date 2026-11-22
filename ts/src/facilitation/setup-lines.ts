@@ -70,11 +70,11 @@ export const SETUP_LINES = {
     'vibe-feeling-good-off': { en: 'Feeling good is off.', zh: '已去掉感觉不错。' },
     'vibe-cleared': { en: 'All vibes are off.', zh: '氛围已全部去掉。' },
 
-    'guidance-0': { en: 'Guidance set to following.', zh: '引导设为跟随。' },
-    'guidance-1': { en: 'Guidance set to somewhat following.', zh: '引导设为略偏跟随。' },
-    'guidance-2': { en: 'Guidance set to balanced.', zh: '引导设为均衡。' },
-    'guidance-3': { en: 'Guidance set to somewhat directing.', zh: '引导设为略偏主导。' },
-    'guidance-4': { en: 'Guidance set to directing.', zh: '引导设为主导。' },
+    'guidance-1': { en: 'Guidance set to following.', zh: '引导设为跟随。' },
+    'guidance-2': { en: 'Guidance set to somewhat following.', zh: '引导设为略偏跟随。' },
+    'guidance-3': { en: 'Guidance set to balanced.', zh: '引导设为均衡。' },
+    'guidance-4': { en: 'Guidance set to somewhat directing.', zh: '引导设为略偏主导。' },
+    'guidance-5': { en: 'Guidance set to directing.', zh: '引导设为主导。' },
 
     'responses-low': { en: 'Responses will be brief.', zh: '回应会简短一些。' },
     'responses-medium': { en: 'Responses will be medium length.', zh: '回应长度适中。' },
@@ -195,8 +195,8 @@ export type SetupOutcome =
     | { kind: 'focus'; focus: SetupFocus; on: boolean }
     | { kind: 'quality'; quality: Quality; on: boolean }
     | { kind: 'cleared'; group: 'focus' | 'quality' }
-    /** The guidance slider's stop after the move, 0 to 4. */
-    | { kind: 'guidance'; step: number }
+    /** The guidance level after the move, 1 to 5. */
+    | { kind: 'guidance'; level: number }
     | { kind: 'verbosity'; value: Verbosity }
     | { kind: 'intention'; set: boolean }
     /** Nothing changed yet: the app asks, and the next thing said is it. */
@@ -286,7 +286,7 @@ function lineFor(outcome: Exclude<SetupOutcome, { kind: 'voice-picker' }>, langu
         case 'cleared':
             return fixed(outcome.group === 'focus' ? 'focus-cleared' : 'vibe-cleared');
         case 'guidance':
-            return fixed(`guidance-${Math.max(0, Math.min(4, Math.round(outcome.step)))}` as SetupLineId);
+            return fixed(`guidance-${Math.max(1, Math.min(5, Math.round(outcome.level)))}` as SetupLineId);
         case 'verbosity':
             return fixed(`responses-${outcome.value}`);
         case 'intention':

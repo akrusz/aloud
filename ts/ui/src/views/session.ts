@@ -147,7 +147,6 @@ import { startCloudSession, clearCloudSession } from '../cloud-session.js';
 import {
     type SessionSetup,
     type Provider,
-    dirStepToBackend,
     ALL_PROVIDERS,
     GUIDANCE_LEVEL_LABELS,
     CHECKIN_PACE_LABELS,
@@ -398,9 +397,7 @@ export async function mountSessionView(
     // directiveness doesn't compose; "Check-in pace" stands in for it, driving
     // only timing (the [WAIT] bias, the pacing seed, and whether check-ins may
     // be substantive).
-    const directiveness = mode.checkinPaceSlider
-        ? dirStepToBackend(setup.feltSensePaceStep)
-        : dirStepToBackend(setup.dirStep);
+    const directiveness = mode.checkinPaceSlider ? setup.feltSensePace : setup.directiveness;
     // Those modes also own their check-ins entirely: their setup panel has its
     // own toggle + pace slider, so the Settings-page Check-In radios (which the
     // panel can't show) don't apply. Content is always smart there - a line
@@ -658,12 +655,12 @@ export async function mountSessionView(
             });
         }
         if (mode.composes?.directiveness !== false) {
-            rows.push({ label: t('Guidance'), value: t(GUIDANCE_LEVEL_LABELS[setup.dirStep] ?? 'Balanced') });
+            rows.push({ label: t('Guidance'), value: t(GUIDANCE_LEVEL_LABELS[setup.directiveness] ?? 'Balanced') });
         } else if (mode.checkinPaceSlider) {
             rows.push({
                 label: t('Check-in pace'),
                 value: setup.feltSenseCheckins
-                    ? t(CHECKIN_PACE_LABELS[setup.feltSensePaceStep] ?? 'Patient')
+                    ? t(CHECKIN_PACE_LABELS[setup.feltSensePace] ?? 'Patient')
                     : t('Off'),
             });
         }

@@ -22,7 +22,6 @@ import {
     providerNeedsKey,
     sessionNeedsLlm,
     type ProviderAvailabilityOpts,
-    DIRECTIVENESS_VALUES,
     FOCUS_LABELS,
     QUALITY_LABELS,
     VERBOSITY_LABELS,
@@ -97,6 +96,7 @@ import {
     modelSetLine,
     setupLineText,
     setupOutcomeLines,
+    GUIDANCE_STOPS,
     type SetupPick,
     type SpokenSetupLine,
     type BeginRequest,
@@ -261,14 +261,13 @@ let setupMounts = 0;
 let liveSpeaker: SetupSpeaker | null = null;
 
 /** The combinations the Exploration explainer offers, applied whole: each
- *  replaces the focuses and the vibes and sets the guidance level. `dirStep`
- *  counts from 0; the slider shows it as one more (2, 2 and 3). */
+ *  replaces the focuses and the vibes and sets the guidance level. */
 const EXPLORATION_PRESETS: Readonly<
-    Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[]; dirStep: number }>
+    Record<string, { focuses: readonly SetupFocus[]; qualities: readonly Quality[]; directiveness: number }>
 > = {
-    jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'], dirStep: 1 },
-    lovingKindness: { focuses: ['emotions'], qualities: ['loving', 'feeling_good'], dirStep: 1 },
-    partsWork: { focuses: ['inner_parts'], qualities: ['compassionate'], dirStep: 2 },
+    jhana: { focuses: ['body_sensations', 'emotions'], qualities: ['playful', 'feeling_good'], directiveness: 2 },
+    lovingKindness: { focuses: ['emotions'], qualities: ['loving', 'feeling_good'], directiveness: 2 },
+    partsWork: { focuses: ['inner_parts'], qualities: ['compassionate'], directiveness: 3 },
 };
 
 export async function mountSetupView(
@@ -536,7 +535,7 @@ export async function mountSetupView(
                 !!preset &&
                 same(focuses, preset.focuses) &&
                 same(setup.qualities, preset.qualities) &&
-                setup.dirStep === preset.dirStep;
+                setup.directiveness === preset.directiveness;
             btn.classList.toggle('selected', on);
             btn.setAttribute('aria-pressed', String(on));
         });
@@ -559,13 +558,13 @@ export async function mountSetupView(
     function paintGuidance(): void {
         const slider = root.querySelector<HTMLInputElement>('#directiveness');
         if (!slider) return;
-        slider.value = String(setup.dirStep);
+        slider.value = String(setup.directiveness);
         sayStop(slider, t('Following'), t('Directing'));
         markStop(slider);
     }
 
-    function setGuidance(step: number): void {
-        setup.dirStep = step;
+    function setGuidance(level: number): void {
+        setup.directiveness = level;
         persist();
         paintGuidance();
         paintPresets();
@@ -708,7 +707,7 @@ export async function mountSetupView(
         setFocuses: (list) => setFocuses([...setup.focuses.filter((f) => f === 'open_awareness'), ...list]),
         qualities: () => setup.qualities,
         setQualities,
-        guidance: () => setup.dirStep,
+        guidance: () => setup.directiveness,
         setGuidance,
         verbosity: () => setup.verbosity,
         setVerbosity,
@@ -1043,16 +1042,16 @@ export async function mountSetupView(
         dirSlider.addEventListener('input', () => setGuidance(Number(dirSlider.value)));
 
         // Felt-sense check-in pace: same stops as the guidance slider, its own
-        // stored value, timing only (SessionSetup.feltSensePaceStep).
+        // stored value, timing only (SessionSetup.feltSensePace).
         const paceSlider = root.querySelector<HTMLInputElement>('#checkin-pace')!;
-        paceSlider.value = String(setup.feltSensePaceStep);
+        paceSlider.value = String(setup.feltSensePace);
         const sayPace = (): void => {
             sayStop(paceSlider, t('Patient'), t('Attentive'));
             markStop(paceSlider);
         };
         sayPace();
         paceSlider.addEventListener('input', () => {
-            setup.feltSensePaceStep = Number(paceSlider.value);
+            setup.feltSensePace = Number(paceSlider.value);
             sayPace();
             persist();
         });
@@ -2472,7 +2471,7 @@ export async function mountSetupView(
                 if (!preset) return;
                 setupForm.setFocuses([...preset.focuses]);
                 setQualities([...preset.qualities]);
-                setGuidance(preset.dirStep);
+                setGuidance(preset.directiveness);
             });
         });
         paintPresets();
@@ -2874,7 +2873,10 @@ const MODE_PANELS: ReadonlyArray<readonly [MeditationType, string]> = [
  * screen reader otherwise never hears: it reads a bare "2".
  */
 function sayStop(slider: HTMLInputElement, low: string, high: string): void {
-    slider.setAttribute('aria-valuetext', stopText(Number(slider.value), Number(slider.max), low, high));
+    slider.setAttribute(
+        'aria-valuetext',
+        stopText(Number(slider.value), Number(slider.min), Number(slider.max), low, high)
+    );
 }
 
 /** The numbers drawn over a stepped slider's stops, which can be said
@@ -2888,14 +2890,19 @@ function stopNumbersHTML(count: number): string {
 function markStop(slider: HTMLInputElement): void {
     slider.parentElement
         ?.querySelectorAll('.slider-numbers > span')
-        .forEach((n, i) => n.classList.toggle('is-current', i === Number(slider.value)));
+        .forEach((n, i) => n.classList.toggle('is-current', i === Number(slider.value) - Number(slider.min)));
 }
 
-/** `value` runs 0..max, so a slider has max + 1 stops; they are counted from 1. */
-function stopText(value: number, max: number, low: string, high: string): string {
-    if (value <= 0) return low;
+/** `value` runs min..max; the stops are counted from 1. */
+function stopText(value: number, min: number, max: number, low: string, high: string): string {
+    if (value <= min) return low;
     if (value >= max) return high;
-    return t('{step} of {count}, between {low} and {high}', { step: value + 1, count: max + 1, low, high });
+    return t('{step} of {count}, between {low} and {high}', {
+        step: value - min + 1,
+        count: max - min + 1,
+        low,
+        high,
+    });
 }
 
 /**
@@ -2967,7 +2974,6 @@ function renderSetupHTML(
     const focusToggles = modifierTogglesHTML('focus', FOCUSES);
     const qualityToggles = modifierTogglesHTML('quality', QUALITIES);
 
-    const dirTickCount = DIRECTIVENESS_VALUES.length - 1;
     const verbosityOptions = VERBOSITY_OPTIONS.map(
         (v) => `<option value="${v.value}">${escapeHtml(t(v.label))}</option>`
     ).join('');
@@ -3064,8 +3070,8 @@ function renderSetupHTML(
                     </div>
                     <!-- Named here: the label's own name takes in its "?" button. -->
                     <div class="slider-numbered">
-                        <input type="range" id="directiveness" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="2" aria-label="${escapeHtml(t('Guidance Level'))}">
-                        ${stopNumbersHTML(dirTickCount + 1)}
+                        <input type="range" id="directiveness" class="slider-stops" min="1" max="${GUIDANCE_STOPS}" step="1" value="3" aria-label="${escapeHtml(t('Guidance Level'))}">
+                        ${stopNumbersHTML(GUIDANCE_STOPS)}
                     </div>
                     <div class="range-labels">
                         <span>${t('Following')}</span>
@@ -3135,8 +3141,8 @@ function renderSetupHTML(
                         <input type="checkbox" id="checkin-enabled" checked>${t("Check in if I'm quiet")}</label>
                     <div class="slider-control" id="checkin-pace-control">
                         <div class="slider-numbered">
-                            <input type="range" id="checkin-pace" class="slider-stops" min="0" max="${dirTickCount}" step="1" value="1" aria-label="${escapeHtml(t('Check-in pace'))}">
-                            ${stopNumbersHTML(dirTickCount + 1)}
+                            <input type="range" id="checkin-pace" class="slider-stops" min="1" max="${GUIDANCE_STOPS}" step="1" value="2" aria-label="${escapeHtml(t('Check-in pace'))}">
+                            ${stopNumbersHTML(GUIDANCE_STOPS)}
                         </div>
                         <div class="range-labels">
                             <span>${t('Patient')}</span>

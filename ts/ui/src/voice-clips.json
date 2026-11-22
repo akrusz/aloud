@@ -104,32 +104,32 @@
                     "levelled": true,
                     "text": "已加上内在部分。"
                 },
-                "guidance-0": {
-                    "file": "dahai/zh/guidance-0.a6d89573.mp3",
+                "guidance-1": {
+                    "file": "dahai/zh/guidance-1.a6d89573.mp3",
                     "gainDb": 3,
                     "levelled": true,
                     "text": "引导设为跟随。"
                 },
-                "guidance-1": {
-                    "file": "dahai/zh/guidance-1.77aee845.mp3",
+                "guidance-2": {
+                    "file": "dahai/zh/guidance-2.77aee845.mp3",
                     "gainDb": 3,
                     "levelled": true,
                     "text": "引导设为略偏跟随。"
                 },
-                "guidance-2": {
-                    "file": "dahai/zh/guidance-2.995e429c.mp3",
+                "guidance-3": {
+                    "file": "dahai/zh/guidance-3.995e429c.mp3",
                     "gainDb": 3,
                     "levelled": true,
                     "text": "引导设为均衡。"
                 },
-                "guidance-3": {
-                    "file": "dahai/zh/guidance-3.c5c0ae95.mp3",
+                "guidance-4": {
+                    "file": "dahai/zh/guidance-4.c5c0ae95.mp3",
                     "gainDb": 3,
                     "levelled": true,
                     "text": "引导设为略偏主导。"
                 },
-                "guidance-4": {
-                    "file": "dahai/zh/guidance-4.5a999d3e.mp3",
+                "guidance-5": {
+                    "file": "dahai/zh/guidance-5.5a999d3e.mp3",
                     "gainDb": 3,
                     "levelled": true,
                     "text": "引导设为主导。"
@@ -544,28 +544,28 @@
                     "gainDb": 3,
                     "text": "Parts focus is on."
                 },
-                "guidance-0": {
-                    "file": "ethan/en/guidance-0.5c54077e.mp3",
+                "guidance-1": {
+                    "file": "ethan/en/guidance-1.5c54077e.mp3",
                     "gainDb": 3,
                     "text": "Guidance set to following."
                 },
-                "guidance-1": {
-                    "file": "ethan/en/guidance-1.d355af06.mp3",
+                "guidance-2": {
+                    "file": "ethan/en/guidance-2.d355af06.mp3",
                     "gainDb": 3,
                     "text": "Guidance set to somewhat following."
                 },
-                "guidance-2": {
-                    "file": "ethan/en/guidance-2.75cca576.mp3",
+                "guidance-3": {
+                    "file": "ethan/en/guidance-3.75cca576.mp3",
                     "gainDb": 3,
                     "text": "Guidance set to balanced."
                 },
-                "guidance-3": {
-                    "file": "ethan/en/guidance-3.626158c2.mp3",
+                "guidance-4": {
+                    "file": "ethan/en/guidance-4.626158c2.mp3",
                     "gainDb": 3,
                     "text": "Guidance set to somewhat directing."
                 },
-                "guidance-4": {
-                    "file": "ethan/en/guidance-4.8dfb649c.mp3",
+                "guidance-5": {
+                    "file": "ethan/en/guidance-5.8dfb649c.mp3",
                     "gainDb": 3,
                     "text": "Guidance set to directing."
                 },
@@ -929,28 +929,28 @@
                     "gainDb": -4.5,
                     "text": "Parts focus is on."
                 },
-                "guidance-0": {
-                    "file": "harper/en/guidance-0.18c0e05b.mp3",
+                "guidance-1": {
+                    "file": "harper/en/guidance-1.18c0e05b.mp3",
                     "gainDb": -4.5,
                     "text": "Guidance set to following."
                 },
-                "guidance-1": {
-                    "file": "harper/en/guidance-1.9c937329.mp3",
+                "guidance-2": {
+                    "file": "harper/en/guidance-2.9c937329.mp3",
                     "gainDb": -4.5,
                     "text": "Guidance set to somewhat following."
                 },
-                "guidance-2": {
-                    "file": "harper/en/guidance-2.a173e27b.mp3",
+                "guidance-3": {
+                    "file": "harper/en/guidance-3.a173e27b.mp3",
                     "gainDb": -4.5,
                     "text": "Guidance set to balanced."
                 },
-                "guidance-3": {
-                    "file": "harper/en/guidance-3.77c2bb9f.mp3",
+                "guidance-4": {
+                    "file": "harper/en/guidance-4.77c2bb9f.mp3",
                     "gainDb": -4.5,
                     "text": "Guidance set to somewhat directing."
                 },
-                "guidance-4": {
-                    "file": "harper/en/guidance-4.b635b739.mp3",
+                "guidance-5": {
+                    "file": "harper/en/guidance-5.b635b739.mp3",
                     "gainDb": -4.5,
                     "text": "Guidance set to directing."
                 },
@@ -1332,32 +1332,32 @@
                     "levelled": true,
                     "text": "已加上内在部分。"
                 },
-                "guidance-0": {
-                    "file": "xiaoyue/zh/guidance-0.7b837813.mp3",
+                "guidance-1": {
+                    "file": "xiaoyue/zh/guidance-1.7b837813.mp3",
                     "gainDb": -1.5,
                     "levelled": true,
                     "text": "引导设为跟随。"
                 },
-                "guidance-1": {
-                    "file": "xiaoyue/zh/guidance-1.18ec6cb4.mp3",
+                "guidance-2": {
+                    "file": "xiaoyue/zh/guidance-2.18ec6cb4.mp3",
                     "gainDb": -1.5,
                     "levelled": true,
                     "text": "引导设为略偏跟随。"
                 },
-                "guidance-2": {
-                    "file": "xiaoyue/zh/guidance-2.6ad763fc.mp3",
+                "guidance-3": {
+                    "file": "xiaoyue/zh/guidance-3.6ad763fc.mp3",
                     "gainDb": -1.5,
                     "levelled": true,
                     "text": "引导设为均衡。"
                 },
-                "guidance-3": {
-                    "file": "xiaoyue/zh/guidance-3.48c47f0a.mp3",
+                "guidance-4": {
+                    "file": "xiaoyue/zh/guidance-4.48c47f0a.mp3",
                     "gainDb": -1.5,
                     "levelled": true,
                     "text": "引导设为略偏主导。"
                 },
-                "guidance-4": {
-                    "file": "xiaoyue/zh/guidance-4.178c67d9.mp3",
+                "guidance-5": {
+                    "file": "xiaoyue/zh/guidance-5.178c67d9.mp3",
                     "gainDb": -1.5,
                     "levelled": true,
                     "text": "引导设为主导。"

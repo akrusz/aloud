@@ -182,7 +182,7 @@ export const FELT_SENSE_CHECK_INS: readonly string[] = [
 /** The protocol defines attention, tone, guidance, and brevity itself, so no
  *  exploration dimension composes (the setup UI hides those controls here).
  *  Check-in timing is the one surviving knob: the "Check-in pace" slider
- *  (SessionSetup.feltSensePaceStep) reuses the guidance stops for timing only,
+ *  (SessionSetup.feltSensePace) reuses the guidance levels for timing only,
  *  patient by default. */
 export const FELT_SENSE_MODE: ModeSpec = {
     id: 'felt_sense',

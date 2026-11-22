@@ -63,7 +63,7 @@ async function open(settings, setupPatch = {}, { speechCapMs = 2500, micUnasked 
         localStorage.setItem(P + key, JSON.stringify(Object.assign(base, patch)));
     };
     merge('preview:setup', { meditationType: 'exploration', intention: '', intentionByMode: {}, focuses: [], qualities: [],
-        dirStep: 2, feltSensePaceStep: 2, feltSenseCheckins: true, verbosity: 'low', customInstructions: '',
+        directiveness: 3, feltSensePace: 3, feltSenseCheckins: true, verbosity: 'low', customInstructions: '',
         provider: 'openai', model: '${process.env.CHECK_MODEL ?? 'gpt-5-nano'}' });
     merge('preview:setup', ${JSON.stringify(setupPatch)});
     merge('app:settings', Object.assign({ defaultProvider: 'openai', defaultModel: '${process.env.CHECK_MODEL ?? 'gpt-5-nano'}', sttEngine: 'web-speech',
@@ -523,13 +523,13 @@ try {
         check('and the clock button says so', await s.shown(/25 min timer/));
 
         await s.say('More guidance.');
-        check('"more guidance" moves the slider a stop', await s.until(async () => (await stored()).setup.dirStep === 3));
+        check('"more guidance" moves the slider a stop', await s.until(async () => (await stored()).setup.directiveness === 4));
 
         await s.say('My intention is to rest.');
         check('an intention lands in its field', await s.until(async () => (await s.page.locator('#intention').inputValue()) === 'to rest'));
 
         await s.say('Set the guidance level to medium.');
-        check('guidance by level sets the stop', await s.until(async () => (await stored()).setup.dirStep === 2));
+        check('guidance by level sets the stop', await s.until(async () => (await stored()).setup.directiveness === 3));
         check('and says which', /Guidance set to balanced/.test(await note()), `(${await note()})`);
 
         await s.say('Set the focus two parts.');

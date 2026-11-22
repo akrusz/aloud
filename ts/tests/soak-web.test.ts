@@ -136,11 +136,13 @@ describe('wordErrorRate', () => {
 describe('configForScenario', () => {
     const opts = { provider: 'anthropic', model: 'claude-x', sttEngine: 'web-speech' };
 
-    it('maps guidance 0-10 onto the setup panel five-stop slider', () => {
+    it('seeds the guidance level, and the felt-sense pace with it', () => {
         const at1 = configForScenario({ ...SCENARIO, directiveness: 1 }, opts);
-        const at7 = configForScenario({ ...SCENARIO, directiveness: 7 }, opts);
-        expect(at1.setup.dirStep).toBe(0);
-        expect(at7.setup.dirStep).toBe(3);
+        const at4 = configForScenario({ ...SCENARIO, directiveness: 4 }, opts);
+        expect(at1.setup.directiveness).toBe(1);
+        expect(at4.setup.directiveness).toBe(4);
+        expect(at4.setup.feltSensePace).toBe(4);
+        expect(at4.setup).not.toHaveProperty('dirStep');
     });
 
     it('arms the session timer only when the scenario sets one', () => {

@@ -18,15 +18,15 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["随便。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
     ["请问，","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
     ["请问。","慈悲",[{"kind":"quality","quality":"compassionate","on":"toggle"}]], // 1x
-    ["乾水","跟随",[{"kind":"guidance","to":0}]], // 2x
-    ["，均衡，","跟随",[{"kind":"guidance","to":0}]], // 2x
-    ["乾脆","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["乾脆!","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["再次回来","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["跟水","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["謝謝","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["随，","跟随",[{"kind":"guidance","to":0}]], // 1x
-    ["，您随，","跟随",[{"kind":"guidance","to":0}]], // 1x
+    ["乾水","跟随",[{"kind":"guidance","to":1}]], // 2x
+    ["，均衡，","跟随",[{"kind":"guidance","to":1}]], // 2x
+    ["乾脆","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["乾脆!","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["再次回来","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["跟水","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["謝謝","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["随，","跟随",[{"kind":"guidance","to":1}]], // 1x
+    ["，您随，","跟随",[{"kind":"guidance","to":1}]], // 1x
     ["说小意思啊!","说少一点",[{"kind":"verbosity","to":"down"}]], // 2x
     ["说小意思啊。","说少一点",[{"kind":"verbosity","to":"down"}]], // 2x
     ["縮少一點。","说少一点",[{"kind":"verbosity","to":"down"}]], // 1x
@@ -190,12 +190,12 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["The game.","begin","begin"], // 4x
     ["again.","begin","begin"], // 1x
     ["Again.","begin","begin"], // 1x
-    ["君恒。","均衡",[{"kind":"guidance","to":2}]], // 1x
-    ["金康","均衡",[{"kind":"guidance","to":2}]], // 1x
-    ["請客","均衡",[{"kind":"guidance","to":2}]], // 1x
-    ["見 for a long time!","均衡",[{"kind":"guidance","to":2}]], // 1x
-    ["请扣，","均衡",[{"kind":"guidance","to":2}]], // 1x
-    ["请计时行为，","均衡",[{"kind":"guidance","to":2}]], // 1x
+    ["君恒。","均衡",[{"kind":"guidance","to":3}]], // 1x
+    ["金康","均衡",[{"kind":"guidance","to":3}]], // 1x
+    ["請客","均衡",[{"kind":"guidance","to":3}]], // 1x
+    ["見 for a long time!","均衡",[{"kind":"guidance","to":3}]], // 1x
+    ["请扣，","均衡",[{"kind":"guidance","to":3}]], // 1x
+    ["请计时行为，","均衡",[{"kind":"guidance","to":3}]], // 1x
     ["文化我。","问候我",[{"kind":"checkins","on":true}]], // 2x
     ["為人保護我","问候我",[{"kind":"checkins","on":true}]], // 1x
     ["文库，","问候我",[{"kind":"checkins","on":true}]], // 1x
@@ -331,9 +331,9 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["不要緊張","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
     ["主要请求，","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
     ["主要轻松。","不要轻松",[{"kind":"quality","quality":"playful","on":false}]], // 1x
-    ["煮刀","主导",[{"kind":"guidance","to":4}]], // 1x
-    ["周早","主导",[{"kind":"guidance","to":4}]], // 1x
-    ["周教","主导",[{"kind":"guidance","to":4}]], // 1x
+    ["煮刀","主导",[{"kind":"guidance","to":5}]], // 1x
+    ["周早","主导",[{"kind":"guidance","to":5}]], // 1x
+    ["周教","主导",[{"kind":"guidance","to":5}]], // 1x
     ["我们开始一个标记论系。","我们开始一个标记练习","begin"], // 1x
     ["我们开始一个雕绩认识。","我们开始一个标记练习","begin"], // 1x
     ["我们开始一个雕绩的联系。","我们开始一个标记练习","begin"], // 1x
@@ -355,9 +355,9 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["More light, harder.","more lighthearted",[{"kind":"quality","quality":"playful","on":true}]], // 1x
     ["Change the Vaidya spacious.","change the vibe to spacious",[{"kind":"clear","group":"quality"},{"kind":"quality","quality":"spacious","on":true}]], // 1x
     ["Change the vidospacious.","change the vibe to spacious",[{"kind":"clear","group":"quality"},{"kind":"quality","quality":"spacious","on":true}]], // 1x
-    ["Someone's following.","somewhat following",[{"kind":"guidance","to":1}]], // 2x
-    ["Balance","balanced",[{"kind":"guidance","to":2}]], // 1x
-    ["Balance.","balanced",[{"kind":"guidance","to":2}]], // 1x
+    ["Someone's following.","somewhat following",[{"kind":"guidance","to":2}]], // 2x
+    ["Balance","balanced",[{"kind":"guidance","to":3}]], // 1x
+    ["Balance.","balanced",[{"kind":"guidance","to":3}]], // 1x
     ["My intention is to be time to myself.","my intention is to be kind to myself",[{"kind":"intention","text":"to be kind to myself"}]], // 1x
     ["My intention is to be timed to myself.","my intention is to be kind to myself",[{"kind":"intention","text":"to be kind to myself"}]], // 1x
     ["Don't check it.","don't check in",[{"kind":"checkins","on":false}]], // 2x
@@ -396,7 +396,7 @@ export const MISHEARD: ReadonlyArray<readonly [heard: string, intended: string, 
     ["Turn off effort later.","turn off effortless",[{"kind":"quality","quality":"effortless","on":false}]], // 1x
     ["Drop the spacious vide","drop the spacious vibe",[{"kind":"quality","quality":"spacious","on":false}]], // 1x
     ["Less Dydons.","less guidance",[{"kind":"guidance","to":"down"}]], // 1x
-    ["said guidance to balance.","set guidance to balanced",[{"kind":"guidance","to":2}]], // 1x
+    ["said guidance to balance.","set guidance to balanced",[{"kind":"guidance","to":3}]], // 1x
     ["No checkers.","no check-ins",[{"kind":"checkins","on":false}]], // 1x
     ["Turn on the checker.","turn on check-ins",[{"kind":"checkins","on":true}]], // 1x
     ["add label and shorter responses","add playful and shorter responses",[{"kind":"quality","quality":"playful","on":true},{"kind":"verbosity","to":"down"}]], // 1x

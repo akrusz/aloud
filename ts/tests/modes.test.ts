@@ -356,7 +356,7 @@ describe('PromptBuilder with a mode', () => {
             config: {
                 focuses: ['body_sensations'],
                 qualities: ['playful'],
-                directiveness: 10,
+                directiveness: 5,
                 verbosity: 'low',
                 customInstructions: 'SECRET-CUSTOM',
             },
@@ -384,9 +384,9 @@ describe('PromptBuilder with a mode', () => {
                 mode: FELT_SENSE_MODE,
                 config: { waitSignal: true, directiveness },
             }).buildSystemPrompt();
-        expect(at(3)).toContain('around [WAIT:5m]');
-        expect(at(10)).toContain('[WAIT:30s]');
-        expect(at(10)).not.toContain('Actively direct the meditation');
+        expect(at(2)).toContain('around [WAIT:5m]');
+        expect(at(5)).toContain('[WAIT:30s]');
+        expect(at(5)).not.toContain('Actively direct the meditation');
     });
 
     it('includes the stage section right after the base prompt', () => {
@@ -410,7 +410,7 @@ describe('PromptBuilder with a mode', () => {
         const config = {
             focuses: ['body_sensations' as const],
             qualities: ['playful' as const],
-            directiveness: 3,
+            directiveness: 2,
             verbosity: 'medium' as const,
             customInstructions: 'extra',
         };

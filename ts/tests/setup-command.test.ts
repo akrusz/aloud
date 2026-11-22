@@ -126,7 +126,7 @@ describe('parseSetupCommand: focuses and vibes', () => {
             ['living', null],
             ['the focus', null],
             ['Noting.', [{ kind: 'mode', mode: 'noting' }]],
-            ['following', [{ kind: 'guidance', to: 0 }]],
+            ['following', [{ kind: 'guidance', to: 1 }]],
             ['Hell.', [{ kind: 'help' }]],
         ]);
     });
@@ -256,46 +256,46 @@ describe('parseSetupCommand: guidance and responses', () => {
 
     it('goes to a stop by its name', () => {
         expectAll([
-            ['following', [{ kind: 'guidance', to: 0 }]],
-            ['balanced', [{ kind: 'guidance', to: 2 }]],
-            ['directing', [{ kind: 'guidance', to: 4 }]],
-            ['somewhat directing', [{ kind: 'guidance', to: 3 }]],
-            ['somewhat following', [{ kind: 'guidance', to: 1 }]],
-            ['set the guidance to balanced', [{ kind: 'guidance', to: 2 }]],
-            ['balanced guidance', [{ kind: 'guidance', to: 2 }]],
+            ['following', [{ kind: 'guidance', to: 1 }]],
+            ['balanced', [{ kind: 'guidance', to: 3 }]],
+            ['directing', [{ kind: 'guidance', to: 5 }]],
+            ['somewhat directing', [{ kind: 'guidance', to: 4 }]],
+            ['somewhat following', [{ kind: 'guidance', to: 2 }]],
+            ['set the guidance to balanced', [{ kind: 'guidance', to: 3 }]],
+            ['balanced guidance', [{ kind: 'guidance', to: 3 }]],
         ]);
     });
 
     it('goes to a stop by the number drawn under it', () => {
         expectAll([
-            ['guidance three', [{ kind: 'guidance', to: 2 }]],
-            ['Guidance level 3.', [{ kind: 'guidance', to: 2 }]],
-            ['set guidance to four', [{ kind: 'guidance', to: 3 }]],
-            ['set the guidance level to 2', [{ kind: 'guidance', to: 1 }]],
-            ['guidance one', [{ kind: 'guidance', to: 0 }]],
-            ['set the guidance to one', [{ kind: 'guidance', to: 0 }]],
-            ['okay, guidance five please', [{ kind: 'guidance', to: 4 }]],
-            ['guidance two please', [{ kind: 'guidance', to: 1 }]],
-            ['playful and guidance four', [{ kind: 'quality', quality: 'playful', on: true }, { kind: 'guidance', to: 3 }]],
-            ['guidance four and twenty minutes', [{ kind: 'length', minutes: 20 }, { kind: 'guidance', to: 3 }]],
+            ['guidance three', [{ kind: 'guidance', to: 3 }]],
+            ['Guidance level 3.', [{ kind: 'guidance', to: 3 }]],
+            ['set guidance to four', [{ kind: 'guidance', to: 4 }]],
+            ['set the guidance level to 2', [{ kind: 'guidance', to: 2 }]],
+            ['guidance one', [{ kind: 'guidance', to: 1 }]],
+            ['set the guidance to one', [{ kind: 'guidance', to: 1 }]],
+            ['okay, guidance five please', [{ kind: 'guidance', to: 5 }]],
+            ['guidance two please', [{ kind: 'guidance', to: 2 }]],
+            ['playful and guidance four', [{ kind: 'quality', quality: 'playful', on: true }, { kind: 'guidance', to: 4 }]],
+            ['guidance four and twenty minutes', [{ kind: 'length', minutes: 20 }, { kind: 'guidance', to: 4 }]],
         ]);
     });
 
     it('hears "for" and "to" after guidance as the number, said on 2026-11-17', () => {
         expectAll([
-            ['Guidance for', [{ kind: 'guidance', to: 3 }]],
-            ['Guidance five.', [{ kind: 'guidance', to: 4 }]],
-            ['Guidance to.', [{ kind: 'guidance', to: 1 }]],
-            ['guidance too', [{ kind: 'guidance', to: 1 }]],
-            ['guidance level for', [{ kind: 'guidance', to: 3 }]],
-            ['set guidance to for', [{ kind: 'guidance', to: 3 }]],
+            ['Guidance for', [{ kind: 'guidance', to: 4 }]],
+            ['Guidance five.', [{ kind: 'guidance', to: 5 }]],
+            ['Guidance to.', [{ kind: 'guidance', to: 2 }]],
+            ['guidance too', [{ kind: 'guidance', to: 2 }]],
+            ['guidance level for', [{ kind: 'guidance', to: 4 }]],
+            ['set guidance to for', [{ kind: 'guidance', to: 4 }]],
             // Not where the word is doing its own job.
             ['set the guidance to', null],
             ['more guidance too', [{ kind: 'guidance', to: 'up' }]],
             ['give me guidance too', null],
             ['guidance for ten minutes', null],
             // And numberAsWord still reads a "two" that comes before a value.
-            ['set the guidance two balanced', [{ kind: 'guidance', to: 2 }]],
+            ['set the guidance two balanced', [{ kind: 'guidance', to: 3 }]],
         ]);
     });
 
@@ -792,7 +792,7 @@ describe('parseSetupCommand: zh', () => {
             ['隱藏時鐘', [{ kind: 'clock', show: false }]],
             ['顯示時間', [{ kind: 'clock', show: true }]],
             ['幾點', [{ kind: 'clock-mode', mode: 'wall' }]],
-            ['引導級別調到三', [{ kind: 'guidance', to: 2 }]],
+            ['引導級別調到三', [{ kind: 'guidance', to: 3 }]],
             ['寫下意圖', [{ kind: 'intention-ask' }]],
             ['特別要求，謝謝', [{ kind: 'special-request-ask' }]],
             ['半小时４', [{ kind: 'length', minutes: 30 }]],
@@ -858,9 +858,9 @@ describe('parseSetupCommand: zh', () => {
 
     it('takes a guidance stop by its number', () => {
         expectAll([
-            ['引导三', [{ kind: 'guidance', to: 2 }]],
-            ['把引导调到四吧', [{ kind: 'guidance', to: 3 }]],
-            ['引导1', [{ kind: 'guidance', to: 0 }]],
+            ['引导三', [{ kind: 'guidance', to: 3 }]],
+            ['把引导调到四吧', [{ kind: 'guidance', to: 4 }]],
+            ['引导1', [{ kind: 'guidance', to: 1 }]],
             ['引导六', null],
             ['三', null],
         ]);
@@ -997,11 +997,11 @@ describe('said on 2026-11-14, in a room', () => {
     });
 
     it('sets the guidance by level, all five stops', () => {
-        expect(read('Set the guidance level to medium.')).toEqual([{ kind: 'guidance', to: 2 }]);
-        expect(read('minimum guidance')).toEqual([{ kind: 'guidance', to: 0 }]);
-        expect(read('low guidance')).toEqual([{ kind: 'guidance', to: 1 }]);
-        expect(read('set guidance to high')).toEqual([{ kind: 'guidance', to: 3 }]);
-        expect(read('guidance to the max')).toEqual([{ kind: 'guidance', to: 4 }]);
+        expect(read('Set the guidance level to medium.')).toEqual([{ kind: 'guidance', to: 3 }]);
+        expect(read('minimum guidance')).toEqual([{ kind: 'guidance', to: 1 }]);
+        expect(read('low guidance')).toEqual([{ kind: 'guidance', to: 2 }]);
+        expect(read('set guidance to high')).toEqual([{ kind: 'guidance', to: 4 }]);
+        expect(read('guidance to the max')).toEqual([{ kind: 'guidance', to: 5 }]);
     });
 
     it('gives a level to the setting named beside it, and to neither alone', () => {

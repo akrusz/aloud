@@ -6,7 +6,7 @@
  *
  *   npm run cli -- --provider=ollama
  *   ANTHROPIC_API_KEY=sk-... npm run cli -- --provider=anthropic --model=claude-haiku-5-5
- *   npm run cli -- --focuses=body_sensations,emotions --qualities=compassionate --directiveness=5
+ *   npm run cli -- --focuses=body_sensations,emotions --qualities=compassionate --directiveness=3
  */
 
 import { parseArgs } from 'node:util';
@@ -97,7 +97,7 @@ function parseCliArgs(): CliArgs {
             model: { type: 'string' },
             focuses: { type: 'string' },
             qualities: { type: 'string' },
-            directiveness: { type: 'string', default: '3' },
+            directiveness: { type: 'string', default: '2' },
             verbosity: { type: 'string', default: 'low' },
             intention: { type: 'string', default: '' },
             'show-prompt': { type: 'boolean', default: false },
@@ -121,9 +121,9 @@ function parseCliArgs(): CliArgs {
         die(`Invalid verbosity: "${verbosity}". Must be "low", "medium", or "high".`);
     }
 
-    const directiveness = Number.parseInt(values.directiveness ?? '3', 10);
-    if (Number.isNaN(directiveness) || directiveness < 0 || directiveness > 10) {
-        die(`Invalid directiveness: "${values.directiveness}". Must be 0-10.`);
+    const directiveness = Number.parseInt(values.directiveness ?? '2', 10);
+    if (Number.isNaN(directiveness) || directiveness < 1 || directiveness > 5) {
+        die(`Invalid directiveness: "${values.directiveness}". Must be 1-5.`);
     }
 
     return {
@@ -146,7 +146,7 @@ Options:
   --model=<name>             override the provider's default model
   --focuses=<a,b>            ${VALID_FOCUSES.join(', ')}
   --qualities=<a,b>          ${VALID_QUALITIES.join(', ')}
-  --directiveness=<0-10>     0 = pure following, 10 = strong direction (default: 3)
+  --directiveness=<1-5>      guidance level: 1 = following, 5 = directing (default: 2)
   --verbosity=<low|medium|high>   (default: low)
   --intention=<text>         seed the opener with a stated intention
   --show-prompt              print the assembled system prompt before starting

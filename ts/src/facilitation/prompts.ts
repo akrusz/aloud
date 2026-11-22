@@ -38,7 +38,8 @@ export type Quality =
 export interface PromptConfig {
     focuses: Focus[];
     qualities: Quality[];
-    /** 0 (pure following) to 10 (strong direction). */
+    /** The guidance level, 1 (Following) to 5 (Directing): the
+     *  DIRECTIVENESS_ADDITIONS keys. */
     directiveness: number;
     verbosity: Verbosity;
     customInstructions: string;
@@ -69,7 +70,7 @@ export interface PromptConfig {
 export const defaultPromptConfig: PromptConfig = {
     focuses: [],
     qualities: [],
-    directiveness: 3,
+    directiveness: 2,
     verbosity: 'low',
     customInstructions: '',
     waitSignal: false,
@@ -154,9 +155,9 @@ export const WAIT_SIGNAL_FRAGMENT = `Check-in timing, the [WAIT:Nm] signal:
 If the meditator goes quiet after your reply, the app waits before checking in. You set that wait: prefix your reply with [WAIT:Nm] (N in minutes, e.g. "[WAIT:12m] Take your time."; seconds also work, like [WAIT:90s]). Match it to the moment. Someone settling into a practice they named ("I'll sit with my breath for twenty minutes") deserves a long, protected silence like [WAIT:20m]; someone uncertain or in difficulty is better served by a short one. Use 30 seconds to 60 minutes. If you omit the signal, your previous timing stays in effect.`;
 
 /**
- * Default smart check-in wait per guidance level: the slider's five stops
- * (directiveness 0/3/5/7/10) map to 12m/5m/3m/90s/30s. Feeds the [WAIT] bias
- * fragment and seeds the pacing interval before the model's first [WAIT].
+ * Default smart check-in wait per guidance level: levels 1 to 5 map to
+ * 12m/5m/3m/90s/30s. Feeds the [WAIT] bias fragment and seeds the pacing
+ * interval before the model's first [WAIT].
  *
  * These read as short next to how long a silence may run, on purpose: the
  * model scales its own waits off this number and passes on check-ins with a
@@ -165,7 +166,7 @@ If the meditator goes quiet after your reply, the app waits before checking in. 
  * second).
  */
 export function defaultWaitSeconds(directiveness: number): number {
-    const byKey: Record<number, number> = { 0: 720, 3: 300, 5: 180, 7: 90, 10: 30 };
+    const byKey: Record<number, number> = { 1: 720, 2: 300, 3: 180, 4: 90, 5: 30 };
     return byKey[nearestDirectivenessKey(directiveness)] ?? 180;
 }
 
@@ -375,22 +376,25 @@ Don't apologize for pleasure or treat it as a stepping stone to something 'deepe
 // surface (and the prompt text the model sees) calls it the guidance level.
 // Bare "guidance" in code/comments means facilitation content (phase guidance,
 // custom instructions), not this dimension.
+//
+// Keyed by level, 1 (Following) to 5 (Directing), the one scale the setup
+// slider, voice commands and the stored setup use too.
 export const DIRECTIVENESS_ADDITIONS: Record<number, string> = {
-    0: `Guidance level: Following
+    1: `Guidance level: Following
 Be extremely non-directive. Only reflect back what is shared.
 Ask open questions like "What's here?" or "What do you notice?"; nothing specific.
 Never suggest where to place attention. At this level, the example
 invitations in any focus and vibe sections stay unused; those sections
 shape only your tone and what you listen for.
 `,
-    3: `Guidance level: Somewhat following
+    2: `Guidance level: Somewhat following
 Curious but mostly following. You might ask about specific areas
 or qualities if the meditator seems stuck, but prefer open questions.
 The example invitations in the focus and vibe sections are for rare use,
 when the meditator seems stuck; otherwise those sections shape your tone
 and what you listen for.
 `,
-    5: `Guidance level: Balanced
+    3: `Guidance level: Balanced
 Balanced between following and guiding. Feel free to suggest
 exploring specific areas or qualities that seem relevant, but don't tell what to do.
 For example, "Do you notice any change in your chest?" instead of "Pay attention to your chest".
@@ -398,12 +402,12 @@ The example invitations in the focus and vibe sections are available as
 suggestions; a what-if ("What if that softened a little?") counts as one. Offer
 one now and then.
 `,
-    7: `Guidance level: Somewhat directing
+    4: `Guidance level: Somewhat directing
 More actively guide attention while still responding to what arises.
 Suggest specific areas to explore. Help direct the practice.
 The example invitations in the focus and vibe sections are available as direction.
 `,
-    10: `Guidance level: Directing
+    5: `Guidance level: Directing
 Actively direct the meditation. Guide attention to specific areas or experiences.
 Lead the practice while remaining responsive to feedback.
 The example invitations in the focus and vibe sections are available as direction.
@@ -923,9 +927,9 @@ export class PromptBuilder {
                 'Keep it very minimal, just a few words. ' +
                     "Something like 'I'm here' or 'Whenever you're ready.'"
             );
-        } else if (this.config.directiveness <= 3) {
+        } else if (this.config.directiveness <= 2) {
             parts.push("Keep it warm and concise. Don't direct their attention too specifically.");
-        } else if (this.config.directiveness >= 7) {
+        } else if (this.config.directiveness >= 4) {
             parts.push('You can suggest where to begin or what to notice.');
         }
 

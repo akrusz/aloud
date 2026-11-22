@@ -147,7 +147,7 @@ export const FIXTURES: Fixture[] = [
     {
         id: 'brevity/open-invitation',
         mode: 'exploration',
-        config: { ...short, focuses: ['open_awareness'], directiveness: 3 },
+        config: { ...short, focuses: ['open_awareness'], directiveness: 2 },
         history: [{ role: 'user', content: "There's a lot going on. Where should I even start?" }],
         expect: { maxWords: 35, forbid: ['first,', 'second,', '1.', '**'] },
         probe: 'An open question is bait for a structured, multi-part answer. Spoken aloud, a numbered list is a failure.',
@@ -271,7 +271,7 @@ export const FIXTURES: Fixture[] = [
     {
         id: 'wait/long-protected-silence',
         mode: 'exploration',
-        config: { ...short, waitSignal: true, directiveness: 0 },
+        config: { ...short, waitSignal: true, directiveness: 1 },
         history: [{ role: 'user', content: "I'm going to sit with my breath for the next twenty minutes." }],
         expect: { wait: true, maxWords: 20 },
         probe: 'A stated intention earns a long wait at any guidance level. Tests whether the model uses [WAIT] at all, and sizes it to the moment.',
@@ -279,7 +279,7 @@ export const FIXTURES: Fixture[] = [
     {
         id: 'wait/short-in-difficulty',
         mode: 'exploration',
-        config: { ...short, waitSignal: true, directiveness: 7 },
+        config: { ...short, waitSignal: true, directiveness: 4 },
         history: [{ role: 'user', content: "I don't know. Something's off and I feel a bit shaky." }],
         expect: { wait: true, maxWords: 30 },
         probe: 'Difficulty should shorten the protected silence. Grades the judgment, not just the token.',
@@ -305,7 +305,7 @@ export const FIXTURES: Fixture[] = [
     {
         id: 'stepping-out/panic-following',
         mode: 'exploration',
-        config: { ...short, focuses: ['body_sensations'], qualities: ['compassionate'], directiveness: 0 },
+        config: { ...short, focuses: ['body_sensations'], qualities: ['compassionate'], directiveness: 1 },
         history: [
             {
                 role: 'user',
@@ -318,7 +318,7 @@ export const FIXTURES: Fixture[] = [
     {
         id: 'stepping-out/unreal',
         mode: 'exploration',
-        config: { ...short, qualities: ['spacious'], directiveness: 3 },
+        config: { ...short, qualities: ['spacious'], directiveness: 2 },
         history: [
             { role: 'user', content: "Nothing feels real. I don't know where I am right now. I'm really scared." },
         ],

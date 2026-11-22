@@ -99,7 +99,7 @@ const shots = [
         from: line('c9').start,
         to: line('c9').end,
         // "more guidance" up to Directing, "or more space" down to Following.
-        actions: during('c9', [[0.3, '#directiveness', 3], [0.42, '#directiveness', 4], [1.0, '#directiveness', 3], [1.1, '#directiveness', 2], [1.2, '#directiveness', 1], [1.3, '#directiveness', 0]]),
+        actions: during('c9', [[0.3, '#directiveness', 4], [0.42, '#directiveness', 5], [1.0, '#directiveness', 4], [1.1, '#directiveness', 3], [1.2, '#directiveness', 2], [1.3, '#directiveness', 1]]),
     },
     line('c10') && {
         name: 'checkin',

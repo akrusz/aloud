@@ -12,7 +12,7 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
         clockMode: 'elapsed' as 'elapsed' | 'wall',
         focuses: ['body_sensations', 'emotions'] as SetupFocus[],
         qualities: [] as Quality[],
-        guidance: 2,
+        guidance: 3,
         verbosity: 'medium' as Verbosity,
         intention: '',
         requests: '',
@@ -37,7 +37,7 @@ function form(start: Partial<{ mode: BeginMode; locked: boolean }> = {}) {
         qualities: () => state.qualities,
         setQualities: (list) => void (state.qualities = list),
         guidance: () => state.guidance,
-        setGuidance: (step) => void (state.guidance = step),
+        setGuidance: (level) => void (state.guidance = level),
         verbosity: () => state.verbosity,
         setVerbosity: (value) => void (state.verbosity = value),
         setIntention: (text) => void (state.intention = text),
@@ -105,12 +105,12 @@ describe('applySetupAction', () => {
 
     it('steps the guidance and stops at the ends', () => {
         const { f, state } = form();
-        expect(applySetupAction(f, { kind: 'guidance', to: 'up' })).toEqual({ kind: 'guidance', step: 3 });
+        expect(applySetupAction(f, { kind: 'guidance', to: 'up' })).toEqual({ kind: 'guidance', level: 4 });
         applySetupAction(f, { kind: 'guidance', to: 'up' });
-        expect(applySetupAction(f, { kind: 'guidance', to: 'up' })).toEqual({ kind: 'guidance', step: 4 });
-        expect(applySetupAction(f, { kind: 'guidance', to: 0 })).toEqual({ kind: 'guidance', step: 0 });
-        expect(applySetupAction(f, { kind: 'guidance', to: 'down' })).toEqual({ kind: 'guidance', step: 0 });
-        expect(state.guidance).toBe(0);
+        expect(applySetupAction(f, { kind: 'guidance', to: 'up' })).toEqual({ kind: 'guidance', level: 5 });
+        expect(applySetupAction(f, { kind: 'guidance', to: 1 })).toEqual({ kind: 'guidance', level: 1 });
+        expect(applySetupAction(f, { kind: 'guidance', to: 'down' })).toEqual({ kind: 'guidance', level: 1 });
+        expect(state.guidance).toBe(1);
     });
 
     it('steps how much is said', () => {

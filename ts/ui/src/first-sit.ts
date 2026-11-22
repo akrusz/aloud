@@ -18,12 +18,12 @@ import { defaultSetup, type SessionSetup } from './settings.js';
  *  aloud (the sit stays open afterwards, as with any timer). */
 export const FIRST_SIT_TIMER_MIN = 5;
 
-/** Default smart check-in wait. Well under the 90s the guidance stop below
+/** Default smart check-in wait. Well under the 90s the guidance level below
  *  would give, above the 30s floor (CHECKIN_INTERVAL_MIN_SEC). */
 export const FIRST_SIT_CHECKIN_WAIT_SEC = 45;
 
 /** "Somewhat directing": suggests where to look without leading the sit. */
-const FIRST_SIT_DIR_STEP = 3;
+const FIRST_SIT_GUIDANCE = 4;
 
 /**
  * The setup a first sit runs on. Provider, model, voice and language come from
@@ -38,7 +38,7 @@ export function firstSitSetup(current: SessionSetup): SessionSetup {
         intention: '',
         focuses: [...defaultSetup.focuses],
         qualities: [...defaultSetup.qualities],
-        dirStep: FIRST_SIT_DIR_STEP,
+        directiveness: FIRST_SIT_GUIDANCE,
         verbosity: defaultSetup.verbosity,
         customInstructions: '',
         firstSit: true,

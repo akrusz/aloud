@@ -15,7 +15,7 @@ const edited: SessionSetup = {
     intentionByMode: { felt_sense: 'the job decision' },
     focuses: ['inner_parts'],
     qualities: [],
-    dirStep: 0,
+    directiveness: 1,
     verbosity: 'high',
     customInstructions: 'say less',
     provider: 'aloud',
@@ -37,7 +37,7 @@ describe('firstSitSetup', () => {
         });
     });
 
-    it('is a default exploration sit one guidance stop up, whatever the form held', () => {
+    it('is a default exploration sit one guidance level up, whatever the form held', () => {
         const sit = firstSitSetup(edited);
         expect(sit.firstSit).toBe(true);
         expect(sit.meditationType).toBe('exploration');
@@ -46,7 +46,7 @@ describe('firstSitSetup', () => {
         expect(sit.focuses).toEqual(defaultSetup.focuses);
         expect(sit.qualities).toEqual(defaultSetup.qualities);
         expect(sit.verbosity).toBe(defaultSetup.verbosity);
-        expect(sit.dirStep).toBe(defaultSetup.dirStep + 1);
+        expect(sit.directiveness).toBe(defaultSetup.directiveness + 1);
     });
 
     it('leaves the source setup, and the shared defaults, untouched', () => {

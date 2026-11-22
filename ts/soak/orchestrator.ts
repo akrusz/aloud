@@ -100,7 +100,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     const wallStart = Date.now();
 
     const mode = getMode(scenario.modeId) ?? EXPLORATION_MODE;
-    const directiveness = scenario.directiveness ?? 3;
+    const directiveness = scenario.directiveness ?? 2;
     const silenceModeEnabled = scenario.silenceModeEnabled ?? true;
     // checkinPaceSlider modes own their check-ins: timing smart, content smart
     // (views/session.ts does the same off SessionSetup.feltSenseCheckins).

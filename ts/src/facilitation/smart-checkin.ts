@@ -68,12 +68,11 @@ const SUGGESTION_ASKS: Record<CheckinSuggestion, string> = {
         'If a word would support their practice right now, offer it: an observation, a suggestion, or a possible next step, in a sentence or two.',
 };
 
-/** The tier for a guidance level (DIRECTIVENESS_VALUES 0/3/5/7/10, or a pace
- *  slider mapped onto it): Directing expects a suggestion, Following never
- *  steers, and everything between leaves it to the model from the first
- *  check-in. */
+/** The tier for a guidance level (1 to 5, or the check-in pace on the same
+ *  scale): Directing expects a suggestion, Following never steers, and
+ *  everything between leaves it to the model from the first check-in. */
 export function checkinSuggestionFor(directiveness: number): CheckinSuggestion {
-    return directiveness >= 9 ? 'expected' : directiveness >= 3 ? 'offered' : 'none';
+    return directiveness >= 5 ? 'expected' : directiveness >= 2 ? 'offered' : 'none';
 }
 
 function aboutMinutes(sec: number): string {

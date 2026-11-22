@@ -26,8 +26,8 @@ The canned pool is presence only at every level.
 (parsed with the other turn signals) to set how long the next silence stays
 protected, clamped and held by `PacingController.setCheckinInterval`. The
 default wait is biased by the guidance slider (`waitBiasFragment` /
-`defaultWaitSeconds`: 12m / 5m / 3m / 90s / 30s across the five stops), so high
-guidance means short waits. The default only seeds
+`defaultWaitSeconds`: 12m / 5m / 3m / 90s / 30s across guidance levels 1 to 5),
+so high guidance means short waits. The default only seeds
 the model's `[WAIT]`s: the model scales its own off it and usually sets a
 longer one when it passes.
 
@@ -59,8 +59,9 @@ meditator who simply trailed off gets one pass and then a short line.
 A `checkinPaceSlider` mode (felt sense) has its own toggle and pace slider in
 the setup panel (`SessionSetup.feltSenseCheckins`, default on). `views/session.ts`
 derives timing from those (`smart` / `none`) and forces content to `smart`,
-ignoring the app-level `checkinTiming` / `checkinContent`. The pace step also
-stands in for directiveness in those modes, since the guidance slider is hidden.
+ignoring the app-level `checkinTiming` / `checkinContent`. The pace
+(`SessionSetup.feltSensePace`, 1 to 5 like the guidance level) also stands in
+for directiveness in those modes, since the guidance slider is hidden.
 
 ## Session timer
 

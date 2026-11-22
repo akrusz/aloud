@@ -104,7 +104,7 @@ describe('PromptBuilder language', () => {
     });
 
     it('at minimal guidance the zh minimal pool serves', () => {
-        const zh = new PromptBuilder({ config: { language: 'zh-CN', directiveness: 0 } });
+        const zh = new PromptBuilder({ config: { language: 'zh-CN', directiveness: 1 } });
         expect(CJK.test(zh.getSessionOpener())).toBe(true);
     });
 });

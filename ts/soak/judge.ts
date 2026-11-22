@@ -111,7 +111,7 @@ export async function judgeSessionRun(
         scenario.timerMin !== undefined
             ? `The meditator set a ${scenario.timerMin}-minute timer${scenario.endSessionOnTimer ? ' that ends the session' : ''}.`
             : '',
-        `Guidance level ${scenario.directiveness ?? 3}/10, mode "${scenario.modeId}".`,
+        `Guidance level ${scenario.directiveness ?? 2}/5, mode "${scenario.modeId}".`,
         scenario.language === 'zh'
             ? 'The app is set to Chinese: the facilitator was told to speak only Simplified Chinese.'
             : '',

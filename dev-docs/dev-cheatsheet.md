@@ -156,6 +156,12 @@ exception for now: the model picker hands back its promoted default as the
 value, so the setup screen and Settings store it on first load, and on the web
 the setup screen stores the provider it falls back to (`resolveSetupProvider`).
 
+A stored field that changes scale gets a new name, since an old value can be a
+valid new one: the guidance level is `directiveness` (1 to 5) in
+`preview:setup`, and a setup saved before that holds the slider position
+`dirStep` (0 to 4), read through `upgradeStoredSetup` in `ui/src/settings.ts`
+(pinned by `tests/guidance-level.test.ts`; the felt-sense pace likewise).
+
 ### Back to defaults (Settings → Advanced → Reset)
 
 Three buttons at the foot of Settings → Advanced, one function each in

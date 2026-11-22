@@ -75,13 +75,13 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         for (const mode of listModes()) {
             const prompt = new PromptBuilder({
                 mode,
-                config: { verbosity: 'low', directiveness: 0, waitSignal: true },
+                config: { verbosity: 'low', directiveness: 1, waitSignal: true },
             }).buildSystemPrompt();
             const at = prompt.indexOf(STEPPING_OUT_FRAGMENT);
             expect(at).toBeGreaterThan(-1);
             for (const outranked of [
                 VERBOSITY_ADDITIONS.low,
-                DIRECTIVENESS_ADDITIONS[0]!,
+                DIRECTIVENESS_ADDITIONS[1]!,
                 WAIT_SIGNAL_FRAGMENT,
             ]) {
                 expect(prompt.indexOf(outranked)).toBeLessThan(at);
@@ -122,26 +122,26 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         const at = (directiveness: number) =>
             new PromptBuilder({ config: { waitSignal: true, directiveness } }).buildSystemPrompt();
         // "around": WAIT_SIGNAL_FRAGMENT cites some of these tokens as examples.
-        expect(at(10)).toContain('around [WAIT:30s]');
-        expect(at(7)).toContain('around [WAIT:90s]');
-        expect(at(5)).toContain('around [WAIT:3m]');
-        expect(at(3)).toContain('around [WAIT:5m]');
-        expect(at(0)).toContain('around [WAIT:12m]');
-        // The two low stops keep the protected-silence wording, Balanced the
+        expect(at(5)).toContain('around [WAIT:30s]');
+        expect(at(4)).toContain('around [WAIT:90s]');
+        expect(at(3)).toContain('around [WAIT:3m]');
+        expect(at(2)).toContain('around [WAIT:5m]');
+        expect(at(1)).toContain('around [WAIT:12m]');
+        // The two low levels keep the protected-silence wording, Balanced the
         // moderate one.
-        expect(at(3)).toContain('long, protected silences');
-        expect(at(5)).toContain('moderate waits');
+        expect(at(2)).toContain('long, protected silences');
+        expect(at(3)).toContain('moderate waits');
         // Off entirely when the signal is off, regardless of guidance.
         expect(
-            new PromptBuilder({ config: { directiveness: 10 } }).buildSystemPrompt()
+            new PromptBuilder({ config: { directiveness: 5 } }).buildSystemPrompt()
         ).not.toContain('[WAIT:30s]');
     });
 
-    // A first sit checks in sooner than its guidance stop would, and the
+    // A first sit checks in sooner than its guidance level would, and the
     // pacing seed reads the same number the prompt states.
     it('checkinWaitSec overrides the guidance default in the prompt and the seed', () => {
         const builder = new PromptBuilder({
-            config: { waitSignal: true, directiveness: 7, checkinWaitSec: 45 },
+            config: { waitSignal: true, directiveness: 4, checkinWaitSec: 45 },
         });
         expect(builder.checkinWaitSeconds()).toBe(45);
         const prompt = builder.buildSystemPrompt();
@@ -149,7 +149,7 @@ describe('PromptBuilder.buildSystemPrompt', () => {
         expect(prompt).toContain('around [WAIT:45s]');
         expect(prompt).not.toContain('around [WAIT:90s]');
         expect(
-            new PromptBuilder({ config: { directiveness: 7 } }).checkinWaitSeconds()
+            new PromptBuilder({ config: { directiveness: 4 } }).checkinWaitSeconds()
         ).toBe(90);
     });
 
@@ -190,20 +190,22 @@ describe('PromptBuilder.buildSystemPrompt', () => {
     });
 
     it('picks the nearest directiveness key', () => {
-        const builder = new PromptBuilder({ config: { directiveness: 6 } });
+        const builder = new PromptBuilder({ config: { directiveness: 2.5 } });
         const prompt = builder.buildSystemPrompt();
-        // 6 is equidistant from 5 and 7 — reduce() keeps the first match (5)
-        expect(prompt).toContain(DIRECTIVENESS_ADDITIONS[5]!);
+        // 2.5 is equidistant from 2 and 3: reduce() keeps the first match (2)
+        expect(prompt).toContain(DIRECTIVENESS_ADDITIONS[2]!);
 
         const builderHigh = new PromptBuilder({ config: { directiveness: 9 } });
-        expect(builderHigh.buildSystemPrompt()).toContain(DIRECTIVENESS_ADDITIONS[10]!);
+        expect(builderHigh.buildSystemPrompt()).toContain(DIRECTIVENESS_ADDITIONS[5]!);
+        const builderLow = new PromptBuilder({ config: { directiveness: 0 } });
+        expect(builderLow.buildSystemPrompt()).toContain(DIRECTIVENESS_ADDITIONS[1]!);
     });
 });
 
 describe('PromptBuilder.getSessionOpener', () => {
     it('returns a minimal opener when directiveness is very low', () => {
         const builder = new PromptBuilder({
-            config: { directiveness: 0 },
+            config: { directiveness: 1 },
             random: DETERMINISTIC_RNG,
         });
         expect(builder.getSessionOpener()).toBe("I'm here.");
@@ -213,13 +215,13 @@ describe('PromptBuilder.getSessionOpener', () => {
         // With rng returning 0, the opener is whatever's first in the pool.
         // We can verify the pool grows by picking a different rng value.
         const builder = new PromptBuilder({
-            config: { focuses: ['body_sensations'], qualities: ['playful'], directiveness: 5 },
+            config: { focuses: ['body_sensations'], qualities: ['playful'], directiveness: 3 },
         });
         const seen = new Set<string>();
         for (let i = 0; i < 50; i++) {
             const rng = () => i / 50;
             const b = new PromptBuilder({
-                config: { focuses: ['body_sensations'], qualities: ['playful'], directiveness: 5 },
+                config: { focuses: ['body_sensations'], qualities: ['playful'], directiveness: 3 },
                 random: rng,
             });
             seen.add(b.getSessionOpener());
@@ -232,7 +234,7 @@ describe('PromptBuilder.getSessionOpener', () => {
 describe('PromptBuilder.buildOpenerPrompt', () => {
     it('mentions focus, vibe, and intention when provided', () => {
         const builder = new PromptBuilder({
-            config: { focuses: ['emotions'], qualities: ['loving'], directiveness: 3 },
+            config: { focuses: ['emotions'], qualities: ['loving'], directiveness: 2 },
         });
         const prompt = builder.buildOpenerPrompt('settle');
         expect(prompt).toContain('focus areas: emotions');
@@ -242,20 +244,20 @@ describe('PromptBuilder.buildOpenerPrompt', () => {
     });
 
     it('uses minimal copy when directiveness is very low', () => {
-        const builder = new PromptBuilder({ config: { directiveness: 0 } });
+        const builder = new PromptBuilder({ config: { directiveness: 1 } });
         const prompt = builder.buildOpenerPrompt();
         expect(prompt).toContain('Keep it very minimal');
     });
 
     it('invites suggestion when directiveness is high', () => {
-        const builder = new PromptBuilder({ config: { directiveness: 9 } });
+        const builder = new PromptBuilder({ config: { directiveness: 5 } });
         const prompt = builder.buildOpenerPrompt();
         expect(prompt).toContain('suggest where to begin');
     });
 
     it('explains the format on a first sit, in place of the straight invitation', () => {
         const builder = new PromptBuilder({
-            config: { focuses: ['emotions'], directiveness: 7 },
+            config: { focuses: ['emotions'], directiveness: 4 },
         });
         const usual = builder.buildOpenerPrompt();
         const first = builder.buildOpenerPrompt('', { firstSit: true });
@@ -300,7 +302,7 @@ describe('no role-labeled transcripts in assembled prompts', () => {
             config: {
                 focuses: ['body_sensations', 'emotions', 'inner_parts', 'open_awareness'],
                 qualities: Object.keys(QUALITY_PROMPTS) as never,
-                directiveness: 7,
+                directiveness: 4,
                 verbosity: 'high',
                 waitSignal: true,
                 customInstructions: 'be gentle',

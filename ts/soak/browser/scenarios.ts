@@ -27,7 +27,7 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
         persona: CHATTY_BEGINNER,
         modeId: 'exploration',
         focuses: ['body_sensations'],
-        directiveness: 3,
+        directiveness: 2,
         verbosity: 'low',
         checkinTiming: 'fixed',
         silenceCheckinSec: 90,
@@ -57,7 +57,7 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
         modeId: 'exploration',
         focuses: ['emotions'],
         qualities: ['compassionate'],
-        directiveness: 5,
+        directiveness: 3,
         verbosity: 'medium',
         interrupt: true,
         checkinTiming: 'fixed',
@@ -72,7 +72,7 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
         title: 'Spoken "mute" stops the mic and outranks every other route',
         persona: CHATTY_BEGINNER,
         modeId: 'exploration',
-        directiveness: 3,
+        directiveness: 2,
         verbosity: 'low',
         checkinTiming: 'fixed',
         silenceCheckinSec: 90,
@@ -102,7 +102,7 @@ export const WEB_SCENARIOS: readonly WebScenario[] = [
         title: 'Felt sense staged arc over audio (longer, quieter utterances)',
         persona: FELT_SENSE_CLIENT,
         modeId: 'felt_sense',
-        directiveness: 5,
+        directiveness: 3,
         intention: 'something about work is weighing on me',
         realMinutes: 8,
         maxWaitSec: 50,
@@ -192,18 +192,6 @@ export function getWebScenarios(ids: string[] | 'all'): WebScenario[] {
     });
 }
 
-/** Guidance 0-10 back to the setup panel's five-stop slider (0-4). */
-function dirStepFor(directiveness: number): number {
-    const stops = [0, 3, 5, 7, 10];
-    let best = 0;
-    for (let i = 1; i < stops.length; i++) {
-        if (Math.abs((stops[i] as number) - directiveness) < Math.abs((stops[best] as number) - directiveness)) {
-            best = i;
-        }
-    }
-    return best;
-}
-
 export interface ScenarioConfig {
     setup: Record<string, unknown>;
     appSettings: Record<string, unknown>;
@@ -222,7 +210,7 @@ export function configForScenario(
     scenario: WebScenario,
     opts: { provider: string; model: string; sttEngine: string }
 ): ScenarioConfig {
-    const dirStep = dirStepFor(scenario.directiveness ?? 3);
+    const directiveness = scenario.directiveness ?? 2;
     return {
         setup: {
             meditationType: scenario.modeId,
@@ -230,9 +218,9 @@ export function configForScenario(
             intentionByMode: { [scenario.modeId]: scenario.intention ?? '' },
             focuses: scenario.focuses ?? [],
             qualities: scenario.qualities ?? [],
-            dirStep,
+            directiveness,
             // Felt sense reads its check-in pace off its own slider.
-            feltSensePaceStep: dirStep,
+            feltSensePace: directiveness,
             feltSenseCheckins: true,
             verbosity: scenario.verbosity ?? 'low',
             customInstructions: '',

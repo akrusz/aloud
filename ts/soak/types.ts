@@ -42,7 +42,7 @@ export interface Scenario {
     modeId: 'exploration' | 'felt_sense';
     focuses?: Focus[];
     qualities?: Quality[];
-    /** Guidance level 0-10; in felt sense this is the check-in pace. */
+    /** Guidance level 1-5; in felt sense this is the check-in pace. */
     directiveness?: number;
     verbosity?: Verbosity;
     intention?: string;
