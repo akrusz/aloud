@@ -38,6 +38,8 @@ const DEFAULT_MAX_TOKENS = 512;
 // instead of hanging on "Thinking…". Generous; even Opus warming up its first
 // token speaks far sooner.
 const CLOUD_STALL_MS = 60_000;
+/** stt-errors isConnectionFailure matches this wording. */
+const NO_ANSWER = 'aloud cloud did not respond in time.';
 // How long a dropped connection is re-sent before the turn fails (net-retry.ts).
 // As long as speech gets (whisper-pcm-stt CLOUD_FINAL_RETRY_BUDGET_MS): 15s ran
 // out on a phone taken off the network and put back by hand, where the web
@@ -124,26 +126,32 @@ export class CloudLlmProvider implements LLMProvider {
         const token = await getCloudToken();
         if (!token) throw new Error('aloud cloud keep-alive: not signed in');
         const sessionId = getCloudSessionId();
-        const res = await withTimeout(
-            this.fetchImpl(cloudUrl(KEEPALIVE_ENDPOINT), {
-                method: 'POST',
-                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                    provider: this.provider,
-                    model: this.model,
-                    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-                    ...(options.system ? { system: options.system } : {}),
-                    ...(sessionId ? { sessionId } : {}),
-                }),
-            }),
+        // The deadline covers the body too, and aborting lets the socket go.
+        const ac = new AbortController();
+        return withTimeout(
+            (async (): Promise<CompletionResult> => {
+                const res = await this.fetchImpl(cloudUrl(KEEPALIVE_ENDPOINT), {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                        provider: this.provider,
+                        model: this.model,
+                        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+                        ...(options.system ? { system: options.system } : {}),
+                        ...(sessionId ? { sessionId } : {}),
+                    }),
+                    signal: ac.signal,
+                });
+                if (!res.ok) return this.throwFromError(res);
+                const data = (await res.json()) as KeepAliveResponseBody;
+                if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
+                if (!data.kept) throw new Error('aloud cloud keep-alive: nothing kept');
+                return { text: '', finishReason: 'max_tokens', tokensUsed: null };
+            })(),
             CLOUD_STALL_MS,
-            'aloud cloud did not respond in time.'
+            NO_ANSWER,
+            () => ac.abort()
         );
-        if (!res.ok) return this.throwFromError(res);
-        const data = (await res.json()) as KeepAliveResponseBody;
-        if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
-        if (!data.kept) throw new Error('aloud cloud keep-alive: nothing kept');
-        return { text: '', finishReason: 'max_tokens', tokensUsed: null };
     }
 
     private body(messages: Message[], options: CompletionOptions, stream: boolean): string {
@@ -215,23 +223,38 @@ export class CloudLlmProvider implements LLMProvider {
     }
 
     async complete(messages: Message[], options: CompletionOptions = {}): Promise<CompletionResult> {
-        const res = await withTimeout(
-            this.post(messages, options, false, options.signal),
-            CLOUD_STALL_MS,
-            'aloud cloud did not respond in time.'
-        );
-        if (!res.ok) return this.throwFromError(res);
-        const data = (await res.json()) as CompleteResponseBody;
-        // The server returns the authoritative post-turn balance every call;
-        // publish it so balance surfaces stay live without a /me round-trip
-        // (meditation-pal-14s).
-        if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
-        return {
-            text: data.text ?? '',
-            finishReason: data.finishReason ?? null,
-            // Token usage stays server-side (private); credits are the user-facing unit.
-            tokensUsed: null,
-        };
+        // One deadline over the whole call: a reply's headers can arrive and
+        // its body never. At the deadline the fetch is aborted, which lets the
+        // stalled socket go; the caller's signal aborts it the same way.
+        const ac = new AbortController();
+        const callerSignal = options.signal;
+        const onCallerAbort = (): void => ac.abort(callerSignal?.reason);
+        if (callerSignal?.aborted) onCallerAbort();
+        else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+        try {
+            return await withTimeout(
+                (async (): Promise<CompletionResult> => {
+                    const res = await this.post(messages, options, false, ac.signal);
+                    if (!res.ok) return this.throwFromError(res);
+                    const data = (await res.json()) as CompleteResponseBody;
+                    // The server returns the authoritative post-turn balance every call;
+                    // publish it so balance surfaces stay live without a /me round-trip
+                    // (meditation-pal-14s).
+                    if (typeof data.creditsRemaining === 'number') setKnownBalance(data.creditsRemaining);
+                    return {
+                        text: data.text ?? '',
+                        finishReason: data.finishReason ?? null,
+                        // Token usage stays server-side (private); credits are the user-facing unit.
+                        tokensUsed: null,
+                    };
+                })(),
+                CLOUD_STALL_MS,
+                NO_ANSWER,
+                () => ac.abort()
+            );
+        } finally {
+            callerSignal?.removeEventListener('abort', onCallerAbort);
+        }
     }
 
     async *completeStream(
@@ -274,7 +297,7 @@ export class CloudLlmProvider implements LLMProvider {
                     const res = await withTimeout(
                         this.post(messages, options, true, ac.signal),
                         CLOUD_STALL_MS,
-                        'aloud cloud did not respond in time.'
+                        NO_ANSWER
                     );
                     arrived = true;
                     if (!res.ok) return void (await this.throwFromError(res));

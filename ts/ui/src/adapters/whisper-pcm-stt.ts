@@ -45,8 +45,8 @@ import type { SileroFrameVad } from './silero-vad.js';
 const TARGET_SAMPLE_RATE = 16_000;
 const FRAME_SIZE = 4096;
 // Dead-server cap on the transcription POST - an endpoint that accepts the
-// audio then hangs would leave the mic stuck "processing" forever. The listen
-// loop already retries a rejected transcription.
+// audio then hangs would leave the mic stuck "processing" forever. Not
+// re-sent: the turn fails and the listen loop listens again.
 const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // How long hosted STT's FINAL pass keeps re-sending a turn's audio through a
 // dropped connection (net-retry.ts) before giving up on it (stt-picker
@@ -1442,8 +1442,14 @@ export class WhisperPcmSttEngine implements SttEngine {
                 .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
                 .join('');
             const url = `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${query}`;
+            // The body is under the deadline too: a reply's headers can arrive
+            // and its body never. A timeout ends the pass (never re-sent) and
+            // aborts its fetch, so the stalled socket is let go.
+            const ac = new AbortController();
+            const timed = <T>(p: Promise<T>): Promise<T> =>
+                withTimeout(p, TRANSCRIBE_TIMEOUT_MS, 'aloud cloud transcription timed out.', () => ac.abort());
             const send = (): Promise<Response> =>
-                withTimeout(
+                timed(
                     (async () => {
                         const headers: Record<string, string> = {
                             'content-type': 'application/octet-stream',
@@ -1457,10 +1463,9 @@ export class WhisperPcmSttEngine implements SttEngine {
                             method: 'POST',
                             headers,
                             body: pcm16.buffer as ArrayBuffer,
+                            signal: ac.signal,
                         });
-                    })(),
-                    TRANSCRIBE_TIMEOUT_MS,
-                    'aloud cloud transcription timed out.'
+                    })()
                 );
             const sentAt = performance.now();
             const response = await sendWithNetworkRetry(
@@ -1489,10 +1494,10 @@ export class WhisperPcmSttEngine implements SttEngine {
             );
             answered = true;
             if (!response.ok) {
-                const detail = await response.text().catch(() => '');
+                const detail = await timed(response.text()).catch(() => '');
                 return { ok: false, error: new Error(`Whisper endpoint ${response.status}: ${detail}`) };
             }
-            const data = (await response.json()) as { text?: string; error?: string };
+            const data = (await timed(response.json())) as { text?: string; error?: string };
             if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
             const text = (data.text ?? '').trim();
             const seconds = downsampled.length / TARGET_SAMPLE_RATE;

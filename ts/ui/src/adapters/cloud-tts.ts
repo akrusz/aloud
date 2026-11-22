@@ -250,11 +250,14 @@ export class CloudTtsEngine implements TtsEngine {
         const inflight = SYNTH_INFLIGHT.get(cacheKey);
         if (inflight) return inflight;
         const request = (async (): Promise<Synth> => {
+            // A timeout ends the request (never re-sent) and aborts its fetch,
+            // so the stalled socket is let go.
+            const ac = new AbortController();
             const timed = <T>(p: Promise<T>): Promise<T> =>
-                withTimeout(p, TTS_REQUEST_TIMEOUT_MS, 'aloud cloud TTS timed out.');
+                withTimeout(p, TTS_REQUEST_TIMEOUT_MS, 'aloud cloud TTS timed out.', () => ac.abort());
             const send = async (): Promise<Response> => {
                 const { url, init } = await this.buildRequest(text, options);
-                return timed(this.fetchImpl(url, init));
+                return timed(this.fetchImpl(url, { ...init, signal: ac.signal }));
             };
             const response = await sendWithNetworkRetry(
                 async () => {
@@ -278,7 +281,7 @@ export class CloudTtsEngine implements TtsEngine {
                 // Phrase as "endpoint <status>", mirroring the Whisper adapter,
                 // so the session views' describeCloudError recognizes hosted
                 // billing/auth failures and shows the apology / buy prompt.
-                const detail = await response.text().catch(() => '');
+                const detail = await timed(response.text()).catch(() => '');
                 throw new Error(
                     `TTS endpoint ${response.status}${detail ? `: ${detail}` : ''}`
                 );
@@ -321,14 +324,21 @@ export class CloudTtsEngine implements TtsEngine {
         this.currentAbort = abort;
 
         const cacheKey = synthCacheKey(this.endpointUrl, this.voiceId, this.engine, text, options?.rate);
-        let synth: Synth;
+        // A cancel settles this utterance at once, as it does one already
+        // playing, rather than when a stalled synthesis gives up; the
+        // synthesis itself carries on into the cache (see synthesize).
+        const cancelled = new Promise<null>((resolve) =>
+            abort.signal.addEventListener('abort', () => resolve(null), { once: true })
+        );
+        let synth: Synth | null;
         try {
-            synth = await this.synthesize(text, options, cacheKey);
+            synth = await Promise.race([this.synthesize(text, options, cacheKey), cancelled]);
         } catch (err) {
             if (this.currentAbort === abort) this.currentAbort = null;
+            if (abort.signal.aborted) return;
             throw err;
         }
-        if (abort.signal.aborted) return;
+        if (!synth || abort.signal.aborted) return;
         options?.onSynthesized?.();
 
         const url = URL.createObjectURL(synth.blob);
