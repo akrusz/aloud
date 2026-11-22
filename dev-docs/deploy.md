@@ -52,6 +52,32 @@ Re-running after a failure: the **Release deploy (server → web)** button takes
 tag, or use the individual **Deploy server (Fly)** / **Deploy web app** buttons -
 both still accept a manual run.
 
+### Smoke checks
+
+Each deploy ends on a check from outside. A failure turns the run red and
+leaves what shipped in place; rolling back is a separate decision.
+
+- **aloud cloud**: the last step of `deploy-server.yml` fetches
+  `https://aloud-cloud.fly.dev/health` and fails unless `ok`, `providers`,
+  `stt` and `tts` came back set, so a key lost in the deploy shows. In a
+  release this also holds back the web half, as a failed server deploy does.
+- **The web app**: the `smoke` job in `deploy-web.yml` runs
+  `ts/smoke/smoke.mjs` against the live `/app/` as a signed-out first visit:
+  boot with no console errors and no failed requests of the app's own; the
+  config, model and voice catalogs from `https://aloud-cloud.fly.dev` (the
+  suite's own default, so a wrong `ALOUD_CLOUD_URL` bake shows); "Try right
+  now" asking for sign-in; Settings; and a session on a placeholder own key
+  reaching Listening, its one model request answered inside the browser. It
+  never signs in and calls no provider, so a real turn is not covered. The
+  suite comes from the app's ref; a release older than the suite skips it.
+
+Before a release, `npm run smoke` runs the same suite against this tree
+(`ts/smoke/local.mjs`, about 10 seconds): it builds the hosted UI with aloud
+cloud baked in as a Hono server it starts from `ts/server/.env` (in-memory
+ledger, no command-judge warm-up), serves the build at `/app/`, both on spare
+ports, and stops them after. `node ts/smoke/smoke.mjs` alone checks
+production.
+
 ---
 
 ## Server (Fly.io)

@@ -9,6 +9,10 @@ Report what's stale and propose fixes; don't assume - grep and read the actual f
 Part D is a decision rather than drift: whether this release raises the oldest
 app version aloud cloud serves.
 
+Also before a release, by hand: `npm run smoke`, the suite the web deploy runs
+afterwards, against a local build of this tree
+([deploy.md](deploy.md#smoke-checks)).
+
 ## Part A - surface inventory (everywhere the product is described)
 
 When the product's features, providers, platforms, branding, or behavior change,
@@ -267,6 +271,11 @@ check each of these still reflects reality:
   policy's "Children" paragraph, the block screen's copy (`views/age-block.ts`)
   and its zh, `age-tier.md`, the terms' age paragraph, and the consoles'
   rating and target audience.
+- **Changed what a signed-out first visit meets** (the welcome card's "Try
+  right now", the sign-in modal, the Settings heading, the session's Listening
+  status, the catalog routes) → `ts/smoke/smoke.mjs`, which finds each by its
+  selector; the deploy runs it against the live app, so a stale one turns the
+  run red.
 - **Added a stored pick, a setup field or a one-time flag** → its area in
   `ui/src/settings-reset.ts`, or the list of what a reset keeps, and
   `tests/settings-reset.test.ts`, which checks named keys only, so a new flag

@@ -19,6 +19,7 @@
     "clips:render": "npm --prefix ts run clips:render --",
     "clips:render:yes": "npm --prefix ts run clips:render:yes",
     "clips:check": "npm --prefix ts run clips:check",
-    "voice:check": "npm --prefix ts run voice:check"
+    "voice:check": "npm --prefix ts run voice:check",
+    "smoke": "npm --prefix ts run smoke"
   }
 }

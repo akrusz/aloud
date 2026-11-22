@@ -351,6 +351,10 @@ cd ts && npm run stt:replay -- <capture-dir> --models openai,azure       # then 
 # Rerun after touching the session listen loop or the judge-free commands.
 npm run voice:check          # = node ts/scripts/voice-loop-check.mjs
 
+# Smoke suite (about 10 s): a signed-out first visit against a local build of
+# this tree, on its own spare ports (deploy.md "Smoke checks"). Run before a release.
+npm run smoke                # node ts/smoke/smoke.mjs alone checks production
+
 # Soak harness (by hand, NOT in CI - an LLM plays the meditator through whole
 # sessions; see dev-docs/soak-harness.md). Run before a release.
 npm run soak -- --battery=pre-release  # the release check; report in ts/soak-runs/

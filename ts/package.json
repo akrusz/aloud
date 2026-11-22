@@ -31,6 +31,7 @@
         "clips:render:yes": "npm run clips:render -- --yes",
         "clips:check": "npm run clips:render -- --check",
         "voice:check": "node scripts/voice-loop-check.mjs",
+        "smoke": "node smoke/local.mjs",
         "stt:replay": "tsx scripts/stt-replay.ts",
         "stt:clip-sink": "tsx scripts/stt-clip-sink.ts",
         "soak": "tsx soak/run.ts",
