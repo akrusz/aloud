@@ -8,7 +8,9 @@
  * treat it as a blank completion.
  */
 
-const TAG = 'think|thinking|reasoning|scratchpad';
+import { toSimplified } from './zh-script.js';
+
+const TAG ='think|thinking|reasoning|scratchpad';
 
 /**
  * A reasoning block and its CONTENTS - local models reason in <think> by
@@ -80,7 +82,8 @@ const ZH_NO_YOU = String.raw`(?![^。！？!?\n]*你)`;
  * 中文: a sentence with no 你 that opens on 用户 ("user") and a verb of saying
  * or wanting ("用户描述了…", "好的，用户说…"), and "我的回应应该…" /
  * "我应该：". Never 冥想者 ("meditator"): "冥想者感到困倦很常见" is ordinary
- * speech.
+ * speech. Read in simplified characters: a model can write traditional ones
+ * (用戶 is converted first, zh-script.ts).
  *
  * Measured with no false positive over every saved facilitator line
  * (meditation-pal-dqti); a false positive silences a good reply, so widen
@@ -104,5 +107,5 @@ const REASONING_ALOUD_RE = new RegExp(
  * handle it as a blank completion.
  */
 export function isReasoningAloud(text: string): boolean {
-    return REASONING_ALOUD_RE.test(text);
+    return REASONING_ALOUD_RE.test(toSimplified(text));
 }

@@ -50,18 +50,21 @@ describe('trimHeardZh', () => {
  * Every Han character the zh matchers read goes in one of these two. With it,
  * the other forms a recognizer may write it in: its traditional forms, as
  * ICU's Traditional-Simplified transform gives them over the whole CJK block
- * (on macOS, CFStringTransform with "Hant-Hans" finds them).
+ * (on macOS, CFStringTransform with "Hant-Hans" finds them), and 妳 and 覆,
+ * which ICU leaves (zh-script.ts says why).
  */
 const NO_OTHER_FORM =
     '一七三上下不世串主九二五些什今以修候停充先全八六再冥分切列到前力加助十半去及取受口可吧呀呃和哪啊啦嗓嗯嘛器四在均坐基多' +
     '大天女好始孩它安完官定小少就已度延式引往心悲情想意感慈成我所打把指掉探接提撒播收改放散明是更月有期本束模次止此步氛求海' +
-    '消添清焦然特玉用男界白的看知短示程空窗第等筒算索置者聆能良藏行衡要起跟跳身返退遍道那部重闢除零音';
+    '消添清焦然特玉用男界白的看知短示程空窗第等筒算索置者聆能良藏行衡要起跟跳身返退遍道那部重闢除零音' +
+    '首正似乎像又描述享得希望告思答需';
 const WITH_FORMS = (
     '与與 两兩 个個箇 为為爲 么麼麽 习習 了瞭 们們 会會 伤傷 体體 儿兒 克剋尅 关關関 内內 写寫 几幾 出齣 删刪 别別彆 只隻 号號 ' +
-    '后後 吗嗎 听聽 启啓啟 回廻迴 围圍 图圖 声聲 复復複 够夠 对對 导導 帮幫 应應 开開 当當噹 悦悅 扰擾 择擇 换換 时時 显顯 ' +
+    '后後 吗嗎 听聽 启啓啟 回廻迴 围圍 图圖 声聲 复復複覆 够夠 对對 导導 帮幫 应應 开開 当當噹 悦悅 扰擾 择擇 换換 时時 显顯 ' +
     '晓曉 条條 来來 松鬆 标標 样樣 档檔 没沒 注註 点點 烦煩 爱愛 玩翫 现現 着著 离離 简簡 级級 练練 结結 给給 继繼 绪緒 续續 ' +
     '补補 表錶 观觀 览覽 觉覺 计計 记記 设設 试試 话話 语語 说說説 请請 读讀 调調 谢謝 费費 轻輕 过過 还還 这這 选選 里裏裡 ' +
-    '钟鐘鍾 错錯 长長 闭閉 问問 间間 阔闊 随隨 隐隱 静靜 面麵 页頁 项項 预預 额額 风風 麦麥 麻蔴'
+    '钟鐘鍾 错錯 长長 闭閉 问問 间間 阔闊 随隨 隐隱 静靜 面麵 页頁 项項 预預 额額 风風 麦麥 麻蔴 ' +
+    '你妳 户戶 刚剛 才纔 达達 询詢 报報 该該'
 ).split(' ');
 
 /** Traditional forms the table leaves out on purpose (zh-script.ts says why). */

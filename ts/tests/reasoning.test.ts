@@ -85,6 +85,31 @@ describe('isReasoningAloud', () => {
             expect(isReasoningAloud(s), s).toBe(false);
         }
     });
+
+    it('reads traditional characters as the simplified ones, catching and leaving the same', () => {
+        for (const s of [
+            '用戶描述了一種身體變遠的感覺。',
+            '好的，用戶說他們感到害怕。',
+            '首先，用戶剛才提到胸口很緊。',
+            '用戶似乎希望安靜一會兒。',
+            '我的回應應該簡短。',
+            '我的回覆需要溫和一點。',
+            '我應該：先安撫，再引導。',
+        ]) {
+            expect(isReasoningAloud(s), s).toBe(true);
+        }
+        for (const s of [
+            '用戶說你的設計太複雜，這句話現在在身體哪裡？',
+            '用戶說妳的設計太複雜，這句話現在在身體哪裡？',
+            '你擔心用戶覺得不好用，這份擔心現在在身體哪裡？',
+            '冥想者感到睏倦是很常見的。',
+            '我應該安靜一會兒嗎？',
+            '慢慢來，感覺一下呼吸。',
+            '現在有什麼浮現出來嗎？',
+        ]) {
+            expect(isReasoningAloud(s), s).toBe(false);
+        }
+    });
 });
 
 describe('speakableSoFar (a reply still streaming)', () => {
