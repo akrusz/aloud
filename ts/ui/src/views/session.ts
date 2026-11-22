@@ -164,6 +164,7 @@ import {
 import { SessionClock } from '../session-clock.js';
 import { sessionStore } from '../state.js';
 import { markSessionActive, clearActiveSession } from '../active-session.js';
+import { sessionAutosave } from '../session-autosave.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { FIRST_SIT_CHECKIN_WAIT_SEC, FIRST_SIT_TIMER_MIN } from '../first-sit.js';
 import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
@@ -441,6 +442,7 @@ export async function mountSessionView(
         : null;
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession(mode.id);
+    const autosave = sessionAutosave(sessionStore);
     // The system prompt is built once, on the opener's first call (after the
     // voice note resolves), and frozen for the sit: any change to it re-bills
     // the whole cached prefix. Anything that changes mid-sit rides the session
@@ -4032,6 +4034,7 @@ export async function mountSessionView(
     ): Promise<void> {
         if (torn) return;
         torn = true;
+        const autosaveSettled = autosave.close();
         cacheKeepAlive?.stop();
         unwatchHeadphones();
         unmountVolumeNotice();
@@ -4111,9 +4114,18 @@ export async function mountSessionView(
             finalState.model = modelLabel;
             finalState.provider = setup.provider;
             try {
+                await autosaveSettled;
                 await sessionStore.save(finalState);
             } catch (err) {
                 console.warn('Failed to save session', err);
+            }
+        } else if (skipSave) {
+            // Before onEnd: History, if that is where this lands, lists the
+            // rows as it mounts.
+            try {
+                await autosave.discard();
+            } catch (err) {
+                console.warn('Failed to discard session', err);
             }
         }
 
@@ -4127,7 +4139,8 @@ export async function mountSessionView(
     /**
      * Persist the in-progress session to local storage without an LLM summary,
      * so a crash or going offline still leaves a recoverable transcript. No-op
-     * when "Save session logs" is off, or before any user turn exists. The
+     * when "Save session logs" is off, before any user turn exists, or once the
+     * session has ended (session-autosave.ts). The
      * detailed summary is generated only on a clean end (endSession); until then
      * the background recap or the intention stands in for it (`notes` below).
      */
@@ -4149,15 +4162,11 @@ export async function mountSessionView(
             model: modelLabel,
             provider: setup.provider,
         };
-        try {
-            await sessionStore.save(snapshot);
-            // Mark this session as the one to resume if the app is killed while
-            // backgrounded (meditation-pal-v73p). Only after a successful save,
-            // so the pointer never outlives a recoverable transcript.
-            void markSessionActive(state.sessionId);
-        } catch (err) {
-            console.warn('Session autosave failed', err);
-        }
+        // Mark this session as the one to resume if the app is killed while
+        // backgrounded (meditation-pal-v73p). Only after a successful save,
+        // so the pointer never outlives a recoverable transcript, and not once
+        // the session has ended, whose end clears it.
+        if ((await autosave.save(snapshot)) && !torn) void markSessionActive(state.sessionId);
         void refreshSummaryThrottled();
     }
 

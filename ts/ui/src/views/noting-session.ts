@@ -50,6 +50,7 @@ import { narratorSilencedForCloud } from '../cloud-gate.js';
 import { reportCloudIncident, isCloudTtsError } from '../cloud-incidents.js';
 import { isCapacitor } from '../is-desktop.js';
 import { sessionStore } from '../state.js';
+import { sessionAutosave } from '../session-autosave.js';
 import { downloadSttClips } from '../stt-clip-recorder.js';
 import { markSessionStarted } from '../tour/index-guide.js';
 import { acquireWakeLock, releaseWakeLock } from '../wakelock.js';
@@ -109,6 +110,7 @@ export async function mountNotingSessionView(
     const notingLanguage = sessionLanguageOf(setup.language);
     const session = new SessionManager({ contextStrategy: 'full' });
     session.startSession('noting');
+    const autosave = sessionAutosave(sessionStore);
     if (session.state) session.state.language = setup.language;
     // Mark the user as no-longer-new so the setup-page tour stops auto-popping
     // on later boots (fire-and-forget).
@@ -851,7 +853,8 @@ export async function mountNotingSessionView(
     /**
      * Persist the in-progress circle to local storage without an LLM summary,
      * so a crash or going offline still leaves a recoverable transcript. No-op
-     * when "Save session logs" is off, or before any user turn exists. The
+     * when "Save session logs" is off, before any user turn exists, or once the
+     * circle has ended (session-autosave.ts). The
      * detailed summary is generated only on a clean end (endSession).
      */
     async function autosaveSession(): Promise<void> {
@@ -862,16 +865,13 @@ export async function mountNotingSessionView(
             ...state,
             endTime: Math.floor(Date.now() / 1000),
         };
-        try {
-            await sessionStore.save(snapshot);
-        } catch (err) {
-            console.warn('Session autosave failed', err);
-        }
+        await autosave.save(snapshot);
     }
 
     async function endSession(destination?: SessionEndDestination, skipSave = false): Promise<void> {
         if (torn) return;
         torn = true;
+        const autosaveSettled = autosave.close();
         downloadSttClips();
         paused = true;
         clearWait();
@@ -908,9 +908,18 @@ export async function mountNotingSessionView(
                   })
                 : '';
             try {
+                await autosaveSettled;
                 await sessionStore.save(finalState);
             } catch {
                 /* non-fatal */
+            }
+        } else if (skipSave) {
+            // Before onEnd: History, if that is where this lands, lists the
+            // rows as it mounts.
+            try {
+                await autosave.discard();
+            } catch (err) {
+                console.warn('Failed to discard session', err);
             }
         }
         delete document.body.dataset['sessionActive'];
