@@ -2842,13 +2842,30 @@ body:has(.voice-modal-overlay:not(.hidden)) {
     padding-left: calc(1rem - 2px);
 }
 
+/* The row's label is its choose button (voice-picker.ts createPickerRow),
+   dressed as the plain label it was. */
 .voice-row-name {
     flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
     font-size: 0.88rem;
+    line-height: inherit;
+    text-align: left;
+    cursor: inherit;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Keyboard on a row: its hover tint, with the browser's own focus ring on
+   the label as on every other button. */
+.voice-row:has(> .voice-row-name:focus-visible) {
+    background: var(--accent-dim);
 }
 
 .voice-row-check {

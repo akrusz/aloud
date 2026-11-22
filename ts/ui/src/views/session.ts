@@ -215,6 +215,7 @@ import {
     renderVoiceModalHTML,
     stopPreview as stopVoicePreview,
     updateVoiceSelection,
+    wirePickerModalKeys,
     syncSpeedControlForVoice,
     voiceRateLabel,
     ENGINE_LABELS,
@@ -3461,11 +3462,13 @@ export async function mountSessionView(
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
             offBackdrop();
+            releaseKeys();
         };
         listEl.addEventListener('click', onListClick);
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', closeModal);
         const offBackdrop = onBackdropClick(modal, closeModal);
+        const releaseKeys = wirePickerModalKeys(modal, closeModal);
     }
 
     // A hosted voice can ask the LLM for a text rule (CloudVoice.promptNote,

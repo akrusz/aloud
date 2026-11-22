@@ -93,6 +93,7 @@ import {
     stopPreview,
     uninstallVoiceModel,
     updateVoiceSelection,
+    wirePickerModalKeys,
     type ScoredVoice,
 } from '../voice-picker.js';
 import { escapeHtml } from '../escape-html.js';
@@ -1116,11 +1117,13 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', close);
             offBackdrop();
+            releaseKeys();
         };
         listEl.addEventListener('click', onListClick);
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', close);
         const offBackdrop = onBackdropClick(modal, close);
+        const releaseKeys = wirePickerModalKeys(modal, close);
     }
 
     // ---- Display -------------------------------------------------------

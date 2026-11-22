@@ -49,6 +49,8 @@ import {
     voiceRateLabel,
     stopPreview,
     updateVoiceSelection,
+    createPickerRow,
+    wirePickerModalKeys,
     type ScoredVoice,
 } from '../voice-picker.js';
 import {
@@ -971,6 +973,7 @@ export async function mountSetupView(
             speedSlider.removeEventListener('input', onSpeedInput);
             closeBtn.removeEventListener('click', closeModal);
             offBackdrop();
+            releaseKeys();
             openVoicePicker = null;
             // The note that was showing over the picker goes with it.
             modal.querySelector('.voice-start-note')?.classList.add('hidden');
@@ -989,6 +992,7 @@ export async function mountSetupView(
         speedSlider.addEventListener('input', onSpeedInput);
         closeBtn.addEventListener('click', closeModal);
         const offBackdrop = onBackdropClick(modal, closeModal);
+        const releaseKeys = wirePickerModalKeys(modal, closeModal);
     }
 
     function render(): void {
@@ -2680,15 +2684,21 @@ export async function mountSetupView(
         if (!modal || !listEl || !closeBtn) return;
 
         const names: string[] = opts.includeChime ? ['chime', ...NOTING_SOUNDS] : [...NOTING_SOUNDS];
-        listEl.innerHTML = names
-            .map(
-                (name) => `<div class="voice-row${name === current ? ' selected' : ''}" data-sound-name="${name}">
-                    <span class="voice-row-name">${t(notingSoundLabel(name))}</span>
-                    ${name === current ? '<span class="voice-row-check">✓</span>' : ''}
-                    <button type="button" class="voice-row-preview" data-sound="${name}" aria-label="${escapeHtml(t('Preview {name}', { name: t(notingSoundLabel(name)) }))}">${t('Preview')}</button>
-                </div>`
-            )
-            .join('');
+        listEl.replaceChildren(
+            ...names.map((name) => {
+                const label = t(notingSoundLabel(name));
+                const { row } = createPickerRow(label, name === current);
+                row.dataset['soundName'] = name;
+                const preview = document.createElement('button');
+                preview.type = 'button';
+                preview.className = 'voice-row-preview';
+                preview.dataset['sound'] = name;
+                preview.textContent = t('Preview');
+                preview.setAttribute('aria-label', t('Preview {name}', { name: label }));
+                row.appendChild(preview);
+                return row;
+            })
+        );
         modal.classList.remove('hidden');
 
         const onListClick = (e: MouseEvent) => {
@@ -2710,10 +2720,12 @@ export async function mountSetupView(
             listEl.removeEventListener('click', onListClick);
             closeBtn.removeEventListener('click', close);
             offBackdrop();
+            releaseKeys();
         };
         listEl.addEventListener('click', onListClick);
         closeBtn.addEventListener('click', close);
         const offBackdrop = onBackdropClick(modal, close);
+        const releaseKeys = wirePickerModalKeys(modal, close);
     }
 
     /** Called from the click, which is what lets the element play (primeSounds). */
@@ -3203,7 +3215,7 @@ function renderSetupHTML(
     <!-- Sound picker (sound participants + the user-turn cue). Reuses the
          voice-modal chrome and .voice-row list styling. -->
     <div class="voice-modal-overlay hidden" id="sound-modal">
-        <div class="voice-modal">
+        <div class="voice-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(t('Choose a sound'))}">
             <div class="voice-modal-header">
                 <span class="voice-modal-title">${t('Choose a sound')}</span>
                 <button type="button" class="voice-modal-close" id="sound-modal-close" aria-label="${escapeHtml(t('Close'))}">&times;</button>

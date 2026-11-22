@@ -26,6 +26,7 @@ import { cloudUrl } from './cloud-base.js';
 import { appUrl } from './app-base.js';
 import { t, uiLang } from './i18n.js';
 import { alertDialog } from './dialog.js';
+import { manageModalFocus } from './modal-focus.js';
 import { readNdjson } from './ndjson.js';
 
 /** Raw voice metadata returned from `/app/v1/voices`. */
@@ -549,7 +550,9 @@ export function renderVoiceList(
         more.className = 'voice-more-piper';
         more.textContent = t('More options: show {n} Piper voices (local, free download)', { n: lockedPiper.size });
         more.onclick = () =>
-            renderVoiceList(listEl, voices, selectedName, { ...options, showLockedPiper: true });
+            rerenderFromExpander(listEl, more, () =>
+                renderVoiceList(listEl, voices, selectedName, { ...options, showLockedPiper: true })
+            );
         listEl.appendChild(more);
     }
 
@@ -559,7 +562,9 @@ export function renderVoiceList(
         toggle.className = 'voice-more-piper';
         toggle.textContent = options.showAll ? t('Show fewer voices ▲') : t('Show all voices ▼');
         toggle.onclick = () =>
-            renderVoiceList(listEl, voices, selectedName, { ...options, showAll: !options.showAll });
+            rerenderFromExpander(listEl, toggle, () =>
+                renderVoiceList(listEl, voices, selectedName, { ...options, showAll: !options.showAll })
+            );
         listEl.appendChild(toggle);
     }
 
@@ -571,11 +576,81 @@ export function renderVoiceList(
     }
 }
 
+/**
+ * Re-render the list from one of its own expander buttons. The button goes
+ * with the old rows, which would drop a keyboard or screen-reader user to the
+ * page behind the modal, so focus moves to the first row the re-render
+ * revealed, or to the new expander when it hid rows (Show fewer).
+ */
+function rerenderFromExpander(listEl: HTMLElement, btn: HTMLElement, rerender: () => void): void {
+    const hadFocus = document.activeElement === btn;
+    const fromKeys = hadFocus && focusedFromKeyboard(btn);
+    const before = new Set(
+        Array.from(listEl.querySelectorAll<HTMLElement>('.voice-row'), (r) => r.dataset['voiceName'])
+    );
+    rerender();
+    if (!hadFocus) return;
+    const fresh = Array.from(listEl.querySelectorAll<HTMLElement>('.voice-row')).find(
+        (r) => !before.has(r.dataset['voiceName'])
+    );
+    (fresh?.querySelector<HTMLElement>('button:not(:disabled)') ?? listEl.querySelector<HTMLElement>('.voice-more-piper'))
+        ?.focus({ preventScroll: !fromKeys });
+}
+
+/** Whether `el` has focus the browser would ring (reached by keyboard). */
+function focusedFromKeyboard(el: Element | null): boolean {
+    try {
+        return el?.matches(':focus-visible') ?? false;
+    } catch {
+        // iOS 15.0-15.3 has no :focus-visible, and matches() throws on it.
+        return false;
+    }
+}
+
 function appendTierLabel(parent: HTMLElement, text: string): void {
     const el = document.createElement('div');
     el.className = 'voice-tier-label';
     el.textContent = text;
     parent.appendChild(el);
+}
+
+/**
+ * One picker row, a voice here or a sound in the setup view: its label is a
+ * real button, so Tab reaches it and Enter or Space presses it, the click
+ * bubbling to the list's handler as a tap anywhere on the row does.
+ * aria-pressed says which row is the current choice. Preview and the row's
+ * other buttons go beside the label, never inside it: a screen reader
+ * flattens a control nested in another.
+ */
+export function createPickerRow(label: string, selected: boolean): { row: HTMLDivElement; choose: HTMLButtonElement } {
+    const row = document.createElement('div');
+    row.className = 'voice-row';
+    const choose = document.createElement('button');
+    choose.type = 'button';
+    choose.className = 'voice-row-name';
+    choose.textContent = label;
+    row.appendChild(choose);
+    setPickerRowSelected(row, selected);
+    return { row, choose };
+}
+
+/** Mark a picker row chosen or not: the accent and ✓ for the eye, and
+ *  aria-pressed on its label for a screen reader. */
+export function setPickerRowSelected(row: HTMLElement, selected: boolean): void {
+    row.classList.toggle('selected', selected);
+    const choose = row.querySelector<HTMLElement>('.voice-row-name');
+    choose?.setAttribute('aria-pressed', String(selected));
+    const check = row.querySelector<HTMLElement>('.voice-row-check');
+    if (selected && !check) {
+        const mark = document.createElement('span');
+        mark.className = 'voice-row-check';
+        mark.textContent = '✓';
+        mark.setAttribute('aria-hidden', 'true');
+        if (choose) choose.after(mark);
+        else row.prepend(mark);
+    } else if (!selected && check) {
+        check.remove();
+    }
 }
 
 function appendRow(
@@ -584,24 +659,22 @@ function appendRow(
     selectedName: string | null,
     options: RenderListOptions
 ): void {
-    const row = document.createElement('div');
-    row.className = 'voice-row';
-    if (entry.needsDownload && !entry.downloaded) row.classList.add('voice-row-locked');
+    const { row, choose } = createPickerRow(voiceLabel(entry.name), entry.name === selectedName);
+    if (entry.needsDownload && !entry.downloaded) {
+        row.classList.add('voice-row-locked');
+        choose.disabled = true;
+    }
     if (entry.langMismatch || entry.glitchy) row.classList.add('voice-row-lang-mismatch');
-    if (entry.name === selectedName) row.classList.add('selected');
     row.dataset['voiceName'] = entry.name;
     // Speakers sharing a model file share data-model, so an in-flight download
     // can disable all their Download buttons at once.
     if (entry.model) row.dataset['model'] = entry.model;
 
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'voice-row-name';
-    nameSpan.textContent = voiceLabel(entry.name);
     if (entry.note) {
         const note = document.createElement('span');
         note.className = 'voice-row-engine';
         note.textContent = entry.note;
-        nameSpan.appendChild(note);
+        choose.appendChild(note);
     }
     // Hosted-voice rate badge: "N☁" ≈ N credits/hr.
     const rateText = rateBadge(entry.creditsPerHour);
@@ -610,29 +683,23 @@ function appendRow(
         cost.className = 'voice-row-cost';
         cost.textContent = rateText;
         cost.title = t('≈ {rate} credits/hour', { rate: entry.creditsPerHour!.toFixed(1) });
-        nameSpan.appendChild(cost);
+        choose.appendChild(cost);
     }
     if (options.showEngine && (entry.displayEngine ?? entry.engine)) {
         const eng = entry.displayEngine ?? entry.engine!;
         const badge = document.createElement('span');
         badge.className = 'voice-row-engine';
         badge.textContent = eng === 'browser' ? t('Browser') : (ENGINE_LABELS[eng] ?? eng);
-        nameSpan.appendChild(badge);
+        choose.appendChild(badge);
     }
-    if (entry.langMismatch) {
-        // No badge: the dimmed style plus this tooltip carry it.
-        row.title = t('This voice may not speak the session language well');
-    } else if (entry.glitchy) {
-        row.title = t('macOS 27 voices may interact poorly with Firefox.');
-    }
-    row.appendChild(nameSpan);
-
-    if (entry.name === selectedName) {
-        const check = document.createElement('span');
-        check.className = 'voice-row-check';
-        check.textContent = '✓';
-        row.appendChild(check);
-    }
+    // No badge: the dimmed style plus this tooltip carry it. On the label too,
+    // where a screen reader reads it.
+    const warning = entry.langMismatch
+        ? t('This voice may not speak the session language well')
+        : entry.glitchy
+          ? t('macOS 27 voices may interact poorly with Firefox.')
+          : '';
+    if (warning) row.title = choose.title = warning;
 
     if (entry.needsDownload) {
         if (entry.downloaded) {
@@ -683,22 +750,34 @@ export function updateVoiceSelection(
     listEl: HTMLElement,
     selectedName: string
 ): void {
-    const rows = listEl.querySelectorAll<HTMLElement>('.voice-row');
-    rows.forEach((row) => {
-        const isSelected = row.dataset['voiceName'] === selectedName;
-        row.classList.toggle('selected', isSelected);
-        const existing = row.querySelector<HTMLElement>('.voice-row-check');
-        if (isSelected && !existing) {
-            const check = document.createElement('span');
-            check.className = 'voice-row-check';
-            check.textContent = '✓';
-            const preview = row.querySelector<HTMLElement>('.voice-row-preview');
-            if (preview) row.insertBefore(check, preview);
-            else row.appendChild(check);
-        } else if (!isSelected && existing) {
-            existing.remove();
-        }
+    listEl.querySelectorAll<HTMLElement>('.voice-row').forEach((row) => {
+        setPickerRowSelected(row, row.dataset['voiceName'] === selectedName);
     });
+}
+
+/**
+ * Keyboard and screen-reader wiring for a picker modal just shown: focus
+ * moves onto the current choice (else the first control) and stays in the
+ * modal (manageModalFocus), and Escape closes it. Call what it returns from
+ * the modal's close.
+ */
+export function wirePickerModalKeys(modal: HTMLElement, close: () => void): () => void {
+    // Opened from the keyboard, the current choice scrolls into view; opened
+    // by a tap, the list stays where it opens.
+    const fromKeys = focusedFromKeyboard(document.activeElement);
+    const releaseFocus = manageModalFocus(modal);
+    modal
+        .querySelector<HTMLElement>('.voice-row.selected .voice-row-name:not(:disabled)')
+        ?.focus({ preventScroll: !fromKeys });
+    const onKey = (e: KeyboardEvent): void => {
+        // A dialog over the picker (a preview's error) takes its own Escape.
+        if (e.key === 'Escape' && !e.defaultPrevented) close();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+        document.removeEventListener('keydown', onKey);
+        releaseFocus();
+    };
 }
 
 let activePreviewEngine: TtsEngine | null = null;
@@ -870,7 +949,7 @@ export function renderVoiceModalHTML(cfg: VoiceModalConfig): string {
         : '';
     return `
     <div class="voice-modal-overlay hidden" id="${cfg.modalId}">
-        <div class="voice-modal">
+        <div class="voice-modal" role="dialog" aria-modal="true" aria-label="${title}">
             <div class="voice-modal-header">
                 <span class="voice-modal-titlewrap">
                     <span class="voice-modal-title">${title}</span>
