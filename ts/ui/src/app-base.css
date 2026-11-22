@@ -2366,23 +2366,54 @@ body:has(.session-container) {
 /* On, but hearing nothing yet: the session's mic opening after an unmute
    (views/session.ts setStatus, "Opening the mic…"), and the setup mic opening
    or stopped for a line and its tail (.voice-start-mic.waiting, below). Grey
-   and unslashed, with a slow breath in place of the level ring, so it reads
-   as coming and not as off; then lit. */
-.btn-voice.active.opening {
+   and unslashed, with two thin rings drawn inward to the button like a
+   charge, in place of the level ring, so it reads as coming and not as off;
+   then lit. The rings are ::before and ::after, so under (pointer: coarse)
+   the 44px tap box on ::after (see "Touch targets") is replaced for the
+   duration, a 1px loss. */
+.btn-voice {
+    position: relative;
+}
+.btn-voice.active.opening,
+.voice-start-mic.active.waiting {
     background: var(--bg-secondary);
     border-color: var(--border);
     color: var(--text-muted);
-    animation: mic-coming 1.4s ease-in-out infinite;
 }
-@keyframes mic-coming {
-    0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-muted) 18%, transparent); }
-    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-muted) 30%, transparent); }
+.btn-voice.active.opening::before,
+.btn-voice.active.opening::after,
+.voice-start-mic.active.waiting::before,
+.voice-start-mic.active.waiting::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    animation: mic-charge 1.6s cubic-bezier(0.5, 0, 0.9, 0.6) infinite;
+}
+.btn-voice.active.opening::after,
+.voice-start-mic.active.waiting::after {
+    animation-delay: 0.8s;
+}
+@keyframes mic-charge {
+    0% { transform: scale(1.45); opacity: 0; }
+    70% { opacity: 1; }
+    100% { transform: scale(1); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .btn-voice.active.opening {
-        animation: none;
-        box-shadow: none;
+    .btn-voice.active.opening,
+    .voice-start-mic.active.waiting {
         border-style: dashed;
+    }
+    .btn-voice.active.opening::before,
+    .btn-voice.active.opening::after,
+    .voice-start-mic.active.waiting::before,
+    .voice-start-mic.active.waiting::after {
+        animation: none;
+        display: none;
     }
 }
 
@@ -5440,22 +5471,13 @@ input[type="range"].preview-range {
 }
 
 /* On, but the recognizer can't hear yet (views/setup.ts paintVoiceMic,
-   micHearing): the mic opening, or stopped for a line and its tail. The
-   session mic's opening look (.btn-voice.active.opening): grey, with a slow
-   breath in place of the level ring, which could show a voice nothing is
-   taking in. It keeps its sound waves, where asleep shows "z z". */
+   micHearing): the mic opening, or stopped for a line and its tail. Shares
+   the session mic's opening look (.btn-voice.active.opening, above) apart
+   from the resting colours below, since the level ring could show a voice
+   nothing is taking in. It keeps its sound waves, where asleep shows "z z". */
 .voice-start-mic.active.waiting {
     background: var(--bg-input);
     border-color: var(--hairline, var(--border));
-    color: var(--text-muted);
-    animation: mic-coming 1.4s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-    .voice-start-mic.active.waiting {
-        animation: none;
-        box-shadow: none;
-        border-style: dashed;
-    }
 }
 
 /* Not an answer: what was heard and not understood, or the first-visits

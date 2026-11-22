@@ -490,8 +490,8 @@ speaking, it lights at once and starts hearing when the line is over
 reads).
 
 **Waiting to hear is a look of On, not a fourth state.** While the
-recognizer can't hear, the mic is grey with a slow breath in place of the
-ring (`.waiting`; a dashed rim under reduced motion), the look the session's
+recognizer can't hear, the mic is grey with rings drawn inward in place of the
+ring (`.waiting`; a dashed rim and no rings under reduced motion), the look the session's
 mic has while it opens after an unmute, since words said then are lost
 (`listenOnSetup` `onHearing`, `micHearing` in `views/setup.ts`). That is the
 mic opening, which on macOS sends digital silence for a second or more, and
