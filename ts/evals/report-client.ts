@@ -197,6 +197,22 @@ function findings(): HTMLElement {
         );
         rows.push({ severity: f.severity, el: findingRow(f.severity, f.title, items) });
     }
+    for (const j of data.phase2.judges) {
+        const failing = j.models.filter((m) => m.fails.length).sort((a, b) => b.fails.length - a.fails.length);
+        if (!failing.length) continue;
+        const items = failing.map((m) => {
+            const byDim = new Map<string, number>();
+            for (const f of m.fails) byDim.set(f.dim, (byDim.get(f.dim) ?? 0) + 1);
+            const dims = [...byDim].map(([d, n]) => `${n} on ${d}`).join(', ');
+            const first = m.fails[0];
+            return h(
+                'button',
+                { class: 'item-link', onclick: () => (first ? openPanel(first.panel) : undefined) },
+                `${m.model} ${dims}`
+            );
+        });
+        rows.push({ severity: 'serious', el: findingRow('serious', `Binary fails, judged by ${j.judgeModel}`, items) });
+    }
     rows.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
     return h(
         'section',
@@ -657,7 +673,7 @@ function judgeName(judgeModel: string): string {
     return judgeModel === 'unrecorded' ? 'judge not recorded' : judgeModel;
 }
 
-function judging(): HTMLElement {
+function handMadeBlocks(): HTMLElement[] {
     const byJudge = new Map<string, typeof E.judging>();
     for (const g of E.judging) byJudge.set(g.judgeModel, [...(byJudge.get(g.judgeModel) ?? []), g]);
     const blocks: HTMLElement[] = [];
@@ -761,6 +777,284 @@ function judging(): HTMLElement {
             );
         }
     }
+    return blocks;
+}
+
+const P2 = data.phase2;
+const DIM = new Map(P2.dims.map((d) => [d.id, d]));
+const dimLabel = (id: string) => `${id} ${DIM.get(id as never)?.name ?? ''}`.trim();
+const PANEL = new Map(P2.panels.map((p) => [p.id, p]));
+let panelBoxes = new Map<string, HTMLElement>();
+
+function openPanel(id: string): void {
+    const p = PANEL.get(id);
+    const box = p && panelBoxes.get(p.judgeModel);
+    if (!p || !box) return;
+    box.replaceChildren(...panelView(p));
+    box.scrollIntoView({ block: 'start' });
+}
+
+function panelView(p: (typeof P2.panels)[number]): Node[] {
+    const fx = E.fixtures[p.fixture];
+    return [
+        h(
+            'div',
+            { class: 'detail-head' },
+            h('p', { class: 'eyebrow' }, `Panel judged by ${p.judgeModel}, run ${p.run + 1}`),
+            h('h3', null, h('code', null, p.fixture)),
+            fx ? h('p', { class: 'sub' }, fx.settings) : null,
+            h(
+                'div',
+                { class: 'expect' },
+                p.staleInputs ? h('span', { class: 'chip warn', title: 'A reply was measured at an older prompt than today\'s' }, 'older prompt') : null,
+                p.staleRubric ? h('span', { class: 'chip warn', title: 'rubric.md has changed since this was judged' }, 'older rubric') : null,
+                p.sameFamily.length ? h('span', { class: 'chip', title: 'Replies from the judge\'s own family' }, `judge's family: ${p.sameFamily.join(', ')}`) : null,
+                p.costUsd !== undefined ? h('span', { class: 'chip' }, `$${p.costUsd.toFixed(4)}`) : null,
+                p.latencyMs !== undefined ? h('span', { class: 'chip' }, fmtMs(p.latencyMs)) : null
+            )
+        ),
+        fx && fx.history.length ? conversation(fx) : null,
+        p.error ? h('p', { class: 'err' }, `The judge's answer could not be used: ${p.error}`) : null,
+        p.decided?.top ? h('p', null, h('strong', null, `First place decided by ${dimLabel(p.decided.top.dim)}: `), p.decided.top.why) : null,
+        p.decided?.bottom ? h('p', null, h('strong', null, `Last place decided by ${dimLabel(p.decided.bottom.dim)}: `), p.decided.bottom.why) : null,
+        h(
+            'div',
+            { class: 'runs' },
+            p.replies.map((r) =>
+                h(
+                    'div',
+                    { class: `run t-${r.fails.length ? 'critical' : 'good'}` },
+                    h(
+                        'div',
+                        { class: 'run-head' },
+                        h('span', { class: 'who' }, r.rank !== null ? `#${r.rank}` : '-'),
+                        MODEL.has(r.model) ? h('button', { class: 'model-link', onclick: () => select({ k: 'model', model: r.model }) }, r.model) : h('code', null, r.model),
+                        h('span', { title: 'The blind letter the judge saw; its notes and reasons use these' }, `reply ${r.letter}`),
+                        p.sameFamily.includes(r.model) ? h('span', { class: 'chip' }, "judge's family") : null
+                    ),
+                    h('p', { class: 'reply' }, r.spoken),
+                    r.signals.length ? h('p', { class: 'small muted' }, `Also signalled: ${r.signals.join('; ')}`) : null,
+                    r.fails.length
+                        ? h(
+                              'div',
+                              { class: 'expect' },
+                              r.fails.map((f) =>
+                                  h('span', { class: 'chip bad', title: f.quoteFound ? '' : 'These words are not in the reply as written' }, `${dimLabel(f.dim)}: "${f.quote}"${f.quoteFound ? '' : ' (misquoted)'}`)
+                              )
+                          )
+                        : null,
+                    h('div', { class: 'dims' }, Object.entries(r.scores).map(([d, v]) => h('span', { class: 'chip', title: dimLabel(d) }, `${d} ${v}`))),
+                    r.note ? h('p', { class: 'small' }, r.note) : null
+                )
+            )
+        ),
+        p.warnings?.length ? h('p', { class: 'small muted' }, `Judge warnings: ${p.warnings.join('; ')}`) : null,
+    ].filter((x): x is HTMLElement => x !== null);
+}
+
+function modelCell(model: string): Node {
+    return MODEL.has(model) ? h('button', { class: 'model-link', onclick: () => select({ k: 'model', model }) }, model) : h('code', null, model);
+}
+
+function judgeBlock(j: (typeof P2.judges)[number]): HTMLElement {
+    const box = h('div', { class: 'detail', id: `panel-${j.judgeModel}` });
+    panelBoxes.set(j.judgeModel, box);
+    const failRows = j.models.flatMap((m) => m.fails.map((f) => ({ m, f })));
+    const usedDims = P2.dims.filter((d) => j.models.some((m) => m.dims[d.id]));
+    const myPanels = P2.panels.filter((p) => p.judgeModel === j.judgeModel);
+    const meta = [
+        plural(j.panels, 'panel'),
+        j.errors ? plural(j.errors, 'unusable answer') : '',
+        j.latencyP50Ms !== null ? `median ${fmtMs(j.latencyP50Ms)} a panel` : '',
+        j.costPerPanel !== null ? `$${j.costPerPanel.toFixed(4)} a panel, $${(j.costUsd ?? 0).toFixed(3)} in all` : 'no cost recorded (subscription)',
+    ].filter(Boolean);
+    return h(
+        'div',
+        { class: 'card' },
+        h(
+            'div',
+            { class: 'card-head' },
+            h('div', { class: 'judge-heading' }, h('h3', null, 'Judged by'), h('span', { class: 'judge-name' }, j.judgeModel)),
+            h('span', { class: 'small muted' }, meta.join(' · '))
+        ),
+        j.staleInputs || j.staleRubric
+            ? h(
+                  'div',
+                  { class: 'expect' },
+                  j.staleInputs ? h('span', { class: 'chip warn' }, `${j.staleInputs} of ${j.panels} panels judged replies measured at an older prompt`) : null,
+                  j.staleRubric ? h('span', { class: 'chip warn' }, `${j.staleRubric} judged against an older rubric`) : null
+              )
+            : null,
+        h('h3', null, 'Binary fails'),
+        failRows.length
+            ? h(
+                  'div',
+                  { class: 'fail-list' },
+                  j.models
+                      .filter((m) => m.fails.length)
+                      .map((m) =>
+                          h(
+                              'div',
+                              { class: 'fail-group' },
+                              h('div', { class: 'fail-model' }, modelCell(m.model), h('span', { class: 'small muted' }, plural(m.fails.length, 'fail'))),
+                              m.fails.map((f) =>
+                                  h(
+                                      'button',
+                                      { class: 'fail-item', onclick: () => openPanel(f.panel), title: 'Open the panel' },
+                                      h('span', { class: 'small muted' }, `${f.fixture}${f.run ? ` run ${f.run + 1}` : ''} · ${dimLabel(f.dim)}`),
+                                      h('span', { class: 'quote' }, `"${f.quote}"`, f.quoteFound ? null : h('span', { class: 'chip warn' }, 'misquoted'))
+                                  )
+                              )
+                          )
+                      )
+              )
+            : h('p', { class: 'hint' }, 'No binary fails.'),
+        h('h3', null, 'Wins'),
+        h(
+            'div',
+            { class: 'frame' },
+            h(
+                'table',
+                { class: 'grid' },
+                h(
+                    'thead',
+                    null,
+                    h(
+                        'tr',
+                        null,
+                        h('th', null, 'Model'),
+                        h('th', { class: 'num' }, 'Panels'),
+                        h('th', { class: 'num' }, 'First'),
+                        h('th', { class: 'num' }, 'Last'),
+                        h('th', { class: 'num' }, 'Binary fails'),
+                        h('th', { class: 'num', title: 'Dimension 11, outside the means: passed on stepping-out turns' }, 'Step out')
+                    )
+                ),
+                h(
+                    'tbody',
+                    null,
+                    [...j.models]
+                        .sort((a, b) => b.wins - a.wins || a.lasts - b.lasts)
+                        .map((m) =>
+                            h(
+                                'tr',
+                                null,
+                                h('td', null, modelCell(m.model)),
+                                h('td', { class: 'num' }, String(m.panels)),
+                                h('td', { class: 'num' }, String(m.wins)),
+                                h('td', { class: 'num' }, String(m.lasts)),
+                                h('td', { class: 'num' }, m.fails.length ? h('span', { class: 'chip bad' }, String(m.fails.length)) : '0'),
+                                h('td', { class: 'num' }, m.stepOut ? `${m.stepOut.pass}/${m.stepOut.n}` : '-')
+                            )
+                        )
+                )
+            )
+        ),
+        h('h3', null, 'Weighted means'),
+        h('p', { class: 'small muted' }, 'Each score weighted by its dimension\'s weight at the fixture\'s guidance level (rubric.md); a binary pass counts 5, a fail 1. Hover a number for its n.'),
+        h(
+            'div',
+            { class: 'frame' },
+            h(
+                'table',
+                { class: 'grid' },
+                h(
+                    'thead',
+                    null,
+                    h(
+                        'tr',
+                        null,
+                        h('th', { class: 'pin' }, 'Model'),
+                        h('th', { class: 'num' }, 'Overall'),
+                        h('th', { class: 'num', title: 'Largest spread of one fixture\'s turn score across runs' }, 'Spread'),
+                        usedDims.map((d) => h('th', { class: 'num', title: `${d.name}${d.binary ? ' (binary)' : ''}` }, d.id))
+                    )
+                ),
+                h(
+                    'tbody',
+                    null,
+                    [...j.models]
+                        .sort((a, b) => (b.overall?.mean ?? 0) - (a.overall?.mean ?? 0))
+                        .map((m) =>
+                            h(
+                                'tr',
+                                null,
+                                h('th', { class: 'pin', scope: 'row' }, modelCell(m.model)),
+                                h('td', { class: 'num', title: m.overall ? `${m.overall.n} replies` : '' }, h('strong', null, m.overall ? m.overall.mean.toFixed(2) : '-')),
+                                h(
+                                    'td',
+                                    { class: 'num', title: m.variance.wide.map((w) => `${w.fixture}: ${w.scores.map((x) => x.toFixed(1)).join(', ')}`).join('\n') || (m.variance.fixturesWithRuns ? '' : 'One run per fixture: no spread to measure') },
+                                    m.variance.maxSpread === null ? '-' : h('span', { class: m.variance.wide.length ? 'chip warn' : '' }, m.variance.maxSpread.toFixed(1))
+                                ),
+                                usedDims.map((d) => {
+                                    const c = m.dims[d.id];
+                                    return h('td', { class: 'num', title: c ? `n ${c.n}` : 'not on any panel it was in' }, c ? c.mean.toFixed(1) : '-');
+                                })
+                            )
+                        )
+                )
+            )
+        ),
+        h(
+            'details',
+            { class: 'more' },
+            h('summary', null, `Every panel (${myPanels.length})`),
+            h(
+                'div',
+                { class: 'expect' },
+                myPanels.map((p) =>
+                    h('button', { class: `item-link${p.error ? ' chip bad' : ''}`, onclick: () => openPanel(p.id) }, `${p.fixture}${p.run ? ` run ${p.run + 1}` : ''}`)
+                )
+            )
+        ),
+        box
+    );
+}
+
+function agreement(): HTMLElement | null {
+    if (!P2.pairs.length) return null;
+    return h(
+        'div',
+        { class: 'card' },
+        h('h3', null, 'How far the judges agree'),
+        h('p', { class: 'small muted' }, 'On panels both judged. Rank correlation is Kendall\'s tau on the replies both ranked: 1 is the same order, 0 is none. Family tilt: the mean place each judge gives a family\'s replies, 0 first and 1 last.'),
+        h(
+            'div',
+            { class: 'frame' },
+            h(
+                'table',
+                { class: 'grid' },
+                h('thead', null, h('tr', null, h('th', null, 'Judges'), h('th', { class: 'num' }, 'Shared panels'), h('th', { class: 'num' }, 'Same first place'), h('th', { class: 'num' }, 'Rank correlation'), h('th', null, 'Family tilt'))),
+                h(
+                    'tbody',
+                    null,
+                    P2.pairs.map((pr) =>
+                        h(
+                            'tr',
+                            { class: 'verdict-row' },
+                            h('td', null, `${pr.a} and ${pr.b}`),
+                            h('td', { class: 'num' }, String(pr.shared)),
+                            h('td', { class: 'num' }, pr.shared ? `${pr.topAgree} of ${pr.shared}` : '-'),
+                            h('td', { class: 'num' }, pr.tau === null ? '-' : pr.tau.toFixed(2)),
+                            h(
+                                'td',
+                                { class: 'wrap-cell' },
+                                pr.tilts.length
+                                    ? pr.tilts.map((t) => `${t.family} replies (${t.n}): ${t.aPos.toFixed(2)} from ${pr.a}, ${t.bPos.toFixed(2)} from ${pr.b}`).join('; ')
+                                    : 'No replies from either judge\'s family on the shared panels'
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    );
+}
+
+function judging(): HTMLElement {
+    panelBoxes = new Map();
+    const handMade = handMadeBlocks();
+    const judges = P2.judges.map(judgeBlock);
     return h(
         'section',
         { id: 'judging' },
@@ -768,9 +1062,15 @@ function judging(): HTMLElement {
             'div',
             { class: 'section-head' },
             h('h2', null, 'Blind judging'),
-            h('p', { class: 'lede' }, 'A judge reads each fixture\'s replies under shuffled letters and picks the better facilitation. Tallies only compare within one judge.')
+            h(
+                'p',
+                { class: 'lede' },
+                'A judge reads every model\'s reply to one turn at once, shuffled and lettered, against the rubric sections that turn exercises (rubric.md). Results never pool across judges.'
+            )
         ),
-        blocks.length ? blocks : h('p', { class: 'hint' }, 'No blind verdicts yet. Phase 2 writes judge-<name>.json into a sweep directory (evals/README.md).')
+        judges.length ? judges : h('p', { class: 'hint' }, 'No rubric judging yet: npm run evals:judge -- --sweep <name> (evals/README.md).'),
+        agreement(),
+        handMade.length ? [h('h3', null, 'Made by hand'), ...handMade] : null
     );
 }
 

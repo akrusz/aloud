@@ -441,6 +441,23 @@ details.more[open] > summary { margin-bottom: 0.5rem; }
 .soak-cell .bad { color: var(--critical); font-weight: 700; }
 .soak-cell .warnish { color: var(--warning); font-weight: 600; }
 
+.fail-list { display: grid; gap: 0.75rem; }
+.fail-group { display: grid; gap: 0.3rem; }
+.fail-model { display: flex; gap: 0.6rem; align-items: baseline; }
+.fail-item {
+    display: grid;
+    gap: 0.1rem;
+    text-align: left;
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: inset 3px 0 0 var(--mark-critical);
+    cursor: pointer;
+}
+.fail-item:hover { border-color: var(--line-strong); background: var(--accent-bg); }
+.fail-item .quote { font-weight: 600; overflow-wrap: anywhere; }
 .session { display: grid; gap: 0.4rem; padding: 0.6rem 0.7rem; background: var(--surface-2); border-radius: var(--radius); }
 .session .judgement { display: grid; gap: 0.25rem; }
 .dims { display: flex; flex-wrap: wrap; gap: 0.25rem; }

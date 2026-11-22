@@ -84,7 +84,23 @@ export interface RunEnvelope {
 
 export const JUDGE_KIND = 'aloud-blind-judge';
 
-/** One fixture's blind comparison. Model ids are roster ids. */
+/** What a Phase 2 judge said about one reply in a panel (judge.ts). */
+export interface PanelReplyVerdict {
+    /** The words the judge read: the spoken text. */
+    spoken: string;
+    /** Control signals the app acted on, in plain words ("a silence bid"). */
+    signals: string[];
+    /** Binary dimensions failed, with the reply's words. quoteFound: the quote
+     *  is in the reply as written (a judge can misquote). */
+    fails: Array<{ dim: string; quote: string; quoteFound: boolean }>;
+    /** 1 to 5 per scale dimension on this turn. */
+    scores: Record<string, number>;
+    note?: string;
+}
+
+/** One fixture's blind comparison. Model ids are roster ids. A Phase 2 panel
+ *  (judge.ts) fills the optional panel fields as well and keeps winner, worst,
+ *  rationale and gateFails filled for readers of the older shape. */
 export interface JudgeVerdictRecord {
     fixture: string;
     /** Every model whose replies the judge compared. */
@@ -103,6 +119,32 @@ export interface JudgeVerdictRecord {
     scores?: Record<string, number>;
     /** promptHash of the trials the judge read, per model. */
     promptHashes?: Record<string, string>;
+    /** The run index judged: a panel is one fixture at one run index. */
+    run?: number;
+    /** What the blind order was shuffled from (judge-core.ts seededOrder). */
+    seed?: string;
+    /** The rubric dimensions judged on this turn. */
+    dims?: string[];
+    /** Hash of the judge's instructions for this turn, built from rubric.md
+     *  (judge-core.ts judgeInstructions): a rubric edit makes it stale. */
+    rubricHash?: string;
+    /** Judged although a reply was not measured at today's prompt (--allow-stale). */
+    staleInputs?: boolean;
+    /** Models from the judge's own family in this panel. */
+    sameFamily?: string[];
+    /** Per model id. */
+    replies?: Record<string, PanelReplyVerdict>;
+    /** Model ids, best first. */
+    ranking?: string[];
+    decided?: { top?: { dim: string; why: string }; bottom?: { dim: string; why: string } };
+    /** The judge's answer could not be used, after one retry. */
+    error?: string;
+    warnings?: string[];
+    attempts?: number;
+    latencyMs?: number;
+    usage?: TrialUsage;
+    /** At list price, API judges only. */
+    costUsd?: number;
 }
 
 export interface JudgeFile {
@@ -120,6 +162,10 @@ export interface JudgeFile {
         gitSha?: string | null;
         /** How many runs per model the judge read for each fixture. */
         runsPerModel?: number;
+        /** The provider spec the judge ran under (judge.ts --judge). */
+        judgeSpec?: string;
+        /** sha256 of rubric.md when this file was last written. */
+        rubricFileHash?: string;
     };
     verdicts: JudgeVerdictRecord[];
 }

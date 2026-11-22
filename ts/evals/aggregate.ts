@@ -6,6 +6,7 @@
 
 import { FIXTURES, type Fixture } from './fixtures.js';
 import { grade, wordCount, type Check } from './grade.js';
+import { settingsLine } from './judge-core.js';
 import { ROSTER, type EvalModel } from './models.js';
 import type { JudgeVerdictRecord, Sweep, Trial, Via } from './records.js';
 import { STOCK_PHRASES, stockPhrasesIn } from './stock-phrases.js';
@@ -301,6 +302,10 @@ export interface FixtureInfo {
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
     /** The declared expectations, as short phrases. */
     expect: string[];
+    /** Settings in plain words, as the judge reads them. */
+    settings: string;
+    /** Rubric dimensions it exercises. */
+    dims: string[];
     /** Still in fixtures.ts. */
     exists: boolean;
 }
@@ -449,6 +454,8 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
             probe: fx.probe,
             history: fx.history.map((h) => ({ ...h })),
             expect: describeExpect(fx),
+            settings: settingsLine(fx),
+            dims: [...fx.dims],
             exists: true,
         };
     }
@@ -494,6 +501,8 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
                     probe: t.probe,
                     history: [],
                     expect: [],
+                    settings: '',
+                    dims: [],
                     exists: false,
                 };
             }
@@ -716,6 +725,8 @@ export function judgingFor(sweeps: readonly Sweep[]): JudgeGroupView[] {
     const out: JudgeGroupView[] = [];
     for (const s of sweeps) {
         for (const { path, file, handMade } of s.judges) {
+            // Phase 2 panel files have their own view (judge-aggregate.ts).
+            if (file.verdicts.some((v) => v.run !== undefined && (v.replies !== undefined || v.error !== undefined))) continue;
             const models = [...new Set(file.verdicts.flatMap((v) => v.models))];
             const tally = models.map((model) => {
                 const scores = file.verdicts

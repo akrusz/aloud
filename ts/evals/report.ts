@@ -18,6 +18,9 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 import { summarizeEvals, type EvalSummary } from './aggregate.js';
+import { summarizePhase2, type Phase2Summary } from './judge-aggregate.js';
+import { judgeInstructions } from './judge-core.js';
+import { loadRubric } from './rubric.js';
 import { costByModelId } from './cost.js';
 import { FIXTURES } from './fixtures.js';
 import { promptHashFor } from './prompt.js';
@@ -31,6 +34,7 @@ export interface ReportData {
     gitSha: string | null;
     gitDirty: boolean | null;
     evals: EvalSummary;
+    phase2: Phase2Summary;
     soak: SoakSummary;
 }
 
@@ -63,12 +67,16 @@ function readSoakRuns(dir: string): Array<{ dir: string; json: unknown }> {
 
 export function buildReportData(resultsDir: string, soakDir: string): ReportData {
     const currentHashes = Object.fromEntries(FIXTURES.map((f) => [f.id, promptHashFor(f)]));
+    const rubric = loadRubric();
+    const currentRubricHashes = Object.fromEntries(FIXTURES.map((f) => [f.id, judgeInstructions(rubric, f).hash]));
+    const sweeps = readSweeps(resultsDir);
     const dirty = git(['status', '--porcelain']);
     return {
         generatedAt: new Date().toISOString(),
         gitSha: git(['rev-parse', '--short=10', 'HEAD']),
         gitDirty: dirty === null ? null : dirty !== '',
-        evals: summarizeEvals(readSweeps(resultsDir), { currentHashes }),
+        evals: summarizeEvals(sweeps, { currentHashes }),
+        phase2: summarizePhase2(sweeps, { rubric, currentRubricHashes, currentPromptHashes: currentHashes }),
         soak: summarizeSoak(readSoakRuns(soakDir), costByModelId),
     };
 }

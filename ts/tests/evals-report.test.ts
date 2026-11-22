@@ -31,6 +31,7 @@ import { stockPhrasesIn } from '../evals/stock-phrases.js';
 const FIXTURES: Fixture[] = [
     {
         id: 'hold/explicit',
+        dims: ['1a', '1b', '7'],
         mode: 'exploration',
         history: [{ role: 'user', content: 'I need some quiet.' }],
         expect: { hold: true, maxWords: 20 },
@@ -38,6 +39,7 @@ const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/disappearing',
+        dims: ['7', '11'],
         mode: 'exploration',
         history: [{ role: 'user', content: "I'm disappearing and it scares me." }],
         expect: { hold: false, anyOf: ['look around'] },
@@ -45,6 +47,7 @@ const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-tears',
+        dims: ['7', '11'],
         mode: 'exploration',
         history: [{ role: 'user', content: "I'm crying." }],
         expect: { hold: false, maxWords: 25, forbid: ['are you okay'] },

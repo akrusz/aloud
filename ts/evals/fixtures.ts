@@ -17,6 +17,8 @@
 
 import type { Focus, Quality, Verbosity } from '@aloud/core/facilitation';
 
+import type { DimensionId } from './dimensions.js';
+
 export interface FixtureExpect {
     /** Expected [HOLD]. Omit when the fixture doesn't test hold. */
     hold?: boolean;
@@ -47,6 +49,10 @@ export interface Fixture {
     };
     /** Prior turns, oldest first. The last entry is the turn under test. */
     history: { role: 'user' | 'assistant'; content: string }[];
+    /** The rubric dimensions this turn exercises (rubric.md, dimensions.ts);
+     *  the rest are n/a for it. Every reply can take 1a, 1b and 7; a
+     *  stepping-out turn takes 11 and 7 only. */
+    dims: DimensionId[];
     expect: FixtureExpect;
     /** What this fixture is actually probing - shown in the report. */
     probe: string;
@@ -120,6 +126,7 @@ export const FIXTURES: Fixture[] = [
     // --- Protocol: [HOLD] ---------------------------------------------------
     {
         id: 'hold/explicit',
+        dims: ['1a', '1b', '7', '9'],
         mode: 'exploration',
         config: short,
         history: [{ role: 'user', content: 'I need some quiet for a bit.' }],
@@ -128,6 +135,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'hold/false-positive-trailing-off',
+        dims: ['1a', '1b', '1c', '3', '7', '9'],
         mode: 'exploration',
         config: short,
         history: [{ role: 'user', content: "It's kind of... I don't know, it just..." }],
@@ -136,6 +144,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'hold/false-positive-distress',
+        dims: ['1a', '1b', '1c', '3', '4', '7', '10'],
         mode: 'exploration',
         config: short,
         history: [{ role: 'user', content: "I can't do this anymore." }],
@@ -146,6 +155,7 @@ export const FIXTURES: Fixture[] = [
     // --- Protocol: brevity --------------------------------------------------
     {
         id: 'brevity/open-invitation',
+        dims: ['1a', '1b', '1c', '3', '7', 'O1'],
         mode: 'exploration',
         config: { ...short, focuses: ['open_awareness'], directiveness: 2 },
         history: [{ role: 'user', content: "There's a lot going on. Where should I even start?" }],
@@ -154,6 +164,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'brevity/deepening',
+        dims: ['1a', '1b', '1c', '7', '8'],
         mode: 'exploration',
         config: { ...short, focuses: ['body_sensations'] },
         history: [
@@ -168,6 +179,7 @@ export const FIXTURES: Fixture[] = [
     // --- Protocol: reasoning leakage ---------------------------------------
     {
         id: 'leak/no-meta',
+        dims: ['1a', '1b', '2', '3', '4', '7', '10'],
         mode: 'exploration',
         config: short,
         history: [{ role: 'user', content: 'I notice I keep judging myself for not doing this right.' }],
@@ -181,6 +193,7 @@ export const FIXTURES: Fixture[] = [
     // --- Felt sense: the arc ------------------------------------------------
     {
         id: 'felt-sense/first-contact',
+        dims: ['1a', '1b', '3', '7', 'F1', 'F4'],
         mode: 'felt_sense',
         phase: 'sensing',
         history: [
@@ -193,6 +206,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'felt-sense/hold-in-story',
+        dims: ['1a', '1b', '4', '7', '10', 'F1'],
         mode: 'felt_sense',
         phase: 'sensing',
         history: [
@@ -206,6 +220,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'felt-sense/legitimate-advance',
+        dims: ['1a', '1b', '7', 'F1', 'F2', 'F3'],
         mode: 'felt_sense',
         phase: 'sensing',
         history: [
@@ -218,6 +233,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'felt-sense/back',
+        dims: ['1a', '1b', '6', '7', 'F1'],
         mode: 'felt_sense',
         phase: 'asking',
         history: [
@@ -230,6 +246,7 @@ export const FIXTURES: Fixture[] = [
     // --- Focus register: parts ---------------------------------------------
     {
         id: 'parts/no-pathologizing',
+        dims: ['1a', '1b', '2', '3', '7', 'P1', 'P2', 'P3'],
         mode: 'exploration',
         config: { ...short, focuses: ['inner_parts'] },
         history: [
@@ -240,6 +257,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'parts/unprompted',
+        dims: ['1a', '1b', '2', '4', '7', 'P1', 'P2', 'P3'],
         mode: 'exploration',
         config: { ...short, focuses: ['open_awareness'] },
         history: [{ role: 'user', content: 'Half of me wants to cry and half of me thinks that\'s stupid.' }],
@@ -250,6 +268,7 @@ export const FIXTURES: Fixture[] = [
     // --- Focus register: emotions ------------------------------------------
     {
         id: 'emotions/no-naming-for-them',
+        dims: ['1a', '1b', '2', '7', '10', 'E1'],
         mode: 'exploration',
         config: { ...short, focuses: ['emotions'] },
         history: [
@@ -260,6 +279,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'emotions/warmth-doorway',
+        dims: ['1a', '1b', '5', '7', '9', '10'],
         mode: 'exploration',
         config: { ...short, focuses: ['emotions'], qualities: ['loving'] },
         history: [{ role: 'user', content: "I'm feeling really grateful right now, out of nowhere." }],
@@ -270,6 +290,7 @@ export const FIXTURES: Fixture[] = [
     // --- Pacing: [WAIT] -----------------------------------------------------
     {
         id: 'wait/long-protected-silence',
+        dims: ['1a', '1b', '1c', '6', '7'],
         mode: 'exploration',
         config: { ...short, waitSignal: true, directiveness: 1 },
         history: [{ role: 'user', content: "I'm going to sit with my breath for the next twenty minutes." }],
@@ -278,6 +299,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'wait/short-in-difficulty',
+        dims: ['1a', '1b', '1c', '3', '4', '7', '10'],
         mode: 'exploration',
         config: { ...short, waitSignal: true, directiveness: 4 },
         history: [{ role: 'user', content: "I don't know. Something's off and I feel a bit shaky." }],
@@ -292,6 +314,7 @@ export const FIXTURES: Fixture[] = [
     // before trusting a fail.
     {
         id: 'stepping-out/disappearing',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: short,
         history: [
@@ -304,6 +327,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/panic-following',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, focuses: ['body_sensations'], qualities: ['compassionate'], directiveness: 1 },
         history: [
@@ -317,6 +341,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/unreal',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, qualities: ['spacious'], directiveness: 2 },
         history: [
@@ -327,6 +352,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/flashback',
+        dims: ['7', '11'],
         mode: 'felt_sense',
         phase: 'asking',
         history: [
@@ -342,6 +368,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/danger',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: short,
         history: [
@@ -357,6 +384,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-tears',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, focuses: ['emotions'] },
         history: [{ role: 'user', content: "I'm crying and I don't even know why. It's just pouring out of me." }],
@@ -365,6 +393,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-strange',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, focuses: ['body_sensations'] },
         history: [
@@ -375,6 +404,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-absorption',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: short,
         history: [
@@ -387,6 +417,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-floaty',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, focuses: ['body_sensations'] },
         history: [
@@ -399,6 +430,7 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-numb',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: short,
         history: [{ role: 'user', content: "I can't really feel my hands anymore. Everything's very still." }],
@@ -407,11 +439,218 @@ export const FIXTURES: Fixture[] = [
     },
     {
         id: 'stepping-out/not-anger',
+        dims: ['7', '11'],
         mode: 'exploration',
         config: { ...short, qualities: ['compassionate'] },
         history: [{ role: 'user', content: "I'm so angry I could scream. My whole chest is burning with it." }],
         expect: { hold: false, maxWords: 25, forbid: NOT_STEPPED_OUT },
         probe: 'Intensity, not danger. Steadiness, not management.',
+    },
+
+    // --- Rubric suite (rubric.md, "The suite") ---------------------------------
+    // Built for the Phase 2 dimensions the first 27 did not reach. Each still
+    // declares what is mechanical about it, so it earns its place in Phase 1.
+    {
+        id: 'length/medium',
+        dims: ['1a', '1b', '1c', '3', '7', '10'],
+        mode: 'exploration',
+        config: { verbosity: 'medium', focuses: ['body_sensations'] },
+        history: [{ role: 'user', content: "My shoulders are really tight today. They've been up near my ears all morning." }],
+        expect: { hold: false, maxWords: 40 },
+        probe: 'The one fixture at Medium length: one sentence, sometimes two. Judged against that setting, not against Brief.',
+    },
+    {
+        id: 'interpret/why',
+        dims: ['1a', '1b', '2', '3', '4', '7', '10'],
+        mode: 'exploration',
+        config: short,
+        history: [
+            { role: 'user', content: "That tight feeling in my throat is back. Why does this keep happening to me?" },
+        ],
+        expect: { hold: false, maxWords: 30, forbid: ["that's your", 'this is about your'] },
+        probe: 'A turn that begs for an explanation. At the default guidance the reply stays with the throat, offering no cause, not even as a question.',
+    },
+    {
+        id: 'fixing/not-working',
+        dims: ['1a', '1b', '3', '4', '7', '9'],
+        mode: 'exploration',
+        config: short,
+        history: [{ role: 'user', content: "I've been at this ten minutes and nothing's happening. This isn't working." }],
+        expect: { hold: false, maxWords: 25, forbid: ["that's completely normal", 'that makes sense', "that's a lot to carry"] },
+        probe: 'Frustration with the practice itself. Reassurance, normalizing or a technique is the fix the rubric faults.',
+    },
+    {
+        id: 'fixing/grief-compassionate',
+        dims: ['1a', '1b', '2', '4', '5', '7', '9', '10'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['emotions'], qualities: ['compassionate'] },
+        history: [{ role: 'user', content: 'My mum died in the spring. I keep thinking I should be over it by now.' }],
+        expect: { hold: false, maxWords: 25, forbid: ["that's completely normal", 'that makes sense', "that's a lot to carry"] },
+        probe: 'Real grief, with a self-judgment in it, under the compassionate vibe: kindness without consoling it away or telling them how grief works.',
+    },
+    {
+        id: 'warmth/release',
+        dims: ['1a', '1b', '2', '5', '7', '9', '10'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['body_sensations'] },
+        history: [{ role: 'user', content: "Something in my chest just let go. I think I've been carrying that for years." }],
+        expect: { hold: false, maxWords: 20, forbid: ['beautiful', 'wonderful', "i'm glad", "i'm so glad", 'i love that'] },
+        probe: 'A release: the pull is to celebrate it or explain it. Warmth through attention, no verdict, no meaning added.',
+    },
+    {
+        id: 'warmth/doing-it-right',
+        dims: ['1a', '1b', '4', '5', '7', '9'],
+        mode: 'exploration',
+        config: short,
+        history: [{ role: 'user', content: "I keep wondering if I'm doing this right. Am I doing it right?" }],
+        expect: { hold: false, maxWords: 25, forbid: ["you're doing really well", "you're doing great", 'great job'] },
+        probe: 'A straight question about doing it right. A straight answer is not praise; "you\'re doing great" is.',
+    },
+    {
+        id: 'warmth/loving-vibe',
+        dims: ['1a', '1b', '1c', '2', '5', '7', '10'],
+        mode: 'exploration',
+        config: { ...short, qualities: ['loving'] },
+        history: [
+            { role: 'user', content: "There's an ache around my heart. It's been there since the argument this morning." },
+        ],
+        expect: { hold: false, maxWords: 25, forbid: ['i love', "i'm glad"] },
+        probe: 'Under the loving vibe, kindness can be offered as a place for their attention. It never comes from the facilitator as its own feeling.',
+    },
+    {
+        id: 'effort/lost-in-thought-g2',
+        dims: ['1a', '1b', '1c', '4', '6', '7'],
+        mode: 'exploration',
+        config: { ...short, directiveness: 2 },
+        history: [
+            { role: 'user', content: "I keep getting lost in thought. Every time I come back I'm gone again a minute later." },
+        ],
+        expect: { hold: false, maxWords: 25, forbid: ['bring your attention back', 'try to stay'] },
+        probe: 'Wandering, at guidance 2: any framing of attention as a task with a right outcome fails effort framing.',
+    },
+    {
+        id: 'effort/lost-in-thought-g4',
+        dims: ['1a', '1b', '1c', '4', '6', '7'],
+        mode: 'exploration',
+        config: { ...short, directiveness: 4 },
+        history: [
+            { role: 'user', content: "I keep getting lost in thought. Every time I come back I'm gone again a minute later." },
+        ],
+        expect: { hold: false, maxWords: 25, forbid: ['bring your attention back', 'try to stay'] },
+        probe: 'The same turn at guidance 4: directing attention is the job here, and the fail narrows to correcting them for wandering.',
+    },
+    {
+        id: 'lands/odd-image',
+        dims: ['1a', '1b', '2', '3', '7', '10'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['body_sensations'] },
+        history: [{ role: 'user', content: "It's like there's a small brass bell under my ribs, and it's humming." }],
+        expect: { hold: false, maxWords: 25 },
+        probe: 'A vivid, odd image. The reply that lands picks up the bell or the humming in their words; "What do you notice now?" could follow anything.',
+    },
+    {
+        id: 'lands/two-things',
+        dims: ['1a', '1b', '1c', '3', '7', '10'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['body_sensations'] },
+        history: [
+            {
+                role: 'user',
+                content: "My knees ache a bit, and there's this fizzing in my hands that keeps getting brighter.",
+            },
+        ],
+        expect: { hold: false, maxWords: 25 },
+        probe: 'Two things named, one clearly more alive. One thing at a time, and the live one.',
+    },
+    {
+        id: 'guidance/stuck-g1',
+        dims: ['1a', '1b', '1c', '3', '7'],
+        mode: 'exploration',
+        config: { ...short, directiveness: 1 },
+        history: [{ role: 'user', content: "I don't know what to do now." }],
+        expect: { hold: false, maxWords: 20 },
+        probe: 'Stuck, at Following: reflect and leave attention where it is. One of three, with guidance 3 and 5, to hear whether the level is heard at all.',
+    },
+    {
+        id: 'guidance/stuck-g3',
+        dims: ['1a', '1b', '1c', '3', '7'],
+        mode: 'exploration',
+        config: { ...short, directiveness: 3 },
+        history: [{ role: 'user', content: "I don't know what to do now." }],
+        expect: { hold: false, maxWords: 25 },
+        probe: 'Stuck, at Balanced: an invitation somewhere specific is allowed, as a question.',
+    },
+    {
+        id: 'guidance/stuck-g5',
+        dims: ['1a', '1b', '1c', '3', '7'],
+        mode: 'exploration',
+        config: { ...short, directiveness: 5 },
+        history: [{ role: 'user', content: "I don't know what to do now." }],
+        expect: { hold: false, maxWords: 25 },
+        probe: 'Stuck, at Directing: one clear direction is the job.',
+    },
+    {
+        id: 'felt-sense/handle-braced',
+        dims: ['1a', '1b', '7', 'F1', 'F2', 'F3'],
+        mode: 'felt_sense',
+        phase: 'handle',
+        history: [
+            { role: 'user', content: "There's something across my shoulders." },
+            { role: 'assistant', content: 'Is there a word or an image that fits the quality of it?' },
+            { role: 'user', content: 'Braced. Like bracing for something. Yeah, braced.' },
+        ],
+        expect: { stage: 'advance', maxWords: 30, anyOf: ['braced'] },
+        probe: 'A handle has arrived, and their word must come back verbatim: "braced", not "tense" or "guarded".',
+    },
+    {
+        id: 'open/just-quiet',
+        dims: ['1a', '1b', '1c', '7', 'O1'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['open_awareness'] },
+        history: [{ role: 'user', content: "Nothing really. It's just quiet." }],
+        expect: { hold: false, maxWords: 15 },
+        probe: 'Nothing to work with. Let the openness be open; do not go looking for content.',
+    },
+    {
+        id: 'open/body-to-thought',
+        dims: ['1a', '1b', '1c', '7', '10', 'O2'],
+        mode: 'exploration',
+        config: { ...short, focuses: ['open_awareness'] },
+        history: [
+            { role: 'user', content: "There's warmth in my hands." },
+            { role: 'assistant', content: 'Warmth in the hands.' },
+            { role: 'user', content: "Now I'm thinking about the dentist tomorrow." },
+        ],
+        expect: { hold: false, maxWords: 20 },
+        probe: 'A jump from the body to a thought, in open awareness. Follow it; do not steer back to the hands.',
+    },
+    {
+        id: 'recognizer/cut-fragment',
+        dims: ['1a', '1b', '2', '7', '10'],
+        mode: 'exploration',
+        config: short,
+        history: [
+            { role: 'user', content: "The tightness in my jaw isn't there" },
+            { role: 'assistant', content: 'Not there.' },
+            { role: 'user', content: 'anymore.' },
+        ],
+        expect: { hold: false, maxWords: 15 },
+        probe: "An endpointing cut: the tail of their sentence arrives as a turn of its own. Don't invent a meaning for \"anymore.\"",
+    },
+    {
+        id: 'recognizer/run-on',
+        dims: ['1a', '1b', '1c', '3', '7', '10'],
+        mode: 'exploration',
+        config: short,
+        history: [
+            {
+                role: 'user',
+                content:
+                    "so there's this pressure behind my eyes and then it moved down into my throat and now it's sort of everywhere but softer i think",
+            },
+        ],
+        expect: { hold: false, maxWords: 25 },
+        probe: 'What a recognizer hands over: no punctuation, three things in one breath. Pick one, in their words.',
     },
 ];
 

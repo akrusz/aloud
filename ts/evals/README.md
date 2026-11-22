@@ -46,10 +46,34 @@ cells of 10. So explore on the subscription, and run with the key before
 trusting a latency, or a verdict that will decide a prompt change or a model's
 place in the allowlist.
 
-**Phase 2 - facilitation quality** (`rubric.md`). The expensive one, and the one
-that actually answers the question. Blind-judge the transcripts Phase 1 wrote
-against the rubric. Not yet automated - the rubric needs editing first, because
-a rubric that doesn't match your taste measures the wrong thing.
+**Phase 2 - facilitation quality** (`rubric.md`, `judge.ts`). The one that
+actually answers the question. For each fixture and run index, a judge reads every
+model's reply at once, shuffled and lettered, with the fixture's settings and
+conversation and the rubric sections the fixture exercises (`dims` in
+`fixtures.ts`), and returns quoted binary fails, 1-to-5 scores and a ranking.
+
+```bash
+npm run evals:judge -- --sweep 2026-11-22-roster              # Opus 5.5 on the subscription
+npm run evals:judge -- --latest --judge openai:gpt-6.2-astra --every 3
+npm run evals:judge -- --sweep ollama-tiers-2026-11-14 --every 3 --allow-stale
+```
+
+`--latest` takes the newest reply per model across sweeps; replies measured at an
+older prompt are left out unless `--allow-stale` (then the verdict says so).
+`--judge` is repeatable (specs as in `soak/providers.ts`); `--every N` judges one
+run index in N; `--fixtures`, `--models`, `--concurrency`; `--resume` skips panels
+already judged at the same prompt and rubric hashes; `--dry-run` prints the first
+panel's prompt. Errors and empty replies never reach the judge (Phase 1 reports
+them); an answer that fails validation is retried once, then recorded as an error.
+
+**The rubric is the one source.** Alex edits `rubric.md` only. `rubric.ts` reads the
+judge's rules, each dimension's text, `[binary]`, and its weight from it (`weight
+6L, 3H` on the heading or the part's bold lead, or the section's `Weight N each`);
+11, which "outweighs everything else on its turns", has no number and is reported
+on its own, outside the weighted means. Each verdict records a hash of the
+instructions the judge got, so a rubric edit shows it stale. A new dimension id
+goes in `dimensions.ts`; `tests/evals-judge.test.ts` fails if a fixture names one
+the rubric does not define with a weight.
 
 ## Files
 
@@ -60,8 +84,9 @@ a rubric that doesn't match your taste measures the wrong thing.
 | `protocol-eval.ts` | Phase 1 runner |
 | `prompt.ts`, `grade.ts` | What a fixture sends (and its `promptHash`), and the Phase 1 checks |
 | `records.ts` | The results store: record shapes and the sweep reader |
-| `report.ts` | The page: `aggregate.ts` (models), `soak-summary.ts` (soak runs), `report-client.ts` + `report-page.css` (inlined) |
-| `rubric.md` | Phase 2 scoring instrument - **skeleton, needs your edits** |
+| `rubric.md` | Phase 2's specification, read by `rubric.ts`; `dimensions.ts` lists its ids |
+| `judge.ts` | Phase 2 runner; `judge-core.ts` builds panels and instructions and validates answers, `judge-aggregate.ts` turns verdicts into the report's numbers |
+| `report.ts` | The page: `aggregate.ts` (models), `judge-aggregate.ts` (Phase 2), `soak-summary.ts` (soak runs), `report-client.ts` + `report-page.css` (inlined) |
 
 ## Results and the report
 
@@ -86,12 +111,17 @@ a rule: replies per 100 with a stock phrase (`STOCK_PHRASES` in `stock-phrases.t
 yours to cut), the share ending in a question, and the most repeated opening,
 all without the acute stepping-out turns.
 
-**Phase 2 output**: a judge writes `judge-<name>.json` into the sweep it judged, a
-`JudgeFile` (`records.ts`): `meta.judgeModel` (never mixed with another judge's
-tallies), and per fixture the models compared, the blind letters, the winner (or
-`tie`), the model ranked last in a three-way, the margin, the rationale, the models
-that broke a hard rule, optional rubric `scores` per model, and the `promptHashes`
-of the trials it read. The hand-made `verdict-*.json` + `key-*.json` pairs in the
+**Phase 2 output**: a judge writes `judge-<judge model>.json` into the sweep it
+judged (`--latest`: `results/<date>-judged/`), a `JudgeFile` (`records.ts`) whose
+verdicts are one per panel: fixture and run index, the blind letters and seed, the
+dimensions judged, the instructions hash, per model the spoken reply, its quoted
+fails and scores and the judge's note, the ranking, the dimension that decided the
+top and the bottom, and the call's latency, usage and cost. Winner, last place and
+rationale stay filled for the older shape. The report shows each judge apart:
+binary fails first, then wins, then means weighted by the rubric at each fixture's
+guidance level, the spread across runs, a panel view with the replies unblinded,
+and for two judges how often they agree and whether either places its own family
+higher. The hand-made `verdict-*.json` + `key-*.json` pairs in the
 Ollama trial read as judge files, their judge named by the sweep's
 `blind-judge.json` (`{ "judgeModel": ... }`).
 
