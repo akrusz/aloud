@@ -311,7 +311,7 @@ npm test && npm run ui:build && npm run test:server
 
 # TS core + UI (vitest) and typecheck
 cd ts && npm test
-cd ts && npm run typecheck            # tsc over src/, ui/, soak/ and tests/ - not the server
+cd ts && npm run typecheck            # tsc over src/, ui/, soak/, tests/, scripts/ and evals/ - not the server
 
 # Hosted server
 cd ts/server && npm test

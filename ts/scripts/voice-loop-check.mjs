@@ -340,9 +340,8 @@ try {
         );
         // The reply spoken is the one written with the note: either the only
         // one (the verdict was in before the request went), or the second.
-        const spoken = await s.page.evaluate(() => document.body.innerText);
         const last = s.model.requests.findLastIndex(noted) + 1;
-        check('and the reply on screen is the one written with it', new RegExp(`Model reply ${last}\\.`).test(spoken), `(reply ${last})`);
+        check('and the reply on screen is the one written with it', await s.shown(new RegExp(`Model reply ${last}\\.`)), `(reply ${last})`);
 
         calls = s.model.calls;
         await s.say('Okay, I can feel the chair again.');

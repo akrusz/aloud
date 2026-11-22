@@ -46,6 +46,13 @@ export interface ClaudeProxyProviderOptions {
     /** Environment for the CLI. Unset = inherited, which is the trap: with
      *  ANTHROPIC_API_KEY in it the CLI bills that key, not the subscription. */
     env?: NodeJS.ProcessEnv;
+    /** Run with `--safe-mode`, which leaves out the user's own Claude Code
+     *  setup: their hooks (a SessionStart hook's output lands in the
+     *  conversation), every CLAUDE.md including ~/.claude/CLAUDE.md (which no
+     *  cwd avoids), plugins and auto-memory. Sign-in is untouched, so it still
+     *  bills the subscription; `--bare` would also drop these but reads only
+     *  ANTHROPIC_API_KEY. A CLI too old to know the flag fails the call. */
+    safeMode?: boolean;
 }
 
 interface ClaudeCliResponse {
@@ -67,6 +74,7 @@ export class ClaudeProxyProvider implements LLMProvider {
     private readonly timeoutMs: number;
     private readonly binaryPathOverride: string | undefined;
     private readonly effort: string | undefined;
+    private readonly safeMode: boolean;
     private readonly spawnOptions: Pick<SpawnOptions, 'cwd' | 'env'>;
 
     constructor(options: ClaudeProxyProviderOptions = {}) {
@@ -75,6 +83,7 @@ export class ClaudeProxyProvider implements LLMProvider {
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.binaryPathOverride = options.binaryPath;
         this.effort = options.effort;
+        this.safeMode = options.safeMode ?? false;
         this.spawnOptions = {
             ...(options.cwd !== undefined && { cwd: options.cwd }),
             ...(options.env !== undefined && { env: options.env }),
@@ -111,6 +120,7 @@ export class ClaudeProxyProvider implements LLMProvider {
             this.model,
         ];
         if (this.effort) args.push('--effort', this.effort);
+        if (this.safeMode) args.push('--safe-mode');
         if (options.system) {
             args.push('--system-prompt', options.system);
         }

@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 import { ClaudeProxyProvider } from '../src/llm/claude-proxy.js';
+import { scriptClaude } from '../soak/providers.js';
 
 interface SpawnCall {
     binary: string;
@@ -22,6 +25,9 @@ let activeSpawnState: {
 // When true, every fs.access call rejects with ENOENT — lets us simulate
 // "no claude binary anywhere" regardless of what's actually on disk.
 let forceAccessFail = false;
+// A path fs.access reports as executable, so discovery finds a binary that
+// isn't there (spawn is faked anyway).
+let fakeExecutable: string | null = null;
 
 // Same pattern as the spawn mock: a module-level toggle that tests flip on,
 // since fs.access is itself an ESM read-only binding (vi.spyOn fails).
@@ -33,9 +39,16 @@ vi.mock('node:fs/promises', async () => {
             if (forceAccessFail) {
                 return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
             }
+            if (path === fakeExecutable) return Promise.resolve();
             return actual.access(path, mode);
         }) as typeof actual.access,
     };
+});
+
+// scriptClaude makes its working directory under ~/.cache; not from a test.
+vi.mock('node:fs', async () => {
+    const actual = await vi.importActual<typeof import('node:fs')>('node:fs');
+    return { ...actual, mkdirSync: (() => undefined) as typeof actual.mkdirSync };
 });
 
 // vi.mock is hoisted; the factory closes over a module-level state object
@@ -96,10 +109,13 @@ describe('ClaudeProxyProvider', () => {
             effort: 'low',
             cwd: '/somewhere/empty',
             env: { PATH: '/bin' },
+            safeMode: true,
         });
         await provider.complete([{ role: 'user', content: 'hi' }]);
         const { args, options } = calls[0]!;
         expect(args[args.indexOf('--effort') + 1]).toBe('low');
+        expect(args.indexOf('--safe-mode')).toBeGreaterThan(-1);
+        expect(args.indexOf('--safe-mode')).toBeLessThan(args.indexOf('--'));
         expect(options?.cwd).toBe('/somewhere/empty');
         expect(options?.env).toEqual({ PATH: '/bin' });
         // Left alone, it inherits both.
@@ -126,6 +142,7 @@ describe('ClaudeProxyProvider', () => {
         // Or every MCP tool the user has rides along in every turn.
         expect(args).toContain('--strict-mcp-config');
         expect(args).not.toContain('--effort');
+        expect(args).not.toContain('--safe-mode');
         expect(args).toContain('--output-format');
         expect(args).toContain('json');
         expect(args).toContain('--system-prompt');
@@ -288,5 +305,38 @@ describe('ClaudeProxyProvider', () => {
         expect(result.inputTokens).toBeNull();
         expect(result.outputTokens).toBeNull();
         expect(result.cacheReadTokens).toBeNull();
+    });
+});
+
+describe('scriptClaude on the subscription', () => {
+    const vars = ['PATH', 'ALOUD_CLAUDE_VIA', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE'] as const;
+
+    it("starts the CLI clear of the key, the agent session, the repo and the developer's own setup", async () => {
+        const saved = vars.map((name) => [name, process.env[name]] as const);
+        process.env['PATH'] = '/fake/bin';
+        delete process.env['ALOUD_CLAUDE_VIA'];
+        process.env['ANTHROPIC_API_KEY'] = 'sk-test';
+        process.env['CLAUDE_CODE_SESSION_ID'] = 'session';
+        process.env['CLAUDECODE'] = '1';
+        fakeExecutable = '/fake/bin/claude';
+        try {
+            const calls = fakeSpawn(JSON.stringify({ result: 'ok' }));
+            await scriptClaude('claude-haiku-5-5').complete([{ role: 'user', content: 'hi' }]);
+            const { binary, args, options } = calls[0]!;
+            expect(binary).toBe('/fake/bin/claude');
+            // Without it a SessionStart hook's output reaches the model under test.
+            expect(args).toContain('--safe-mode');
+            // Also drops the hooks, but signs in only with ANTHROPIC_API_KEY.
+            expect(args).not.toContain('--bare');
+            const env = Object.keys(options?.env ?? {});
+            expect(env.filter((name) => /^(ANTHROPIC_|CLAUDE_CODE|CLAUDECODE$)/.test(name))).toEqual([]);
+            expect(options?.cwd).toBe(join(homedir(), '.cache', 'aloud', 'claude-cli'));
+        } finally {
+            fakeExecutable = null;
+            for (const [name, value] of saved) {
+                if (value === undefined) delete process.env[name];
+                else process.env[name] = value;
+            }
+        }
     });
 });

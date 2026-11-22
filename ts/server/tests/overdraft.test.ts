@@ -9,7 +9,7 @@
  * and TTS calls arriving together must not each be admitted on one balance.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import { buildDeps, type Deps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
@@ -192,9 +192,13 @@ describe('POST /cloud/v1/llm/complete: overdraft ceiling', () => {
             [ordinary.system, ...ordinary.messages.map((m) => m.content)],
             MAX_OUTPUT_TOKENS
         );
-        const burst = Array.from({ length: 30 }, () => complete(app, token, ordinary));
-        // Let every request reach its gate before any provider call returns.
-        await new Promise((r) => setTimeout(r, 50));
+        // Until the gate opens, a request either waits there (counted in
+        // log.calls) or has been answered with a refusal.
+        let answered = 0;
+        const burst = Array.from({ length: 30 }, () =>
+            Promise.resolve(complete(app, token, ordinary)).finally(() => answered++)
+        );
+        await vi.waitFor(() => expect(log.calls + answered).toBe(30), { timeout: 4_000 });
         expect(log.calls).toBeGreaterThan(0);
         expect(log.calls).toBeLessThanOrEqual(Math.floor(MAX_UNCOVERED_CREDITS / (perTurn - 0.05)) + 1);
         expect(deps.overdraft.openFor(accountId)).toBeLessThanOrEqual(MAX_UNCOVERED_CREDITS);

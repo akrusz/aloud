@@ -69,12 +69,16 @@ const DEFAULT_CLAUDE = 'claude-sonnet-5-5';
  * use the key when the request itself is what is being measured (latency,
  * caching, a model about to ship).
  *
- * Three things the CLI would otherwise inherit from a script:
+ * Four things the CLI would otherwise inherit from a script:
  * - ANTHROPIC_API_KEY, which loadServerEnv has just put in the environment.
  *   With it set the CLI bills the key, silently.
  * - The repo as working directory: it reads CLAUDE.md from there and every
  *   parent, and the facilitator would get this project's agent instructions.
  * - The CLAUDE_CODE* variables of an agent session running the script.
+ * - The developer's own Claude Code setup, which no working directory avoids:
+ *   their hooks (a `bd prime` SessionStart hook put the beads tracker in front
+ *   of the model under test) and ~/.claude/CLAUDE.md. safeMode leaves them
+ *   out; checkSubscriptionIsolation is the live check that it still does.
  */
 export function scriptClaude(model: string = DEFAULT_CLAUDE): LLMProvider {
     if (claudeVia() === 'api') return new AnthropicProvider({ apiKey: requireKey('anthropic'), model });
@@ -95,7 +99,34 @@ function subscriptionClaude(model: string): LLMProvider {
         // The API path pins these models to low and switches thinking off on
         // the rest, which the CLI has no flag for; low is as near as it gets.
         effort: 'low',
+        safeMode: true,
     });
+}
+
+/**
+ * Opt-in live check for a soak or eval run to make before it starts: one short
+ * call on the subscription, which must reach the model with nothing of the
+ * developer's own Claude Code setup in the conversation. The model quotes the
+ * start of what it was given, and the tells are the `bd prime` hook's output
+ * (it names beads) and a CLAUDE.md. The prompt must name neither, or the model
+ * echoes them back. Throws with the reply when it finds one.
+ */
+export async function checkSubscriptionIsolation(
+    provider: LLMProvider = subscriptionClaude('haiku')
+): Promise<void> {
+    const { text } = await provider.complete(
+        [
+            {
+                role: 'user',
+                content:
+                    'Quote the first three lines of each block of text you were given before this message, apart from the system prompt. If there is none, reply NONE.',
+            },
+        ],
+        { system: 'Answer literally and briefly.' }
+    );
+    if (/\bbeads?\b|\bbd prime\b|SessionStart|CLAUDE\.md/i.test(text)) {
+        throw new Error(`the claude CLI is handing the developer's own setup to the model: ${text.slice(0, 400)}`);
+    }
 }
 
 export function buildProviderFromSpec(spec: string): LLMProvider {

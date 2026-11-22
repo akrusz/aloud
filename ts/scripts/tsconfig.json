@@ -1,0 +1,18 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        // Typecheck only; tsx runs the scripts and evals directly, stripping
+        // types, so without this project nothing checks them. rootDir dropped
+        // so they typecheck alongside the core, server and UI code they import.
+        "noEmit": true,
+        "rootDir": "..",
+        // Server modules some scripts import resolve @aloud/core this way
+        // (server/tsconfig.json, which the jev:* scripts run under).
+        "paths": {
+            "@aloud/core": ["../src/index.ts"],
+            "@aloud/core/*": ["../src/*"]
+        }
+    },
+    "include": ["./**/*.ts", "../evals/**/*.ts"],
+    "exclude": ["node_modules"]
+}
