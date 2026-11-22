@@ -119,7 +119,13 @@ Endpoints:
   path. All stream NDJSON; the settings controls bar drives them.
 - `/app/v1/llm/claude_proxy/complete` - spawns the local `claude` CLI via
   `tokio::process` with the provider's flags, prompt encoding, JSON parsing, and
-  90 s timeout. See `src-tauri/src/llm.rs`.
+  90 s timeout. See `src-tauri/src/llm.rs`. It runs in an empty app-owned dir
+  with `--safe-mode`, so the user's own Claude Code setup (their hooks, every
+  CLAUDE.md, plugins, auto-memory) stays out of the facilitator's
+  conversation; a CLI older than 2.1.169 rejects the flag, and `run_claude`
+  then reruns the call without it and leaves it out for the rest of the
+  app's run. `/app/v1/llm/claude_proxy/probe` goes through the same path.
+  The live check is the ignored test `claude_cli_leaves_out_user_setup`.
 - `/app/v1/sessions` (+ `/sessions/{id}`) - desktop session persistence: one
   JSON file per session under `<app-data>/sessions/`, so saved sessions are
   durable, openable files rather than webview localStorage. `{id}` is charset-

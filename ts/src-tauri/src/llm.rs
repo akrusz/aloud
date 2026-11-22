@@ -7,7 +7,8 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Stdio;
+use std::process::{Output, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -72,19 +73,21 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
     })?;
 
     let model = req.model.as_deref().filter(|s| !s.is_empty()).unwrap_or(DEFAULT_MODEL);
-    let mut cmd = claude_command(&binary, cwd, model);
+    let mut tail = Vec::new();
     if let Some(system) = req.system.as_deref().filter(|s| !s.is_empty()) {
-        cmd.arg("--system-prompt").arg(system);
+        tail.extend(["--system-prompt".to_string(), system.to_string()]);
     }
     // `--` ends the options. A lone user turn is passed verbatim, and without
     // it one starting with a dash was parsed as a CLI option (`--help` printed
     // the usage; `--settings`/`--mcp-config` take inline config).
-    cmd.arg("--").arg(format_history(&req.messages));
+    tail.extend(["--".to_string(), format_history(&req.messages)]);
 
-    let output = match timeout(TIMEOUT, cmd.output()).await {
-        Ok(Ok(o)) => o,
-        Ok(Err(e)) => return Err(ProxyError::new(500, format!("failed to run claude: {e}"))),
-        Err(_) => return Err(ProxyError::new(504, "claude CLI timed out")),
+    let output = match run_claude(&binary, cwd, model, &tail, TIMEOUT).await {
+        Ok(o) => o,
+        Err(RunError::Spawn(e)) => {
+            return Err(ProxyError::new(500, format!("failed to run claude: {e}")))
+        }
+        Err(RunError::Timeout) => return Err(ProxyError::new(504, "claude CLI timed out")),
     };
 
     if !output.status.success() {
@@ -120,7 +123,10 @@ pub async fn claude_complete(req: CompleteRequest, cwd: &Path) -> Result<Value, 
 ///     user could plant config the CLI would obey);
 ///   - it's outside home/Documents, so the CLI's first-run project scan
 ///     doesn't trip the macOS "allow access to your files" prompt.
-fn claude_command(binary: &Path, cwd: &Path, model: &str) -> Command {
+///
+/// The cwd can't keep out the user's own Claude Code setup (their hooks,
+/// ~/.claude/CLAUDE.md): `safe_mode` does, and `run_claude` decides it.
+fn claude_command(binary: &Path, cwd: &Path, model: &str, safe_mode: bool) -> Command {
     let mut cmd = Command::new(binary);
     cmd.current_dir(cwd)
         .args(["-p", "--tools", "", "--no-session-persistence", "--disable-slash-commands"])
@@ -129,13 +135,91 @@ fn claude_command(binary: &Path, cwd: &Path, model: &str) -> Command {
         // definition in every turn (32,604 input tokens against 579 for a
         // two-word prompt, measured 2026-10-11) and callable mid-session.
         .arg("--strict-mcp-config")
-        .args(["--output-format", "json", "--model", model])
+        .args(["--output-format", "json", "--model", model]);
+    if safe_mode {
+        // Leaves out the user's hooks, every CLAUDE.md (~/.claude/CLAUDE.md
+        // too, which no cwd avoids), their plugins and auto-memory; sign-in,
+        // settings and `--model` are untouched. Without it a SessionStart
+        // hook's output and the global CLAUDE.md sat in front of the
+        // facilitator in every turn (1,853 input tokens against 625 for a
+        // two-word turn, measured 2026-11-22). `--bare` drops these too but
+        // signs in only with an API key, so it would lose the subscription.
+        cmd.arg("--safe-mode");
+    }
+    // tokio's `output()`, unlike std's, inherits stdin. On a pipe that never
+    // closes (a dev run started from a script) the CLI waits 3 s for stdin
+    // data before every turn.
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         // On timeout the `output()` future is dropped mid-flight; without this
         // the CLI is orphaned and keeps burning quota in the background.
         .kill_on_drop(true);
     cmd
+}
+
+/// Set once the installed CLI has rejected `--safe-mode` (the flag arrived in
+/// Claude Code 2.1.169), so later calls leave it out instead of failing first.
+/// It lasts for the app's run: a CLI upgraded meanwhile gets the flag after a
+/// relaunch.
+static SAFE_MODE_REJECTED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug)]
+enum RunError {
+    Spawn(std::io::Error),
+    Timeout,
+}
+
+/// Run `claude_command` followed by `tail` (system prompt, prompt) within
+/// `limit`, with `--safe-mode` unless this CLI has rejected it. A CLI too old
+/// for the flag exits at once (about 0.1 s, no quota) on the unknown option;
+/// that run is repeated without it and the rejection remembered, so an old CLI
+/// costs the isolation, never the turn.
+async fn run_claude(
+    binary: &Path,
+    cwd: &Path,
+    model: &str,
+    tail: &[String],
+    limit: Duration,
+) -> Result<Output, RunError> {
+    run_claude_with(&SAFE_MODE_REJECTED, binary, cwd, model, tail, limit).await
+}
+
+async fn run_claude_with(
+    rejected: &AtomicBool,
+    binary: &Path,
+    cwd: &Path,
+    model: &str,
+    tail: &[String],
+    limit: Duration,
+) -> Result<Output, RunError> {
+    let attempts = async {
+        let safe_mode = !rejected.load(Ordering::Relaxed);
+        let mut cmd = claude_command(binary, cwd, model, safe_mode);
+        let output = cmd.args(tail).output().await?;
+        if !(safe_mode && rejects_safe_mode(&output)) {
+            return Ok(output);
+        }
+        rejected.store(true, Ordering::Relaxed);
+        let mut cmd = claude_command(binary, cwd, model, false);
+        cmd.args(tail).output().await
+    };
+    match timeout(limit, attempts).await {
+        Ok(Ok(o)) => Ok(o),
+        Ok(Err(e)) => Err(RunError::Spawn(e)),
+        Err(_) => Err(RunError::Timeout),
+    }
+}
+
+/// Did the CLI fail because it doesn't know `--safe-mode`? Its option parser
+/// (commander) exits 1 with `error: unknown option '--safe-mode'` on stderr,
+/// sometimes followed by a "(Did you mean ...?)" line.
+fn rejects_safe_mode(output: &Output) -> bool {
+    if output.status.success() {
+        return false;
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    stderr.contains("unknown option") && stderr.contains("--safe-mode")
 }
 
 /// The CLI can report failure in-band (`is_error`), even on a zero exit.
@@ -262,13 +346,11 @@ async fn run_probe(model: &str, cwd: &Path) -> ProbeStatus {
     let Ok(binary) = which::which("claude") else {
         return ProbeStatus::CliMissing;
     };
-    let mut cmd = claude_command(&binary, cwd, model);
-    cmd.arg("Reply with just: ok");
-
-    let output = match timeout(PROBE_TIMEOUT, cmd.output()).await {
-        Ok(Ok(o)) => o,
+    let tail = ["Reply with just: ok".to_string()];
+    let output = match run_claude(&binary, cwd, model, &tail, PROBE_TIMEOUT).await {
+        Ok(o) => o,
         // Couldn't launch or timed out: inconclusive, not a removal.
-        Ok(Err(_)) | Err(_) => return ProbeStatus::Unknown,
+        Err(_) => return ProbeStatus::Unknown,
     };
 
     if !output.status.success() {
@@ -383,6 +465,118 @@ mod tests {
         assert_eq!(cli_failure_detail(&out), "not json at all");
     }
 
+    fn args_of(cmd: &Command) -> Vec<String> {
+        cmd.as_std().get_args().map(|a| a.to_string_lossy().into_owned()).collect()
+    }
+
+    #[test]
+    fn safe_mode_flag_is_the_only_difference() {
+        let cmd = |safe| claude_command(Path::new("claude"), Path::new("."), "haiku", safe);
+        let with = args_of(&cmd(true));
+        let without = args_of(&cmd(false));
+        assert_eq!(
+            without,
+            [
+                "-p", "--tools", "", "--no-session-persistence", "--disable-slash-commands",
+                "--strict-mcp-config", "--output-format", "json", "--model", "haiku",
+            ]
+        );
+        assert_eq!(with.iter().filter(|a| *a == "--safe-mode").count(), 1);
+        let rest: Vec<String> = with.into_iter().filter(|a| a != "--safe-mode").collect();
+        assert_eq!(rest, without);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_safe_mode_only_on_the_parser_error_for_it() {
+        assert!(rejects_safe_mode(&failed_output("", "error: unknown option '--safe-mode'\n")));
+        assert!(rejects_safe_mode(&failed_output(
+            "",
+            "error: unknown option '--safe-mode'\n(Did you mean --some-mode?)\n",
+        )));
+        assert!(!rejects_safe_mode(&failed_output("", "error: unknown option '--effort'\n")));
+        assert!(!rejects_safe_mode(&failed_output(
+            "{\"is_error\": true, \"result\": \"Claude usage limit reached\"}",
+            "",
+        )));
+        let mut ok = failed_output("{}", "error: unknown option '--safe-mode'");
+        ok.status = {
+            use std::os::unix::process::ExitStatusExt;
+            std::process::ExitStatus::from_raw(0)
+        };
+        assert!(!rejects_safe_mode(&ok));
+    }
+
+    /// A stand-in `claude` in its own temp dir that appends each run's args to
+    /// `calls.log` and prints a JSON result. With `old` it rejects
+    /// `--safe-mode` the way a CLI older than 2.1.169 does.
+    #[cfg(unix)]
+    fn fake_cli(name: &str, old: bool) -> (std::path::PathBuf, std::path::PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir()
+            .join(format!("aloud-llm-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("calls.log");
+        let reject = if old {
+            r#"for a in "$@"; do if [ "$a" = --safe-mode ]; then echo "error: unknown option '--safe-mode'" >&2; exit 1; fi; done"#
+        } else {
+            ""
+        };
+        let script = format!(
+            "#!/bin/sh\necho \"$*\" >> '{}'\n{reject}\nprintf '%s' '{{\"result\":\"ok\"}}'\n",
+            log.display()
+        );
+        let bin = dir.join("claude");
+        std::fs::write(&bin, script).unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        (bin, log)
+    }
+
+    #[cfg(unix)]
+    async fn run_fake(rejected: &AtomicBool, bin: &Path) -> Output {
+        let tail = ["--".to_string(), "hi".to_string()];
+        let out = run_claude_with(rejected, bin, bin.parent().unwrap(), "haiku", &tail, TIMEOUT)
+            .await
+            .expect("fake CLI ran");
+        assert!(out.status.success());
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "{\"result\":\"ok\"}");
+        out
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn current_cli_gets_safe_mode() {
+        let (bin, log) = fake_cli("current", false);
+        let rejected = AtomicBool::new(false);
+        run_fake(&rejected, &bin).await;
+        assert!(!rejected.load(Ordering::Relaxed));
+        let calls = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(calls.lines().count(), 1);
+        assert!(calls.contains("--safe-mode") && calls.contains(" -- hi"));
+        let _ = std::fs::remove_dir_all(bin.parent().unwrap());
+    }
+
+    // An old CLI fails every turn on an unknown flag, which is far worse than
+    // the leak the flag closes: the turn is rerun without it, and later turns
+    // leave it out from the start.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn old_cli_runs_without_safe_mode_and_is_remembered() {
+        let (bin, log) = fake_cli("old", true);
+        let rejected = AtomicBool::new(false);
+        run_fake(&rejected, &bin).await;
+        assert!(rejected.load(Ordering::Relaxed));
+        run_fake(&rejected, &bin).await;
+        let calls = std::fs::read_to_string(&log).unwrap();
+        let calls: Vec<&str> = calls.lines().collect();
+        assert_eq!(calls.len(), 3, "{calls:?}");
+        assert!(calls[0].contains("--safe-mode"));
+        assert!(!calls[1].contains("--safe-mode") && calls[1].ends_with(" -- hi"));
+        assert!(!calls[2].contains("--safe-mode") && calls[2].ends_with(" -- hi"));
+        let _ = std::fs::remove_dir_all(bin.parent().unwrap());
+    }
+
     /// Real `claude` CLI round-trip. Needs the authenticated CLI and spends
     /// subscription quota, so ignored by default; run with
     /// `cargo test claude_cli_round_trip -- --ignored`.
@@ -401,5 +595,39 @@ mod tests {
         let text = body.get("text").and_then(|v| v.as_str()).unwrap_or("");
         assert!(!text.is_empty(), "empty completion text");
         assert!(body.get("tokens_used").and_then(|v| v.as_u64()).unwrap_or(0) > 0);
+    }
+
+    /// Live check that the user's own Claude Code setup stays out of the
+    /// facilitator's conversation: the model quotes what came before the
+    /// prompt, and a hook's output or a CLAUDE.md must not be in it. Telling
+    /// only on a machine with a global CLAUDE.md or a SessionStart hook. Spends
+    /// subscription quota, so ignored by default; run with
+    /// `cargo test claude_cli_leaves_out_user_setup -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn claude_cli_leaves_out_user_setup() {
+        let binary = which::which("claude").expect("claude on PATH");
+        let tail = [
+            "--system-prompt",
+            "Answer literally and briefly.",
+            "--",
+            "Quote the first three lines of each block of text you were given before \
+             this message, apart from the system prompt. If there is none, reply NONE.",
+        ]
+        .map(String::from);
+        let out = run_claude(&binary, &std::env::temp_dir(), "haiku", &tail, TIMEOUT)
+            .await
+            .expect("claude ran");
+        let data: Value = serde_json::from_slice(&out.stdout).expect("claude printed JSON");
+        let input: u64 = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"]
+            .iter()
+            .map(|k| data["usage"][k].as_u64().unwrap_or(0))
+            .sum();
+        let reply = data["result"].as_str().unwrap_or("");
+        println!("input tokens: {input}\nreply: {reply}");
+        let lower = reply.to_lowercase();
+        for tell in ["claude.md", "sessionstart", "hook"] {
+            assert!(!lower.contains(tell), "the user's setup reached the model ({tell}): {reply}");
+        }
     }
 }
