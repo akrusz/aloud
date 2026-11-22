@@ -101,7 +101,10 @@ GPT gets no hint for the names either (`meditation-pal-bpgu`).
       been looked up.
 - [ ] **Send for review.** The closed track can stay as it is: a tester on
       both gets whichever track holds the highest versionCode. The beta
-      bonus stays on.
+      bonus stays on, at 10 credits since 2026-11-21 (Alex lowered it from
+      40 in the admin panel for the open beta; the override lives in the
+      production database, and `ALOUD_BETA_BONUS_CREDITS` still defaults
+      to 40).
 
 **C. When Play approves**
 
