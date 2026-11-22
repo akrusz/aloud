@@ -35,6 +35,7 @@
         "stt:clip-sink": "tsx scripts/stt-clip-sink.ts",
         "soak": "tsx soak/run.ts",
         "soak:web": "tsx soak/browser/run.ts",
+        "evals:report": "tsx evals/report.ts",
         "ui:dev": "vite --config ui/vite.config.ts",
         "ui:build": "vite build --config ui/vite.config.ts",
         "ui:build:hosted": "ALOUD_HOSTED=1 vite build --config ui/vite.config.ts",
