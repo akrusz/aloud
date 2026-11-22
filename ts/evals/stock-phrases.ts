@@ -2,8 +2,10 @@
  * Stock phrases: the therapy-speak and meditation-app filler a facilitator
  * reaches for instead of the meditator's own words. The report counts, per
  * model, the replies that contain one (aggregate.ts styleOf). A count for a
- * reader, never a verdict rule. Cut or add freely; matching is
- * case-insensitive, on word boundaries, so "allow" does not match "allowing".
+ * reader, never a verdict rule. Kept to the phrases that are a tell wherever
+ * they appear: softeners that are fine in the right place ("gently", "allow",
+ * "sit with") are left to the judge (rubric.md, 9). Matching is
+ * case-insensitive, on word boundaries.
  */
 export const STOCK_PHRASES: readonly string[] = [
     'I hear you',
@@ -11,23 +13,15 @@ export const STOCK_PHRASES: readonly string[] = [
     'that makes sense',
     'thank you for sharing',
     "I'm here with you",
-    "it's okay to",
     "that's completely normal",
     "that's valid",
     'take all the time you need',
     "let's explore",
     'I invite you to',
-    'absolutely',
-    'beautiful',
-    'powerful',
     'holding space',
     'hold space',
-    'sit with',
     'lean into',
     'whatever arises',
-    'just notice',
-    'gently',
-    'allow',
     'no right or wrong',
 ];
 

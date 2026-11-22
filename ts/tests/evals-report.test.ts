@@ -207,29 +207,29 @@ describe('summarizeEvals', () => {
 
 describe('stock phrases', () => {
     it('matches whole words, any case, curly apostrophes included', () => {
-        expect(stockPhrasesIn('Gently now. I’m here with you.')).toEqual(["I'm here with you", 'gently']);
-        expect(stockPhrasesIn('Allowing it, just noticing.')).toEqual([]);
-        expect(stockPhrasesIn("That 'allow' word again")).toEqual(['allow']);
+        expect(stockPhrasesIn('Lean into it. I’m here with you.')).toEqual(["I'm here with you", 'lean into']);
+        expect(stockPhrasesIn('Allowing it, just noticing.', ['allow', 'just notice'])).toEqual([]);
+        expect(stockPhrasesIn("That 'allow' word again", ['allow'])).toEqual(['allow']);
         expect(stockPhrasesIn('I hear your breath')).toEqual([]);
         expect(stockPhrasesIn('ABSOLUTELY.', ['absolutely'])).toEqual(['absolutely']);
     });
 
     it('counts per 100 replies, questions and the most repeated opening, without the acute turns', () => {
         const s = styleOf([
-            { fixture: 'hold/explicit', spoken: "What's that like, gently?" },
+            { fixture: 'hold/explicit', spoken: "What's that like, whatever arises?" },
             { fixture: 'hold/explicit', spoken: "What's that like right now?" },
             { fixture: 'brevity/deepening', spoken: 'Letting it be.' },
             { fixture: 'brevity/deepening', spoken: '' },
-            { fixture: 'stepping-out/danger', spoken: 'Gently, open your eyes. Is someone near?' },
-            { fixture: 'stepping-out/not-tears', spoken: 'Allow the tears.' },
+            { fixture: 'stepping-out/danger', spoken: 'I hear you. Open your eyes. Is someone near?' },
+            { fixture: 'stepping-out/not-tears', spoken: "That's valid, the tears." },
         ]);
         expect(s).toEqual({
             replies: 4,
             stockReplies: 2,
             per100: 50,
             phrases: [
-                { phrase: 'allow', replies: 1 },
-                { phrase: 'gently', replies: 1 },
+                { phrase: "that's valid", replies: 1 },
+                { phrase: 'whatever arises', replies: 1 },
             ],
             questionShare: 0.5,
             topOpening: { words: "what's that like", count: 2 },
