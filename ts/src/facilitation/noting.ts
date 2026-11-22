@@ -16,6 +16,7 @@ import {
     ZH_NOTING_STATIC_OPENERS,
     type SessionLanguage,
 } from './language.js';
+import { isReasoningAloud } from './reasoning.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
 export const NOTING_SYSTEM_PROMPT = `You're part of a noting meditation circle.
@@ -178,7 +179,8 @@ export async function generateNotingLabel(
             .replace(/^["']+|["']+$/g, '') // strip surrounding quotes
             .replace(/[.!?,。!?,]+$/, '') // strip trailing punctuation
             .toLowerCase();
-        return cleaned || (language === 'zh-CN' ? '呼吸' : 'breathing');
+        if (cleaned && !isReasoningAloud(cleaned)) return cleaned;
+        return language === 'zh-CN' ? '呼吸' : 'breathing';
     } catch {
         return language === 'zh-CN' ? '呼吸' : 'breathing';
     }

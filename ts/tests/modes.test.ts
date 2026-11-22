@@ -35,6 +35,7 @@ describe('parseTurnSignals', () => {
             stage: 'none',
             waitSec: null,
             cleanText: 'What do you notice?',
+            reasoning: false,
         });
     });
 
@@ -105,6 +106,75 @@ describe('parseTurnSignals', () => {
         const r = parseTurnSignals('<think>They want quiet.</think>[HOLD] I am right here.');
         expect(r.hold).toBe(true);
         expect(r.cleanText).toBe('I am right here.');
+    });
+});
+
+// meditation-pal-wgtb: the opening tag was in the prompt (Qwen-style chat
+// templates), so the reply is reasoning, a bare closing tag, then the reply.
+describe('a closing reasoning tag with no opening one', () => {
+    // bonsai-2:27b, ts/evals/results/ollama-tiers-2026-11-14/bonsai-2-27b.json
+    const BONSAI =
+        "[Step out mode: frightened, can't tell where they are, in danger?]\n\nStop facilitating. Don't ask what it feels like.\n\nTalk plainly. Tell them what to do.\n\n\"Okay. That sounds scary. Can you open your eyes for a moment and look around the room? Take your time.\"\n\nThen: \"Are you okay to keep going?\"\n</think>\n\nOkay, that sounds scary. Can you open your eyes for a second and look around the room? Take your time.";
+    const BONSAI_REPLY = 'Okay, that sounds scary. Can you open your eyes for a second and look around the room? Take your time.';
+
+    it('drops everything up to it, in the turn parser and the scrub', () => {
+        expect(parseTurnSignals(BONSAI)).toEqual({
+            hold: false,
+            stage: 'none',
+            waitSec: null,
+            cleanText: BONSAI_REPLY,
+            reasoning: false,
+        });
+        expect(scrubControlTokens(BONSAI)).toBe(BONSAI_REPLY);
+        expect(scrubControlTokens('It was all reasoning.</thinking> Rest here.')).toBe('Rest here.');
+    });
+
+    it('is an empty reply, not a reply of only signals, when nothing follows it', () => {
+        const r = parseTurnSignals('Stop facilitating. Tell them what to do.\n</think>\n');
+        expect(r).toEqual({ hold: false, stage: 'none', waitSec: null, cleanText: '', reasoning: true });
+        expect(scrubControlTokens('Stop facilitating.</think>')).toBe('');
+        // A closed block with nothing after it is the same.
+        expect(parseTurnSignals('<think>They want quiet.</think>').reasoning).toBe(true);
+    });
+
+    it('reads the signals at the front of what follows it', () => {
+        const r = parseTurnSignals('They asked for quiet, so a hold.</think>[HOLD] [WAIT:10m] I will be right here.');
+        expect(r).toMatchObject({ hold: true, waitSec: 600, cleanText: 'I will be right here.', reasoning: false });
+        // Signals alone after it are a legitimate turn of only signals.
+        expect(parseTurnSignals('Quiet now.</think>[WAIT:8m]')).toMatchObject({ waitSec: 480, cleanText: '', reasoning: false });
+    });
+
+    it('drops up to the last one when there are several, and pairs blocks first', () => {
+        expect(parseTurnSignals('one</think> two </think> Rest here.').cleanText).toBe('Rest here.');
+        expect(parseTurnSignals('<think>a</think> stray </think> Rest here.').cleanText).toBe('Rest here.');
+        expect(parseTurnSignals('<thinking>mismatched</think> Rest here.').cleanText).toBe('Rest here.');
+    });
+
+    it('leaves an opening tag that never closed as it was: tag gone, words kept', () => {
+        expect(parseTurnSignals('<think>Notice the breath at the belly.')).toMatchObject({
+            cleanText: 'Notice the breath at the belly.',
+            reasoning: false,
+        });
+    });
+});
+
+// meditation-pal-dqti: reasoning with no tags, or reasoning whose tag never
+// closed, reads as the model talking about the meditator.
+describe('a reply that reads as reasoning', () => {
+    it('is an empty reply with no signals', () => {
+        expect(parseTurnSignals('[NEXT] [HOLD] The user wants quiet. I should offer a hold.')).toEqual({
+            hold: false,
+            stage: 'none',
+            waitSec: null,
+            cleanText: '',
+            reasoning: true,
+        });
+        expect(parseTurnSignals('<think>The user is describing fear. I could ask where it sits.').reasoning).toBe(true);
+    });
+
+    it('leaves a reply spoken to the meditator alone', () => {
+        expect(parseTurnSignals('[HOLD] Shall I keep quiet for a while?')).toMatchObject({ hold: true, reasoning: false });
+        expect(parseTurnSignals('The app waits until the user stops speaking, so take your time.').reasoning).toBe(false);
     });
 });
 
@@ -204,6 +274,7 @@ describe('parseTurnSignals on mangled tokens', () => {
             stage: 'none',
             waitSec: null,
             cleanText: line,
+            reasoning: false,
         });
     });
 });

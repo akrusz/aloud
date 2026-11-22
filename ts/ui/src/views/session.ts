@@ -24,6 +24,7 @@ import {
     routeUtterance,
     isMuteCommand,
     isEndCommand,
+    opensWithReturn,
     endConfirmReply,
     answerPace,
     HOLD_REENTRY_GRACE_MS,
@@ -2372,19 +2373,24 @@ export async function mountSessionView(
         silenceBuffer.push(userText);
         setStatus(t('Going quiet, one moment…'));
         const classifyStart = Date.now();
+        // "I'm back" opening the utterance resumes with no classifier, which
+        // loses it in a run-on sentence (core return-command.ts).
+        const byWords = opensWithReturn(userText);
         // The resume classifiers hear a frightened line as thinking out loud
         // ("describing experience"), so the trouble check is asked beside them:
         // a meditator in trouble inside a hold gets the facilitator back.
         const [verdict, troubled] = await Promise.all([
-            classifyResumeIntent(utilityProvider, userText, {
-                ...classifierOptions,
-                // Everything buffered in this hold before the utterance being judged.
-                judgeContext: { earlier: silenceBuffer.slice(0, -1) },
-            }),
+            byWords
+                ? ('resume' as const)
+                : classifyResumeIntent(utilityProvider, userText, {
+                      ...classifierOptions,
+                      // Everything buffered in this hold before the utterance being judged.
+                      judgeContext: { earlier: silenceBuffer.slice(0, -1) },
+                  }),
             troubleFor(userText).verdict,
         ]);
-        tapCall('classify-resume', Date.now() - classifyStart);
-        tapEvent('classifier', 'resume', { verdict, utterance: userText });
+        if (!byWords) tapCall('classify-resume', Date.now() - classifyStart);
+        tapEvent('classifier', 'resume', { verdict, utterance: userText, ...(byWords && { by: 'words' }) });
         // The user may have toggled out of the hold (or the view torn down)
         // during the classifier round-trip; bail so we don't resurrect it.
         if (torn || !silenceMode) return;
@@ -2672,19 +2678,25 @@ export async function mountSessionView(
             // they happen. Not after a safety-classifier refusal: the same
             // prompt mostly draws the same decline, and where the model has a
             // fallback the server already tried it (anthropic.ts
-            // takesRefusalFallback), so a retry only adds dead air.
+            // takesRefusalFallback), so a retry only adds dead air. A reply
+            // that was only the model's reasoning is blank too: it was never
+            // spoken (streaming-tts.ts) and is never stored.
+            const firstReasoning = parseTurnSignals(rawText).reasoning;
             if (
                 cloudSmooth &&
-                !rawText.trim() &&
+                (!rawText.trim() || firstReasoning) &&
                 finishReason !== BILLING_PAUSED_FINISH &&
                 finishReason !== 'refusal'
             ) {
                 console.warn(
-                    `[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars - retrying once`
+                    `[turn] empty completion finish=${finishReason ?? 'null'} raw=${rawText.length} chars${firstReasoning ? ' of reasoning' : ''} - retrying once`
                 );
-                tapEvent('error', 'empty-completion-retry', { finish: finishReason ?? 'null' });
+                tapEvent('error', 'empty-completion-retry', {
+                    finish: finishReason ?? 'null',
+                    ...(firstReasoning && { reasoning: true }),
+                });
                 reportCloudIncident('client_llm_empty_retry', {
-                    detail: `finish=${finishReason ?? 'null'}`,
+                    detail: `finish=${finishReason ?? 'null'}${firstReasoning ? ' reasoning' : ''}`,
                     model: setup.model,
                 });
                 bubble.discard();
@@ -2699,7 +2711,7 @@ export async function mountSessionView(
             clearSlowResponseStatus();
             const turnLatencyMs = Date.now() - turnStart;
             tapCall('turn', turnLatencyMs);
-            const { hold, stage, waitSec, cleanText } = parseTurnSignals(rawText);
+            const { hold, stage, waitSec, cleanText, reasoning } = parseTurnSignals(rawText);
             // A soft-launch-pause canned turn (proxy spoke a graceful apology,
             // charged nothing): show it transiently but keep it OUT of session
             // history/logs so we resume from the last real turn. No buy prompt
@@ -2742,7 +2754,7 @@ export async function mountSessionView(
             // no question was asked, so the meditator's next words are a
             // normal turn, not an answer. (meditation-pal-9era)
             if (!ephemeral && !cleanText.trim()) {
-                if (rawText.trim()) {
+                if (rawText.trim() && !reasoning) {
                     // The model chose to say nothing beyond its signals. That
                     // is a legitimate turn shape (a bare "[WAIT:8m]" after
                     // someone says they want to sit quietly), so go back to
@@ -2758,7 +2770,9 @@ export async function mountSessionView(
                 // blank ("length" = budget eaten, "error" = upstream failed,
                 // null = the stream ended without a done chunk); keep it in
                 // the device log (meditation-pal-yi02).
-                console.warn(`[turn] empty completion finish=${finishReason ?? 'null'} raw=0 chars`);
+                console.warn(
+                    `[turn] empty completion finish=${finishReason ?? 'null'} raw=${rawText.length} chars${reasoning ? ' of reasoning' : ''}`
+                );
                 if (!cloudSmooth) {
                     throw new Error(
                         t('The model returned an empty response. Try again, or check your provider in Settings.')
@@ -2769,9 +2783,12 @@ export async function mountSessionView(
                 // an error toast - their words shouldn't land in dead air, and
                 // the next turn is a fresh request anyway. The operator sees
                 // it in the admin incident log instead.
-                tapEvent('error', 'empty-completion-fallback', { finish: finishReason ?? 'null' });
+                tapEvent('error', 'empty-completion-fallback', {
+                    finish: finishReason ?? 'null',
+                    ...(reasoning && { reasoning: true }),
+                });
                 reportCloudIncident('client_llm_empty_fallback', {
-                    detail: `finish=${finishReason ?? 'null'}`,
+                    detail: `finish=${finishReason ?? 'null'}${reasoning ? ' reasoning' : ''}`,
                     model: setup.model,
                 });
                 const pool = localizePool(EMPTY_REPLY_FALLBACKS, sessionLanguageOf(sessionLanguage));

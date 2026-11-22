@@ -32,6 +32,7 @@ import {
     classifyHoldRequest,
     classifyResumeIntent,
     classifyTrouble,
+    opensWithReturn,
     wantsTroubleCheck,
     STEPPING_OUT_NOTE,
     defaultPacingConfig,
@@ -332,7 +333,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             recordTurnGap();
             return;
         }
-        const { hold, stage, waitSec, cleanText } = parseTurnSignals(raw);
+        const { hold, stage, waitSec, cleanText, reasoning } = parseTurnSignals(raw);
         // Signals first, so a reply that carried nothing BUT signals still lands
         // its intent before the empty turn is dropped (mirrors views/session.ts).
         if (stager && stage !== 'none') {
@@ -357,13 +358,14 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         // so record nothing, speak nothing, and leave awaitingHoldConfirm alone -
         // a bare [HOLD] asked no question. (meditation-pal-9era)
         if (!cleanText.trim()) {
-            if (raw.trim()) {
+            if (raw.trim() && !reasoning) {
                 // Signals and no words ("[WAIT:8m]" after someone asks to sit
                 // quietly): a turn shape the view goes back to listening on.
                 event('signal', 'signal-only-reply', { raw });
             } else {
-                // The view raises an error toast here (own-key sessions).
-                event('error', 'empty-reply');
+                // The view raises an error toast here (own-key sessions). A
+                // reply that was only the model's reasoning is one too.
+                event('error', 'empty-reply', reasoning ? { reasoning: true } : undefined);
             }
             pacing.onResponseEnd();
             recordTurnGap();
@@ -553,14 +555,16 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             silenceBuffer.push(userText);
             const t0 = Date.now();
             const m = metered();
+            // "I'm back" opening it resumes with no classifier, as in the view.
+            const byWords = opensWithReturn(userText);
             // The resume classifiers hear a frightened line as thinking out
             // loud, so the trouble check is asked beside them (handleSilenceUtterance).
             const [verdict, troubled] = await Promise.all([
-                classifyResumeIntent(utility, userText, m.options),
+                byWords ? ('resume' as const) : classifyResumeIntent(utility, userText, m.options),
                 troubleFor(userText),
             ]);
-            calls.push({ kind: 'classify-resume', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
-            event('classifier', 'resume', { verdict, utterance: userText });
+            if (!byWords) calls.push({ kind: 'classify-resume', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
+            event('classifier', 'resume', { verdict, utterance: userText, ...(byWords && { by: 'words' }) });
             if (verdict === 'stay' && !troubled) return;
             // 'resume' or 'error': fail open, as the view does (ff1y).
             const joined = silenceBuffer.join(' ');

@@ -70,6 +70,7 @@ export type {
 export { routeUtterance, HOLD_REENTRY_GRACE_MS } from './silence-dispatch.js';
 export type { UtteranceRoute, SilenceDispatchState } from './silence-dispatch.js';
 export { isMuteCommand } from './mute-command.js';
+export { opensWithReturn } from './return-command.js';
 export { isEndCommand, endConfirmReply, answerPace } from './end-command.js';
 export { isBeginCommand, parseBeginRequest } from './begin-command.js';
 export type { BeginRequest, BeginMode } from './begin-command.js';
@@ -209,6 +210,8 @@ export {
     type StageSignal,
     type TurnSignals,
 } from './modes.js';
+
+export { isReasoningAloud, stripReasoning, speakableSoFar } from './reasoning.js';
 
 export {
     FELT_SENSE_MODE,

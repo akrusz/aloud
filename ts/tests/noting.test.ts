@@ -52,6 +52,12 @@ describe('generateNotingLabel', () => {
         const provider = new StubProvider('<think>let me check</think>tingling');
         const label = await generateNotingLabel(provider);
         expect(label).toBe('tingling');
+        expect(await generateNotingLabel(new StubProvider('A word they have not said.</think>warmth'))).toBe('warmth');
+    });
+
+    it('says "breathing" rather than reasoning that came with no tags', async () => {
+        const label = await generateNotingLabel(new StubProvider('The user wants a one-word label'));
+        expect(label).toBe('breathing');
     });
 
     it('returns "breathing" fallback when the LLM throws', async () => {

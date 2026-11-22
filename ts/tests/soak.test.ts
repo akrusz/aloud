@@ -485,39 +485,69 @@ describe('sim line transform', () => {
 });
 
 describe('back from a hold in one breath (meditation-pal-kbec)', () => {
-    const run = (resume: (text: string) => boolean) =>
-        runSoakSession({
+    const run = (back: string, resume: (text: string) => boolean = () => false) => {
+        const resumeAsked: string[] = [];
+        const utility = utilityBy({
+            resume: (t) => {
+                resumeAsked.push(t);
+                return resume(t);
+            },
+        });
+        return runSoakSession({
             scenario: scenario('back-in-hold'),
             facilitator: new ScriptedFacilitator({
                 turns: ['Settle in.', '[HOLD] Would you like me to be quiet for a while?', 'Welcome back. What was it like?'],
             }),
-            utility: utilityBy({ resume }),
+            utility,
             simUser: new ScriptedSimUser([
                 { waitSec: 60, text: 'Could I have some quiet for a while?' },
                 { waitSec: 10, text: 'Yes, please.' },
                 { waitSec: 300, text: 'Lots of tingling.' },
-                { waitSec: 300, text: "I'm back, it was a lot of tingling and it settled now." },
+                { waitSec: 300, text: back },
                 { waitSec: 30, end: true },
             ]),
-        });
+        }).then((result) => ({ result, resumeAsked }));
+    };
 
-    it('fails when the hold goes on through it', async () => {
-        // The classifier as the bead found it: a bare "I'm back" resumes, one
-        // with the report after it stays.
-        const result = await run((t) => /^(okay )?i'm back$/i.test(t));
+    it('ends the hold on the words, though the classifier would stay', async () => {
+        const { result, resumeAsked } = await run("I'm back, it was a lot of tingling and it settled now.");
         const turn = result.transcript.find((t) => t.text.startsWith("I'm back"));
         expect(turn).toMatchObject({
             text: "I'm back it was a lot of tingling and it settled now",
             said: "I'm back, it was a lot of tingling and it settled now.",
             duringHold: true,
         });
-        expect(runChecks(result).find((f) => f.id === 'back-in-hold')?.level).toBe('fail');
+        expect(eventKeys(result)).toContain('hold:exit');
+        expect(result.events.find((e) => e.detail === 'resume' && e.data?.utterance === turn?.text)?.data).toMatchObject({
+            verdict: 'resume',
+            by: 'words',
+        });
+        // Only the murmur went to the classifier.
+        expect(resumeAsked).toEqual(['Lots of tingling']);
+        expect(runChecks(result).filter((f) => ['back-in-hold', 'scenario-setup-missed'].includes(f.id))).toEqual([]);
     });
 
-    it('passes when the hold ends there', async () => {
-        const result = await run((t) => /i'm back/i.test(t));
-        expect(eventKeys(result)).toContain('hold:exit');
-        expect(runChecks(result).filter((f) => ['back-in-hold', 'scenario-setup-missed'].includes(f.id))).toEqual([]);
+    it('leaves "I\'m back in my body" to the classifier, which keeps the hold', async () => {
+        const { result, resumeAsked } = await run("I'm back in my body now.");
+        expect(resumeAsked).toEqual(['Lots of tingling', "I'm back in my body now"]);
+        expect(eventKeys(result)).not.toContain('hold:exit');
+        expect(runChecks(result).find((f) => f.id === 'back-in-hold')).toBeUndefined();
+    });
+
+    it('fails a hold that went on through the return', () => {
+        // The view as the bead found it: the classifier's stay was the last word.
+        const back = "I'm back it was a lot of tingling and it settled now";
+        const result = fakeResult({
+            scenario: scenario('back-in-hold'),
+            transcript: [
+                { at: 0, role: 'assistant', kind: 'opener', text: 'Settle in.', raw: 'Settle in.' },
+                { at: 400, role: 'user', kind: 'user', text: back, duringHold: true },
+                { at: 700, role: 'user', kind: 'user', text: 'still here', duringHold: true },
+            ],
+            events: [{ at: 400, kind: 'classifier', detail: 'resume', data: { verdict: 'stay', utterance: back } }],
+            finalState: { silenceMode: true, awaitingHoldConfirm: false },
+        });
+        expect(runChecks(result).find((f) => f.id === 'back-in-hold')?.level).toBe('fail');
     });
 
     it('warns when the session never got there', async () => {
@@ -679,16 +709,35 @@ describe('reasoning spoken aloud (meditation-pal-dqti)', () => {
             simUser: new ScriptedSimUser([{ waitSec: 30, text: 'my hands feel far away' }, { waitSec: 30, end: true }]),
         });
 
-    it('fails a reply about the meditator in the third person', async () => {
+    it('withholds a reply about the meditator in the third person, as a blank one', async () => {
         const result = await run(
             'The user is describing dissociation - feeling disconnected from their body. I should: ground them first.'
         );
+        expect(result.transcript.filter((t) => t.role === 'assistant').map((t) => t.kind)).toEqual(['opener']);
+        expect(eventKeys(result)).toContain('error:empty-reply');
+        const findings = runChecks(result);
+        expect(findings.find((f) => f.id === 'reasoning-withheld')?.level).toBe('warn');
+        expect(findings.filter((f) => ['reasoning-aloud', 'empty-reply', 'signal-only-reply', 'empty-spoken-turn'].includes(f.id))).toEqual([]);
+    });
+
+    it('speaks what follows a lone closing tag, and nothing before it', async () => {
+        const result = await run('The user is describing fear. I should acknowledge it.</think>What is that fear like?');
+        expect(result.transcript.at(-1)).toMatchObject({ role: 'assistant', text: 'What is that fear like?' });
+        expect(runChecks(result).filter((f) => f.id.startsWith('reasoning'))).toEqual([]);
+    });
+
+    it('fails a spoken line that reads as reasoning (the engine let it through)', () => {
+        const result = fakeResult({
+            transcript: [
+                { at: 0, role: 'assistant', kind: 'reply', text: 'The user wants a brief opening.', raw: 'x' },
+            ],
+        });
         expect(runChecks(result).find((f) => f.id === 'reasoning-aloud')?.level).toBe('fail');
     });
 
     it('stays quiet on a reply spoken to them, someone else included', async () => {
         const result = await run('Is there a person you trust who could be with you? Your sister, maybe - they could come over.');
-        expect(runChecks(result).find((f) => f.id === 'reasoning-aloud')).toBeUndefined();
+        expect(runChecks(result).filter((f) => f.id.startsWith('reasoning'))).toEqual([]);
     });
 });
 

@@ -44,6 +44,7 @@ import {
     type JudgeQuestion,
     type JudgeAnswers,
 } from '../src/facilitation/utterance-judge.js';
+import { opensWithReturn } from '../src/facilitation/return-command.js';
 import { askNouls } from '../server/src/providers/typesafe.js';
 import { loadServerEnv } from '../soak/env.js';
 import { claudeVia, scriptClaude } from '../soak/providers.js';
@@ -115,6 +116,31 @@ const CORPUS: Record<ClassifierId, Case[]> = {
         after(["She's asking us to picture a door now."], n("Okay, I'm ready.", true)),
         after(['我不知道我是不是准备好原谅他了。'], n('也许我准备好了。')),
         after(['感觉平静多了。'], y('好,我准备好了。')),
+        // Back with the report in the same breath, as an unpunctuated recognizer
+        // writes it (kbec). The app takes the ones that open with "I'm back" by
+        // words first (return-command.ts); see `byWords` below.
+        y("I'm back it was a lot of tingling and it settled now"),
+        y("I'm back. It was a lot of tingling and it settled now."),
+        y("I'm back the warmth in my chest settled into something steady"),
+        y("Alright I'm back my shoulders let go about halfway through"),
+        y("Okay I'm back, so the tightness moved up into my throat."),
+        y("Okay I'm back so the tightness moved up into my throat"),
+        y("It settled now I'm back"),
+        // "Back" said to oneself.
+        n("I'm back in my body now", true),
+        n('Okay, back to the breath.'),
+        n('back to the breath'),
+        n("I'm back to the breath again"),
+        n("I'm back thinking about work again"),
+        n("I'm back and forth between sleepy and alert"),
+        n('I keep going back to that conversation with my sister.'),
+        n("Lost in thought again. Okay, I'm back.", true),
+        // Re-living, not returning: the trouble check's (see `trouble`).
+        n("I'm back there. I can see his face."),
+        y('我回来了胸口暖暖的'),
+        y('我回来了。刚才有很多刺痛感，现在平静下来了。'),
+        n('我回到身体里了。'),
+        n('那种紧张又回来了。'),
         y('好,我们继续吧。'),
         y('你还在吗?'),
         y('我想听听你的看法。'),
@@ -203,6 +229,9 @@ const CORPUS: Record<ClassifierId, Case[]> = {
         y('我喘不过气来,我好怕。'),
         y('我觉得活着没什么意思了。'),
         y("It's too much. It's too much, I can't hold it.", true),
+        // Inside a hold, where the resume classifiers stay on them (kbec probe).
+        y("I'm back there. I can see his face.", true),
+        y('我又回到那里了，我看到他的脸。', true),
         // Ordinary: the fixtures' other half.
         n("I'm crying and I don't even know why. It's just pouring out of me."),
         n("My hands feel huge, like they're dissolving into the air. It's kind of wild."),
@@ -349,6 +378,11 @@ async function runClassifier(id: ClassifierId, runs: number, src: Sources): Prom
     return rows;
 }
 
+/** In a hold, an utterance that opens with "I'm back" resumes by words before
+ *  either classifier is asked (return-command.ts). Such rows are shown and
+ *  left out of every score, so no threshold is tuned on what the app never asks. */
+const byWords = (id: ClassifierId, c: Case): boolean => id === 'resume' && opensWithReturn(c.text);
+
 /** Mean P(yes) for one ask across a row's runs. */
 const pOf = (r: Row, key: string): number => mean(r.answers.map((a) => a[key] ?? NaN));
 
@@ -378,11 +412,13 @@ function report(id: ClassifierId, rows: Row[], src: Sources): void {
             .join('+');
         const ctx = r.earlier ? `[…${r.earlier[r.earlier.length - 1]!.slice(0, 40)}] ` : '';
         console.log(
-            `${r.want ? 'yes' : 'no '}   ${cells.join(' ')}  ${!hasJev ? ' - ' : jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${src.haiku ? llm : ' - '}    ${r.hard ? '~ ' : ''}${ctx}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
+            `${r.want ? 'yes' : 'no '}   ${cells.join(' ')}  ${!hasJev ? ' - ' : jev === null ? 'ERR' : jev ? 'yes' : 'no '}  ${src.haiku ? llm : ' - '}    ${r.hard ? '~ ' : ''}${ctx}${r.text}${flag ? `   <-- ${flag} wrong` : ''}${byWords(id, r) ? '   [by words]' : ''}${r.judgeError ? `   [${r.judgeError}]` : ''}`
         );
     }
 
-    const scored = hasJev ? rows.filter((r) => r.answers.length) : rows;
+    const scored = (hasJev ? rows.filter((r) => r.answers.length) : rows).filter((r) => !byWords(id, r));
+    const taken = rows.filter((r) => byWords(id, r)).length;
+    if (taken) console.log(`\n${taken} rows [by words] are not scored: the app never asks about them.`);
     const sets: Array<[string, Row[]]> = [
         ['all', scored],
         ['clear', scored.filter((r) => !r.hard)],
@@ -425,7 +461,7 @@ function report(id: ClassifierId, rows: Row[], src: Sources): void {
  *  probabilities separate, not what to ship; the corpus is small). */
 function reportLocal(id: ClassifierId, rows: Row[], tag: string): void {
     const asks = Object.entries(JUDGE_SPECS[id].asks);
-    const scored = rows.filter((r) => r.local[tag]?.answers.length);
+    const scored = rows.filter((r) => r.local[tag]?.answers.length && !byWords(id, r));
     const errors = rows.filter((r) => r.local[tag]?.error).length;
     const p = (r: Row, k: string): number => mean(r.local[tag]!.answers.map((a) => a[k] ?? NaN));
     const yes = (r: Row, th?: number): boolean => asks.some(([k, a]) => p(r, k) >= (th ?? a.threshold));

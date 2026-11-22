@@ -59,6 +59,17 @@ a cut reply is dropped, since its question comes last. So a false trigger
 costs the rest of that reply. A turn superseded while still generating is not
 recorded at all, as before.
 
+The model's reasoning is cut the same way with no barge-in (core
+`reasoning.ts`, `streamCompletionWithChunkedTts`). Nothing inside an open
+reasoning block is spoken. A chunk that reads as reasoning (`isReasoningAloud`)
+silences the rest of the reply and stops what is playing, and the reply is
+handled as a blank one (`TurnSignals.reasoning`: aloud cloud asks again, then
+says an `EMPTY_REPLY_FALLBACKS` line; elsewhere the empty-reply error). A
+closing reasoning tag with no opening one (`speakableSoFar`) stops whatever
+was said before it and leaves `heard()` with only what follows, which is what
+the log keeps; the sentences ahead of such a tag can have been heard by the
+time it arrives, unless they read as reasoning.
+
 3. **None (phones)** - `session.ts` skips the wrapper entirely on the Capacitor
    plugin and on any single-owner-mic platform (`isSingleOwnerMicPlatform`). A
    phone's loudspeaker defeats echo cancellation, so the parallel stream hears

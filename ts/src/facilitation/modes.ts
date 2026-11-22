@@ -23,6 +23,7 @@ import {
     NOTING_STATIC_OPENERS,
 } from './noting.js';
 import { FELT_SENSE_MODE } from './felt-sense.js';
+import { isReasoningAloud, stripReasoning } from './reasoning.js';
 
 export interface ModePhase {
     /** Stable id, persisted on SessionState.modePhase for resume. */
@@ -184,19 +185,11 @@ const ANY_PAREN_TOKEN_RE = new RegExp(PAREN_TOKEN_SRC, 'g');
 const TAG_SHAPED_RE = /[*_"']*[[<{]\s*[A-Z][A-Z0-9 _:.-]{0,23}\s*[\]>}][*_"']*/g;
 
 /**
- * A reasoning block and its CONTENTS - local models reason in <think> by
- * default (deepseek-r1, qwen3), and a hosted one told not to think can still
- * leak a <thinking>. Dropping only the tags would leave the reasoning to be read
- * aloud, which is worse. CLOSED blocks only: an unclosed one (reasoning cut off
- * by the token cap) just loses its tag below, since a stray spoken line beats a
- * silent turn.
- */
-const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad)\b[^>]*>[\s\S]*?<\/\1\s*>/gi;
-
-/**
  * Any other XML/HTML-shaped tag, contents kept. A spoken turn never needs
  * markup, so this is a blanket net rather than a list of tags that have bitten
  * us. Requires a letter straight after the "<", so prose survives ("3 < 5").
+ * Reasoning tags come off with their contents first (stripReasoning); the one
+ * this still meets is an opening tag that never closed, whose words are kept.
  */
 const XML_TAG_RE = /<\/?[a-z][\w.:-]*(?:\s[^<>]*?)?\/?>/gi;
 
@@ -237,16 +230,15 @@ export function stripRoleLeak(text: string): string {
  * Remove control tokens ANYWHERE in text about to be spoken. Small models
  * misplace them mid-reply ("Sure. [HOLD] Want some quiet?"); a misplaced token
  * is never honored (signals parse leading-only) but would otherwise be read
- * aloud. Also drops reasoning blocks and stray markup (REASONING_BLOCK_RE,
- * XML_TAG_RE), tag-shaped leftovers (TAG_SHAPED_RE), and tidies the punctuation
- * a removal can strand.
+ * aloud. Also drops reasoning (stripReasoning) and stray markup (XML_TAG_RE),
+ * tag-shaped leftovers (TAG_SHAPED_RE), and tidies the punctuation a removal
+ * can strand.
  *
  * In code, not a prompt rule: the models most likely to emit markup are the
  * local ones least likely to follow an instruction not to.
  */
 export function scrubControlTokens(text: string): string {
-    return text
-        .replace(REASONING_BLOCK_RE, ' ')
+    return stripReasoning(text)
         .replace(ANY_CONTROL_TOKEN_RE, ' ')
         .replace(ANY_PAREN_TOKEN_RE, ' ')
         .replace(TAG_SHAPED_RE, ' ')
@@ -268,7 +260,15 @@ export interface TurnSignals {
     /** What gets spoken: leading control tokens stripped, stray mid-text ones
      *  scrubbed (scrubControlTokens). */
     cleanText: string;
+    /** The reply was the model's reasoning, not words for the meditator:
+     *  nothing at all was left once its reasoning came off, or what was left
+     *  reads as reasoning (isReasoningAloud). cleanText is then empty and no
+     *  signal is set, and callers handle it as a blank completion, not as a
+     *  reply of only signals. */
+    reasoning: boolean;
 }
+
+const NO_REPLY: TurnSignals = { hold: false, stage: 'none', waitSec: null, cleanText: '', reasoning: true };
 
 /**
  * Parse control tokens ([HOLD], [NEXT], [BACK], [WAIT:Nm]) off the start of an
@@ -278,9 +278,10 @@ export interface TurnSignals {
  * placement. Contradictory tokens: first wins.
  */
 export function parseTurnSignals(response: string): TurnSignals {
-    // Reasoning blocks come off FIRST: a leaked <think>…</think> in front of
-    // the reply would hide the leading token run, costing the signal too.
-    let text = response.replace(REASONING_BLOCK_RE, ' ').trim();
+    // Reasoning comes off FIRST: a leaked <think>…</think> in front of the
+    // reply would hide the leading token run, costing the signal too.
+    let text = stripReasoning(response).trim();
+    if (!text && response.trim()) return { ...NO_REPLY };
     let hold = false;
     let stage: StageSignal = 'none';
     let waitSec: number | null = null;
@@ -300,7 +301,9 @@ export function parseTurnSignals(response: string): TurnSignals {
     }
     // Truncate before scrubbing: whatever follows a leak is transcript, not
     // reply, and this is the path whose output reaches history.
-    return { hold, stage, waitSec, cleanText: scrubControlTokens(stripRoleLeak(text)) };
+    const cleanText = scrubControlTokens(stripRoleLeak(text));
+    if (isReasoningAloud(cleanText)) return { ...NO_REPLY };
+    return { hold, stage, waitSec, cleanText, reasoning: false };
 }
 
 /**

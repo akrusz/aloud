@@ -6,7 +6,7 @@
  * code; `warn` is worth a look; `info` is context for the report.
  */
 
-import { findRoleLeak, parseTurnSignals } from '../src/facilitation/index.js';
+import { findRoleLeak, isReasoningAloud, opensWithReturn, parseTurnSignals } from '../src/facilitation/index.js';
 import type { CheckFinding, SessionRunResult, TurnRecord } from './types.js';
 
 /** Spoken text must never contain a control token or markup the scrub missed. */
@@ -16,21 +16,10 @@ const RESIDUAL_TOKEN_RE = /\[(HOLD|NEXT|BACK|PASS|WAIT[:\]])|<\/?[a-z][\w-]*>/i;
  *  ("【保持安静】"), which no parser reads and TTS would speak. */
 const BRACKETED_RE = /[【[][^\]】]{1,24}[\]】]/;
 
-/**
- * A reply about the meditator instead of to them: the model's reasoning,
- * handed to TTS (meditation-pal-dqti, Kimi K2's "The user is describing
- * dissociation..."). Kept narrow: "they're describing" also fits a facilitator
- * talking about the meditator's sister.
- */
-const REASONING_ALOUD_RE = /\bthe (?:user|meditator|client)\b|\bI (?:should|need to|will):|\bmy (?:response|reply) (?:should|will|needs)\b/i;
-
 /** Fear in the words the engine was given; the fright-in-hold persona is told
  *  to use these, and no other persona talks this way inside a hold. */
 const FRIGHT_RE =
     /\b(?:scar(?:ed|y|ing)|frighten(?:ed|ing)?|afraid|terrif(?:ied|ying)|panic(?:king|ky)?|disappear(?:ing|ed)?|not real|can'?t feel)\b/i;
-
-/** "I'm back" opening an utterance, after any filler ("okay, I'm back"). */
-const BACK_RE = /^(?:(?:ok(?:ay)?|alright|all right|right|so|um+|uh+|mm+|hey|yeah|well)[\s,.!-]+)*(?:i'?m|i am) back\b/i;
 
 const hanCount = (s: string): number => (s.match(/\p{Script=Han}/gu) ?? []).length;
 const latinCount = (s: string): number => (s.match(/[A-Za-z]/g) ?? []).length;
@@ -113,10 +102,15 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     // signals as an empty-reply with its raw; that is a legitimate turn.
     const replyCalls = result.calls.filter((c) => c.kind === 'turn').length;
     const emptyEvents = byEvent('error', 'empty-reply');
-    const blank = emptyEvents.filter((e) => !String(e.data?.raw ?? '').trim()).length;
-    const signalOnly = byEvent('signal', 'signal-only-reply').length + emptyEvents.length - blank;
+    // The model's reasoning in place of a reply, withheld as a blank one.
+    const withheld = emptyEvents.filter((e) => e.data?.reasoning === true).length;
+    const blank = emptyEvents.filter((e) => e.data?.reasoning !== true && !String(e.data?.raw ?? '').trim()).length;
+    const signalOnly = byEvent('signal', 'signal-only-reply').length + emptyEvents.length - blank - withheld;
     if (blank > 0) {
         add('empty-reply', 'warn', `${blank} of ${replyCalls} facilitator replies came back blank`);
+    }
+    if (withheld > 0) {
+        add('reasoning-withheld', 'warn', `${withheld} of ${replyCalls} facilitator replies were the model's reasoning, withheld as blank`);
     }
     if (signalOnly > 0) {
         add('signal-only-reply', 'info', `${signalOnly} repl${signalOnly === 1 ? 'y' : 'ies'} carried only control tokens (went back to listening)`);
@@ -163,8 +157,10 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     }
 
     // The model's reasoning, spoken to the meditator as if it were the reply.
+    // The engine withholds what this detector finds (parseTurnSignals), so a
+    // hit is an engine bug.
     const modelReplies = assistant.filter((t) => t.raw !== undefined);
-    const reasoning = modelReplies.filter((t) => REASONING_ALOUD_RE.test(t.text));
+    const reasoning = modelReplies.filter((t) => isReasoningAloud(t.text));
     if (reasoning.length > 0) {
         add(
             'reasoning-aloud',
@@ -328,7 +324,7 @@ function checkHolds(result: SessionRunResult, add: Add): void {
                 add('fright-in-hold', 'warn', `the hold ended on ${quote(u.text)} by the resume verdict, without the stepping-out note (trouble: ${trouble})`);
             }
         }
-        if (BACK_RE.test(u.text)) {
+        if (opensWithReturn(u.text)) {
             backSeen++;
             if (stayed) add('back-in-hold', 'fail', `${quote(u.text)} was judged ${hold.resume(u)} and the hold went on`);
         }

@@ -20,6 +20,7 @@ import type { LLMProvider, Message } from '../llm/index.js';
 import { llmUsageOf, type LlmUsage } from './session.js';
 import { matchWaitToken, scrubControlTokens } from './modes.js';
 import { HOLD_PREFIX } from './prompts.js';
+import { isReasoningAloud } from './reasoning.js';
 import { stripThinkTags } from './strip-think-tags.js';
 
 /** Literal token: the model declines to check in and keeps the silence. */
@@ -162,7 +163,9 @@ export function parseSmartCheckinReply(
     }
     text = scrubControlTokens(text);
     if (pass || /^["']?pass[."'!]*$/i.test(text)) return { kind: 'pass', waitSec };
-    if (!text) return { kind: 'fallback' };
+    // The model's reasoning is no line, and the salvage below would speak its
+    // first sentence.
+    if (!text || isReasoningAloud(text)) return { kind: 'fallback' };
     if (text.length <= maxChars) return { kind: 'speak', text, waitSec };
     // Too long: salvage the first sentence if it stands alone as a line.
     const sentence = /^[\s\S]*?[.!?…]+(?=\s|$)/.exec(text)?.[0]?.trim();

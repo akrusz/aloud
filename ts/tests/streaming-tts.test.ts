@@ -1110,3 +1110,182 @@ describe('wholeReply: a reply as one utterance (CloudVoice.wholeReply)', () => {
         expect(tts.options.every((o) => o?.marks === undefined)).toBe(true);
     });
 });
+
+// meditation-pal-wgtb, meditation-pal-dqti: the model's reasoning reaching the
+// voice before the reply is complete.
+describe("the model's reasoning, kept from the voice mid-stream", () => {
+    const user: Message[] = [{ role: 'user', content: 'my hands feel far away' }];
+    const REASONING =
+        'The user is describing dissociation - feeling disconnected from their body, hands feeling far away. ';
+    const PLAN = 'I should stay with them and acknowledge the fear without amplifying it. ';
+    const REPLY = "What's that scared feeling like?";
+
+    /** A stream with waits (ms) between its pieces, so a sentence can be
+     *  playing when the next one arrives. */
+    class Paced implements LLMProvider {
+        readonly model = 'fake';
+        constructor(private readonly steps: readonly (string | number)[]) {}
+        async complete(): Promise<CompletionResult> {
+            return { text: '', finishReason: 'stop', tokensUsed: null };
+        }
+        async *completeStream(): AsyncIterable<StreamChunk> {
+            for (const step of this.steps) {
+                if (typeof step === 'number') await new Promise((r) => setTimeout(r, step));
+                else yield { text: step, done: false };
+            }
+            yield { text: '', done: true, finishReason: 'stop' };
+        }
+    }
+
+    /** Plays each utterance for `ms` unless cancel() stops it first, and
+     *  records prefetches and cancels. */
+    class PlayingTts extends RecordingTts {
+        prefetched: string[] = [];
+        cancels = 0;
+        private stop: (() => void) | null = null;
+        constructor(private readonly ms = 30) {
+            super();
+        }
+        override speak(text: string, options?: TtsOptions): Promise<void> {
+            this.spoken.push(text);
+            options?.onStart?.();
+            return new Promise((resolve) => {
+                const timer = setTimeout(resolve, this.ms);
+                this.stop = () => {
+                    clearTimeout(timer);
+                    resolve();
+                };
+            });
+        }
+        prefetch(text: string): void {
+            this.prefetched.push(text);
+        }
+        override async cancel(): Promise<void> {
+            this.cancels++;
+            this.stop?.();
+        }
+    }
+
+    it('checks the first sentence before the voice has any of it', async () => {
+        const tts = new PlayingTts();
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([REASONING, PLAN, 'Something like that.']), tts, user);
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([]);
+        expect(tts.prefetched).toEqual([]);
+        expect(tts.cancels).toBe(0);
+        // The whole reply still comes back, for the caller's parse to call blank.
+        expect(result.text).toBe(`${REASONING}${PLAN}Something like that.`);
+        expect(result.heard()).toEqual({ text: '', cut: false });
+    });
+
+    it("speaks the reply after a lone closing tag, having kept the reasoning before it silent (Kimi K2's shape)", async () => {
+        const tts = new PlayingTts(1);
+        const spokenStarts: string[] = [];
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider([REASONING, PLAN, 'Let me go with something simple.</th', 'ink>', REPLY]),
+            tts,
+            user,
+            { onSpeakStart: (s) => spokenStarts.push(s) }
+        );
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([REPLY]);
+        expect(spokenStarts).toEqual([REPLY]);
+        expect(result.heard()).toEqual({ text: REPLY, cut: false });
+    });
+
+    it('withdraws and stops what was said before a lone closing tag, and keeps only the reply as heard', async () => {
+        // Reasoning that does not read as such (bonsai-2's "Stop facilitating"):
+        // its first sentence is spoken before the tag can be known.
+        const tts = new PlayingTts(200);
+        const ac = new AbortController();
+        const result = await streamCompletionWithChunkedTts(
+            new Paced(['Stop facilitating and talk to them plainly now. ', 20, 'Tell them what to do.\n</think>\n\n', 'Okay, that sounds scary. ', REPLY]),
+            tts,
+            user,
+            { ttsSignal: ac.signal }
+        );
+        expect(tts.cancels).toBe(1);
+        expect(tts.spoken[0]).toBe('Stop facilitating and talk to them plainly now.');
+        expect(tts.spoken.join(' ')).not.toContain('Tell them what to do');
+        // A barge-in now cuts against the reply alone, never the reasoning.
+        await new Promise((r) => setTimeout(r, 0));
+        expect(result.heard().text).toBe('Okay, that sounds scary.');
+        await result.ttsDone;
+        expect(tts.spoken.slice(1)).toEqual(['Okay, that sounds scary.', REPLY]);
+        expect(result.heard()).toEqual({ text: `Okay, that sounds scary. ${REPLY}`, cut: false });
+    });
+
+    it('silences the rest of a reply whose later sentence reads as reasoning, and stops what is playing', async () => {
+        const tts = new PlayingTts(200);
+        const result = await streamCompletionWithChunkedTts(
+            new Paced(['I hear how frightening this feels right now. ', 20, REASONING, PLAN, REPLY]),
+            tts,
+            user
+        );
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(['I hear how frightening this feels right now.']);
+        expect(tts.cancels).toBe(1);
+        // Not heard as far as the log goes: the caller treats the reply as blank.
+        expect(result.heard()).toEqual({ text: '', cut: false });
+    });
+
+    it('holds everything inside an open reasoning block until it closes', async () => {
+        const tts = new PlayingTts(1);
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['<think>They seem tense today. ', 'Keep it short and kind. ', 'Ask about the', ' breath.</think>', 'Rest here with the breath, gently.']),
+            tts,
+            user
+        );
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(['Rest here with the breath, gently.']);
+    });
+
+    it('lets the words of a block that never closed out at the end, as the turn parser keeps them', async () => {
+        const tts = new PlayingTts(1);
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['<think>Breathe in slowly and let the shoulders drop. ', 'Feel the chair', ' holding you.']),
+            tts,
+            user
+        );
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(['Breathe in slowly and let the shoulders drop.', 'Feel the chair holding you.']);
+    });
+
+    it('reads the control tokens at the front of what follows a lone closing tag', async () => {
+        const tts = new PlayingTts(1);
+        const result = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider(['They asked for quiet.</think>[HO', 'LD] ', "Sure, I'll be right here."]),
+            tts,
+            user
+        );
+        await result.ttsDone;
+        expect(tts.spoken).toEqual(["Sure, I'll be right here."]);
+    });
+
+    it('speaks nothing of a reasoning reply on the non-streaming path (the claude CLI)', async () => {
+        const tts = new PlayingTts(1);
+        const result = await streamCompletionWithChunkedTts(new FakeNonStreamingProvider(`${REASONING}${PLAN}`), tts, user);
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([]);
+        const rescued = await streamCompletionWithChunkedTts(new FakeNonStreamingProvider(`${REASONING}</think>${REPLY}`), tts, user);
+        await rescued.ttsDone;
+        expect(tts.spoken).toEqual([REPLY]);
+    });
+
+    it('keeps a whole-reply voice silent on reasoning too', async () => {
+        const tts = new RecordingTtsWithOptions();
+        const result = await streamCompletionWithChunkedTts(new FakeStreamingProvider([REASONING, PLAN, REPLY]), tts, user, {
+            wholeReply: true,
+        });
+        await result.ttsDone;
+        expect(tts.spoken).toEqual([]);
+        const rescued = await streamCompletionWithChunkedTts(
+            new FakeStreamingProvider([REASONING, `${PLAN}</think>`, 'Okay, that sounds scary. ', REPLY]),
+            tts,
+            user,
+            { wholeReply: true }
+        );
+        await rescued.ttsDone;
+        expect(tts.spoken).toEqual([`Okay, that sounds scary. ${REPLY}`]);
+    });
+});
