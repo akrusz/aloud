@@ -23,6 +23,7 @@
  */
 
 import { skipHesitation } from './hesitation.js';
+import { toSimplified } from './zh-script.js';
 
 /** What "end" can be said as. */
 const END_VERBS = new Set(['end', 'stop', 'finish', 'close', 'quit']);
@@ -80,9 +81,10 @@ function words(utterance: string): string[] {
 }
 
 /** The utterance with CJK punctuation and spaces dropped: Chinese recognizers
- *  segment with spaces inconsistently, so zh matches the joined text. */
+ *  segment with spaces inconsistently, so zh matches the joined text. In
+ *  simplified characters, which the zh patterns are written in (zh-script.ts). */
 function joinedZh(utterance: string): string | null {
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    const zh = toSimplified(utterance.replace(/[\s。，！？、．.…,!?~]+/gu, ''));
     return /[㐀-鿿]/.test(zh) ? zh : null;
 }
 

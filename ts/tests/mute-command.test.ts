@@ -48,6 +48,15 @@ describe('isMuteCommand', () => {
         }
     });
 
+    it('takes the zh command in traditional characters, as local Whisper writes it', () => {
+        for (const text of ['靜音', '靜音。', '請靜音', '靜音吧', '把麥克風靜音', '請把話筒靜音', '靜音一下']) {
+            expect(isMuteCommand(text), text).toBe(true);
+        }
+        for (const text of ['我感覺被靜音了', '取消靜音', '聲音好像被靜音了一樣', '我想把心裡的聲音靜音掉']) {
+            expect(isMuteCommand(text), text).toBe(false);
+        }
+    });
+
     it('ignores an empty utterance', () => {
         expect(isMuteCommand('')).toBe(false);
         expect(isMuteCommand('   ...  ')).toBe(false);

@@ -13,6 +13,8 @@
  * a few politenesses.
  */
 
+import { toSimplified } from './zh-script.js';
+
 /** Words that may keep "mute" company and still leave it a command. */
 const FILLER = new Set([
     'a',
@@ -47,6 +49,7 @@ const MAX_WORDS = 5;
  * or a trailing 吧/了/一下. Chinese recognizers segment with spaces
  * inconsistently, so this matches the joined utterance rather than words.
  * Anything longer is a sentence ABOUT muting and falls through as speech.
+ * Matched in simplified characters (靜音 is converted first, zh-script.ts).
  */
 const ZH_MUTE_RE = /^(?:请)?(?:把?(?:麦克风|话筒))?静音(?:吧|了|一下)?$/;
 
@@ -54,7 +57,7 @@ const ZH_MUTE_RE = /^(?:请)?(?:把?(?:麦克风|话筒))?静音(?:吧|了|一�
 export function isMuteCommand(utterance: string): boolean {
     // zh first: the a-z scrub below would erase it entirely. CJK punctuation
     // and any stray spaces drop; the remainder must BE the command.
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    const zh = toSimplified(utterance.replace(/[\s。，！？、．.…,!?~]+/gu, ''));
     if (/[㐀-鿿]/.test(zh)) return ZH_MUTE_RE.test(zh);
 
     const words = utterance

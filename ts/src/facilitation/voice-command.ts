@@ -33,6 +33,7 @@ import {
     VOICE_COMMAND_IDS,
     type VoiceCommandId,
 } from './voice-command-specs.js';
+import { toSimplified } from './zh-script.js';
 
 export { VOICE_COMMAND_IDS, type VoiceCommandId };
 
@@ -319,7 +320,7 @@ export interface TimerRequest {
 
 /** The duration in a set-timer utterance, or null when it names none. */
 export function parseTimerRequest(utterance: string): TimerRequest | null {
-    const zh = utterance.replace(/[\s。，！？、．.…,!?~]+/gu, '');
+    const zh = toSimplified(utterance.replace(/[\s。，！？、．.…,!?~]+/gu, ''));
     if (/[㐀-鿿]/.test(zh)) {
         const relative = /[再多加]|延长/.test(zh);
         if (/半个?小时/.test(zh) && !/[\d一二两三四五六七八九十]个?半小时/.test(zh)) return { minutes: 30, relative };

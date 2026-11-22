@@ -61,6 +61,7 @@ describe('mightBeSetupRequest', () => {
             'restart the timer please',
             'BEGIN',
             '开始体会模式',
+            '開始體會模式',
         ]) {
             expect(mightBeSetupRequest(text), text).toBe(false);
         }

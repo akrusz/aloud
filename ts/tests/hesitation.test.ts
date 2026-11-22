@@ -24,6 +24,12 @@ describe('skipHesitation', () => {
         for (const [said, rest] of cases) expect(skipHesitation(said), said).toBe(rest);
     });
 
+    it('reads traditional characters and keeps them in what it returns', () => {
+        expect(skipHesitation('額，繼續')).toBe('繼續');
+        expect(skipHesitation('嗯，額…還沒')).toBe('還沒');
+        expect(skipHesitation('額')).toBe('額');
+    });
+
     it('leaves an utterance that is only hesitation as it was', () => {
         for (const said of ['Uh.', 'Um', 'Hmm...', 'Mm-hmm.', '嗯', '嗯。', '嗯嗯', '']) expect(skipHesitation(said), said).toBe(said);
     });

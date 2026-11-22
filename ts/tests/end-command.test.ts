@@ -63,6 +63,15 @@ describe('isEndCommand', () => {
             expect(isEndCommand(text), text).toBe(false);
         }
     });
+
+    it('takes the zh request in traditional characters, as local Whisper writes it', () => {
+        for (const text of ['結束冥想', '結束這次冥想。', '請結束冥想吧', '我想結束這個冥想', '我們結束今天的練習吧', '現在結束這次會話', '可以結束冥想了', '結束靜坐好嗎']) {
+            expect(isEndCommand(text), text).toBe(true);
+        }
+        for (const text of ['結束', '我不想結束冥想', '這種感覺什麼時候結束', '冥想結束以後我要去吃飯', '結束這段關係']) {
+            expect(isEndCommand(text), text).toBe(false);
+        }
+    });
 });
 
 describe('endConfirmReply', () => {
@@ -152,17 +161,29 @@ describe('endConfirmReply', () => {
             expect(endConfirmReply(text), text).toBeNull();
         }
     });
+
+    it('answers in zh in traditional characters, as local Whisper writes it', () => {
+        for (const text of ['對', '對的', '好的，結束吧', '是的，結束', '額，好的']) {
+            expect(endConfirmReply(text), text).toBe('yes');
+        }
+        for (const text of ['還沒', '還沒有', '還不', '繼續', '繼續吧', '我們繼續', '不結束', '先不結束', '再坐一會兒', '再等一會兒', '額，繼續']) {
+            expect(endConfirmReply(text), text).toBe('no');
+        }
+        for (const text of ['我的腿麻了', '好像有點緊', '對不起', '還有一點緊', '這個感覺還在']) {
+            expect(endConfirmReply(text), text).toBeNull();
+        }
+    });
 });
 
 describe('answerPace', () => {
     it('acts on a plain no at once', () => {
-        for (const text of ['No.', 'Not yet.', 'Yes. No, not yet.', '不', '还没']) {
+        for (const text of ['No.', 'Not yet.', 'Yes. No, not yet.', '不', '还没', '還沒', '繼續']) {
             expect(answerPace(text), text).toBe('now');
         }
     });
 
     it('waits a short pause after a plain yes', () => {
-        for (const text of ['Yes.', 'Okay, end it.', 'go ahead', '好的', '是的', '结束吧']) {
+        for (const text of ['Yes.', 'Okay, end it.', 'go ahead', '好的', '是的', '结束吧', '對', '結束吧']) {
             expect(answerPace(text), text).toBe('soon');
         }
     });
@@ -174,7 +195,7 @@ describe('answerPace', () => {
     });
 
     it('waits the whole pause on a reply that opens on a hesitation, whatever its verdict', () => {
-        for (const text of ['Hmm, yes.', 'Uh, no.', '嗯，好的', '呃，不要']) {
+        for (const text of ['Hmm, yes.', 'Uh, no.', '嗯，好的', '呃，不要', '額，繼續']) {
             expect(endConfirmReply(text), text).not.toBeNull();
             expect(answerPace(text), text).toBeNull();
         }

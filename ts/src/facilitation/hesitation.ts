@@ -7,6 +7,8 @@
  * intention.
  */
 
+import { toSimplified } from './zh-script.js';
+
 /**
  * One English hesitation sound, stretched or not: uh, um, uhm, er, erm, ah,
  * hm, hmm, mm. A regex source, also inside setup-command.ts's `LEAVE_LEAD`.
@@ -15,8 +17,9 @@
  */
 export const HESITATION_WORD = '(?:u+h+|u+h*m+|e+r+m*|a+h+|h+m+|m{2,})';
 
-/** 嗯 and 呃, and 额 (額), which is written for 呃. */
-const ZH_HESITATION = '[嗯呃额額]';
+/** 嗯 and 呃, and 额, which is written for 呃. Read in simplified characters
+ *  (額 is converted first, zh-script.ts). */
+const ZH_HESITATION = '[嗯呃额]';
 
 const OPENING_RE = new RegExp(
     `^[^\\p{L}\\p{N}]*(?:${HESITATION_WORD}(?![\\p{L}\\p{N}'])|${ZH_HESITATION})[^\\p{L}\\p{N}]*`,
@@ -30,7 +33,11 @@ const OPENING_RE = new RegExp(
  * each matcher's own business.
  */
 export function skipHesitation(utterance: string): string {
-    let rest = utterance;
-    for (let m = OPENING_RE.exec(rest); m; m = OPENING_RE.exec(rest)) rest = rest.slice(m[0].length);
+    // Read in simplified, cut from what was heard: toSimplified is one
+    // character for one, so an offset into one is an offset into the other.
+    const said = toSimplified(utterance);
+    let at = 0;
+    for (let m = OPENING_RE.exec(said.slice(at)); m; m = OPENING_RE.exec(said.slice(at))) at += m[0].length;
+    const rest = utterance.slice(at);
     return /[\p{L}\p{N}]/u.test(rest) ? rest : utterance;
 }

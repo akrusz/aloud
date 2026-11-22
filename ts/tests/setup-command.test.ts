@@ -789,6 +789,12 @@ describe('parseSetupCommand: zh', () => {
             ['幫助', [{ kind: 'help' }]],
             ['多一點引導', [{ kind: 'guidance', to: 'up' }]],
             ['不要問候我', [{ kind: 'checkins', on: false }]],
+            ['隱藏時鐘', [{ kind: 'clock', show: false }]],
+            ['顯示時間', [{ kind: 'clock', show: true }]],
+            ['幾點', [{ kind: 'clock-mode', mode: 'wall' }]],
+            ['引導級別調到三', [{ kind: 'guidance', to: 2 }]],
+            ['寫下意圖', [{ kind: 'intention-ask' }]],
+            ['特別要求，謝謝', [{ kind: 'special-request-ask' }]],
             ['半小时４', [{ kind: 'length', minutes: 30 }]],
             ['切换到体会\uFFFD', [{ kind: 'mode', mode: 'felt_sense' }]],
             ['轻松和开阔\uFFFD', [
@@ -879,10 +885,10 @@ describe('parseSetupCommand: zh', () => {
 
 describe('leavesAsk', () => {
     it('tells leaving the question from answering it', () => {
-        for (const said of ['Never mind.', 'cancel', 'Cancel that.', 'no', 'okay, forget it', '取消', '算了。', '不加了']) {
+        for (const said of ['Never mind.', 'cancel', 'Cancel that.', 'no', 'okay, forget it', '取消', '算了。', '不加了', '沒有']) {
             expect(leavesAsk(said), said).toBe('cancel');
         }
-        for (const said of ['Done.', "I'm done", "That's it.", 'all done, thanks', 'Close.', '好了', '完成。', '就這樣']) {
+        for (const said of ['Done.', "I'm done", "That's it.", 'all done, thanks', 'Close.', '好了', '完成。', '就這樣', '沒了', '關閉', '關掉']) {
             expect(leavesAsk(said), said).toBe('done');
         }
         for (const said of ['keep it slow', 'done with breathing cues', 'to rest', 'not too fast', '慢一点', '完成这个项目']) {

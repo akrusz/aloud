@@ -398,6 +398,16 @@ describe('parseTimerRequest', () => {
         ['两个小时', 120],
         ['再加五分钟', 5, true],
         ['设个计时', null],
+        // Traditional characters, as local Whisper writes them.
+        ['計時二十分鐘。', 20],
+        ['半小時', 30],
+        ['半個小時', 30],
+        ['一個小時。', 60],
+        ['一個半小時', 90],
+        ['兩個小時', 120],
+        ['兩分鐘', 2],
+        ['延長十分鐘', 10, true],
+        ['設個計時', null],
     ];
     for (const [text, minutes, relative] of cases) {
         it(`${text} -> ${minutes}${relative ? ' more' : ''}`, () => {

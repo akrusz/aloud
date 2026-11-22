@@ -928,12 +928,12 @@ export const LEAVE_LEAD = `(?:(?:ok|okay|oh|no|actually|${HESITATION_WORD}|alrig
 export const LEAVE_TAIL = '(?:[,\\s]+(?:thanks|thank\\s+you|please))?[.!。！，,]?$';
 const CANCEL_ANSWER_RE = new RegExp(
     `^${LEAVE_LEAD}(?:never\\s*mind|cancel|cancel\\s+that|forget\\s+it|forget\\s+that|nothing|skip|skip\\s+it|no|none|stop)${LEAVE_TAIL}` +
-        '|^(?:算了|不用了|取消|[没沒]有|不改了|不加了)[。！，,]?$',
+        '|^(?:算了|不用了|取消|没有|不改了|不加了)[。！，,]?$',
     'i'
 );
 const DONE_ANSWER_RE = new RegExp(
     `^${LEAVE_LEAD}(?:done|all\\s+done|i'?m\\s+done|i\\s+am\\s+done|that'?s\\s+it|that'?s\\s+all|finished|i'?m\\s+finished|all\\s+set|close|close\\s+it|leave\\s+it)${LEAVE_TAIL}` +
-        '|^(?:好了|好了好了|完成|完成了|完了|就[这這][样樣]吧?|[没沒]了|[关關][闭閉掉])[。！，,]?$',
+        '|^(?:好了|好了好了|完成|完成了|完了|就这样吧?|没了|关[闭掉])[。！，,]?$',
     'i'
 );
 
@@ -1033,7 +1033,7 @@ function parseZh(utterance: string): SetupAction[] | null {
     const request = ZH_REQUEST_RE.exec(flat) ?? ZH_ADD_REQUEST_RE.exec(flat);
     if (request) {
         const text = trimHeardZh(heard.slice(request[0].length).replace(/[。！？.!?，,]+$/u, ''));
-        if (text && text.length <= 120 && !/^(?:吧|了|一下|好吗|可以吗|谢谢)+$/u.test(text)) {
+        if (text && text.length <= 120 && !/^(?:吧|了|一下|好吗|可以吗|谢谢)+$/u.test(toSimplified(text))) {
             return [{ kind: 'special-request', text }];
         }
     }

@@ -32,6 +32,7 @@ import type { JudgeAnswers, JudgeQuestion, JudgeSpec, UtteranceJudge } from './u
 // load: keep parseTimerRequest inside functions here, and SETUP_SPECS inside
 // functions there.
 import { parseTimerRequest } from './voice-command.js';
+import { toSimplified } from './zh-script.js';
 
 export type SetupJudgeId = 'setup-gate' | 'setup-command';
 
@@ -464,7 +465,7 @@ export const SETUP_JUDGE_MAX_CJK_CHARS = 24;
 export function mightBeSetupRequest(text: string): boolean {
     const said = text.trim();
     if (!said || !/\p{L}/u.test(said)) return false;
-    if (/begin|start|开始/i.test(said)) return false;
+    if (/begin|start|开始/i.test(toSimplified(said))) return false;
     const cjk = said.match(/[㐀-鿿]/g)?.length ?? 0;
     if (cjk > 0) return cjk >= 2 && cjk <= SETUP_JUDGE_MAX_CJK_CHARS;
     const words = said.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
