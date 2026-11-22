@@ -65,7 +65,12 @@ jobs:
           - platform: ubuntu-24.04
             args: --bundles appimage,deb
           # Windows: NSIS is the updater target; msi is download-only.
-          - platform: windows-latest
+          # windows-2025 is Visual Studio 2022. windows-latest moved to VS 2026,
+          # whose MSVC 14.52 rejects espeak-ng's unguarded
+          # `#if __has_include_next(...)` (C7780; espeak-rs-sys 0.2.0, under
+          # piper-rs), and defining the name from a forced include did not
+          # help. Back to windows-latest once espeak-rs-sys guards it.
+          - platform: windows-2025
             args: --bundles nsis,msi
     runs-on: ${{ matrix.platform }}
     steps:
@@ -117,13 +122,6 @@ jobs:
       - name: Install JS dependencies
         working-directory: ts
         run: npm ci
-
-      # espeak-ng tests __has_include_next unguarded, which MSVC 14.52 rejects.
-      # The forced include answers it: ts/src-tauri/patches/msvc/has_include_next.h.
-      - name: Shim __has_include_next for MSVC
-        if: runner.os == 'Windows'
-        shell: bash
-        run: echo "CFLAGS=/FI$(cygpath -m "$GITHUB_WORKSPACE")/ts/src-tauri/patches/msvc/has_include_next.h" >> "$GITHUB_ENV"
 
       # Builds (running the configured beforeBuildCommand → ui:build), signs the
       # updater artifacts, and uploads everything — including a merged latest.json
