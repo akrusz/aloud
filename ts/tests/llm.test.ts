@@ -741,11 +741,17 @@ describe('OpenAIProvider', () => {
             ['gpt-5.6-sol', 'none'],
             ['gpt-6-sol', 'none'],
             ['gpt-6-luna', 'none'],
+            ['gpt-6.1-terra', 'none'],
             ['gpt-5.5', 'none'],
             ['gpt-5', 'minimal'],
             ['gpt-5-mini', 'minimal'],
             ['o3', 'low'],
             ['o4-mini', 'low'],
+            // Always reasoning: 'none' and 'minimal' both 400 (probed Nov 2026).
+            ['gpt-6-astra', 'low'],
+            ['gpt-6.2-astra', 'low'],
+            ['gpt-6.1-sol', 'low'],
+            ['gpt-6.2-sol', 'low'],
         ];
         for (const [model, effort] of cases) {
             const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => mockChatResponse('ok'));

@@ -27,7 +27,7 @@
  */
 
 import type { LlmUsage, SessionUsage } from '@aloud/core/facilitation';
-import { thinkingPolicy } from '@aloud/core/llm';
+import { openaiReasoningMandatory, thinkingPolicy } from '@aloud/core/llm';
 import { WORST_CASE_COMMISSION, commissionFor } from './commission.js';
 import type { ProviderId, PurchaseChannel } from '../contract.js';
 import {
@@ -277,10 +277,18 @@ export function holdAgainstBalance(estimate: number, balance: number): number {
 export const MAX_OUTPUT_TOKENS = 512;
 
 /** The ceiling for models whose thinking can't be turned off (Fable, Opus
- *  5.5+): thinking bills against max_tokens, so a reply that thinks hard could
- *  hit the text ceiling before saying anything - a blank turn the app then
- *  retries, billing it twice. Room for the thinking plus a full reply. */
+ *  5.5+, GPT Astra): thinking bills against max_tokens, so a reply that thinks
+ *  hard could hit the text ceiling before saying anything - a blank turn the
+ *  app then retries, billing it twice. Room for the thinking plus a full reply. */
 export const THINKING_MAX_OUTPUT_TOKENS = 1024;
+
+/** A hosted model whose thinking can't be turned off, so a reply may spend
+ *  output tokens on it first: Anthropic's always-on family and OpenAI's
+ *  always-reasoning models. */
+export function reasoningMandatory(provider: ProviderId, model: string): boolean {
+    if (provider === 'anthropic') return thinkingPolicy(model) === 'always-on';
+    return provider === 'openai' && openaiReasoningMandatory(model);
+}
 
 /** max_tokens for a turn. The caller's request is a budget for SPOKEN text,
  *  so a thinking-mandatory model gets headroom on top of it (as openai.ts
@@ -288,7 +296,7 @@ export const THINKING_MAX_OUTPUT_TOKENS = 1024;
  *  to its ceiling. */
 export function turnMaxTokens(provider: ProviderId, model: string, requested: number | undefined): number {
     const text = Math.min(requested ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS);
-    if (provider !== 'anthropic' || thinkingPolicy(model) !== 'always-on') return text;
+    if (!reasoningMandatory(provider, model)) return text;
     return Math.min(text + (THINKING_MAX_OUTPUT_TOKENS - MAX_OUTPUT_TOKENS), THINKING_MAX_OUTPUT_TOKENS);
 }
 

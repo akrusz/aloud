@@ -27,14 +27,27 @@ const DEFAULT_MAX_TOKENS = 300;
  *  controls and still expects `max_tokens`. */
 const REASONING_MODEL_RE = /^(gpt-([5-9]|\d{2,})|o\d)/;
 
+/** OpenAI models that cannot stop reasoning: Astra at every version, and Sol
+ *  from 6.1 on (6 Sol still takes 'none'). Each 400s on both 'none' and
+ *  'minimal' (probed Nov 2026 on 6 Astra, 6.2 Astra, 6.1 Sol, 6.2 Sol). */
+const ALWAYS_REASONING_RE = /^gpt-[\d.]+-astra|^gpt-(6\.[1-9]|[7-9]|\d{2,})[\d.]*-sol/;
+
 /** Lowest `reasoning_effort` each OpenAI reasoning family accepts (probed July
  *  2026; each family 400s on the others' floor): gpt-5.x and gpt-6 take 'none'
- *  and reject 'minimal', the bare gpt-5 family is the reverse, and o-series reject
- *  both, leaving 'low'. */
+ *  and reject 'minimal', the bare gpt-5 family is the reverse, and o-series and
+ *  ALWAYS_REASONING_RE reject both, leaving 'low'. */
 function lowestReasoningEffort(model: string): 'none' | 'minimal' | 'low' {
-    if (/^o\d/.test(model)) return 'low';
+    if (/^o\d/.test(model) || ALWAYS_REASONING_RE.test(model)) return 'low';
     if (/^gpt-(5\.\d|[6-9]|\d{2,})/.test(model)) return 'none';
     return 'minimal';
+}
+
+/** An OpenAI model that reasons before every reply even at its lowest effort,
+ *  and bills that reasoning as output: the hosted meter gives its turns
+ *  max_tokens headroom, as for Anthropic's always-on thinkers (server
+ *  pricing/meter.ts reasoningMandatory). */
+export function openaiReasoningMandatory(model: string): boolean {
+    return lowestReasoningEffort(model) === 'low';
 }
 
 export interface OpenAIProviderOptions {

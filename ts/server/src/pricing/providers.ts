@@ -379,6 +379,24 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 2.5 / M, // real 1.25x write fee, as on 5.6
         cacheCreation1h: 2.5 / M, // no 1h tier on automatic caching; never accrues
     },
+    // GPT-6.2 Astra (Nov 2026), OpenAI's flagship, at $8/$40: newer and cheaper
+    // than 6 Astra ($10/$50), which is not offered. Cache reads are 0.05x
+    // input, not 6 Sol's 0.1x, with the same reported 1.25x write fee; the
+    // 2.5x 12-hour write exists only on the Responses API. Reasoning can't be
+    // turned off: openai.ts pins it to `low` and the meter gives its turns
+    // headroom (meter.ts reasoningMandatory). Requests over 272K input bill
+    // 2x, which a session never reaches. Expanded until it is ear-tested; it
+    // costs about what Fable 5.2 does an hour.
+    'openai:gpt-6.2-astra': {
+        provider: 'openai',
+        model: 'gpt-6.2-astra',
+        expanded: true,
+        input: 8 / M,
+        output: 40 / M,
+        cacheRead: 0.4 / M,
+        cacheCreation: 10 / M, // real 1.25x write fee
+        cacheCreation1h: 10 / M, // no 1h tier on Chat Completions; never accrues
+    },
     // GPT-6 Luna, the 6 family's small tier: same contract as 6 Sol. Dearer
     // than gpt-5-nano, which keeps the utility (recap) flag.
     'openai:gpt-6-luna': {

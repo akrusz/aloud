@@ -119,6 +119,13 @@ export const ROSTER: EvalModel[] = [
         note: 'Added 2026-09-22 at $2/$10, well under 5.6 Sol, and took its curated slot and the zh default the same day. Mirrors the meditator more than 5.6 Sol; wordier (median 13 words).',
     },
     {
+        id: 'gpt-6.2-astra',
+        model: 'gpt-6.2-astra',
+        provider: 'openai',
+        shipped: true,
+        note: "Added 2026-11-22 (expanded) at $8/$40, cache reads $0.40: OpenAI's flagship since 2026-11-17, newer and cheaper than 6 Astra. Reasoning can't be turned off (lowest effort low). Hypothesis: the top OpenAI voice, and a judge outside the Claude family (rubric.md, \"Who judges\"). Risks: think-before-speak latency, and about Fable 5.2's $/hr. First look 2026-11-22 (27 fixtures, one run): 100%, stepped out on 5 of 5 acute and stayed in on 6 of 6, median 11 words to 6 Sol's 17, first text p50 1.4s to 6 Sol's 0.6s, and next to no reasoning tokens billed.",
+    },
+    {
         id: 'gpt-6-luna',
         model: 'gpt-6-luna',
         provider: 'openai',
@@ -155,6 +162,27 @@ export const ROSTER: EvalModel[] = [
     },
 
     // --- Candidates: not yet in the allowlist -------------------------------
+    {
+        id: 'gpt-6-astra',
+        model: 'gpt-6-astra',
+        provider: 'openai',
+        shipped: false,
+        note: 'Released 2026-09-03 at $10/$50, cache reads $1.00. Superseded by 6.2 Astra at lower prices, so not offered; kept for A/B against it. Unpriced here, so its runs report no cost. Lowest effort low.',
+    },
+    {
+        id: 'gpt-6.2-sol',
+        model: 'gpt-6.2-sol',
+        provider: 'openai',
+        shipped: false,
+        note: "Released 2026-11-17, OpenAI's recommended Sol: 6 Sol's $2/$10 with cache reads at $0.10, half 6 Sol's. Unlike 6 Sol it can't turn reasoning off (lowest effort low), so the question is latency. Curating it moves gpt-6-sol picks onto it (model-line.ts), unless it carries noAutoUpgrade.",
+    },
+    {
+        id: 'gpt-6.1-terra',
+        model: 'gpt-6.1-terra',
+        provider: 'openai',
+        shipped: false,
+        note: "Released 2026-10-26 at $1/$5, cache reads $0.05, and takes effort none. Successor to gpt-5.6-terra (zh shortlist, $2/$12), and OpenAI's named replacement for gpt-5-mini.",
+    },
     {
         id: 'gemini-3.1-pro',
         model: 'gemini-3.1-pro',

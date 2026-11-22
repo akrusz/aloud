@@ -27,6 +27,7 @@ export {
     VeniceProvider,
     GroqProvider,
     GoogleProvider,
+    openaiReasoningMandatory,
     type OpenAIProviderOptions,
 } from './openai.js';
 // ClaudeProxyProvider is Node-only (node:child_process); import it directly

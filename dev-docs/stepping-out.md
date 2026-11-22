@@ -34,7 +34,9 @@ stepped out, of 15, without the section and with it (2026-11-14):
 | GPT-5 nano | 0 | 1 |
 
 (gemma4:12b's row is from the tier trial that gave it the 16GB slot,
-`evals/results/ollama-tiers-2026-11-14`.) Ordinary turns were left alone 18 of
+`evals/results/ollama-tiers-2026-11-14`.) GPT-6.2 Astra, one run with the
+section on 2026-11-22, stepped out on 5 of 5 and left 6 of 6 ordinary turns
+alone (`evals/results/2026-11-22-astra-first-look`). Ordinary turns were left alone 18 of
 18 everywhere but one qwen miss. The
 markers are crude; read transcripts before trusting a fail.
 

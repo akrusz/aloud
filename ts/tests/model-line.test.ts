@@ -12,6 +12,7 @@ describe('modelLine', () => {
         ['anthropic/claude-3-opus-20240229', 'anthropic/claude-opus', [3, 0]],
         ['openai/gpt-5.6-sol', 'openai/gpt-sol', [5, 6]],
         ['openai/gpt-6-sol', 'openai/gpt-sol', [6, 0]],
+        ['openai/gpt-6.2-astra', 'openai/gpt-astra', [6, 2]],
         ['openai/gpt-5.5', 'openai/gpt', [5, 5]],
         ['google/gemini-3.5-flash-lite', 'google/gemini-flash-lite', [3, 5]],
     ])('%s is %s %j', (id, line, version) => {
@@ -52,6 +53,8 @@ describe('lineSuccessor', () => {
 
     it('has nothing for a line the shortlist does not carry, a different tier, or another provider', () => {
         expect(lineSuccessor('openai/gpt-5.6-terra', shortlist)).toBeNull();
+        // A newer version number in a dearer tier is not an upgrade.
+        expect(lineSuccessor('openai/gpt-6-sol', [...shortlist, option('openai/gpt-6.2-astra')])).toBeNull();
         expect(lineSuccessor('openrouter/moonshotai/kimi-k2', shortlist)).toBeNull();
         expect(lineSuccessor('openrouter/anthropic/claude-opus-4-8', shortlist)).toBeNull();
     });

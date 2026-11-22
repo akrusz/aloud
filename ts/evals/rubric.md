@@ -37,7 +37,7 @@ to 5 (Directing), weight = L + (H - L) x (g - 1) / 4. A single number holds at
 every level. Content missteps weigh more than style missteps.
 
 **Judges.** Opus 5.5 at low effort judges everything (on the subscription, no
-cost). GPT-6 Astra at its lowest effort judges one run in three, and the report
+cost). GPT-6.2 Astra at its lowest effort (low) judges one run in three, and the report
 prints how often the two agree and whether Opus places Claude replies higher
 than Astra does. If they agree, Opus alone is the standing judge. Kept cheap
 until the suite itself is settled.

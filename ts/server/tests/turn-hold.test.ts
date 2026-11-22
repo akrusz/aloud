@@ -40,11 +40,13 @@ describe('turnMaxTokens', () => {
         expect(turnMaxTokens('anthropic', 'claude-sonnet-5-5', undefined)).toBe(MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('google', 'gemini-3.5-flash-lite', 5_000)).toBe(MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('anthropic', 'claude-opus-5', 350)).toBe(350);
+        expect(turnMaxTokens('openai', 'gpt-6-sol', undefined)).toBe(MAX_OUTPUT_TOKENS);
     });
     it('gives a thinking-mandatory model headroom on top of the spoken budget', () => {
         expect(turnMaxTokens('anthropic', 'claude-fable-5-1', undefined)).toBe(THINKING_MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('anthropic', 'claude-opus-5-5', 5_000)).toBe(THINKING_MAX_OUTPUT_TOKENS);
         expect(turnMaxTokens('anthropic', 'claude-fable-5-1', 350)).toBe(350 + THINKING_MAX_OUTPUT_TOKENS - MAX_OUTPUT_TOKENS);
+        expect(turnMaxTokens('openai', 'gpt-6.2-astra', undefined)).toBe(THINKING_MAX_OUTPUT_TOKENS);
     });
 });
 

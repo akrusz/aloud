@@ -181,7 +181,10 @@ export interface VoiceEstimate {
 
 /** Hidden thinking billed as output on each reply by a model whose thinking
  *  can't be disabled (core thinkingPolicy 'always-on'). Set below the ~70
- *  measured on Opus 5.5, like the rest of the profile (file header). */
+ *  measured on Opus 5.5, like the rest of the profile (file header). OpenAI's
+ *  always-reasoning models (meter.ts reasoningMandatory) get none: at effort
+ *  `low` GPT-6.2 Astra's output tokens matched its spoken reply on all 27
+ *  eval fixtures (Nov 2026), so adding this would over-read its badge. */
 export const THINKING_TOKENS_PER_CALL = 55;
 
 /** LLM-only credits for the typical session (zero STT/TTS, those are separate
