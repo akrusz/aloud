@@ -889,6 +889,44 @@ describe('leavesAsk', () => {
             expect(leavesAsk(said), said).toBeNull();
         }
     });
+
+    it('sees through a leading hesitation sound', () => {
+        // "Uh, never mind." was said to the intention question (Parakeet,
+        // 2026-11-19), and would have been the intention.
+        for (const said of ['Uh, never mind.', 'Um, cancel.', 'Uhh... forget it', 'okay, uh, never mind', '嗯，算了', '呃，取消']) {
+            expect(leavesAsk(said), said).toBe('cancel');
+        }
+        for (const said of ['Uh, done.', "Hmm, that's it.", '嗯，好了']) {
+            expect(leavesAsk(said), said).toBe('done');
+        }
+        for (const said of ['Uh.', 'Um', '嗯', 'Uh, I want to rest', 'Um, keep it slow', 'never mind, uh, the noise', '嗯，慢一点']) {
+            expect(leavesAsk(said), said).toBeNull();
+        }
+        // A real intention behind one is still the answer, word for word:
+        // the setup parser reads nothing in it either.
+        expect(parseSetupCommand('Uh, I want to rest')).toBeNull();
+    });
+});
+
+describe('parseSetupCommand: a leading hesitation sound', () => {
+    it('reads the request behind it', () => {
+        expectAll([
+            ['Uh, playful.', [{ kind: 'quality', quality: 'playful', on: 'toggle' }]],
+            ['Um, twenty minutes.', [{ kind: 'length', minutes: 20 }]],
+            ['Uh, set my intention.', [{ kind: 'intention-ask' }]],
+            ['Hmm, more guidance', [{ kind: 'guidance', to: 'up' }]],
+            ['嗯，开阔', [{ kind: 'quality', quality: 'spacious', on: 'toggle' }]],
+        ]);
+    });
+
+    it('is nothing alone, and never begins', () => {
+        expectAll([
+            ['Uh.', null],
+            ['嗯', null],
+            ['Uh, I like the playground', null],
+            ['Uh, begin', null],
+        ]);
+    });
 });
 
 describe('loose matching', () => {

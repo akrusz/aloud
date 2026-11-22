@@ -21,6 +21,7 @@
  * model, focuses) stays whatever it was last time.
  */
 
+import { skipHesitation } from './hesitation.js';
 import { parseTimerRequest } from './voice-command.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
 
@@ -111,7 +112,8 @@ const ZH_MODES: Record<string, BeginMode> = { 探索: 'exploration', 标记: 'no
  * What the utterance asks to begin, or null when it is not (only) a request to
  * begin. `{}` is a plain "begin".
  */
-export function parseBeginRequest(utterance: string): BeginRequest | null {
+export function parseBeginRequest(heard: string): BeginRequest | null {
+    const utterance = skipHesitation(heard);
     const zh = toSimplified(trimHeardZh(utterance)).replace(/[\s。，！？、．.…,!?~]+/gu, '');
     if (/[㐀-鿿]/.test(zh)) {
         const match = ZH_BEGIN_RE.exec(zh);

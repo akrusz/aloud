@@ -129,6 +129,18 @@ describe('endConfirmReply', () => {
         }
     });
 
+    it('reads an answer behind a leading hesitation sound', () => {
+        for (const text of ['Uh, yes.', 'Um, okay.', 'Ah, yes please', '嗯，好的', '呃，结束吧']) {
+            expect(endConfirmReply(text), text).toBe('yes');
+        }
+        for (const text of ['Uh, never mind.', 'Hmm, no.', 'Umm, not yet', '嗯，不要', '额，继续']) {
+            expect(endConfirmReply(text), text).toBe('no');
+        }
+        for (const text of ['Uh.', 'Uh huh.', 'Uh, yes, I think my leg is asleep', 'Uh, my knee hurts', '嗯，我的腿麻了']) {
+            expect(endConfirmReply(text), text).toBeNull();
+        }
+    });
+
     it('answers in zh', () => {
         for (const text of ['好', '好的。', '是的', '嗯', '可以', '结束吧', '好的，结束吧']) {
             expect(endConfirmReply(text), text).toBe('yes');
@@ -157,6 +169,13 @@ describe('answerPace', () => {
 
     it('waits the whole pause on a bare 嗯 and on anything that is not a plain answer', () => {
         for (const text of ['嗯', '嗯。', '嗯嗯', 'Mm.', 'Hmm.', 'Uh huh.', 'Mm-hmm.', 'Hmm, yes.', 'yes, I think my leg is asleep']) {
+            expect(answerPace(text), text).toBeNull();
+        }
+    });
+
+    it('waits the whole pause on a reply that opens on a hesitation, whatever its verdict', () => {
+        for (const text of ['Hmm, yes.', 'Uh, no.', '嗯，好的', '呃，不要']) {
+            expect(endConfirmReply(text), text).not.toBeNull();
             expect(answerPace(text), text).toBeNull();
         }
     });

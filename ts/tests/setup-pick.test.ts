@@ -46,6 +46,14 @@ describe('the voice picker by voice', () => {
         }
     });
 
+    it('reads a request behind a leading hesitation sound', () => {
+        expect(pick('Uh, close it.', { pickerOpen: true })).toEqual({ kind: 'voice-picker', open: false });
+        expect(pick('okay, um, never mind', { pickerOpen: true })).toEqual({ kind: 'voice-picker', open: false });
+        expect(pick('Um, preview Harper.')).toEqual({ kind: 'voice', name: 'Harper', preview: true });
+        expect(pick('Uh, open the voice picker')).toEqual({ kind: 'voice-picker', open: true });
+        for (const said of ['Uh.', 'Uh, her voice is lovely']) expect(pick(said, { pickerOpen: true }), said).toBeNull();
+    });
+
     it('never reads a name, a preview or a bare no as a close', () => {
         const zh = { voices: ['Xiaoyue', 'Dahai', 'Harper'], pickerOpen: true };
         expect(pick('Harper.', zh)).toEqual({ kind: 'voice', name: 'Harper', preview: false });

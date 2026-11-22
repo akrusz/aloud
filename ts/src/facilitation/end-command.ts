@@ -22,6 +22,8 @@
  * about ending and pass through as speech.
  */
 
+import { skipHesitation } from './hesitation.js';
+
 /** What "end" can be said as. */
 const END_VERBS = new Set(['end', 'stop', 'finish', 'close', 'quit']);
 
@@ -218,7 +220,8 @@ const ZH_NO_RE =
  * no: of the two mistakes, carrying on a sit someone wanted to end costs them
  * one more sentence, and ending one they wanted to keep costs them the sit.
  */
-export function endConfirmReply(utterance: string): 'yes' | 'no' | null {
+export function endConfirmReply(heard: string): 'yes' | 'no' | null {
+    const utterance = skipHesitation(heard);
     const zh = joinedZh(utterance);
     if (zh !== null) return ZH_NO_RE.test(zh) ? 'no' : ZH_YES_RE.test(zh) ? 'yes' : null;
 
@@ -231,7 +234,7 @@ export function endConfirmReply(utterance: string): 'yes' | 'no' | null {
 }
 
 /** A yes to endConfirmReply that is as often the sound of someone thinking.
- *  English hums ("mm", "hmm", "uh huh") are no yes there at all. */
+ *  An English hum alone ("mm", "hmm", "uh huh") is no yes there at all. */
 const ZH_HESITATION_RE = /^嗯+$/;
 
 /**
@@ -242,9 +245,12 @@ const ZH_HESITATION_RE = /^嗯+$/;
  *   mistake, and a no never makes one.
  * - `soon` on a plain yes: after a short pause, not at once, since
  *   "yes... no, not yet" is a no and its second half may still be coming.
- * - null on anything else, a bare 嗯 included: the turn's whole pause.
+ * - null on anything else, a bare 嗯 included: the turn's whole pause. So is
+ *   a reply that opens on a hesitation ("hmm, yes"), though endConfirmReply
+ *   reads through it once the turn is over: it is someone still thinking.
  */
 export function answerPace(utterance: string): 'now' | 'soon' | null {
+    if (skipHesitation(utterance) !== utterance) return null;
     const reply = endConfirmReply(utterance);
     if (reply === 'no') return 'now';
     if (reply !== 'yes') return null;

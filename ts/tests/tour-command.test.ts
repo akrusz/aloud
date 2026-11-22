@@ -64,6 +64,24 @@ describe('parseTourCommand', () => {
         }
     });
 
+    it('reads a command behind a leading hesitation sound, as Parakeet writes one', () => {
+        const cases: Array<[string, string]> = [
+            ['Uh, next.', 'next'],
+            ['Um, go back.', 'back'],
+            ['Uhh... skip.', 'close'],
+            ['Hmm, repeat that.', 'repeat'],
+            ['嗯，下一步', 'next'],
+            ['呃，返回。', 'back'],
+        ];
+        for (const [text, kind] of cases) expect(parseTourCommand(text), text).toEqual({ kind });
+        expect(parseTourCommand('Um, Harper.', en)).toEqual({ kind: 'voice', index: 0 });
+        // Alone it is nothing, behind a sentence the sentence, and later than
+        // the opening it is a word this does not know.
+        for (const text of ['Uh.', 'Um', '嗯', 'Uh, what happens next', '嗯，下一步怎么办', 'okay, uh, next']) {
+            expect(parseTourCommand(text), text).toBeNull();
+        }
+    });
+
     it('takes what a recognizer writes for "back" said over a line', () => {
         for (const text of ['Так', 'так.', 'Bak']) expect(parseTourCommand(text), text).toEqual({ kind: 'back' });
     });

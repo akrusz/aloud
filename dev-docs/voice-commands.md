@@ -46,7 +46,10 @@ the words that politely surround a request, so "can we end the session" and
 end" does not. Looser than mute, because the failure is cheaper: ending is only
 ever a bid, and a wrong match gets asked "Would you like to end the session now?".
 The answer is a small vocabulary where any no-word wins and one unknown word
-makes it an ordinary turn ("yes, I think my leg is asleep").
+makes it an ordinary turn ("yes, I think my leg is asleep"); a hesitation
+sound it opens on ("uh, yes") is skipped (`skipHesitation`, below). The
+request itself does not skip one, nor does mute: "Uh, end the session." is
+speech.
 
 **Hearing the answer.** On the Whisper engines (local Whisper, aloud cloud)
 the turn after the question is taken as its answer (`listenForAnswer` in
@@ -64,8 +67,9 @@ was lost once and then waited 3.1s to be acted on (meditation-pal-cs6y):
   quiet plus the pass), a plain yes after 2s of quiet
   (`ANSWER_YES_PAUSE_MS`) on the pass's own text. Ended at its pass,
   "yes... no, not yet" was a yes and ended the sit; words said inside the
-  2s join the turn and are read with it. Anything else ("hmm, yes"), and a
-  bare 嗯, as often thinking as a yes, waits the full pause, so a hesitant
+  2s join the turn and are read with it. Anything else, a bare 嗯 (as often
+  thinking as a yes), and a reply that opens on a hesitation ("hmm, yes",
+  though its verdict reads through it) wait the full pause, so a hesitant
   reply is not cut in two. The pass runs even with speculative passes off,
   and past two seconds of speech it is a turn and turn rules apply
   (`ANSWER_MAX_SPEECH_MS`).
@@ -206,6 +210,15 @@ A recognizer writes "two" for "to" and "four" for "for" ("set the focus two
 parts", said in a room on 2026-11-14 and in the synthetic corpus). After a
 word that sets something or names a setting they are read as the word, except
 where the number can be the length itself (`numberAsWord`).
+
+A hesitation sound an utterance opens on is not counted (`skipHesitation`,
+`hesitation.ts`): uh, um, er, erm, ah, hmm, mm, stretched or not, and 嗯 / 呃 /
+额 in zh. Parakeet writes them where GPT never does, so "Uh, next.", "Uh,
+begin." and "Uh, never mind." read as nothing until they were skipped
+(meditation-pal-0ntn). Begin, the setup parser, a pick by name, the tour's
+words, `leavesAsk` and the end question's answer all skip it. Alone it is
+still nothing, one later in the utterance is a word like any other, and "oh"
+is not one: it says something ("oh no"), and only `LEAVE_LEAD` takes it.
 
 The whole utterance has to be the request, as with "begin": one word this
 doesn't know and it is the room talking. Inside that rule the value words are

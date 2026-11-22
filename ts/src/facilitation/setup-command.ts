@@ -22,6 +22,7 @@
  */
 
 import type { BeginMode } from './begin-command.js';
+import { HESITATION_WORD, skipHesitation } from './hesitation.js';
 import type { Quality, Verbosity } from './prompts.js';
 import { parseTimerRequest } from './voice-command.js';
 import { zhVoicePhrases } from './voice-names.js';
@@ -923,7 +924,7 @@ function parseSpecialRequest(utterance: string): SetupAction | null {
 
 /** The softeners around a leave, ahead and after (regex source; the picker's
  *  close in setup-pick.ts uses them too). */
-export const LEAVE_LEAD = "(?:(?:ok|okay|oh|no|actually|um|alright|all\\s+right)[,\\s]+)*";
+export const LEAVE_LEAD = `(?:(?:ok|okay|oh|no|actually|${HESITATION_WORD}|alright|all\\s+right)[,\\s]+)*`;
 export const LEAVE_TAIL = '(?:[,\\s]+(?:thanks|thank\\s+you|please))?[.!。！，,]?$';
 const CANCEL_ANSWER_RE = new RegExp(
     `^${LEAVE_LEAD}(?:never\\s*mind|cancel|cancel\\s+that|forget\\s+it|forget\\s+that|nothing|skip|skip\\s+it|no|none|stop)${LEAVE_TAIL}` +
@@ -943,7 +944,7 @@ const DONE_ANSWER_RE = new RegExp(
  * words are not the answer.
  */
 export function leavesAsk(answer: string): 'cancel' | 'done' | null {
-    const said = toSimplified(answer.replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim());
+    const said = toSimplified(skipHesitation(answer).replace(/[’‘]/g, "'").replace(/\s+/g, ' ').trim());
     if (CANCEL_ANSWER_RE.test(said)) return 'cancel';
     if (DONE_ANSWER_RE.test(said)) return 'done';
     return null;
@@ -1126,7 +1127,8 @@ function toggleByName(alone: string): SetupAction | null {
  * The changes an utterance asks for, in the order said, or null when it is not
  * (only) a request to change the setup. Never a request to begin.
  */
-export function parseSetupCommand(utterance: string): SetupAction[] | null {
+export function parseSetupCommand(heard: string): SetupAction[] | null {
+    const utterance = skipHesitation(heard);
     if (/[㐀-鿿]/.test(utterance)) return parseZh(utterance);
 
     const exact = tokens(utterance);

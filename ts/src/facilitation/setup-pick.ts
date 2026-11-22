@@ -14,6 +14,7 @@
  * picked ("voice", "model") or, for a voice, a word that asks to hear it.
  */
 
+import { skipHesitation } from './hesitation.js';
 import { LEAVE_LEAD, LEAVE_TAIL, editDistance, leavesAsk, soundKey } from './setup-command.js';
 import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
@@ -151,7 +152,8 @@ function parseZhPick(utterance: string, ctx: PickContext): SetupPick | null {
  * What an utterance picks, or null when it is not (only) a request to pick a
  * voice or a model from the lists in `ctx`.
  */
-export function parseSetupPick(utterance: string, ctx: PickContext): SetupPick | null {
+export function parseSetupPick(heard: string, ctx: PickContext): SetupPick | null {
+    const utterance = skipHesitation(heard);
     if (ctx.pickerOpen && closesPicker(utterance)) return { kind: 'voice-picker', open: false };
     if (/[㐀-鿿]/.test(utterance)) return parseZhPick(utterance, ctx);
     const said = words(utterance).filter((w) => !POLITE.has(w));

@@ -9,6 +9,7 @@
  * only one.
  */
 
+import { skipHesitation } from './hesitation.js';
 import { editDistance, soundKey } from './setup-command.js';
 import { zhSaysName } from './voice-names.js';
 import { toSimplified, trimHeardZh } from './zh-script.js';
@@ -157,7 +158,8 @@ function bareZh(utterance: string): string {
  * tour's words. `voices` are the two on offer while the voice step is up
  * (first offered first), absent on every other step.
  */
-export function parseTourCommand(utterance: string, voices?: readonly OfferedVoice[]): TourCommand | null {
+export function parseTourCommand(heard: string, voices?: readonly OfferedVoice[]): TourCommand | null {
+    const utterance = skipHesitation(heard);
     if (voices && voices.length === 2) {
         const index = pickedVoice(utterance, voices);
         if (index !== null) return { kind: 'voice', index };

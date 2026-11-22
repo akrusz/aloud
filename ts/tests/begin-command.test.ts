@@ -50,6 +50,16 @@ describe('isBeginCommand', () => {
         }
     });
 
+    it('reads a begin behind a leading hesitation sound, and nothing more', () => {
+        for (const text of ['Uh, begin.', 'Um, start the session', 'Erm, begin', '嗯，开始吧', '呃 开始']) {
+            expect(isBeginCommand(text), text).toBe(true);
+        }
+        expect(parseBeginRequest('Uh, begin a twenty minute felt sense session.')).toEqual({ mode: 'felt_sense', minutes: 20 });
+        for (const text of ['Uh.', 'Um...', '嗯', 'Uh, when does the movie start?', 'begin, uh', '嗯，电影什么时候开始']) {
+            expect(isBeginCommand(text), text).toBe(false);
+        }
+    });
+
     it('matches and ignores in zh', () => {
         for (const text of ['开始', '开始吧', '开始冥想', '我们开始吧', '请开始 冥想。', '好的开始']) {
             expect(isBeginCommand(text), text).toBe(true);
