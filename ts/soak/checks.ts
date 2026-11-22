@@ -7,6 +7,7 @@
  */
 
 import { findRoleLeak, isReasoningAloud, opensWithReturn, parseTurnSignals } from '../src/facilitation/index.js';
+import { callbackOutcomes } from './style.js';
 import type { CheckFinding, SessionRunResult, TurnRecord } from './types.js';
 
 /** Spoken text must never contain a control token or markup the scrub missed. */
@@ -172,6 +173,7 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     if (result.scenario.language === 'zh') checkLanguage(result, add);
 
     checkHolds(result, add);
+    checkCallbacks(result, add);
 
     // Timer invariants.
     if (result.scenario.timerMin !== undefined) {
@@ -346,4 +348,38 @@ function checkHolds(result: SessionRunResult, add: Add): void {
     if (!reached) {
         add('scenario-setup-missed', 'warn', `the session never produced what "${result.scenario.id}" is aimed at (${aim}), so it says nothing about that bug`);
     }
+}
+
+/**
+ * Scenario.callbacks: did each early particular come back in a facilitator
+ * line after its late cue? A literal match on the fixed words, so `info`: the
+ * judge decides whether it was used well, or whether leaving it was right.
+ */
+function checkCallbacks(result: SessionRunResult, add: Add): void {
+    const missed: string[] = [];
+    for (const o of callbackOutcomes(result)) {
+        const id = o.callback.id;
+        if (!o.early || !o.cue) {
+            missed.push(`${id} (${o.early ? 'no late cue' : 'never said early'})`);
+            continue;
+        }
+        const where = `${id}: said at ${fmtAt(o.early.at)}, cued at ${fmtAt(o.cue.at)}`;
+        add(
+            'callback',
+            'info',
+            o.echo
+                ? `${where}, back in facilitator line ${o.echoedAfter} after the cue (${fmtAt(o.echo.at)}): ${quote(o.echo.text)}`
+                : o.meditatorFirst
+                  ? `${where}, then the meditator said it again (${fmtAt(o.meditatorFirst.at)}) before the facilitator did, so nothing after counts`
+                  : `${where}, not in any of the ${o.linesAfterCue} facilitator lines after the cue`
+        );
+    }
+    if (missed.length > 0) {
+        add('scenario-setup-missed', 'warn', `the meditator never set up ${missed.join(', ')}, so "${result.scenario.id}" says less than it should`);
+    }
+}
+
+function fmtAt(at: number): string {
+    const t = Math.round(at);
+    return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }

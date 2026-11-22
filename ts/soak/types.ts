@@ -35,6 +35,21 @@ export interface SimLineTransform {
  *  session passing says nothing about the bug it was aimed at. */
 export type ScenarioAim = 'fright-in-hold' | 'back-in-hold' | 'fragment';
 
+/**
+ * Something the meditator says early that matters again much later, for a
+ * long session (rubric dimension 12, "Holds the session"). The persona's arc
+ * fixes the words, so a check can find them: `early` marks the early line and
+ * `cue` the late one in what the engine was given (case-insensitive, as
+ * written), and any `echo` word (whole words) in a facilitator line after the
+ * cue counts as the early material coming back.
+ */
+export interface SessionCallback {
+    id: string;
+    early: string;
+    cue: string;
+    echo: readonly string[];
+}
+
 export interface Scenario {
     id: string;
     title: string;
@@ -60,6 +75,10 @@ export interface Scenario {
     language?: 'en' | 'zh';
     transform?: SimLineTransform;
     aim?: ScenarioAim;
+    callbacks?: readonly SessionCallback[];
+    /** Run only when named (`--scenarios=<id>`): left out of "all", so out of
+     *  every battery. For the long, dearer ones. */
+    optIn?: boolean;
 }
 
 export type TurnKind =
@@ -169,9 +188,45 @@ export interface CheckFinding {
 
 export interface JudgeVerdict {
     overall: number;
+    /** Includes `holds_session` (rubric dimension 12), null on a session too
+     *  short to show it. */
     dimensions: Record<string, number | null>;
     winceMoments: Array<{ quote: string; why: string }>;
     notes: string;
+    /** The moments that decided `holds_session`, quoted; absent when it was
+     *  not scored. */
+    holdsMoments?: Array<{ quote: string; why: string }>;
+}
+
+/**
+ * Counts over the facilitator's replies (turns of kind `reply`: answers to
+ * something the meditator said; the opener, check-ins and canned lines are
+ * left out), free beside the judge's "holds the session". Computed by
+ * soak/style.ts.
+ */
+export interface SessionStyle {
+    replies: number;
+    /** Share of replies ending in a question mark; null with no replies. */
+    questionShare: number | null;
+    /** The most frequent first three words (lowercased) and how many replies
+     *  open with them; null with no replies. */
+    topOpening: { words: string; count: number } | null;
+    /** Median words per reply in the first and the last third of the
+     *  session's simulated time; null when that third has no reply. */
+    medianWordsFirstThird: number | null;
+    medianWordsLastThird: number | null;
+    /** Scenario.callbacks: whether each early line and its cue were said,
+     *  and how many facilitator lines after the cue it took for the early
+     *  words to come back (null: never, or no cue). `meditatorFirst`: the
+     *  meditator said the words again after the cue before the facilitator
+     *  did, so no later echo is counted. */
+    callbacks?: Array<{
+        id: string;
+        saidEarly: boolean;
+        cued: boolean;
+        echoedAfter: number | null;
+        meditatorFirst: boolean;
+    }>;
 }
 
 /** One judge model's verdict on one session; with --judge-repeats a judge
@@ -192,4 +247,5 @@ export interface SessionReport {
     judgeRuns?: JudgeRun[];
     /** Judge calls that produced no verdict. */
     judgeRunErrors?: Array<{ judgeModel: string; error: string }>;
+    style?: SessionStyle;
 }

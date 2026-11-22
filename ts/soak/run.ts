@@ -26,6 +26,7 @@ import { loadServerEnv } from './env.js';
 import { LlmSimUser } from './sim-user.js';
 import { runSoakSession } from './orchestrator.js';
 import { runChecks } from './checks.js';
+import { sessionStyle } from './style.js';
 import { runJudges } from './judge.js';
 import { getScenarios, SCENARIOS } from './scenarios.js';
 import { gitInfo, writeRunReports, tierOfRunDir, type RunMeta } from './report.js';
@@ -114,7 +115,8 @@ Options:
   --battery=<id>          run a named battery (see --list-batteries)
   --baseline=<dir|last>   compare against an earlier run; the report leads with
                           what changed
-  --scenarios=<a,b|all>   which scenarios to run (see --list)
+  --scenarios=<a,b|all>   which scenarios to run (see --list); "all" leaves
+                          out the opt-in ones (hour), which run only by name
   --sessions=<n>          runs per scenario
   --facilitator=<a,b>     provider[:model] or eval roster id (ts/evals/models.ts)
                           under test; a comma list compares models head-to-head
@@ -147,7 +149,7 @@ its own family's transcripts inflates its own row (soak/roles.ts).`);
     if (values.list) {
         for (const s of SCENARIOS) {
             console.log(
-                `${s.id.padEnd(15)} ${s.title} (${s.fakeMinutes} sim min, persona: ${s.persona.id})`
+                `${s.id.padEnd(15)} ${s.title} (${s.fakeMinutes} sim min, persona: ${s.persona.id}${s.optIn ? '; opt-in, not in "all"' : ''})`
             );
         }
         return;
@@ -236,7 +238,12 @@ its own family's transcripts inflates its own row (soak/roles.ts).`);
                 log,
             });
             const findings = runChecks(result);
-            const report: SessionReport = { result, findings, ...(await runJudges(roles.judges, judgeRepeats, result)) };
+            const report: SessionReport = {
+                result,
+                findings,
+                style: sessionStyle(result),
+                ...(await runJudges(roles.judges, judgeRepeats, result)),
+            };
             const fails = findings.filter((f) => f.level === 'fail').length;
             const warns = findings.filter((f) => f.level === 'warn').length;
             const scores = (report.judgeRuns ?? []).map((j) => j.verdict.overall);

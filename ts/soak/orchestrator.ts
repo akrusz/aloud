@@ -89,14 +89,15 @@ export interface OrchestratorOptions {
     utility: LLMProvider;
     simUser: SimUser;
     log?: (line: string) => void;
-    /** Real-time cap per session; a hung provider ends the run, not the walk. */
+    /** Real-time cap per session; a hung provider ends the run, not the walk.
+     *  Default: ten minutes, or half the simulated length for a longer sit. */
     wallClockCapMs?: number;
 }
 
 export async function runSoakSession(opts: OrchestratorOptions): Promise<SessionRunResult> {
     const { scenario, facilitator, utility, simUser } = opts;
     const log = opts.log ?? (() => {});
-    const wallCap = opts.wallClockCapMs ?? 10 * 60_000;
+    const wallCap = opts.wallClockCapMs ?? Math.max(10, scenario.fakeMinutes / 2) * 60_000;
     const wallStart = Date.now();
 
     const mode = getMode(scenario.modeId) ?? EXPLORATION_MODE;
@@ -668,7 +669,13 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 ...(action.model !== undefined ? { model: action.model } : {}),
                 ...action.usage,
             });
-            event('sim', 'action', { waitSec: action.waitSec, spoke: action.text !== null, end: action.end });
+            event('sim', 'action', {
+                waitSec: action.waitSec,
+                spoke: action.text !== null,
+                end: action.end,
+                // What the sim model wrote, for when a line reads oddly.
+                ...(action.raw ? { raw: action.raw } : {}),
+            });
 
             // Wait phase: advance the fake clock, polling timer + check-in gate.
             const target = now() + action.waitSec;

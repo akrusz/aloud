@@ -6,8 +6,9 @@
  * report.md is ordered for a two-minute read, worst news first: a verdict line,
  * then what changed since the baseline, then the scoreboard, then every failure
  * grouped by check (not by session - the same broken thing across four sessions
- * is one problem, not four), then the judge's verbatim wince quotes, then how
- * far the judges themselves move and what the run's tokens cost. Transcripts
+ * is one problem, not four), then the judge's verbatim wince quotes and its
+ * quoted read on whether a long sit held together, then how far the judges
+ * themselves move, the style counts, and what the run's tokens cost. Transcripts
  * and per-session bookkeeping come last and collapsed. They're the thing you go
  * to once something above has told you where to look.
  *
@@ -21,11 +22,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CallUsage, CheckFinding, JudgeVerdict, LlmCallStat, SessionReport } from './types.js';
+import type { CallUsage, CheckFinding, JudgeVerdict, LlmCallStat, SessionReport, SessionStyle } from './types.js';
 import { sameFamily, specOf, type RoleCollision } from './roles.js';
 import type { BaselineDiff } from './baseline.js';
 import { JUDGE_DELTA_MIN } from './baseline.js';
 import { FACILITATOR_CALL_KINDS, cachedShare, totalUsage, type UsageTotals } from './usage.js';
+import { replyThirds, sessionStyle, styleOf } from './style.js';
+import { HOLDS_SESSION_MIN_MINUTES } from './judge.js';
 
 /** A role as recorded in run.json: what was asked for, and what it resolved to. */
 export interface CastEntry {
@@ -82,6 +85,7 @@ const DIMENSIONS: ReadonlyArray<[key: string, header: string]> = [
     ['no_meta_leaks', 'meta'],
     ['timer_handling', 'timer'],
     ['stepping_out', 'step-out'],
+    ['holds_session', 'holds'],
 ];
 
 /** Marks a judge's score on a facilitator from its own family. */
@@ -590,6 +594,83 @@ function winceSection(meta: RunMeta, reports: SessionReport[], multi: boolean): 
     return lines;
 }
 
+function styleCells(s: Omit<SessionStyle, 'callbacks'>): string[] {
+    const words = (n: number | null): string => (n === null ? '—' : String(Math.round(n)));
+    return [
+        String(s.replies),
+        s.questionShare === null ? '—' : `${Math.round(s.questionShare * 100)}%`,
+        s.topOpening ? `"${s.topOpening.words}" ×${s.topOpening.count}` : '—',
+        `${words(s.medianWordsFirstThird)} → ${words(s.medianWordsLastThird)}`,
+    ];
+}
+
+/** Counted beside the judge's "holds the session": per facilitator model
+ *  (replies pooled across its sessions), then per session. */
+function styleSection(reports: SessionReport[], multi: boolean): string[] {
+    const withReplies = reports.filter((r) => replyThirds(r.result).all.length > 0);
+    if (withReplies.length === 0) return [];
+    const head = '| replies | end in ? | most repeated opening | median words, first → last third |';
+    const lines = [
+        '## Style',
+        '',
+        '_Counted, not judged, over replies to the meditator (the opener, check-ins and canned lines left out). Replies growing over a sit, under a Brief setting most of all, is the drift to look for._',
+        '',
+        `| facilitator ${head}`,
+        '|---|---|---|---|---|',
+    ];
+    const byModel = new Map<string, SessionReport[]>();
+    for (const r of withReplies) byModel.set(r.result.facilitatorModel, [...(byModel.get(r.result.facilitatorModel) ?? []), r]);
+    for (const [model, rs] of byModel) {
+        const pooled = rs.map((r) => replyThirds(r.result));
+        const style = styleOf({
+            all: pooled.flatMap((p) => p.all),
+            first: pooled.flatMap((p) => p.first),
+            last: pooled.flatMap((p) => p.last),
+        });
+        lines.push(`| ${model} | ${styleCells(style).join(' | ')} |`);
+    }
+    lines.push('', `| session ${head}`, '|---|---|---|---|---|');
+    for (const r of withReplies) {
+        lines.push(`| ${sessionSlug(r, multi)} | ${styleCells(r.style ?? sessionStyle(r.result)).join(' | ')} |`);
+    }
+    lines.push('');
+    for (const r of withReplies) {
+        const callbacks = (r.style ?? sessionStyle(r.result)).callbacks;
+        if (!callbacks?.length) continue;
+        const parts = callbacks.map((c) =>
+            !c.saidEarly || !c.cued
+                ? `${c.id} never set up`
+                : c.echoedAfter !== null
+                  ? `${c.id} back in line ${c.echoedAfter}`
+                  : c.meditatorFirst
+                    ? `${c.id} said again by the meditator first`
+                    : `${c.id} not back`
+        );
+        lines.push(`Early material after its late cue, ${sessionSlug(r, multi)}: ${parts.join(' · ')}.`, '');
+    }
+    return lines;
+}
+
+/** Rubric dimension 12, with the moments each judge quoted for it. */
+function holdsSection(meta: RunMeta, reports: SessionReport[], multi: boolean): string[] {
+    const judges = judgeModels(meta, reports);
+    const scored = reports.flatMap((r) =>
+        (judges.length ? judges : [undefined]).flatMap((j) => {
+            const v = j === undefined ? r.judge : verdictsBy(r, j, judges[0])[0];
+            const score = v?.dimensions.holds_session;
+            return v && typeof score === 'number' ? [{ r, judge: j, score, moments: v.holdsMoments ?? [] }] : [];
+        })
+    );
+    if (scored.length === 0) return [];
+    const lines = ['## Holds the session', '', `_Rubric dimension 12 (\`ts/evals/rubric.md\`), scored only on a sit of ${HOLDS_SESSION_MIN_MINUTES} simulated minutes or more._`, ''];
+    for (const { r, judge, score, moments } of scored) {
+        lines.push(`**${sessionSlug(r, multi)}**${judge && judges.length > 1 ? ` *(${judge})*` : ''} ${score}/10`);
+        for (const m of moments) lines.push(`- "${m.quote}"`, `  <br>${m.why}`);
+        lines.push('');
+    }
+    return lines;
+}
+
 /** Tokens and dollars: the facilitator per model, then what the harness
  *  itself spent. */
 function usageSection(meta: RunMeta, reports: SessionReport[]): string[] {
@@ -672,7 +753,9 @@ export function buildReportMd(
     lines.push(...scoreboard(meta, reports, multi));
     lines.push(...findingsSection(reports, multi));
     lines.push(...winceSection(meta, reports, multi));
+    lines.push(...holdsSection(meta, reports, multi));
     lines.push(...judgeSpreadSection(meta, reports, multi));
+    lines.push(...styleSection(reports, multi));
     lines.push(...usageSection(meta, reports));
 
     lines.push(
@@ -717,6 +800,14 @@ export function buildReportMd(
                 t.reported === 0
                     ? `**Facilitator tokens:** ${calls} calls, not reported`
                     : `**Facilitator tokens:** ${calls} calls · ${fresh} fresh in · ${read} cache read · ${write} cache write · ${out} out · ${share} from cache · ${cost}`,
+                ''
+            );
+        }
+        const style = r.style ?? sessionStyle(r.result);
+        if (style.replies > 0) {
+            const [replies, questions, opening, words] = styleCells(style);
+            lines.push(
+                `**Style:** ${replies} replies · ${questions} end in a question · most repeated opening ${opening} · median words ${words} (first → last third)`,
                 ''
             );
         }

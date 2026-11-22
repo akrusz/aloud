@@ -21,7 +21,8 @@ import {
 import { runSoakSession } from '../soak/orchestrator.js';
 import { parseSimReply, type SimAction, type SimUser, type SimView } from '../soak/sim-user.js';
 import { runChecks } from '../soak/checks.js';
-import { parseJudgeReply, runJudges } from '../soak/judge.js';
+import { holdsSessionRubric, judgeSessionRun, parseJudgeReply, runJudges } from '../soak/judge.js';
+import { endsInQuestion, sessionStyle } from '../soak/style.js';
 import { asWebSpeech, trailingFragment, transformLine } from '../soak/transform.js';
 import { cachedShare, totalUsage } from '../soak/usage.js';
 import { callCostUsd } from '../soak/prices.js';
@@ -183,6 +184,19 @@ describe('parseSimReply', () => {
         const a = parseSimReply('WAIT: 10\nYes, please. WAIT: 420 Hm, tingling. WAIT: 8 Okay, I am back.');
         expect(a.waitSec).toBe(10);
         expect(a.text).toBe('Yes, please.');
+    });
+
+    it('takes the speech a model put on the WAIT line, with or without a number', () => {
+        expect(parseSimReply('WAIT: Yes, please be quiet.')).toMatchObject({ waitSec: 60, text: 'Yes, please be quiet.' });
+        expect(parseSimReply('WAIT: 30 Yes, please.')).toMatchObject({ waitSec: 30, text: 'Yes, please.' });
+        expect(parseSimReply('WAIT: 90 seconds')).toMatchObject({ waitSec: 90, text: null });
+        expect(parseSimReply('WAIT:\nhm').text).toBe('hm');
+    });
+
+    it('reads a placeholder for silence as silence (Haiku 5.5 wrote "EOF")', () => {
+        expect(parseSimReply('WAIT: 840\nEOF_PLACEHOLDER').text).toBeNull();
+        expect(parseSimReply('WAIT: 480\nEOF').text).toBeNull();
+        expect(parseSimReply('WAIT: 480\nOK').text).toBe('OK');
     });
 });
 
@@ -884,5 +898,240 @@ describe('tokens in the report', () => {
     it('stays out of a report whose calls carry no usage at all', () => {
         const md = buildReportMd(META, [{ result: fakeResult({ calls: [{ kind: 'turn', latencyMs: 5 }] }), findings: [] }]);
         expect(md).not.toContain('## Tokens and cost');
+    });
+});
+
+// ---- An hour, and what holds it together (rubric dimension 12) ------------
+
+describe('the hour scenario', () => {
+    const lines = {
+        stone: "There's a heaviness in the middle of my chest, like a smooth stone sitting in a riverbed.",
+        mira: "My daughter Mira gets home at four, and I don't want to hand her this rush.",
+        door: 'I spend my whole day holding the door for everyone.',
+        stoneCue: 'The heavy thing in my chest is back, and something is flowing around it now.',
+        doorCue: 'Part of me is already making a list of everything everyone needs from me tonight.',
+        miraCue: "I think I'm nearly done. I want to take some of this quiet with me into the afternoon.",
+    };
+    /** `followUp`: a meditator line and the facilitator's answer to it,
+     *  slipped in right after the stone's cue and its reply. */
+    const run = (replyToStoneCue: string, followUp?: { says: string; reply: string }) =>
+        runSoakSession({
+            scenario: scenario('hour'),
+            facilitator: new ScriptedFacilitator({
+                turns: [
+                    'Whenever you are ready.',
+                    'A stone in a riverbed.',
+                    'Mm.',
+                    'Holding the door.',
+                    '[HOLD] Shall I be quiet for a while?',
+                    'Soft and slow.',
+                    'Warm hands.',
+                    replyToStoneCue,
+                    ...(followUp ? [followUp.reply] : []),
+                    'A list.',
+                    'Into the afternoon, and Mira at four.',
+                ],
+            }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([
+                { waitSec: 120, text: lines.stone },
+                { waitSec: 120, text: lines.mira },
+                { waitSec: 120, text: lines.door },
+                { waitSec: 300, text: 'Could I have some quiet for a while?' },
+                { waitSec: 10, text: 'Yes, please.' },
+                { waitSec: 900 },
+                { waitSec: 300, text: "I'm back. It was soft and slow." },
+                { waitSec: 600, text: 'My hands are warm.' },
+                { waitSec: 500, text: lines.stoneCue },
+                ...(followUp ? [{ waitSec: 60, text: followUp.says }] : []),
+                { waitSec: 240, text: lines.doorCue },
+                { waitSec: 240, text: lines.miraCue },
+                { waitSec: 30, end: true },
+            ]),
+        });
+
+    it('is opt-in: left out of "all", so out of every battery', () => {
+        expect(getScenarios('all').map((s) => s.id)).not.toContain('hour');
+        expect(scenario('hour')).toMatchObject({ fakeMinutes: 60, verbosity: 'low', directiveness: 2, optIn: true });
+    });
+
+    it('runs an hour of talk and quiet on the fake clock and finds the early material after its cue', async () => {
+        const result = await run('The stone, with something flowing around it?');
+        expect(result.endedBy).toBe('sim-end');
+        expect(result.fakeDurationSec).toBeGreaterThan(50 * 60);
+        expect(eventKeys(result)).toEqual(expect.arrayContaining(['hold:enter', 'hold:exit']));
+
+        const style = sessionStyle(result);
+        expect(style.callbacks).toEqual([
+            { id: 'stone', saidEarly: true, cued: true, echoedAfter: 1, meditatorFirst: false },
+            { id: 'Mira', saidEarly: true, cued: true, echoedAfter: 1, meditatorFirst: false },
+            { id: 'door', saidEarly: true, cued: true, echoedAfter: null, meditatorFirst: false },
+        ]);
+        const callbacks = runChecks(result).filter((f) => f.id === 'callback');
+        expect(callbacks.every((f) => f.level === 'info')).toBe(true);
+        expect(callbacks.find((f) => f.detail.startsWith('stone:'))?.detail).toMatch(/back in facilitator line 1 after the cue/);
+        expect(callbacks.find((f) => f.detail.startsWith('door:'))?.detail).toMatch(/not in any of the \d+ facilitator lines after the cue/);
+        expect(runChecks(result).find((f) => f.id === 'scenario-setup-missed')).toBeUndefined();
+    });
+
+    it('reports the stone not back when the reply to its cue leaves it out', async () => {
+        const result = await run('Something flowing.');
+        expect(sessionStyle(result).callbacks?.[0]).toEqual({
+            id: 'stone',
+            saidEarly: true,
+            cued: true,
+            echoedAfter: null,
+            meditatorFirst: false,
+        });
+    });
+
+    it('does not credit an echo of the word the meditator said again first', async () => {
+        const result = await run('What is the flowing like?', {
+            says: 'A slow current, moving around the stone.',
+            reply: 'The stone and the current.',
+        });
+        expect(sessionStyle(result).callbacks?.[0]).toMatchObject({ id: 'stone', echoedAfter: null, meditatorFirst: true });
+        expect(runChecks(result).find((f) => f.detail.startsWith('stone:'))?.detail).toMatch(/the meditator said it again/);
+    });
+
+    it('warns when the meditator never set the material up', async () => {
+        const result = await runSoakSession({
+            scenario: scenario('hour'),
+            facilitator: new ScriptedFacilitator({ turns: ['Whenever you are ready.'] }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([{ waitSec: 120, text: lines.stone }, { waitSec: 30, end: true }]),
+        });
+        const missed = runChecks(result).find((f) => f.id === 'scenario-setup-missed');
+        expect(missed?.level).toBe('warn');
+        expect(missed?.detail).toMatch(/stone \(no late cue\).*Mira \(never said early\)/);
+    });
+});
+
+describe('style counts', () => {
+    const reply = (at: number, text: string) => ({ at, role: 'assistant' as const, kind: 'reply' as const, text, raw: text });
+
+    it('counts questions, the repeated opening, and length in the first and last third', () => {
+        const style = sessionStyle(
+            fakeResult({
+                fakeDurationSec: 900,
+                transcript: [
+                    { at: 0, role: 'assistant', kind: 'opener', text: 'What is here?', raw: 'What is here?' },
+                    reply(100, "What's that like?"),
+                    reply(200, "What's that like now?"),
+                    reply(400, 'Mm.'),
+                    { at: 500, role: 'assistant', kind: 'checkin', text: 'Still here?' },
+                    reply(700, "What's that like for you, right now, in the chest?"),
+                    reply(800, 'Stay with the warmth.'),
+                ],
+            })
+        );
+        expect(style).toEqual({
+            replies: 5,
+            questionShare: 3 / 5,
+            topOpening: { words: "what's that like", count: 3 },
+            medianWordsFirstThird: 3.5,
+            medianWordsLastThird: 7,
+        });
+        expect(endsInQuestion('你现在注意到了什么？')).toBe(true);
+    });
+
+    it('has nothing to count in a session without replies', () => {
+        expect(sessionStyle(fakeResult())).toEqual({
+            replies: 0,
+            questionShare: null,
+            topOpening: null,
+            medianWordsFirstThird: null,
+            medianWordsLastThird: null,
+        });
+    });
+});
+
+describe('holds the session, in the judge', () => {
+    const judgeSaying = (holds: number) => {
+        const systems: string[] = [];
+        const provider: LLMProvider = {
+            model: 'gpt-5.5',
+            async complete(_m: Message[], options?: CompletionOptions): Promise<CompletionResult> {
+                systems.push(options?.system ?? '');
+                return completion(
+                    JSON.stringify({
+                        overall: 7,
+                        dimensions: { tone: 8, holds_session: holds },
+                        wince_moments: [],
+                        holds_session_moments: [{ quote: 'The stone?', why: 'minute 38: their image, back when it mattered' }],
+                        notes: 'ok',
+                    })
+                );
+            },
+        };
+        return { provider, systems };
+    };
+
+    it('reads dimension 12 from the eval rubric, so Alex edits one file', () => {
+        expect(holdsSessionRubric()).toMatch(/minute fifty/);
+        expect(holdsSessionRubric('# R\n### 12. Holds\n\nKeep it.\n\n---\n')).toBe('Keep it.');
+        expect(() => holdsSessionRubric('# R\n### 11. Other\n')).toThrow(/no "### 12\." section/);
+    });
+
+    it('parses the score and its quoted moments', () => {
+        const v = parseJudgeReply(
+            '{"overall": 7, "dimensions": {"holds_session": 6}, "wince_moments": [], "holds_session_moments": [{"quote": "The stone?", "why": "minute 38"}], "notes": ""}'
+        );
+        expect(v.dimensions.holds_session).toBe(6);
+        expect(v.holdsMoments).toEqual([{ quote: 'The stone?', why: 'minute 38' }]);
+        expect(parseJudgeReply('{"overall": 7, "dimensions": {}, "notes": ""}').holdsMoments).toBeUndefined();
+    });
+
+    it('keeps the score on a long sit and drops one the judge gave a short sit anyway', async () => {
+        const long = judgeSaying(9);
+        const hour = await judgeSessionRun(long.provider, fakeResult({ fakeDurationSec: 55 * 60, scenario: scenario('hour') }));
+        expect(hour.verdict.dimensions.holds_session).toBe(9);
+        expect(hour.verdict.holdsMoments).toHaveLength(1);
+        expect(long.systems[0]).toContain('Keeps the settings and the intention at minute fifty');
+
+        const short = await judgeSessionRun(judgeSaying(9).provider, fakeResult({ fakeDurationSec: 10 * 60 }));
+        expect(short.verdict.dimensions.holds_session).toBeNull();
+        expect(short.verdict.holdsMoments).toBeUndefined();
+    });
+
+    it('puts the settings and the intention in front of the judge', async () => {
+        const j = judgeSaying(8);
+        const sent: string[] = [];
+        const provider: LLMProvider = {
+            model: j.provider.model,
+            complete: (m, o) => {
+                sent.push(m[0]?.content ?? '');
+                return j.provider.complete(m, o);
+            },
+        };
+        await judgeSessionRun(provider, fakeResult({ fakeDurationSec: 55 * 60, scenario: scenario('hour') }));
+        expect(sent[0]).toContain('guidance level 2/5 (Somewhat following), reply length Brief, focus body sensations');
+        expect(sent[0]).toContain('"to stop rushing, just for this hour"');
+    });
+
+    it('shows the score with its moments, and the style counts, in the report', () => {
+        const result = fakeResult({
+            fakeDurationSec: 3600,
+            scenario: scenario('hour'),
+            transcript: [
+                { at: 0, role: 'assistant', kind: 'opener', text: 'Whenever you are ready.', raw: 'x' },
+                { at: 120, role: 'user', kind: 'user', text: 'like a smooth stone sitting in a riverbed' },
+                { at: 200, role: 'assistant', kind: 'reply', text: 'A stone?', raw: 'A stone?' },
+            ],
+        });
+        const verdict = parseJudgeReply(
+            '{"overall": 8, "dimensions": {"holds_session": 7}, "wince_moments": [], "holds_session_moments": [{"quote": "A stone?", "why": "minute 3"}], "notes": ""}'
+        );
+        const md = buildReportMd(
+            { ...META, cast: { ...META.cast, judges: [{ spec: 'openai:gpt-6-sol', model: 'gpt-6-sol' }] }, judgeRepeats: 1 },
+            [{ result, findings: [], judge: verdict, judgeRuns: [{ judgeModel: 'gpt-6-sol', verdict }], style: sessionStyle(result) }]
+        );
+        const holds = md.slice(md.indexOf('## Holds the session'), md.indexOf('## Style'));
+        expect(holds).toContain('**hour-1** 7/10');
+        expect(holds).toContain('"A stone?"');
+        const style = md.slice(md.indexOf('## Style'), md.indexOf('## Session detail'));
+        expect(style).toContain('| claude-sonnet-5-5 | 1 | 100% | "a stone" ×1 | 2 → — |');
+        expect(style).toContain('Early material after its late cue, hour-1: stone never set up · Mira never set up · door never set up.');
+        expect(md).toContain('| holds |');
     });
 });

@@ -52,10 +52,10 @@ function buildSystemPrompt(persona: Persona, language: 'en' | 'zh'): string {
 Who you are this session:
 ${persona.description}${arc}${tongue}
 
-Each message shows the session transcript so far. Decide your SINGLE next move and answer in EXACTLY this format:
+Each message shows the session transcript so far. Decide your SINGLE next move and answer in EXACTLY this format: a first line with WAIT and a number of seconds, then on the next line the words you say out loud. To stay silent, write the WAIT line and nothing else: no placeholder, no "silence", no "EOF". For example:
 
-WAIT: <seconds>
-<what you say out loud, or leave empty to keep sitting in silence>
+WAIT: 90
+My shoulders feel heavy.
 
 Rules:
 - One move per answer: at most one WAIT line and one utterance. Never script several moves ahead; you will be asked again after each thing that happens.
@@ -94,8 +94,10 @@ function cleanUtterance(lines: string[]): string | null {
         if (!line) continue;
         // A line that is entirely a stage direction, not speech.
         if (/^[([*].*[)\]*]$/.test(line)) continue;
-        // Placeholder tokens some models emit for "I say nothing".
-        if (/^<[^>]*>$/.test(line) || /^(?:none|nothing|empty|silence|\.{2,})$/i.test(line)) continue;
+        // Placeholder tokens some models emit for "I say nothing" (Haiku 5.5
+        // has written "EOF" and "EOF_PLACEHOLDER" inside a silence).
+        if (/^<[^>]*>$/.test(line) || /^(?:none|nothing|empty|silence|eof|\.{2,})$/i.test(line)) continue;
+        if (/^[A-Z]+(?:_[A-Z]+)+$/.test(line)) continue;
         kept.push(line);
     }
     let text = kept.join(' ').trim();
@@ -115,9 +117,12 @@ export function parseSimReply(raw: string): SimAction {
     let end = false;
     const spoken: string[] = [];
     for (const line of lines) {
-        const wait = /^\s*WAIT\s*:\s*(\d+)\s*(?:s|sec|seconds)?\s*$/i.exec(line);
+        // "WAIT: 90", and the speech some models put on the same line: "WAIT:
+        // 30 Yes, please." or, with the number left out, "WAIT: Yes, please."
+        const wait = /^\s*WAIT\s*:\s*(\d+)?\s*(?:s\b|sec\b|seconds\b)?\s*(.*)$/i.exec(line);
         if (wait && waitSec === null) {
-            waitSec = Number(wait[1]);
+            if (wait[1] !== undefined) waitSec = Number(wait[1]);
+            if (wait[2]?.trim()) spoken.push(wait[2]);
             continue;
         }
         if (/^\s*END[.!]?\s*$/i.test(line)) {
