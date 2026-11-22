@@ -386,6 +386,7 @@ export interface CheckoutResponse {
 
 export type ErrorCode =
     | 'unauthenticated'
+    | 'forbidden'
     | 'email_unverified'
     | 'insufficient_credits'
     | 'quota_exceeded'
@@ -411,6 +412,9 @@ export function apiError(code: ErrorCode, message: string): ApiError {
  *  ContentfulStatusCode. */
 export const ERROR_STATUS = {
     unauthenticated: 401,
+    /** A valid credential that may not do this (the read-only admin token on
+     *  any admin route not marked readable). */
+    forbidden: 403,
     email_unverified: 403,
     insufficient_credits: 402,
     quota_exceeded: 429,

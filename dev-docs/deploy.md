@@ -121,6 +121,8 @@ fly secrets set \
   ALOUD_ADMIN_TOKEN=$(openssl rand -hex 32)
 ```
 
+Optional, the read-only admin token ([ts-server.md](ts-server.md#reading-production-as-the-assistant)), staged so it lands with the next deploy instead of restarting the machine now: `fly secrets set --stage -a aloud-cloud ALOUD_ADMIN_READ_TOKEN=<token>`.
+
 Then set the **R2 backup secrets** (see [Backups](#backups-litestream--r2) for why this
 is not optional - the ledger is real money on a single volume):
 

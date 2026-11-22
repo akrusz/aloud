@@ -6,10 +6,15 @@
  * how the operator reaches the panel from a phone without carrying the token
  * (the device holds a session JWT, honoured here only while under 7 days old).
  *
+ * A narrower third key, ALOUD_ADMIN_READ_TOKEN, reaches only the routes
+ * registered with `readable` below and gets 403 on every other one, including
+ * any added later. It turns nothing on by itself: config.ts drops it unless
+ * one of the two full ways in is configured.
+ *
  * The panel page (GET /cloud/v1/admin, admin/panel.ts) is served
  * unauthenticated (you can't set an auth header by navigating to a URL) but
- * still only when a credential is configured; it carries no data and every
- * action it triggers hits an adminOnly endpoint below.
+ * still only when a full credential is configured; it carries no data and
+ * every action it triggers hits a gated endpoint below.
  */
 
 import { Hono } from 'hono';
@@ -39,24 +44,31 @@ function tokenOk(provided: string | undefined, expected: string): boolean {
     return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** Admin surface is on iff at least one way in is configured. */
+/** Admin surface is on iff at least one full way in is configured. The read
+ *  token is not one: it is a narrower key to a surface that must already be on. */
 function adminEnabled(deps: Deps): boolean {
     return Boolean(deps.config.adminToken) || deps.config.adminEmails.length > 0;
 }
 
-/** Returns null when the request is authorized, else the Response to send: 404
- *  when the feature is off (so the endpoints aren't advertised), 401 when the
- *  credential is wrong/missing.
+/** What let a request in: a full credential (the admin token or an
+ *  allowlisted session) or the read-only token. */
+type AdminAccess = 'full' | 'read';
+type AdminVars = { adminAccess: AdminAccess };
+
+/** The request's credential, or the Response to send: 404 when the feature is
+ *  off (so the endpoints aren't advertised), 401 when the credential is
+ *  wrong/missing.
  *
- *  The bearer is either the static admin token or a session JWT for an
- *  allowlisted account. emailVerified is required on the session path: an
- *  email/password signup squatting on an admin address must not pass. */
-async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
+ *  The bearer is the static admin token, the read-only token, or a session
+ *  JWT for an allowlisted account. emailVerified is required on the session
+ *  path: an email/password signup squatting on an admin address must not pass. */
+async function adminAccess(c: Context, deps: Deps): Promise<AdminAccess | Response> {
     if (!adminEnabled(deps)) return c.notFound();
     const header = c.req.header('authorization') ?? '';
     const provided = header.toLowerCase().startsWith('bearer ') ? header.slice(7) : undefined;
-    const expected = deps.config.adminToken;
-    if (expected && tokenOk(provided, expected)) return null;
+    const { adminToken, adminReadToken } = deps.config;
+    if (adminToken && tokenOk(provided, adminToken)) return 'full';
+    if (adminReadToken && tokenOk(provided, adminReadToken)) return 'read';
     if (provided && deps.config.adminEmails.length > 0) {
         // The same check every other route makes (live account, token not
         // revoked), plus the admin gate's own: young, verified, on the list.
@@ -67,7 +79,7 @@ async function authFailure(c: Context, deps: Deps): Promise<Response | null> {
             session.account.emailVerified &&
             deps.config.adminEmails.includes(session.account.email.toLowerCase())
         ) {
-            return null;
+            return 'full';
         }
     }
     return errorJson(c, 'unauthenticated', 'admin access required');
@@ -123,13 +135,27 @@ function balancesByAccount(entries: LedgerEntry[]): Map<string, number> {
     return m;
 }
 
-export function adminRoutes(deps: Deps): Hono {
-    const app = new Hono();
-    const adminOnly: MiddlewareHandler = async (c, next) => {
-        const fail = await authFailure(c, deps);
-        if (fail) return fail;
-        await next();
-    };
+export function adminRoutes(deps: Deps): Hono<{ Variables: AdminVars }> {
+    const app = new Hono<{ Variables: AdminVars }>();
+    // Every data route takes one of these. adminOnly is the default and refuses
+    // the read token; `readable` lets it in too, and belongs only on a GET with
+    // no side effect whose answer names no real user (or redacts that part
+    // under byReadToken). tests/admin-read-token.test.ts keeps a decision for
+    // every registered route and fails on one it has never seen.
+    const gate =
+        (readTokenOk: boolean): MiddlewareHandler<{ Variables: AdminVars }> =>
+        async (c, next) => {
+            const access = await adminAccess(c, deps);
+            if (typeof access !== 'string') return access;
+            if (access === 'read' && !readTokenOk) {
+                return errorJson(c, 'forbidden', 'the read-only admin token cannot do this');
+            }
+            c.set('adminAccess', access);
+            await next();
+        };
+    const adminOnly = gate(false);
+    const readable = gate(true);
+    const byReadToken = (c: Context<{ Variables: AdminVars }>): boolean => c.get('adminAccess') === 'read';
 
     // The control panel. Served only when admin access is configured, else 404,
     // so the page isn't discoverable on a server with admin disabled. No auth on
@@ -151,7 +177,7 @@ export function adminRoutes(deps: Deps): Hono {
         return c.html(renderCallsPage());
     });
 
-    app.get('/sessions', adminOnly, async (c) => {
+    app.get('/sessions', readable, async (c) => {
         const sinceTs = windowStart(c, Date.now() / 1000, 168);
         const [events, admins, accounts] = await Promise.all([
             deps.store.allUsage(),
@@ -163,7 +189,7 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json({ sessions: sessions.map((s) => ({ ...s, account: label.get(s.accountId) ?? '' })) });
     });
 
-    app.get('/sessions/:id', adminOnly, async (c) => {
+    app.get('/sessions/:id', readable, async (c) => {
         const [events, incidents, admins] = await Promise.all([
             deps.store.allUsage(),
             deps.store.incidentsSince(0),
@@ -178,30 +204,43 @@ export function adminRoutes(deps: Deps): Hono {
         return c.json(detail);
     });
 
-    app.get('/metrics', adminOnly, async (c) => {
+    app.get('/metrics', readable, async (c) => {
         const now = Date.now() / 1000;
         const windowSinceTs = windowStart(c, now, 24);
         const [accounts, entries] = await Promise.all([
             deps.store.allAccounts(),
             deps.store.allEntries(),
         ]);
-        return c.json(buildMetrics(accounts, entries, now, windowSinceTs));
+        const report = buildMetrics(accounts, entries, now, windowSinceTs);
+        // Signup IPs are personal data: the read token gets the counts only.
+        if (byReadToken(c)) {
+            report.abuse.topSignupIps = report.abuse.topSignupIps.map(({ signups }) => ({ ip: 'redacted', signups }));
+        }
+        return c.json(report);
     });
 
     // Incident log (meditation-pal-xtgh): what the app handled quietly on the
     // cloud path - blank completions, upstream failures, 402s, client-reported
     // TTS/playback failures - grouped by kind, newest rows first.
-    app.get('/incidents', adminOnly, async (c) => {
+    app.get('/incidents', readable, async (c) => {
         const sinceTs = windowStart(c, Date.now() / 1000, 168);
         const rows = (await deps.store.incidentsSince(sinceTs)).filter(await adminFilter(c, deps));
         // Short account labels for the table (the email's local part), never
         // the whole address in a JSON blob the browser keeps around.
         const accounts = await deps.store.allAccounts();
         const label = new Map(accounts.map((a) => [a.id, a.email.split('@')[0] ?? a.id.slice(0, 8)]));
+        // The read token sees what happened to a real user, never who: only the
+        // operator's own accounts keep their id and label, as in the session
+        // reports.
+        const named = byReadToken(c) ? await adminAccountIds(deps) : undefined;
         const report = buildIncidentReport(rows, sinceTs);
         return c.json({
             ...report,
-            recent: report.recent.map((r) => ({ ...r, account: label.get(r.accountId) ?? r.accountId.slice(0, 8) })),
+            recent: report.recent.map((r) =>
+                named && r.accountId && !named.has(r.accountId)
+                    ? { ...r, accountId: '', account: 'user' }
+                    : { ...r, account: label.get(r.accountId) ?? r.accountId.slice(0, 8) }
+            ),
         });
     });
 
@@ -209,7 +248,7 @@ export function adminRoutes(deps: Deps): Hono {
     // per-model cost, and reconstructed per-session economics the ledger can't
     // show. The dataset for calibrating USD_PER_CREDIT and pack sizing against
     // what real sessions cost.
-    app.get('/usage', adminOnly, async (c) => {
+    app.get('/usage', readable, async (c) => {
         // The real-sit bar (usage.ts DEFAULT_REAL_SIT), skipped entirely with
         // all=1. sitMinutes/sitTurns are curl-level overrides of the bar; a 0
         // disables that criterion outright.
@@ -242,7 +281,7 @@ export function adminRoutes(deps: Deps): Hono {
     // ledger's purchase entries (the revenue-vs-cost margin trend). Computed
     // live from retained usage_events (no rollup table at this scale), so it's
     // real history bounded only by how far back the telemetry goes.
-    app.get('/usage/history', adminOnly, async (c) => {
+    app.get('/usage/history', readable, async (c) => {
         const days = dayCount(c);
         const now = Date.now() / 1000;
         const [events, entries, keep] = await Promise.all([
@@ -266,7 +305,7 @@ export function adminRoutes(deps: Deps): Hono {
     // line up with the providers' own daily billing buckets. No excludeAdmin
     // here on purpose: the provider bills admin usage too, so filtering it
     // would break the reconciliation.
-    app.get('/usage/provider-daily', adminOnly, async (c) => {
+    app.get('/usage/provider-daily', readable, async (c) => {
         const days = dayCount(c);
         const now = Date.now() / 1000;
         const events = await deps.store.allUsage();
@@ -353,8 +392,12 @@ export function adminRoutes(deps: Deps): Hono {
     // effective values; PUT patches them, live and persisted, so the operator can
     // stop handing out free credits without a redeploy. The minimum app
     // versions ride along read-only: a release sets them (min-client-version.ts).
-    app.get('/config', adminOnly, async (c) => {
-        return c.json({ ...effectiveConfig(deps), minClientVersion: MIN_CLIENT_VERSION });
+    app.get('/config', readable, async (c) => {
+        const config = { ...effectiveConfig(deps), minClientVersion: MIN_CLIENT_VERSION };
+        if (!byReadToken(c)) return c.json(config);
+        // Tester emails are people's addresses: the read token gets how many.
+        const { testerEmails, ...rest } = config;
+        return c.json({ ...rest, testerEmailCount: testerEmails.length });
     });
 
     app.put('/config', adminOnly, async (c) => {

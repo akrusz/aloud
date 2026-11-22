@@ -9,6 +9,7 @@
 
 import type { ProviderId } from './contract.js';
 import type { SttBackend } from './providers/stt.js';
+import { log } from './logger.js';
 
 export interface ProviderKeys {
     anthropic?: string;
@@ -200,6 +201,13 @@ export interface Config {
      *  adminEmails is empty), those endpoints are disabled (404), never open. */
     adminToken?: string;
 
+    /** A second, read-only bearer token for the admin JSON API: it reaches only
+     *  the routes routes/admin.ts marks readable and gets 403 everywhere else.
+     *  Not an account, so nothing outside the admin routes honours it. Set only
+     *  when admin is already on and the value is long and distinct from
+     *  adminToken (loadConfig drops it with a warning otherwise). */
+    adminReadToken?: string;
+
     /** Emails (lowercased) whose signed-in sessions get admin access, so the
      *  operator can sign in with Google on a phone instead of carrying the static
      *  token. The stored credential is then a 7-day session JWT, not the root
@@ -231,6 +239,19 @@ export interface Config {
      *  the canonical deploy, where the UI is on a static host (e.g. GitHub
      *  Pages) and this box is API-only. */
     uiDir?: string;
+}
+
+/** Shortest ALOUD_ADMIN_READ_TOKEN accepted. `openssl rand -hex 32` gives 64. */
+export const ADMIN_READ_TOKEN_MIN_CHARS = 32;
+
+/** Why a configured read token can't be used, or null when it can. */
+function adminReadTokenProblem(token: string, config: Config): string | null {
+    if (token.length < ADMIN_READ_TOKEN_MIN_CHARS) return `shorter than ${ADMIN_READ_TOKEN_MIN_CHARS} characters`;
+    if (token === config.adminToken) return 'the same as ALOUD_ADMIN_TOKEN, which can do everything';
+    if (!config.adminToken && config.adminEmails.length === 0) {
+        return 'set without ALOUD_ADMIN_TOKEN or ALOUD_ADMIN_EMAILS, so admin is off';
+    }
+    return null;
 }
 
 function list(v: string | undefined): string[] {
@@ -304,6 +325,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (env['CDP_API_KEY_ID']) config.cdpApiKeyId = env['CDP_API_KEY_ID'];
     if (env['CDP_API_KEY_SECRET']) config.cdpApiKeySecret = env['CDP_API_KEY_SECRET'];
     if (env['ALOUD_ADMIN_TOKEN']) config.adminToken = env['ALOUD_ADMIN_TOKEN'];
+    // An optional credential, so a bad one is dropped rather than refusing to
+    // start: the money server stays up and the token simply doesn't work.
+    const readToken = env['ALOUD_ADMIN_READ_TOKEN'];
+    if (readToken) {
+        const problem = adminReadTokenProblem(readToken, config);
+        if (problem) log.warn(`ALOUD_ADMIN_READ_TOKEN ignored: ${problem}`);
+        else config.adminReadToken = readToken;
+    }
     if (env['ALOUD_UI_DIR']) config.uiDir = env['ALOUD_UI_DIR'];
     if (env['ALOUD_DB_PATH']) config.dbPath = env['ALOUD_DB_PATH'];
 

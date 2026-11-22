@@ -77,6 +77,7 @@ load logic is `loadConfig` in `config.ts`.
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | buying credits | optional; without them, free-grant only |
 | `ALOUD_ADMIN_TOKEN` | `/cloud/v1/admin/*` + panel | static operator bearer token; admin is disabled (404, not open) unless this or `ALOUD_ADMIN_EMAILS` is set |
 | `ALOUD_ADMIN_EMAILS` | `/cloud/v1/admin/*` + panel | comma-separated emails whose signed-in sessions get admin access - the panel's Google sign-in path, so a phone never holds the static token |
+| `ALOUD_ADMIN_READ_TOKEN` | read-only admin reports | a second bearer token that reaches only the routes marked `admin, read` below and gets 403 on every other admin route. Not an account: nothing outside `/cloud/v1/admin` honours it. Turns nothing on alone; ignored, with a boot-log warning, when under 32 characters, equal to `ALOUD_ADMIN_TOKEN`, or set while admin is off. See [Reading production as the assistant](#reading-production-as-the-assistant) |
 
 ## Running the full loop locally (UI ↔ server)
 
@@ -149,14 +150,14 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/voices` | public | curated hosted voices (empty when TTS unconfigured) |
 | `POST /cloud/v1/incidents` | session | the app reports a cloud failure it handled quietly (kind from `CLIENT_INCIDENT_KINDS`, optional one-line detail, provider/model/session ids); feeds the admin Incidents section |
 | `GET /cloud/v1/admin` | none* | operator control panel HTML (`*` served only when admin access is configured) |
-| `GET /cloud/v1/admin/metrics` | admin | ledger aggregates for spend monitoring |
-| `GET /cloud/v1/admin/usage` | admin | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together). Response also carries `perHour.raw` (unweighted total/total beside the account-weighted headline rates), `perHour.tokensPerTurn`, and `sessionRows`: itemized sessions for `ALOUD_ADMIN_EMAILS` accounts only - real users stay aggregate |
-| `GET /cloud/v1/admin/usage/history` | admin | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
-| `GET /cloud/v1/admin/usage/provider-daily` | admin | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
-| `GET /cloud/v1/admin/incidents` | admin | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, replies cut off at max_tokens (`llm_max_tokens`), safety-classifier refusals (`refusal=<category>` on the row) and turns Anthropic's server-side fallback answered instead (`llm_fallback`), upstream LLM/STT/TTS failures (voice previews and canned clips included, throttled to a row a minute), Stripe checkout failures (`billing_error`), retired models the liveness sweep dropped (`model_retired`), refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`) |
+| `GET /cloud/v1/admin/metrics` | admin, read | ledger aggregates for spend monitoring; the read token gets the top signup IPs as `redacted` (counts kept) |
+| `GET /cloud/v1/admin/usage` | admin, read | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together). Response also carries `perHour.raw` (unweighted total/total beside the account-weighted headline rates), `perHour.tokensPerTurn`, and `sessionRows`: itemized sessions for `ALOUD_ADMIN_EMAILS` accounts only - real users stay aggregate |
+| `GET /cloud/v1/admin/usage/history` | admin, read | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
+| `GET /cloud/v1/admin/usage/provider-daily` | admin, read | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
+| `GET /cloud/v1/admin/incidents` | admin, read | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, replies cut off at max_tokens (`llm_max_tokens`), safety-classifier refusals (`refusal=<category>` on the row) and turns Anthropic's server-side fallback answered instead (`llm_fallback`), upstream LLM/STT/TTS failures (voice previews and canned clips included, throttled to a row a minute), Stripe checkout failures (`billing_error`), retired models the liveness sweep dropped (`model_retired`), refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`). For the read token a real user's rows carry no account id or label (`account: "user"`); the `ALOUD_ADMIN_EMAILS` accounts keep theirs |
 | `GET /cloud/v1/admin/calls` | none* | per-call page HTML: one session's every metered call (`admin/calls-page.ts`); reuses the panel's stored credential |
-| `GET /cloud/v1/admin/sessions` | admin | sessions by client session id (`?sinceHours=`, default 7d) with cost per leg and cold-cache call count; `ALOUD_ADMIN_EMAILS` accounts only |
-| `GET /cloud/v1/admin/sessions/:id` | admin | one session's calls in order (gap since the previous facilitation call or keep-alive, cache read/write, cost; keep-alives listed as their own kind, never turns or cold calls), facilitation spend by token type, and its incidents; 404 for a non-admin session |
+| `GET /cloud/v1/admin/sessions` | admin, read | sessions by client session id (`?sinceHours=`, default 7d) with cost per leg and cold-cache call count; `ALOUD_ADMIN_EMAILS` accounts only |
+| `GET /cloud/v1/admin/sessions/:id` | admin, read | one session's calls in order (gap since the previous facilitation call or keep-alive, cache read/write, cost; keep-alives listed as their own kind, never turns or cold calls), facilitation spend by token type, and its incidents; 404 for a non-admin session |
 | `GET /cloud/v1/admin/accounts` | admin | every account + derived balance / granted / spent / paid flag / last metered call / the app build last seen (`lastClient`) |
 | `GET /cloud/v1/admin/accounts/:id` | admin | one account + its full ledger (audit trail) |
 | `POST /cloud/v1/admin/grant` | admin | `{email, credits}` → grant credits (ledger `signup_grant`, reason `admin_grant`) |
@@ -165,11 +166,16 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `POST /cloud/v1/admin/retreats` | admin | create a pass (date window, optional spend cap) |
 | `POST /cloud/v1/admin/retreats/:id/members` | admin | add an attendee by email; no account yet → pending invite that binds on that address's first verified (Google/Apple) sign-in. An email/password signup does not bind it: add the attendee again once the account exists (the response then carries `unverified: true`) |
 | `POST /cloud/v1/admin/retreats/:id/revoke` | admin | revoke a pass; coverage stops for every member |
-| `GET /cloud/v1/admin/config` | admin | live effective knobs (free credits, pause, testers) + pricing context, and the minimum app versions read-only |
+| `GET /cloud/v1/admin/config` | admin, read | live effective knobs (free credits, pause, testers) + pricing context, and the minimum app versions read-only; the read token gets `testerEmailCount` in place of `testerEmails` |
 | `PUT /cloud/v1/admin/config` | admin | `{freeSignupCredits?, freeGrantBudgetPerHour?, betaBonusCredits?, meteredPaused?, testerEmails?}` → retune live + persist |
 
 "admin" auth = the `ALOUD_ADMIN_TOKEN` bearer, or a normal session token whose
 verified account email is in `ALOUD_ADMIN_EMAILS` (see the panel section).
+"admin, read" also takes `ALOUD_ADMIN_READ_TOKEN`, which gets 403 (`forbidden`)
+on every plain "admin" row, the accounts and retreats reads included since they
+carry real users' emails and balances. A route is readable only when
+registered with `readable` in `routes/admin.ts`; `tests/admin-read-token.test.ts`
+holds a decision for every admin route and fails on a new one until it gets one.
 
 ### Minimum client version
 
@@ -210,7 +216,7 @@ header (never baked into the page):
 - **Paste `ALOUD_ADMIN_TOKEN`** - the original path; still what scripts/curl use.
 - **Sign in with Google** (`ALOUD_ADMIN_EMAILS`) - for the road: the device
   holds a session JWT instead of the root token. User sessions slide for 90
-  days, but the gate (`routes/admin.ts` `authFailure`) honours a token only
+  days, but the gate (`routes/admin.ts` `adminAccess`) honours a token only
   while it is under 7 days old (`ADMIN_MAX_TOKEN_AGE_SECONDS`), and requires the session account's email to be
   on the list AND verified, so an email-signup squatting on an admin address
   can't pass. Remove the email from the env to revoke. The sign-in button uses
@@ -241,6 +247,38 @@ granted credits, the facilitator says "come back later," TTS speaks it, and the
 session saves normally. STT/TTS stay open so that message can be heard; tester
 emails bypass the pause entirely. In-flight clients only see it on their next
 turn.
+
+### Reading production as the assistant
+
+The coding assistant reads production's reports (usage, cost attribution,
+cache reads per session, incidents) over the JSON API with
+`ALOUD_ADMIN_READ_TOKEN`, so no admin session is left signed in anywhere. It
+reaches the `admin, read` rows of the route table and nothing else: no grant,
+deletion, config change or retreat, and no accounts or retreats listing.
+
+What it sees of real users: aggregates only (counts, totals, distributions,
+per-model and per-day sums, incidents with what happened but no account), the
+same line the privacy policy draws for the panel's reports. It does see the
+operator's own `ALOUD_ADMIN_EMAILS` accounts itemized, with their email's local
+part as a label, and incident details, which are an error's first line and in
+principle could quote whatever an upstream error message did. A window holding
+one real user's activity is, in aggregate, that user's.
+
+The dev machine's copy lives in `ts/server/.env` (gitignored by
+`ts/server/.gitignore`) as `PROD_ADMIN_READ_TOKEN`, not under the server's own
+variable name, so a local server started from that file doesn't adopt it:
+
+```bash
+TOKEN=$(sed -n 's/^PROD_ADMIN_READ_TOKEN=//p' ts/server/.env)
+curl -s -H "authorization: Bearer $TOKEN" 'https://aloud-cloud.fly.dev/cloud/v1/admin/usage?sinceHours=168'
+curl -s -H "authorization: Bearer $TOKEN" 'https://aloud-cloud.fly.dev/cloud/v1/admin/sessions?sinceHours=48'
+```
+
+Turning it on, once: generate a token (`openssl rand -hex 32`), set it on Fly
+(the line in [deploy.md](deploy.md), staged so it lands with the next deploy),
+deploy the server, and add `PROD_ADMIN_READ_TOKEN=<token>` to `ts/server/.env`.
+The boot log warns if the server ignored it. To revoke, set a new value or
+`fly secrets unset ALOUD_ADMIN_READ_TOKEN`; nothing else depends on it.
 
 ## Prompt-cache keep-alive
 
