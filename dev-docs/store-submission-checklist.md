@@ -149,6 +149,11 @@ GPT gets no hint for the names either (`meditation-pal-bpgu`).
 
 ## 2. Do later (production and App Store launch)
 
+- [ ] **The house voice.** Alex is researching voice choice (2026-11-21):
+      Harper's setup lines are fine but she sounds a little too sultry,
+      mostly on the first couple. Ask him where that landed before either
+      store's full release.
+
 **Android**
 
 - [ ] The design push ([design-push.md](design-push.md)), before the wider
