@@ -119,15 +119,21 @@ const BARGE_IN_REQUIRED_CHUNKS = 3;
 const ECHO_EMA_ALPHA = 0.05;
 const ECHO_GATE_MARGIN = 2.0;
 const ECHO_GATE_MAX = 0.035;
-// The echo canceller meets the facilitator's VOICE cold: during the first
-// reply a fresh capture stream plays over (the greeting; the opening sound
-// before it doesn't train it), short bursts leak through at 0.07-0.08 RMS on
-// MacBook speakers, anywhere in the reply. That clears every gate above and
-// lands as a garbled user turn ("Nothing to worry.", meditation-pal-7ah4), so
-// for that whole playback window the bar sits at ECHO_WARMUP_GATE instead.
-// Deliberate speech peaks well above it (0.17-0.19 desktop, 0.17-0.28 phone),
-// and the pre-buffer keeps the onset of a barge-in that clears it late.
+// The echo canceller meets the facilitator's VOICE cold: over the first words
+// a fresh capture stream plays under (the greeting's; the opening sound before
+// it doesn't train it), short bursts leaked through at 0.07-0.08 RMS on
+// MacBook speakers. That clears every gate above and landed as a garbled user
+// turn ("Nothing to worry.", meditation-pal-7ah4), so for the first
+// ECHO_WARMUP_MS of voice on a new stream the bar sits at ECHO_WARMUP_GATE
+// instead. Only time the voice is audible counts (noteVoiceAudible to
+// notePlaybackEnded), so neither the wait for a clip's synthesis nor the gaps
+// between sentences spend it, and a short first sentence leaves the rest to
+// the next. Keep it short: speech over a line measured 0.10-0.17 on desktop,
+// right at this bar, and held to the end of the playback window it ran through
+// the greeting and the next reply and hushed neither (meditation-pal-u21t).
+// The pre-buffer keeps the onset of a barge-in that clears it late.
 const ECHO_WARMUP_GATE = 0.1;
+const ECHO_WARMUP_MS = 3000;
 
 // The answer to a question the facilitator just asked (expectAnswer). Over
 // the question's tail (the caller's echo hangover, setTtsActive) the bar for
@@ -439,14 +445,18 @@ export class WhisperPcmSttEngine implements SttEngine {
     private ttsActive = false;
     private echoFloor = 0.005;
     // ECHO_WARMUP_GATE: armed by each new capture stream, live from the first
-    // noteVoicePlayback() after it until that playback ends. warmupPeak is
-    // diagnostic only.
+    // noteVoicePlayback() after it for ECHO_WARMUP_MS of audible voice
+    // (warmupVoiceMs) or until that playback window ends (setTtsActive),
+    // whichever is first. warmupPeak is diagnostic only.
     private voiceWarmupArmed = false;
     private voiceWarmup = false;
+    private warmupVoiceMs = 0;
     private warmupPeak = 0;
     // A voice line is playing (noteVoicePlayback to notePlaybackEnded), the
     // loudest frame the mic heard while it did, and when it last ended.
+    // voiceAudible: its audio has begun (noteVoiceAudible).
     private lineSounding = false;
+    private voiceAudible = false;
     private lineEchoPeak = 0;
     private lineEndedAt: number | null = null;
     // expectAnswer: how soon an answer read so far may end its turn, until
@@ -825,6 +835,10 @@ export class WhisperPcmSttEngine implements SttEngine {
         // while the canceller warms up to the voice (ECHO_WARMUP_GATE).
         const echoGate = this.echoGateNow();
         if (this.voiceWarmup && this.ttsActive) this.warmupPeak = Math.max(this.warmupPeak, energy);
+        if (this.voiceWarmup && this.voiceAudible) {
+            this.warmupVoiceMs += (frame.length / this.nativeRate) * 1000;
+            if (this.warmupVoiceMs >= ECHO_WARMUP_MS) this.endVoiceWarmup('on time');
+        }
         if (this.lineSounding) this.lineEchoPeak = Math.max(this.lineEchoPeak, energy);
         if (this.answer && now >= this.answer.until) {
             diag('[vad] answer: window closed with no answer');
@@ -1267,14 +1281,15 @@ export class WhisperPcmSttEngine implements SttEngine {
         this.bargeInHandler = handler;
     }
 
-    /** The facilitator's voice (not a sound) starts playing. It ends any
-     *  watch on the last playback's tail and any answer expected
+    /** The facilitator's voice (not a sound) is about to play: its speak() has
+     *  begun, its audio may still be on its way (noteVoiceAudible). It ends
+     *  any watch on the last playback's tail and any answer expected
      *  (expectAnswer), and the first one after a new capture stream opens the
-     *  echo warm-up (ECHO_WARMUP_GATE), which lasts until that playback ends
-     *  (setTtsActive). */
+     *  echo warm-up (ECHO_WARMUP_GATE) for ECHO_WARMUP_MS of audible voice. */
     noteVoicePlayback(): void {
         this.tailWatch = null;
         this.lineSounding = true;
+        this.voiceAudible = false;
         this.lineEchoPeak = 0;
         // The question is no longer the last thing said: this line's gaps and
         // tail keep the full bar, and a yes to its own question is no answer
@@ -1286,7 +1301,23 @@ export class WhisperPcmSttEngine implements SttEngine {
         if (!this.voiceWarmupArmed) return;
         this.voiceWarmupArmed = false;
         this.voiceWarmup = true;
+        this.warmupVoiceMs = 0;
         this.warmupPeak = 0;
+    }
+
+    private endVoiceWarmup(how: 'on time' | 'with playback'): void {
+        this.voiceWarmup = false;
+        diag(
+            `[vad] voice warm-up over ${how} after ${(this.warmupVoiceMs / 1000).toFixed(1)}s of voice: ` +
+                `peak=${this.warmupPeak.toFixed(4)} gate=${ECHO_WARMUP_GATE}`
+        );
+    }
+
+    /** The line noteVoicePlayback announced is now audible (the TTS engine's
+     *  onStart). The warm-up spends its time from here to notePlaybackEnded.
+     *  Ignored outside a line. */
+    noteVoiceAudible(): void {
+        if (this.lineSounding) this.voiceAudible = true;
     }
 
     /** The facilitator's audio has stopped (the caller's echo hangover may
@@ -1295,6 +1326,7 @@ export class WhisperPcmSttEngine implements SttEngine {
     notePlaybackEnded(): void {
         if (!this.lineSounding) return;
         this.lineSounding = false;
+        this.voiceAudible = false;
         this.lineEndedAt = performance.now();
     }
 
@@ -1366,13 +1398,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                     ` bar=${this.speechBar(this.echoGateNow()).toFixed(4)}`
             );
         }
-        if (!active && this.voiceWarmup) {
-            this.voiceWarmup = false;
-            diag(
-                `[vad] voice warm-up over: peak=${this.warmupPeak.toFixed(4)} ` +
-                    `gate=${ECHO_WARMUP_GATE}`
-            );
-        }
+        if (!active && this.voiceWarmup) this.endVoiceWarmup('with playback');
         this.ttsActive = active;
     }
 

@@ -1879,6 +1879,9 @@ export async function mountSetupView(
                       continuous: {
                           lineStarted: () => {
                               engine.noteVoicePlayback();
+                              // A line here reports no start: its echo
+                              // warm-up counts from now.
+                              engine.noteVoiceAudible();
                               engine.setTtsActive(true);
                           },
                           lineEnded: () => {

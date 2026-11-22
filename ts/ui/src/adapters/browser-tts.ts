@@ -25,6 +25,8 @@ const START_TIMEOUT_MS = 10_000;
 const START_TIMEOUT_WEDGED_MS = 2_000;
 
 export class BrowserTtsEngine implements TtsEngine {
+    /** An utterance that never fires `start` is dropped (START_TIMEOUT_MS). */
+    readonly reportsStart = true;
     private currentUtterance: SpeechSynthesisUtterance | null = null;
     private currentResolve: (() => void) | null = null;
     private currentReject: ((err: Error) => void) | null = null;

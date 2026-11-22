@@ -1096,9 +1096,22 @@ export async function mountSessionView(
             }
             ++ttsSpeakingDepth;
             ttsPlaybackStarted(text);
+            // The capture engine's echo warm-up counts only audible voice: from
+            // the engine's onStart, or from here on one that reports no start.
+            const engine = activeTts;
+            const listener = echoListener();
+            if (!engine.reportsStart) listener?.noteVoiceAudible();
+            let live = true;
             try {
-                return await activeTts.speak(text, options);
+                return await engine.speak(text, {
+                    ...options,
+                    onStart: () => {
+                        if (live) listener?.noteVoiceAudible();
+                        options?.onStart?.();
+                    },
+                });
             } finally {
+                live = false;
                 if (--ttsSpeakingDepth === 0) ttsPlaybackEnded();
             }
         },

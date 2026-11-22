@@ -187,8 +187,8 @@ export const LOBBY_STT = {
     // so any turn begun over a line is sent. Lines nobody spoke over peaked at
     // 0.006 at a MacBook's mic (planned for 0.01) and 0.0017 at an Android
     // phone's; commands over them at 0.036 and up, and 0.022 and up
-    // (2026-11-19/20). The voice warm-up's bar still holds over the first line
-    // after a capture opens (whisper-pcm-stt.ts ECHO_WARMUP_GATE).
+    // (2026-11-19/20). The voice warm-up's bar still holds over the first 3s
+    // of voice after a capture opens (whisper-pcm-stt.ts ECHO_WARMUP_MS).
     overLineBar: 0.02,
     overLineMinSpeechMs: 0,
     // The pause that ends such a turn, in place of 0.7s and up, so a "next"

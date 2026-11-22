@@ -182,7 +182,7 @@ came back "She, can you"). So an unmute that opens the mic on a Whisper engine
 shows `Opening the mic…` until the first frame with sound in it
 (`whenHearing`, `SILENT_FRAME_RMS`), for at most `MIC_OPENING_STATUS_MAX_MS`.
 `whenLive` settles earlier, on the first of those silent frames. The mic button
-is grey and unslashed, with a slow breath, for exactly as long as that line
+is grey and unslashed, with rings drawn inward, for exactly as long as that line
 stands (`setStatus`'s `micOpening`, `.btn-voice.opening`), the same look the
 setup screen's mic has while it can't hear (`voice-commands.md`).
 
@@ -209,12 +209,21 @@ On the engine-driven path two things sit on top of that energy test
   where `echoFloor` is an EMA of this device's measured echo level. Between
   turns the gate is 0, so a silent gap keeps the sensitive thresholds.
 - **A warm-up gate on the first voice.** The canceller meets the facilitator's
-  voice cold: during the first voice playback a new capture stream plays over
-  (the greeting; the opening sound doesn't train it), bursts leak at 0.07-0.08
+  voice cold: over the first words a new capture stream plays under (the
+  greeting's; the opening sound doesn't train it), bursts leaked at 0.07-0.08
   RMS on MacBook speakers and landed as garbled turns (meditation-pal-7ah4).
-  So for that one playback the gate is at least `ECHO_WARMUP_GATE` (0.1),
-  armed per stream and opened by `noteVoicePlayback()` from
-  `ttsPlaybackStarted`. Deliberate speech measured 0.17-0.28.
+  So for the first `ECHO_WARMUP_MS` (3s) of audible voice the gate is at
+  least `ECHO_WARMUP_GATE` (0.1), armed per stream and opened by
+  `noteVoicePlayback()` from `ttsPlaybackStarted`. Only time the voice is
+  audible counts: from `noteVoiceAudible()`, which the session's `tts.speak`
+  calls from the engine's `onStart` (at `speak()` itself for an engine
+  without `TtsEngine.reportsStart`), to `notePlaybackEnded()`. So neither a
+  clip's synthesis nor the gaps between sentences spend it, and a short first
+  sentence leaves the rest to the next. The end of the playback window
+  (`setTtsActive(false)`) also ends it. It is kept short because speech over
+  a line measures 0.10-0.17 on desktop: held to the end of the window, it ran
+  through a greeting and the next reply on 2026-11-21 and neither was hushed
+  (meditation-pal-u21t).
 - **A lower bar over the tail of a question.** The session holds the gate up
   for `TTS_ACTIVE_HANGOVER_MS` (1s) past each line, and a turn can only open
   there at the barge-in bar. After a yes/no question the app asked
@@ -308,7 +317,8 @@ and no watchdog/cooldown machinery is needed.
 | `BARGE_IN_THRESHOLD` | 0.03 | `whisper-pcm-stt.ts` | Detection floor on the continuous idle stream |
 | `ECHO_GATE_MARGIN` | 2.0 | `whisper-pcm-stt.ts` | Multiplier on the measured echo floor while TTS is audible |
 | `ECHO_GATE_MAX` | 0.035 | `whisper-pcm-stt.ts` | Cap on that gate, kept below real-speech level |
-| `ECHO_WARMUP_GATE` | 0.1 | `whisper-pcm-stt.ts` | Gate floor during a new capture stream's first voice playback |
+| `ECHO_WARMUP_GATE` | 0.1 | `whisper-pcm-stt.ts` | Gate floor over the first voice a new capture stream hears |
+| `ECHO_WARMUP_MS` | 3000 | `whisper-pcm-stt.ts` | How long that floor lasts, counted while the voice is audible |
 | `overLineBar` | 0.02 | `voice-start.ts` `LOBBY_STT` | In place of `BARGE_IN_THRESHOLD` for words said over a setup tour line ([voice-commands.md](voice-commands.md#the-tour-spoken)) |
 | `ANSWER_ECHO_MARGIN` | 3 | `whisper-pcm-stt.ts` | Over an asked question's tail, the bar as a multiple of the question's own echo peak |
 | `ANSWER_BAR_FLOOR` | 0.01 | `whisper-pcm-stt.ts` | The lowest that bar goes |

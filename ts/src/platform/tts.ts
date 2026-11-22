@@ -70,6 +70,13 @@ export interface TtsEngine {
      * engine. A wrapper forwards it.
      */
     reportsMarks?: boolean;
+    /**
+     * Calls TtsOptions.onStart for every utterance that plays, by the time
+     * its speak() resolves. Without it, a caller that counts audible time
+     * (the session's echo warm-up) counts from speak() instead. A wrapper
+     * forwards it.
+     */
+    reportsStart?: boolean;
     /** Cancel any in-progress utterance. No-op when nothing is speaking. */
     cancel(): Promise<void>;
     listVoices(): Promise<TtsVoice[]>;

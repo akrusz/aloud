@@ -829,8 +829,8 @@ voices and would move them off it.
   nobody spoke over peaked at 0.006 at the MacBook's mic and 0.0017 at the
   phone's (`[vad] tts window`); 0.02 leaves twice the 0.01 a louder volume
   setting might bring on the MacBook. The bar still rises with the echo
-  gate, and is 0.1 through the first line after a capture opens
-  (`ECHO_WARMUP_GATE`). The meditator's own speech over a line raises the
+  gate, and is 0.1 over the first 3s of voice after a capture opens
+  (`ECHO_WARMUP_GATE`, `ECHO_WARMUP_MS`). The meditator's own speech over a line raises the
   echo floor (to 0.0146 in that tour), and with it the bar, to about 0.03
   for a second or so after: every command said on the MacBook still cleared
   it, a quiet second try on a phone may not. Not on an iPhone (`setupCaptureRunsOn`,

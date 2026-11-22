@@ -170,6 +170,8 @@ let elementOwner: CloudTtsEngine | null = null;
 export class CloudTtsEngine implements TtsEngine {
     /** Marks are reported from the element's position (reportMarks). */
     readonly reportsMarks = true;
+    /** On the element's `playing`, or at `ended` if that never fired. */
+    readonly reportsStart = true;
     private readonly voiceId: string;
     private readonly engine: string | undefined;
     private readonly endpointUrl: string;
