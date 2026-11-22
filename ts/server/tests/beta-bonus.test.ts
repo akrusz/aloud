@@ -62,12 +62,12 @@ describe('grantBetaBonus', () => {
     it('grants once, on top of the connect grant, and never again', async () => {
         const d = deps();
         const first = await signIn(d, google(), ANDROID);
-        expect(first.beta).toBe(40);
-        expect(await d.ledger.balance(first.account.id)).toBe(60);
+        expect(first.beta).toBe(10);
+        expect(await d.ledger.balance(first.account.id)).toBe(30);
 
         const again = await signIn(d, google(), ANDROID);
         expect(again.beta).toBe(0);
-        expect(await d.ledger.balance(first.account.id)).toBe(60);
+        expect(await d.ledger.balance(first.account.id)).toBe(30);
     });
 
     it('reaches an account that already existed before it signed in from the beta', async () => {
@@ -75,13 +75,13 @@ describe('grantBetaBonus', () => {
         const web = await signIn(d, google(), WEB);
         expect(web.beta).toBe(0);
         const android = await signIn(d, google(), ANDROID);
-        expect(android.beta).toBe(40);
-        expect(await d.ledger.balance(web.account.id)).toBe(60);
+        expect(android.beta).toBe(10);
+        expect(await d.ledger.balance(web.account.id)).toBe(30);
     });
 
     it('takes the iOS bundle id on an Apple token as a beta client', async () => {
         const d = deps();
-        expect((await signIn(d, apple(), IOS_APPLE)).beta).toBe(40);
+        expect((await signIn(d, apple(), IOS_APPLE)).beta).toBe(10);
     });
 
     it('is off with no client listed, and off at 0 credits', async () => {
@@ -122,7 +122,7 @@ describe('grantBetaBonus', () => {
         const first = await signIn(d, apple(), WEB);
         const later = await signIn(d, apple({ email: '', emailVerified: false }), IOS_APPLE);
         expect(later.account.id).toBe(first.account.id);
-        expect(later.beta).toBe(40);
+        expect(later.beta).toBe(10);
     });
 
     it('a tripped breaker holds it back without spending the claim', async () => {
@@ -131,7 +131,7 @@ describe('grantBetaBonus', () => {
         d.grantBreaker.setBudget(0);
         expect(await grantBetaBonus(d, account, google(), ANDROID)).toBe(0);
         d.grantBreaker.setBudget(2000);
-        expect(await grantBetaBonus(d, account, google(), ANDROID)).toBe(40);
+        expect(await grantBetaBonus(d, account, google(), ANDROID)).toBe(10);
     });
 
     it('two sign-ins racing on one account grant once', async () => {
@@ -141,8 +141,8 @@ describe('grantBetaBonus', () => {
             grantBetaBonus(d, account, google(), ANDROID),
             grantBetaBonus(d, account, google(), ANDROID),
         ]);
-        expect(granted.sort()).toEqual([0, 40]);
-        expect(await d.ledger.balance(account.id)).toBe(60);
+        expect(granted.sort()).toEqual([0, 10]);
+        expect(await d.ledger.balance(account.id)).toBe(30);
     });
 });
 
@@ -167,16 +167,16 @@ describe('POST /cloud/v1/auth/google reports what the sign-in granted', () => {
 
     it('both grants on a first sign-in from the beta, nothing on the next', async () => {
         const first = await signInWith(ANDROID);
-        expect(first.granted).toEqual({ connect: 20, beta: 40 });
-        expect(first.account.creditsRemaining).toBe(60);
+        expect(first.granted).toEqual({ connect: 20, beta: 10 });
+        expect(first.account.creditsRemaining).toBe(30);
 
         const next = await signInWith(ANDROID);
         expect(next.granted).toBeUndefined();
-        expect(next.account.creditsRemaining).toBe(60);
+        expect(next.account.creditsRemaining).toBe(30);
     });
 
     it('the connect grant alone from the web, then the bonus when the beta signs in', async () => {
         expect((await signInWith(WEB)).granted).toEqual({ connect: 20, beta: 0 });
-        expect((await signInWith(ANDROID)).granted).toEqual({ connect: 0, beta: 40 });
+        expect((await signInWith(ANDROID)).granted).toEqual({ connect: 0, beta: 10 });
     });
 });

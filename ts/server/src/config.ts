@@ -273,7 +273,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         providerKeys,
         freeSignupCredits: Number(env['ALOUD_FREE_SIGNUP_CREDITS'] ?? 20),
         freeGrantBudgetPerHour: Number(env['ALOUD_FREE_GRANT_BUDGET_PER_HOUR'] ?? 2000),
-        betaBonusCredits: Number(env['ALOUD_BETA_BONUS_CREDITS'] ?? 40),
+        betaBonusCredits: Number(env['ALOUD_BETA_BONUS_CREDITS'] ?? 10),
         betaBonusClientIds: list(env['ALOUD_BETA_BONUS_CLIENT_IDS']),
         judgeCallsPerDay: Number(env['ALOUD_JUDGE_CALLS_PER_DAY'] ?? 500_000),
         meteredPaused: env['ALOUD_METERED_PAUSED'] === '1',

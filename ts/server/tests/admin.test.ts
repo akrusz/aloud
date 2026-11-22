@@ -354,7 +354,7 @@ describe('admin routes — runtime config', () => {
         expect(status).toBe(200);
         expect(body['freeSignupCredits']).toBe(20); // env/default seeded in loadConfig
         expect(typeof body['freeGrantBudgetPerHour']).toBe('number');
-        expect(body['betaBonusCredits']).toBe(40);
+        expect(body['betaBonusCredits']).toBe(10);
         expect(body['usdPerCredit']).toBeGreaterThan(0);
     });
 
