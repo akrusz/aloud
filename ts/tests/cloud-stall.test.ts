@@ -7,9 +7,11 @@ import { CloudLlmProvider } from '../ui/src/adapters/cloud-llm.js';
 import { CLOUD_TTS_RETRY_BUDGET_MS, CloudTtsEngine } from '../ui/src/adapters/cloud-tts.js';
 import { CLOUD_FINAL_RETRY_BUDGET_MS, WhisperPcmSttEngine } from '../ui/src/adapters/whisper-pcm-stt.js';
 import { setCloudAuthBackend } from '../ui/src/cloud-auth.js';
+import { streamCompletionWithChunkedTts } from '../ui/src/streaming-tts.js';
 import { isConnectionFailure } from '../ui/src/stt-errors.js';
+import { SessionManager } from '../src/facilitation/session.js';
 import type { KvStorage } from '../src/platform/storage.js';
-import type { StreamChunk } from '../src/llm/index.js';
+import type { LLMProvider, StreamChunk } from '../src/llm/index.js';
 
 /**
  * The cloud calls' stall guards (net-timeout.ts and the per-chunk timer in
@@ -485,5 +487,196 @@ describe('cloud STT against a stalled server', { timeout: 30_000 }, () => {
         expect(pass.value()!.ok).toBe(false);
         expect(isConnectionFailure(((pass.value() as { error: Error }).error).message)).toBe(true);
         await until(() => server!.open === 0, 'socket closed');
+    });
+});
+
+/** An aloud cloud that stalls while `down` (accepts, reads, never answers)
+ *  and answers with `answer` once it is back: what a session meets when the
+ *  cloud goes away for a while and comes back. */
+interface Outage extends Stall {
+    down: boolean;
+    /** Request bodies, in order, answered or not. */
+    bodies: string[];
+}
+async function outageServer(answer: (body: string) => { type: string; body: string }): Promise<Outage> {
+    const all = new Set<net.Socket>();
+    const carrying = new Set<net.Socket>();
+    const bodies: string[] = [];
+    const state = { down: true };
+    const srv = http.createServer((req, res) => {
+        carrying.add(req.socket);
+        req.socket.once('close', () => carrying.delete(req.socket));
+        let body = '';
+        req.on('data', (d: Buffer) => (body += d.toString('latin1')));
+        req.on('end', () => {
+            bodies.push(body);
+            if (state.down) return;
+            const a = answer(body);
+            res.writeHead(200, { 'content-type': a.type });
+            res.end(a.body);
+        });
+    });
+    srv.on('connection', (socket: net.Socket) => {
+        all.add(socket);
+        socket.once('close', () => all.delete(socket));
+    });
+    await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', resolve));
+    const { port } = srv.address() as AddressInfo;
+    return {
+        origin: `http://127.0.0.1:${port}`,
+        bodies,
+        get down() {
+            return state.down;
+        },
+        set down(v: boolean) {
+            state.down = v;
+        },
+        get requests() {
+            return bodies.length;
+        },
+        get open() {
+            return carrying.size;
+        },
+        push() {},
+        end() {},
+        async stop() {
+            for (const s of all) s.destroy();
+            await new Promise<void>((resolve) => srv.close(() => resolve()));
+        },
+    };
+}
+
+describe('when aloud cloud comes back after a stall', { timeout: 30_000 }, () => {
+    beforeEach(stubAudio);
+
+    it('LLM: the next completion and the next stream go through on the same provider', async () => {
+        const cloud = await outageServer((body) =>
+            (JSON.parse(body) as { stream: boolean }).stream
+                ? {
+                      type: 'text/event-stream',
+                      body:
+                          sse({ text: 'Welcome back.', done: false }) +
+                          sse({ text: '', done: true, result: { finishReason: 'stop', creditsCharged: 1, creditsRemaining: 9 } }),
+                  }
+                : {
+                      type: 'application/json',
+                      body: JSON.stringify({ text: 'NO', finishReason: 'stop', creditsCharged: 0, creditsRemaining: 9 }),
+                  }
+        );
+        server = cloud;
+        const provider = llm(cloud.origin);
+        const texts: string[] = [];
+        const lost = watch(consume(provider.completeStream([{ role: 'user', content: 'hi' }]), texts));
+        const lostCheck = watch(provider.complete([{ role: 'user', content: 'hi' }]));
+        await until(() => cloud.requests === 2, 'both requests');
+        await vi.advanceTimersByTimeAsync(LLM_STALL_MS);
+        await until(() => lost.settled() && lostCheck.settled(), 'both to fail');
+        expect(lost.error()).toBeDefined();
+        expect(lostCheck.error()).toBeDefined();
+        await until(() => cloud.open === 0, 'the stalled sockets let go');
+
+        cloud.down = false;
+        const back: string[] = [];
+        await consume(provider.completeStream([{ role: 'user', content: 'hi' }]), back);
+        expect(back).toEqual(['Welcome back.']);
+        expect((await provider.complete([{ role: 'user', content: 'hi' }])).text).toBe('NO');
+    });
+
+    it('LLM: what was said in a turn that failed goes with the next one, extending the request it was in', async () => {
+        const cloud = await outageServer(() => ({
+            type: 'text/event-stream',
+            body:
+                sse({ text: 'Mm.', done: false }) +
+                sse({ text: '', done: true, result: { finishReason: 'stop', creditsCharged: 1, creditsRemaining: 9 } }),
+        }));
+        server = cloud;
+        const provider = llm(cloud.origin);
+        const session = new SessionManager({ contextStrategy: 'full' });
+        session.startSession('exploration');
+        session.addControlMessage('user', '[Begin the session]', 'opener');
+        session.addAssistantMessage('Welcome.');
+        // A turn as respondTo runs it: the words go into the log before the
+        // reply is asked for, and a failed reply takes nothing back out.
+        session.addUserMessage('There is a warmth in my chest.');
+        const lost = watch(consume(provider.completeStream(session.getContextMessages()), []));
+        await until(() => cloud.requests === 1, 'request');
+        await vi.advanceTimersByTimeAsync(LLM_STALL_MS);
+        await until(lost.settled, 'the reply to fail');
+        expect(lost.error()).toBeDefined();
+
+        cloud.down = false;
+        session.addUserMessage('It is spreading to my arms.');
+        await consume(provider.completeStream(session.getContextMessages()), []);
+        type Sent = { messages: Array<{ role: string; content: string }> };
+        const [first, second] = cloud.bodies.map((b) => (JSON.parse(b) as Sent).messages) as [Sent['messages'], Sent['messages']];
+        expect(second.slice(0, first.length)).toEqual(first);
+        expect(second.slice(first.length)).toEqual([{ role: 'user', content: 'It is spreading to my arms.' }]);
+        expect(first.at(-1)).toEqual({ role: 'user', content: 'There is a warmth in my chest.' });
+    });
+
+    it('TTS: the sentence that failed is asked for again, not remembered as failed', async () => {
+        const cloud = await outageServer(() => ({ type: 'audio/mpeg', body: 'ID3 clip' }));
+        server = cloud;
+        const engine = tts(cloud.origin);
+        const text = sentence();
+        const lost = watch(engine.speak(text));
+        await until(() => cloud.requests === 1, 'request');
+        await vi.advanceTimersByTimeAsync(TTS_STALL_MS);
+        await until(lost.settled, 'speak() to fail');
+        expect(lost.error()).toBeDefined();
+
+        cloud.down = false;
+        await engine.speak(text);
+        expect(cloud.requests).toBe(2);
+    });
+
+    it('TTS: a whole-reply voice goes back to one request per reply after replies that fell to chunks', async () => {
+        const cloud = await outageServer(() => ({ type: 'audio/mpeg', body: 'ID3 clip' }));
+        server = cloud;
+        const engine = tts(cloud.origin);
+        const n = ++ttsText;
+        const reply = [`Let the breath come and go, ${n}. `, 'Notice where it is easiest to feel. ', 'Stay with that for a while.'];
+        const llmStub = {
+            model: 'stub',
+            async complete() {
+                return { text: reply.join(''), finishReason: 'stop', tokensUsed: null };
+            },
+            async *completeStream(): AsyncIterable<StreamChunk> {
+                for (const t of reply) yield { text: t, done: false };
+                yield { text: '', done: true, finishReason: 'stop' };
+            },
+        } as LLMProvider;
+
+        const during = await streamCompletionWithChunkedTts(llmStub, engine, [], { wholeReply: true });
+        const duringDone = watch(during.ttsDone);
+        await until(() => cloud.requests === 1, 'the whole reply asked for');
+        await vi.advanceTimersByTimeAsync(TTS_STALL_MS);
+        await until(() => cloud.requests === 4, 'its chunks asked for one at a time');
+        await vi.advanceTimersByTimeAsync(TTS_STALL_MS);
+        await until(duringDone.settled, 'the reply to end');
+        expect(during.heard().text).toBe('');
+
+        cloud.down = false;
+        const after = await streamCompletionWithChunkedTts(llmStub, engine, [], { wholeReply: true });
+        await after.ttsDone;
+        expect(cloud.requests).toBe(5);
+        const last = JSON.parse(cloud.bodies[4]!) as { text: string; marks?: number[] };
+        expect(last.text).toBe(reply.map((s) => s.trim()).join(' '));
+        expect(last.marks).toHaveLength(2);
+        expect(after.heard().text).toBe(last.text);
+    });
+
+    it('STT: the next pass goes through on the same engine', async () => {
+        const cloud = await outageServer(() => ({ type: 'application/json', body: JSON.stringify({ text: 'my hands are warm' }) }));
+        server = cloud;
+        const engine = stt(cloud.origin);
+        const lost = watch(transcribe(engine, 'final'));
+        await until(() => cloud.requests === 1, 'request');
+        await vi.advanceTimersByTimeAsync(STT_STALL_MS);
+        await until(lost.settled, 'the pass to fail');
+        expect(lost.value()!.ok).toBe(false);
+
+        cloud.down = false;
+        expect(await transcribe(engine, 'final')).toMatchObject({ ok: true, text: 'my hands are warm' });
     });
 });
