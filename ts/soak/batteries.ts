@@ -13,7 +13,19 @@
  * `npm run soak:web`. Batteries are the fast, parallel, walk-away check.
  */
 
+import { ROSTER } from '../evals/models.js';
+import { isFacilitatorPick } from './prices.js';
 import type { RoleSpecs } from './roles.js';
+
+/**
+ * What aloud offers as a facilitator today, as eval roster ids: the roster's
+ * shipped models that the hosted price table puts on the picker (gpt-5-nano
+ * ships as the recap engine only). Read at load, so the models battery
+ * follows the allowlist without an edit here.
+ */
+export const SHIPPED_FACILITATORS: readonly string[] = ROSTER.filter(
+    (m) => m.shipped && isFacilitatorPick(m.provider, m.model)
+).map((m) => m.id);
 
 export interface Battery {
     id: string;
@@ -60,14 +72,14 @@ export const BATTERIES: readonly Battery[] = [
     {
         id: 'models',
         description:
-            'Facilitator comparison across three families, judged by a fourth that is not in the contest.',
+            'Every facilitator aloud ships, head to head, scored by two judges from different families so no contestant is judged by its own family alone.',
         roles: {
-            // OpenAI is the judge below, so it is NOT a contestant: a judge in
-            // its own contest is the collision this battery exists to avoid.
-            facilitators: ['anthropic', 'groq', 'openrouter'],
-            user: 'anthropic:claude-haiku-5-5',
+            facilitators: [...SHIPPED_FACILITATORS],
+            // Off the contest on purpose: Haiku 5.5 is a contestant, and a
+            // meditator sharing a facilitator's model is a collision.
+            user: 'anthropic:claude-haiku-4-5-20251001',
             utility: 'anthropic:claude-haiku-5-5',
-            judge: 'openai:gpt-5.5',
+            judge: ['openai:gpt-6-sol', 'anthropic:claude-opus-5-5'],
         },
         scenarios: 'all',
         sessions: 2,

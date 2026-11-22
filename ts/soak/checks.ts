@@ -6,11 +6,69 @@
  * code; `warn` is worth a look; `info` is context for the report.
  */
 
-import { findRoleLeak } from '../src/facilitation/index.js';
-import type { CheckFinding, SessionRunResult } from './types.js';
+import { findRoleLeak, parseTurnSignals } from '../src/facilitation/index.js';
+import type { CheckFinding, SessionRunResult, TurnRecord } from './types.js';
 
 /** Spoken text must never contain a control token or markup the scrub missed. */
 const RESIDUAL_TOKEN_RE = /\[(HOLD|NEXT|BACK|PASS|WAIT[:\]])|<\/?[a-z][\w-]*>/i;
+
+/** A bracketed aside in a zh reply: a control token the model translated
+ *  ("【保持安静】"), which no parser reads and TTS would speak. */
+const BRACKETED_RE = /[【[][^\]】]{1,24}[\]】]/;
+
+/**
+ * A reply about the meditator instead of to them: the model's reasoning,
+ * handed to TTS (meditation-pal-dqti, Kimi K2's "The user is describing
+ * dissociation..."). Kept narrow: "they're describing" also fits a facilitator
+ * talking about the meditator's sister.
+ */
+const REASONING_ALOUD_RE = /\bthe (?:user|meditator|client)\b|\bI (?:should|need to|will):|\bmy (?:response|reply) (?:should|will|needs)\b/i;
+
+/** Fear in the words the engine was given; the fright-in-hold persona is told
+ *  to use these, and no other persona talks this way inside a hold. */
+const FRIGHT_RE =
+    /\b(?:scar(?:ed|y|ing)|frighten(?:ed|ing)?|afraid|terrif(?:ied|ying)|panic(?:king|ky)?|disappear(?:ing|ed)?|not real|can'?t feel)\b/i;
+
+/** "I'm back" opening an utterance, after any filler ("okay, I'm back"). */
+const BACK_RE = /^(?:(?:ok(?:ay)?|alright|all right|right|so|um+|uh+|mm+|hey|yeah|well)[\s,.!-]+)*(?:i'?m|i am) back\b/i;
+
+const hanCount = (s: string): number => (s.match(/\p{Script=Han}/gu) ?? []).length;
+const latinCount = (s: string): number => (s.match(/[A-Za-z]/g) ?? []).length;
+
+/**
+ * The in-hold mechanics the hold checks read: for an utterance spoken inside a
+ * hold, whether the hold ended there, and the verdicts that decided it. Works
+ * on tier 2's tapped sessions too, which carry the same records.
+ */
+function holdReader(result: SessionRunResult) {
+    const { transcript, events } = result;
+    const verdict = (detail: string, text: string): unknown =>
+        events.find((e) => e.kind === 'classifier' && e.detail === detail && e.data?.utterance === text)?.data;
+    return {
+        inHold: transcript.filter((t) => t.role === 'user' && t.kind === 'user' && t.duringHold),
+        /** Did the hold end at this utterance? Only utterances end a hold; a
+         *  timer notice inside one puts it back. */
+        ended(u: TurnRecord): boolean {
+            const next = transcript[transcript.indexOf(u) + 1];
+            return next ? next.duringHold !== true : !result.finalState.silenceMode;
+        },
+        resume: (u: TurnRecord) => (verdict('resume', u.text) as { verdict?: string } | undefined)?.verdict,
+        troubled: (u: TurnRecord) => (verdict('trouble', u.text) as { troubled?: boolean } | undefined)?.troubled,
+        /** The stepping-out note went in between this utterance and the next record. */
+        noted(u: TurnRecord): boolean {
+            const next = transcript[transcript.indexOf(u) + 1];
+            return events.some(
+                (e) =>
+                    e.kind === 'note' &&
+                    e.detail === 'stepping-out' &&
+                    e.at >= u.at &&
+                    (next === undefined || e.at <= next.at)
+            );
+        },
+    };
+}
+
+const quote = (s: string, n = 100): string => `"${s.length > n ? `${s.slice(0, n)}…` : s}"`;
 
 /** Sentence-opening verbs that read as commands in the facilitation register.
  *  Deliberately domain-scoped: a generic imperative detector over-fires, and
@@ -45,7 +103,23 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
         add('wall-clock-cap', 'fail', 'session hit the real-time cap (hung or very slow provider)');
     }
     for (const e of byEvent('error')) {
+        if (e.detail === 'empty-reply') continue; // counted below
         add('turn-error', 'fail', `${e.detail}${e.data?.message ? `: ${String(e.data.message)}` : ''}`);
+    }
+
+    // Blank completions: the model's fault, which the engine handles (an
+    // own-key session shows an error, aloud cloud retries), so a count to
+    // look at. Runs before the signal-only change logged a reply of only
+    // signals as an empty-reply with its raw; that is a legitimate turn.
+    const replyCalls = result.calls.filter((c) => c.kind === 'turn').length;
+    const emptyEvents = byEvent('error', 'empty-reply');
+    const blank = emptyEvents.filter((e) => !String(e.data?.raw ?? '').trim()).length;
+    const signalOnly = byEvent('signal', 'signal-only-reply').length + emptyEvents.length - blank;
+    if (blank > 0) {
+        add('empty-reply', 'warn', `${blank} of ${replyCalls} facilitator replies came back blank`);
+    }
+    if (signalOnly > 0) {
+        add('signal-only-reply', 'info', `${signalOnly} repl${signalOnly === 1 ? 'y' : 'ies'} carried only control tokens (went back to listening)`);
     }
 
     // Role leaks in RAW output: the engine strips them before speech/history,
@@ -87,6 +161,21 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
             `${residual.length} spoken line(s) still carry a control token or markup: "${residual[0]?.text.slice(0, 120)}"`
         );
     }
+
+    // The model's reasoning, spoken to the meditator as if it were the reply.
+    const modelReplies = assistant.filter((t) => t.raw !== undefined);
+    const reasoning = modelReplies.filter((t) => REASONING_ALOUD_RE.test(t.text));
+    if (reasoning.length > 0) {
+        add(
+            'reasoning-aloud',
+            'fail',
+            `${reasoning.length} spoken repl${reasoning.length === 1 ? 'y talks' : 'ies talk'} about the meditator instead of to them: ${quote(reasoning[0]?.text ?? '', 140)}`
+        );
+    }
+
+    if (result.scenario.language === 'zh') checkLanguage(result, add);
+
+    checkHolds(result, add);
 
     // Timer invariants.
     if (result.scenario.timerMin !== undefined) {
@@ -140,8 +229,7 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     // canned copy (fallback openers, canned check-ins: our own words) stays
     // out of the score. At directiveness 7+ commanding is the requested
     // style, so the rate stays info-only there.
-    const modelSpoken = assistant.filter((t) => t.raw !== undefined);
-    const sentences = modelSpoken
+    const sentences = modelReplies
         .flatMap((t) => t.text.split(/(?<=[.!?…])\s+/))
         .map((s) => s.trim())
         .filter((s) => s.length > 1);
@@ -173,4 +261,93 @@ export function runChecks(result: SessionRunResult): CheckFinding[] {
     }
 
     return findings;
+}
+
+type Add = (id: string, level: CheckFinding['level'], detail: string) => void;
+
+/**
+ * A 中文 session: every line the meditator hears is Chinese, and the control
+ * tokens still parse (the zh fragment keeps them in English).
+ */
+function checkLanguage(result: SessionRunResult, add: Add): void {
+    const spoken = result.transcript.filter((t) => t.role === 'assistant' && t.text.trim());
+    const english = (t: TurnRecord): boolean => latinCount(t.text) > hanCount(t.text);
+    // Our own lines: an English one is a pool with no zh twin.
+    const canned = spoken.filter((t) => t.raw === undefined && english(t));
+    if (canned.length > 0) {
+        add('wrong-language', 'fail', `${canned.length} canned line(s) in English in a zh session: ${quote(canned[0]?.text ?? '')}`);
+    }
+    // A model slipping once is worth a look; mostly English is a zh session
+    // that did not happen.
+    const model = spoken.filter((t) => t.raw !== undefined);
+    const wrong = model.filter(english);
+    if (wrong.length > 0) {
+        add(
+            'wrong-language',
+            wrong.length * 2 >= model.length ? 'fail' : 'warn',
+            `${wrong.length} of ${model.length} model replies are not in Chinese: ${quote(wrong[0]?.text ?? '')}`
+        );
+    }
+    const translated = spoken.filter((t) => BRACKETED_RE.test(t.text) && !RESIDUAL_TOKEN_RE.test(t.text));
+    if (translated.length > 0) {
+        add(
+            'token-translated',
+            'fail',
+            `${translated.length} spoken line(s) carry a bracketed aside, a control token the model translated: ${quote(translated[0]?.text ?? '')}`
+        );
+    }
+    const parsed = result.events.filter(
+        (e) =>
+            (e.kind === 'signal' && e.detail !== 'signal-only-reply') ||
+            (e.kind === 'stage' && e.detail !== 'clamped') ||
+            (e.kind === 'checkin' && e.detail === 'pass') ||
+            (e.kind === 'timer' && e.detail === 'approach-pass')
+    ).length;
+    add('language', 'info', `zh: ${model.length - wrong.length} of ${model.length} model replies in Chinese; ${parsed} control tokens parsed`);
+}
+
+/**
+ * Silence-mode outcomes keyed on what the engine was given: a frightened line
+ * or an "I'm back" inside a hold must end it (meditation-pal-59eg, kbec), and
+ * a turn cut down to its tail must not draw a [HOLD] bid (rlgm).
+ */
+function checkHolds(result: SessionRunResult, add: Add): void {
+    const hold = holdReader(result);
+    let frightSeen = 0;
+    let backSeen = 0;
+    for (const u of hold.inHold) {
+        // A verdict means the utterance was judged; without one the session
+        // ended under it, which no classifier can be blamed for.
+        const stayed = !hold.ended(u) && hold.resume(u) !== undefined;
+        if (FRIGHT_RE.test(u.text) || hold.troubled(u) === true) {
+            frightSeen++;
+            const trouble = hold.troubled(u) ?? 'not asked';
+            if (stayed) {
+                add('fright-in-hold', 'fail', `${quote(u.text)} inside the hold, and it stayed silent (resume: ${hold.resume(u)}, trouble: ${trouble})`);
+            } else if (hold.ended(u) && !hold.noted(u)) {
+                add('fright-in-hold', 'warn', `the hold ended on ${quote(u.text)} by the resume verdict, without the stepping-out note (trouble: ${trouble})`);
+            }
+        }
+        if (BACK_RE.test(u.text)) {
+            backSeen++;
+            if (stayed) add('back-in-hold', 'fail', `${quote(u.text)} was judged ${hold.resume(u)} and the hold went on`);
+        }
+    }
+
+    let fragmentsAnswered = 0;
+    result.transcript.forEach((u, i) => {
+        const next = result.transcript[i + 1];
+        if (!u.cut || next?.role !== 'assistant' || next.kind !== 'reply' || next.raw === undefined) return;
+        fragmentsAnswered++;
+        if (parseTurnSignals(next.raw).hold) {
+            add('fragment-hold-bid', 'fail', `the cut-off turn ${quote(u.text)} (said: ${quote(u.said ?? '')}) drew a [HOLD] bid: ${quote(next.text)}`);
+        }
+    });
+
+    const aim = result.scenario.aim;
+    const reached =
+        aim === 'fright-in-hold' ? frightSeen > 0 : aim === 'back-in-hold' ? backSeen > 0 : aim === 'fragment' ? fragmentsAnswered > 0 : true;
+    if (!reached) {
+        add('scenario-setup-missed', 'warn', `the session never produced what "${result.scenario.id}" is aimed at (${aim}), so it says nothing about that bug`);
+    }
 }

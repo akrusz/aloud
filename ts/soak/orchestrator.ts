@@ -48,10 +48,14 @@ import {
     TIMER_CLOSE_FALLBACKS,
     TIMER_COMPLETION_FALLBACKS,
     EXPLORATION_MODE,
+    localizePool,
+    sessionLanguageOf,
+    type ClassifyResumeIntentOptions,
     type LlmUsage,
 } from '../src/facilitation/index.js';
 import { OllamaProvider, type CompletionResult, type LLMProvider } from '../src/llm/index.js';
 import type {
+    CallUsage,
     LlmCallStat,
     Scenario,
     SessionEnd,
@@ -61,6 +65,8 @@ import type {
     TurnRecord,
 } from './types.js';
 import type { SimUser, SimView } from './sim-user.js';
+import { transformLine } from './transform.js';
+import { addUsage, callUsageOf, fromLlmUsage } from './usage.js';
 
 // Mirrors of the view's private constants (views/session.ts).
 const SMART_CHECKIN_MAX_STREAK = 4;
@@ -99,6 +105,10 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     // (views/session.ts does the same off SessionSetup.feltSenseCheckins).
     const checkinTiming = mode.checkinPaceSlider ? 'smart' : (scenario.checkinTiming ?? 'smart');
     const checkinContent = mode.checkinPaceSlider ? 'smart' : (scenario.checkinContent ?? 'smart');
+    // The app's one language setting, as views/session.ts hands it on: to
+    // the prompt builder (its zh fragment and canned pools) and to the timer's
+    // fallback pool. The classifiers take no language.
+    const language = sessionLanguageOf(scenario.language ?? 'en');
 
     const builder = new PromptBuilder({
         config: {
@@ -109,6 +119,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             customInstructions: '',
             waitSignal: checkinTiming === 'smart',
             holdSignal: silenceModeEnabled,
+            language,
         },
         mode,
     });
@@ -168,8 +179,22 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
     };
 
+    /** The sim's own words for the utterance being dispatched, when the
+     *  engine was handed something else (Scenario.transform). */
+    let heardAs: { said: string; cut: boolean } | null = null;
+
     function record(role: TurnRecord['role'], kind: TurnKind, text: string, extra: Partial<TurnRecord> = {}): void {
-        transcript.push({ at: now(), role, kind, text, ...(silenceMode ? { duringHold: true } : {}), ...extra });
+        const original =
+            kind === 'user' && heardAs ? { said: heardAs.said, ...(heardAs.cut ? { cut: true } : {}) } : {};
+        transcript.push({
+            at: now(),
+            role,
+            kind,
+            text,
+            ...(silenceMode ? { duringHold: true } : {}),
+            ...original,
+            ...extra,
+        });
         const who = role === 'assistant' ? 'facilitator' : kind === 'event' ? 'event' : 'meditator';
         log(`${mmss()} ${who}> ${text.length > 100 ? `${text.slice(0, 100)}…` : text}`);
     }
@@ -181,8 +206,23 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         const t0 = Date.now();
         const result = await fn();
         const latencyMs = Date.now() - t0;
-        calls.push({ kind, latencyMs });
+        calls.push({ kind, latencyMs, model: facilitator.model, ...callUsageOf(result) });
         return { result, latencyMs };
+    }
+
+    /** Classifier options that also total one call's usage (a retry reports
+     *  twice), for the call record. */
+    function metered(): { options: ClassifyResumeIntentOptions; usage: CallUsage } {
+        const usage: CallUsage = {};
+        return {
+            usage,
+            options: {
+                onUsage: (u: LlmUsage) => {
+                    session.recordLlmUsage(u);
+                    addUsage(usage, fromLlmUsage(u));
+                },
+            },
+        };
     }
 
     const usageOf = (r: CompletionResult): LlmUsage => ({
@@ -236,10 +276,18 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
     );
     async function askTrouble(text: string): Promise<boolean> {
         const t0 = Date.now();
-        const troubled = await classifyTrouble(utility, text, onClassifierUsage);
-        calls.push({ kind: 'classify-trouble', latencyMs: Date.now() - t0 });
+        const m = metered();
+        const troubled = await classifyTrouble(utility, text, m.options).catch(() => false);
+        calls.push({ kind: 'classify-trouble', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
         event('classifier', 'trouble', { troubled, utterance: text });
         return troubled;
+    }
+    /** One verdict per utterance, whichever path asks first (troubleFor in
+     *  the view). */
+    let troubleAsked: { text: string; verdict: Promise<boolean> } | null = null;
+    function troubleFor(text: string): Promise<boolean> {
+        if (troubleAsked?.text !== text) troubleAsked = { text, verdict: askTrouble(text) };
+        return troubleAsked.verdict;
     }
 
     /** A full facilitation turn (respondTo in the view). */
@@ -262,9 +310,10 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         if (!opts2.skipTranscript) record('user', 'user', userText);
         utteranceAdvance(userText);
         session.addUserMessage(userText);
-        if (opts2.troubled ?? (troubleOnTurns && (await askTrouble(userText)))) {
+        const troubled = opts2.troubled ?? (troubleOnTurns && (await troubleFor(userText)));
+        if (troubled) {
             session.appendSystemNote(STEPPING_OUT_NOTE, 'trouble');
-            event('note', 'stepping-out');
+            event('note', 'stepping-out', { when: 'before-reply' });
         }
 
         let raw: string;
@@ -308,8 +357,14 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         // so record nothing, speak nothing, and leave awaitingHoldConfirm alone -
         // a bare [HOLD] asked no question. (meditation-pal-9era)
         if (!cleanText.trim()) {
-            // The view surfaces this as an error toast and records nothing.
-            event('error', 'empty-reply', raw.trim() ? { raw } : undefined);
+            if (raw.trim()) {
+                // Signals and no words ("[WAIT:8m]" after someone asks to sit
+                // quietly): a turn shape the view goes back to listening on.
+                event('signal', 'signal-only-reply', { raw });
+            } else {
+                // The view raises an error toast here (own-key sessions).
+                event('error', 'empty-reply');
+            }
             pacing.onResponseEnd();
             recordTurnGap();
             return;
@@ -317,7 +372,14 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         session.addAssistantMessage(cleanText, undefined, usage);
         record('assistant', 'reply', cleanText, { raw, latencyMs });
         speakAdvance(cleanText);
-        awaitingHoldConfirm = !wasSilent && hold && silenceModeEnabled;
+        let bid = !wasSilent && hold && silenceModeEnabled;
+        // A bid in answer to someone frightened or in danger is dropped, on
+        // every model: "yes" to "are you safe?" must not begin a silence.
+        if (bid && (troubled || (await troubleFor(userText)))) {
+            bid = false;
+            event('note', 'stepping-out', { when: 'hold-bid-dropped' });
+        }
+        awaitingHoldConfirm = bid;
         if (hold) event('signal', awaitingHoldConfirm ? 'hold-bid' : 'hold-bid-ignored');
         pacing.onResponseEnd();
         recordTurnGap();
@@ -360,7 +422,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 [...session.getContextMessages(), { role: 'user', content: eventText }],
                 { system: systemPrompt }
             );
-            calls.push({ kind: 'checkin', latencyMs: Date.now() - t0 });
+            calls.push({ kind: 'checkin', latencyMs: Date.now() - t0, model: facilitator.model, ...fromLlmUsage(usage) });
             session.recordLlmUsage(usage);
             if (smartTiming && reply.kind !== 'fallback' && reply.waitSec !== null) {
                 pacing.setCheckinInterval(reply.waitSec);
@@ -407,7 +469,7 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 : endsSession
                   ? TIMER_CLOSE_FALLBACKS
                   : TIMER_COMPLETION_FALLBACKS;
-        const canned = pickTimerFallback(fallbackPool, total);
+        const canned = pickTimerFallback(localizePool(fallbackPool, language), total);
         const remaining = timerTotalSec === null ? 0 : Math.max(0, timerTotalSec - now());
         const eventText =
             kind === 'approach'
@@ -424,7 +486,12 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                     maxChars: SESSION_TIMER_MAX_CHARS,
                 }
             );
-            calls.push({ kind: `timer-${kind}`, latencyMs: Date.now() - t0 });
+            calls.push({
+                kind: `timer-${kind}`,
+                latencyMs: Date.now() - t0,
+                model: facilitator.model,
+                ...fromLlmUsage(usage),
+            });
             session.recordLlmUsage(usage);
             if (reply.kind === 'pass' && kind === 'approach') {
                 event('timer', 'approach-pass');
@@ -472,8 +539,6 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         return null;
     }
 
-    const onClassifierUsage = { onUsage: (u: LlmUsage) => session.recordLlmUsage(u) };
-
     async function dispatch(userText: string): Promise<void> {
         const route = routeUtterance({
             silenceMode,
@@ -487,11 +552,14 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             utteranceAdvance(userText);
             silenceBuffer.push(userText);
             const t0 = Date.now();
+            const m = metered();
+            // The resume classifiers hear a frightened line as thinking out
+            // loud, so the trouble check is asked beside them (handleSilenceUtterance).
             const [verdict, troubled] = await Promise.all([
-                classifyResumeIntent(utility, userText, onClassifierUsage),
-                askTrouble(userText),
+                classifyResumeIntent(utility, userText, m.options),
+                troubleFor(userText),
             ]);
-            calls.push({ kind: 'classify-resume', latencyMs: Date.now() - t0 });
+            calls.push({ kind: 'classify-resume', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
             event('classifier', 'resume', { verdict, utterance: userText });
             if (verdict === 'stay' && !troubled) return;
             // 'resume' or 'error': fail open, as the view does (ff1y).
@@ -503,8 +571,9 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         if (route === 'hold-confirm') {
             awaitingHoldConfirm = false;
             const t0 = Date.now();
-            const confirmed = await classifyHoldConfirm(utility, userText, onClassifierUsage);
-            calls.push({ kind: 'classify-confirm', latencyMs: Date.now() - t0 });
+            const m = metered();
+            const confirmed = await classifyHoldConfirm(utility, userText, m.options);
+            calls.push({ kind: 'classify-confirm', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
             event('classifier', 'hold-confirm', { confirmed, utterance: userText });
             if (confirmed) {
                 record('user', 'user', userText);
@@ -517,8 +586,9 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
         }
         if (route === 'rehold') {
             const t0 = Date.now();
-            const asking = await classifyHoldRequest(utility, userText, onClassifierUsage);
-            calls.push({ kind: 'classify-rehold', latencyMs: Date.now() - t0 });
+            const m = metered();
+            const asking = await classifyHoldRequest(utility, userText, m.options);
+            calls.push({ kind: 'classify-rehold', latencyMs: Date.now() - t0, model: utility.model, ...m.usage });
             event('classifier', 'rehold', { asking, utterance: userText });
             if (!asking) {
                 await respondTo(userText);
@@ -576,7 +646,9 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                     .filter((t) => t.kind !== 'event' && t.text.trim() !== '')
                     .map((t) => ({
                         who: t.role === 'assistant' ? ('facilitator' as const) : ('you' as const),
-                        text: t.text,
+                        // The meditator remembers what they said, not what
+                        // the recognizer made of it.
+                        text: t.said ?? t.text,
                     })),
                 elapsedMin: now() / 60,
                 plannedMin: scenario.fakeMinutes,
@@ -586,7 +658,12 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
             situation = undefined;
             const t0 = Date.now();
             const action = await simUser.nextAction(view);
-            calls.push({ kind: 'sim-user', latencyMs: Date.now() - t0 });
+            calls.push({
+                kind: 'sim-user',
+                latencyMs: Date.now() - t0,
+                ...(action.model !== undefined ? { model: action.model } : {}),
+                ...action.usage,
+            });
             event('sim', 'action', { waitSec: action.waitSec, spoke: action.text !== null, end: action.end });
 
             // Wait phase: advance the fake clock, polling timer + check-in gate.
@@ -610,9 +687,13 @@ export async function runSoakSession(opts: OrchestratorOptions): Promise<Session
                 if (Date.now() - wallStart > wallCap) { endedBy = 'wall-clock'; break outer; }
             }
             if (facilitatorSpoke) continue; // sim user heard something new; reconsider
-            if (action.text !== null) {
+            const heard =
+                action.text === null ? null : transformLine(action.text, scenario.transform, userTurns + 1);
+            if (action.text !== null && heard && heard.text.trim()) {
                 userTurns++;
-                await dispatch(action.text);
+                heardAs = heard.text !== action.text ? { said: action.text, cut: heard.cut } : null;
+                await dispatch(heard.text);
+                heardAs = null;
                 if (action.end) { endedBy = 'sim-end'; break; }
             } else if (action.end) {
                 endedBy = 'sim-end';

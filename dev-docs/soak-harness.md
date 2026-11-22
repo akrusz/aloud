@@ -21,6 +21,8 @@ npm run soak -- --list-batteries                 # what the presets do
 npm run soak -- --list                           # what's in the matrix
 npm run soak -- --scenarios=silence,timer-hold   # a slice
 npm run soak -- --facilitator=ollama:qwen3 --no-judge
+npm run soak -- --facilitator=opus-5.5,gpt-6-sol # eval roster ids work too
+npm run soak -- --judge=openai:gpt-6-sol,anthropic:claude-opus-5-5 --judge-repeats=3
 
 npm run web:dev                                  # tier 2 needs this first,
 npm run soak:web                                 #   in another terminal
@@ -37,6 +39,14 @@ for a run whose facilitator verdicts or latencies you will act on. Output is wri
 to `ts/soak-runs/<timestamp>/` (gitignored): `report.md` (read this one),
 `run.json`, and one JSON per session with the full transcript + event log. Exit
 code 1 when any deterministic check fails, so a release script can gate on it.
+
+What `run.json` carries beyond the transcripts, for anything that reads it:
+`meta.gitSha` and `meta.gitDirty` (the commit, and whether the tree had
+changes on top, untracked files included); on every call `calls[].model` and,
+when the provider reported them, `inputTokens` (fresh), `outputTokens`,
+`cacheReadTokens`, `cacheCreationTokens` (absent means not reported, never
+zero); on every session `judgeRuns`, one `{ judgeModel, verdict }` per judge
+call, beside the older `judge` (first judge, first verdict).
 
 ## Before you run: four things that bite
 
@@ -64,22 +74,30 @@ below.
 
 **Judge scores are noisier than they look.** Two `smoke` runs of *identical code*
 moved a scenario a full point. That is what `JUDGE_DELTA_MIN` (1.5, in
-`soak/baseline.ts`) is calibrated against, not a guess. Use `--sessions=2`+ before
-believing any score movement. **Check failures are the trustworthy signal.**
+`soak/baseline.ts`) is calibrated against, not a guess. Two things move it: the
+session (a different transcript each run) and the judge (re-reading the same
+one). `--judge-repeats=3` measures the second: `gpt-5.5` scored one unchanged
+transcript 8/8/8 and another 8/8/7 (2026-11-22), and once gave a timer score
+to a sit with no timer. So most of that point is the session: use
+`--sessions=2`+ before believing any score movement. **Check failures are the
+trustworthy signal.**
 
 ## Reading a run
 
 `report.md` is ordered worst-news-first for a two-minute read: verdict line →
 what changed since the baseline → scoreboard → failures grouped by check → the
-judge's verbatim wince quotes. Transcripts and per-session bookkeeping come last
-and collapsed.
+judge's verbatim wince quotes → how far the judges move → tokens and cost.
+Transcripts and per-session bookkeeping come last and collapsed.
 
 | Signal | How much to trust it |
 |---|---|
 | **Check fails** | Mechanical and trustworthy. Either an engine bug or a harness bug; both worth fixing. Grouped **by check id, not session** - one broken thing in four sessions is one problem. |
-| **Judge scores** | Directional only. Compare against the same judge model's earlier scores, never across judge models. |
+| **`scenario-setup-missed`** | The session never produced what its scenario is aimed at (no frightened line inside a hold, no "I'm back", no cut turn answered). A pass there tested nothing; rerun before reading it as good news. |
+| **Judge scores** | Directional only. Each judge has its own column, never averaged with another's; compare against the same judge model's earlier scores. `†` marks a judge scoring its own family's facilitator. |
+| **Judge spread** | With `--judge-repeats`, how far one judge moves on an unchanged transcript; with two judges, how far apart they sit. A movement inside that is noise. |
 | **Wince quotes** | The useful half of the judge. Each is a candidate regression case for the classifier probe harness (`meditation-pal-sfdk`) or a prompt edit. |
 | **`role-leak-raw`** | How often the model *tried* to write the meditator's turn (the engine strips them before speech). A rising count after a prompt change is the early warning. |
+| **Tokens and cost** | Per facilitator model: fresh input, cache read and write, output, the share of the prompt read from cache, dollars at the hosted list price (`server/src/pricing/providers.ts`). The fake clock never lets a cache entry lapse, so cache reads are an upper bound on a real sit's. Subscription calls (`‡`) carry the CLI's own preamble and caching, so their dollars price a different request. A run is the cheap place to see whether the append-only log (`tests/cache-prefix.test.ts`) reads from cache per provider; use `ALOUD_CLAUDE_VIA=api` for Claude's real numbers. |
 
 Tier 2 adds an **Audio round trip** table per session: what the sim said, what the
 recognizer heard, WER per utterance. Read it first when a session looks like a bad
@@ -116,7 +134,7 @@ anything a battery sets.
 |---|---|
 | `smoke` | Two scenarios, one session. "Did I break the engine?" in a couple of minutes. |
 | `pre-release` | Full matrix, two sessions per scenario. The one to run before cutting a release. |
-| `models` | Facilitator comparison across three families, judged by a fourth that isn't in the contest. |
+| `models` | Every facilitator aloud ships (`SHIPPED_FACILITATORS`: the eval roster's `shipped` models the hosted price table puts on the picker, read at load), scored by GPT-6 Sol and Opus 5.5 so each contestant has a judge outside its family. Nine models × the matrix × two sessions: a long, few-dollar run. |
 
 Tier 2 is deliberately not in a battery: it runs in real time and owns the
 machine's audio, so it stays an explicit `npm run soak:web`.
@@ -124,13 +142,15 @@ machine's audio, so it stays an explicit `npm run soak:web`.
 ## Casting: who plays which role
 
 A run casts four roles - **facilitator** (under test), **meditator** (the sim
-user), **classifiers** (the cheap utility model), **judge**. Two pairings
-invalidate the result:
+user), **classifiers** (the cheap utility model), **judge** (one or more). Two
+pairings invalidate the result:
 
-- **Judge = facilitator.** LLM judges prefer their own generations. In a
+- **Only judged by its own family.** LLM judges prefer writing like their own,
+  and the lab is what that follows (`modelFamily` in `soak/roles.ts`). In a
   `--facilitator=a,b,c` comparison the bias favors ONE contestant, which is worse
   than applying to all of them: the ranking becomes partly an artifact of who the
-  judge is.
+  judge is. A facilitator is fairly judged when at least one judge is from
+  another family; the same-family judge's cells are then marked, not forbidden.
 - **Meditator = facilitator.** Both halves of the conversation stop being
   independent.
 
@@ -154,12 +174,14 @@ Defaults: facilitator + judge on different families (Anthropic / OpenAI), sim us
 
 | File | Role |
 |---|---|
-| `orchestrator.ts` | Headless session engine: the real core (PromptBuilder, SessionManager, PacingController, `parseTurnSignals`, `routeUtterance` + silence classifiers, smart check-ins, `StagedModeController`, timer events) wired the way `ui/src/views/session.ts` wires them, minus DOM/audio/streaming, on `createFakeClock`. A 30-minute sit takes as long as its LLM calls. |
-| `sim-user.ts` | The meditator: persona-prompted LLM answering `WAIT: <seconds>` + an optional spoken line (or `END`). Stateless per call with a stable transcript prefix, so prompt caching applies. |
-| `scenarios.ts` | The matrix. Each scenario aims a persona at one slice of the engine: `baseline`, `silence`, `quiet`, `felt-sense`, `timer-hold` (a timer completing *inside* a hold), `overwhelmed` (trailing off must not trigger `[HOLD]`), `destabilizing` (fright mid-session must break the frame; the judge scores it as `stepping_out`; [stepping-out.md](stepping-out.md)). |
-| `checks.ts` | Deterministic post-run checks. `fail` = engine bug or broken invariant; `warn` = worth a look; `info` = context. |
-| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer delivery, stepping out for a meditator in trouble, plus verbatim wince moments. Strict JSON out, parsed leniently. |
-| `batteries.ts`, `roles.ts`, `baseline.ts` | Presets, collision rules, run-to-run diffing. |
+| `orchestrator.ts` | Headless session engine: the real core (PromptBuilder, SessionManager, PacingController, `parseTurnSignals`, `routeUtterance` + silence classifiers, the trouble check, smart check-ins, `StagedModeController`, timer events, the language setting) wired the way `ui/src/views/session.ts` wires them, minus DOM/audio/streaming, on `createFakeClock`. A 30-minute sit takes as long as its LLM calls. |
+| `sim-user.ts` | The meditator: persona-prompted LLM answering `WAIT: <seconds>` + an optional spoken line (or `END`), in Chinese for a zh scenario. Stateless per call with a stable transcript prefix, so prompt caching applies. |
+| `transform.ts` | What a recognizer does to the sim's lines before the engine sees them (`Scenario.transform`): Chrome Web Speech's unpunctuated finals, or chosen turns cut to their last few words (seeded, the same every run). The transcript keeps both: `text` is what the engine got, `said` what the sim said. |
+| `scenarios.ts` | The matrix. Each scenario aims a persona at one slice of the engine: `baseline`, `silence`, `quiet`, `felt-sense`, `timer-hold` (a timer completing *inside* a hold), `overwhelmed` (trailing off must not trigger `[HOLD]`), `destabilizing` (fright mid-session must break the frame; the judge scores it as `stepping_out`; [stepping-out.md](stepping-out.md)), `guided` (guidance 9 on inner parts), `zh` (a 中文 sit), and three aimed at open bugs, each with a mechanical check: `fright-in-hold` (frightened inside a hold without asking for help, meditation-pal-59eg), `back-in-hold` ("I'm back" and a report in one unpunctuated breath, kbec), `fragment` (a turn cut to "anymore." must not draw `[HOLD]`, rlgm). |
+| `checks.ts` | Deterministic post-run checks. `fail` = engine bug or broken invariant; `warn` = worth a look; `info` = context. Among them: `fright-in-hold` and `back-in-hold` (the hold must end there), `fragment-hold-bid`, `reasoning-aloud` (a reply about "the user", meditation-pal-dqti), `wrong-language` and `token-translated` (zh), `empty-reply` (blank completions, counted; a reply of only signals is a legitimate turn, as in the view). |
+| `judge.ts` | LLM judge for what only a reader can see: responsiveness, tone, brevity, silence respect, meta leaks, timer delivery, stepping out for a meditator in trouble, plus verbatim wince moments. Strict JSON out, parsed leniently. `runJudges` has every judge score every session `--judge-repeats` times. |
+| `batteries.ts`, `roles.ts`, `baseline.ts` | Presets, collision rules, run-to-run diffing (the first judge, its repeats averaged). |
+| `usage.ts`, `prices.ts` | Token totals per call group, and the hosted price table, loaded at run time: its type imports reach `server/src/contract.ts`, whose `@aloud/core/*` imports only the server's tsconfig paths resolve. |
 | `report.ts`, `run.ts` | Report writer and CLI (concurrency pool, provider specs, exit code). |
 
 The orchestrator deliberately **mirrors** `views/session.ts` rather than sharing

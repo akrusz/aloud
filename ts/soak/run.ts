@@ -8,6 +8,8 @@
  *   npm run soak                                   # all scenarios, defaults
  *   npm run soak -- --scenarios=silence,timer-hold --sessions=2
  *   npm run soak -- --facilitator=ollama:qwen3 --no-judge
+ *   npm run soak -- --facilitator=opus-5.5,gpt-6-sol   # eval roster ids
+ *   npm run soak -- --judge=openai:gpt-6-sol,anthropic:claude-opus-5-5 --judge-repeats=3
  *   npm run soak -- --list | --list-batteries
  *
  * Keys come from the environment or ts/server/.env. Exit code 1 when any
@@ -24,12 +26,13 @@ import { loadServerEnv } from './env.js';
 import { LlmSimUser } from './sim-user.js';
 import { runSoakSession } from './orchestrator.js';
 import { runChecks } from './checks.js';
-import { judgeSession } from './judge.js';
+import { runJudges } from './judge.js';
 import { getScenarios, SCENARIOS } from './scenarios.js';
-import { writeRunReports, tierOfRunDir, type RunMeta } from './report.js';
+import { gitInfo, writeRunReports, tierOfRunDir, type RunMeta } from './report.js';
 import { BATTERIES, DEFAULT_ROLES, getBattery } from './batteries.js';
-import { describeRoles, findRoleCollisions, resolveRoles, type ResolvedRole } from './roles.js';
+import { describeRoles, findRoleCollisions, judgeSpecs, resolveRoles, type ResolvedRole } from './roles.js';
 import { diffAgainstBaseline, loadBaseline } from './baseline.js';
+import { claudeVia } from './providers.js';
 import type { Scenario, SessionReport } from './types.js';
 
 const RUNS_DIR = fileURLToPath(new URL('../soak-runs', import.meta.url));
@@ -89,6 +92,7 @@ async function main(): Promise<void> {
             user: { type: 'string' },
             utility: { type: 'string' },
             judge: { type: 'string' },
+            'judge-repeats': { type: 'string' },
             'no-judge': { type: 'boolean', default: false },
             baseline: { type: 'string' },
             concurrency: { type: 'string' },
@@ -112,26 +116,30 @@ Options:
                           what changed
   --scenarios=<a,b|all>   which scenarios to run (see --list)
   --sessions=<n>          runs per scenario
-  --facilitator=<a,b>     provider[:model] under test; a comma list compares
-                          models head-to-head
+  --facilitator=<a,b>     provider[:model] or eval roster id (ts/evals/models.ts)
+                          under test; a comma list compares models head-to-head
   --user=<spec>           the simulated meditator
   --utility=<spec>        the silence classifiers
-  --judge=<spec>          judge model; --no-judge to skip
+  --judge=<a,b>           judge model(s), each scoring every session, reported
+                          side by side; --no-judge to skip
+  --judge-repeats=<n>     each judge scores each session n times, to show its
+                          own spread
   --concurrency=<n>       parallel sessions
   --out=<dir>             output directory (default: ts/soak-runs/<timestamp>)
   --list                  list scenarios and exit
   --list-batteries        list batteries and exit
 
-Defaults: facilitator ${DEFAULT_ROLES.facilitators.join(',')} · meditator ${DEFAULT_ROLES.user} · classifiers ${DEFAULT_ROLES.utility} · judge ${DEFAULT_ROLES.judge}
-The judge is deliberately a different family from the facilitator - a model
-scoring its own transcripts inflates its own row (soak/roles.ts).`);
+Defaults: facilitator ${DEFAULT_ROLES.facilitators.join(',')} · meditator ${DEFAULT_ROLES.user} · classifiers ${DEFAULT_ROLES.utility} · judge ${judgeSpecs(DEFAULT_ROLES.judge).join(',')}
+A facilitator needs at least one judge from another family - a model scoring
+its own family's transcripts inflates its own row (soak/roles.ts).`);
         return;
     }
     if (values['list-batteries']) {
         for (const b of BATTERIES) {
             const scenarios = b.scenarios === 'all' ? 'all scenarios' : b.scenarios.join(',');
             console.log(
-                `${b.id.padEnd(13)} ${b.description}\n${' '.repeat(14)}${scenarios}, ${b.sessions} session(s) each; judge ${b.roles.judge ?? 'off'}`
+                `${b.id.padEnd(13)} ${b.description}\n${' '.repeat(14)}${scenarios}, ${b.sessions} session(s) each; ` +
+                    `facilitator ${b.roles.facilitators.join(',')}; judge ${judgeSpecs(b.roles.judge).join(' + ') || 'off'}`
             );
         }
         return;
@@ -139,26 +147,27 @@ scoring its own transcripts inflates its own row (soak/roles.ts).`);
     if (values.list) {
         for (const s of SCENARIOS) {
             console.log(
-                `${s.id.padEnd(12)} ${s.title} (${s.fakeMinutes} sim min, persona: ${s.persona.id})`
+                `${s.id.padEnd(15)} ${s.title} (${s.fakeMinutes} sim min, persona: ${s.persona.id})`
             );
         }
         return;
     }
 
     loadServerEnv();
+    const git = gitInfo();
     const battery = values.battery ? getBattery(values.battery) : null;
     const base = battery?.roles ?? DEFAULT_ROLES;
+    const list = (v: string): string[] => v.split(',').map((f) => f.trim()).filter(Boolean);
 
     // Explicit flags beat the battery, which beats the defaults.
     const roles = resolveRoles({
-        facilitators: values.facilitator
-            ? values.facilitator.split(',').map((f) => f.trim()).filter(Boolean)
-            : base.facilitators,
+        facilitators: values.facilitator ? list(values.facilitator) : base.facilitators,
         user: values.user ?? base.user,
         utility: values.utility ?? base.utility,
-        judge: values['no-judge'] ? null : (values.judge ?? base.judge),
+        judge: values['no-judge'] ? null : values.judge ? list(values.judge) : base.judge,
     });
     const collisions = findRoleCollisions(roles);
+    const judgeRepeats = Math.max(1, Number.parseInt(values['judge-repeats'] ?? '', 10) || 1);
 
     const scenarioArg = values.scenarios ?? battery?.scenarios ?? 'all';
     const scenarios = getScenarios(
@@ -198,6 +207,7 @@ scoring its own transcripts inflates its own row (soak/roles.ts).`);
         `Soak: ${jobs.length} session(s) across ${scenarios.length} scenario(s)` +
             (battery ? `, battery ${battery.id}` : '') +
             `, concurrency ${concurrency}.\n${describeRoles(roles)}` +
+            (judgeRepeats > 1 ? ` (each judge ×${judgeRepeats})` : '') +
             (baseline ? `\nBaseline: ${baseline.dir}` : '') +
             `\nOutput: ${outDir}\n`
     );
@@ -222,23 +232,17 @@ scoring its own transcripts inflates its own row (soak/roles.ts).`);
                 runIndex,
                 facilitator: facilitator.provider,
                 utility: roles.utility.provider,
-                simUser: new LlmSimUser(roles.user.provider, scenario.persona),
+                simUser: new LlmSimUser(roles.user.provider, scenario.persona, scenario.language ?? 'en'),
                 log,
             });
             const findings = runChecks(result);
-            const report: SessionReport = { result, findings };
-            if (roles.judge) {
-                try {
-                    report.judge = await judgeSession(roles.judge.provider, result);
-                } catch (err) {
-                    report.judgeError = err instanceof Error ? err.message : String(err);
-                }
-            }
+            const report: SessionReport = { result, findings, ...(await runJudges(roles.judges, judgeRepeats, result)) };
             const fails = findings.filter((f) => f.level === 'fail').length;
             const warns = findings.filter((f) => f.level === 'warn').length;
+            const scores = (report.judgeRuns ?? []).map((j) => j.verdict.overall);
             log(
                 `done: ended by ${result.endedBy}, ${fails} fail / ${warns} warn` +
-                    (report.judge ? `, judge ${report.judge.overall.toFixed(1)}/10` : '')
+                    (scores.length ? `, judge ${scores.join(' / ')}` : '')
             );
             return report;
         }),
@@ -255,24 +259,30 @@ scoring its own transcripts inflates its own row (soak/roles.ts).`);
             user: entry(roles.user),
             utility: entry(roles.utility),
             judge: roles.judge ? entry(roles.judge) : null,
+            judges: roles.judges.map(entry),
         },
         collisions,
         wallClockMs: Date.now() - t0,
         ...(baseline ? { baselineDir: baseline.dir } : {}),
+        ...git,
+        claudeVia: claudeVia(),
+        judgeRepeats,
     };
     const diff = baseline ? diffAgainstBaseline(reports, baseline.reports) : undefined;
     writeRunReports(outDir, meta, reports, undefined, diff);
 
     const totalFails = reports.flatMap((r) => r.findings).filter((f) => f.level === 'fail').length;
     const totalWarns = reports.flatMap((r) => r.findings).filter((f) => f.level === 'warn').length;
-    const judged = reports.filter((r) => r.judge);
-    const avg =
-        judged.length > 0
-            ? (judged.reduce((a, r) => a + (r.judge?.overall ?? 0), 0) / judged.length).toFixed(1)
-            : null;
+    // Per judge model, never pooled across them.
+    const averages = roles.judges
+        .filter((j, i, all) => all.findIndex((x) => x.model === j.model) === i)
+        .flatMap((j) => {
+            const scores = reports.flatMap((r) => (r.judgeRuns ?? []).filter((x) => x.judgeModel === j.model)).map((x) => x.verdict.overall);
+            return scores.length ? [`${j.model} ${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)}/10`] : [];
+        });
     console.log(
         `\nDone in ${Math.round(meta.wallClockMs / 1000)}s: ${totalFails} check fail(s), ${totalWarns} warn(s)` +
-            (avg !== null ? `, judge average ${avg}/10` : '') +
+            (averages.length ? `, judge average ${averages.join(', ')}` : '') +
             '.'
     );
     if (diff) {

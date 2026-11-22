@@ -9,11 +9,20 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { BATTERIES, DEFAULT_ROLES } from '../soak/batteries.js';
-import { describeRoles, findRoleCollisions, resolveRoles } from '../soak/roles.js';
-import { buildReportMd, tierOfRunDir, type RunMeta } from '../soak/report.js';
+import { BATTERIES, DEFAULT_ROLES, SHIPPED_FACILITATORS, getBattery } from '../soak/batteries.js';
+import {
+    describeRoles,
+    findRoleCollisions,
+    judgeSpecs,
+    modelFamily,
+    resolveRoles,
+    sameFamily,
+    specOf,
+} from '../soak/roles.js';
+import { buildReportMd, gitInfo, tierOfRunDir, type RunMeta } from '../soak/report.js';
 import { diffAgainstBaseline } from '../soak/baseline.js';
 import { runChecks } from '../soak/checks.js';
+import { ROSTER } from '../evals/models.js';
 import type { SessionReport, SessionRunResult } from '../soak/types.js';
 
 beforeAll(() => {
@@ -24,6 +33,7 @@ beforeAll(() => {
         'GROQ_API_KEY',
         'OPENROUTER_API_KEY',
         'VENICE_API_KEY',
+        'GEMINI_API_KEY',
     ]) {
         process.env[v] ??= 'test-key';
     }
@@ -45,16 +55,31 @@ describe('role collisions', () => {
         const collisions = findRoleCollisions(
             resolveRoles({ ...DEFAULT_ROLES, judge: DEFAULT_ROLES.facilitators[0] as string })
         );
-        expect(collisions.map((c) => c.id)).toEqual(['judge-is-facilitator']);
+        expect(collisions.map((c) => c.id)).toEqual(['judge-same-family']);
     });
 
-    it('compares resolved models, not spec strings', () => {
-        // "anthropic" and its explicit default model are the same casting.
+    it('judges by family: another Anthropic model judging an Anthropic facilitator collides', () => {
         const collisions = findRoleCollisions(
-            resolveRoles({ ...DEFAULT_ROLES, judge: 'anthropic:claude-sonnet-5-5' })
+            resolveRoles({ ...DEFAULT_ROLES, judge: 'anthropic:claude-opus-5-5' })
         );
         expect(collisions).toHaveLength(1);
         expect(collisions[0]?.model).toBe('claude-sonnet-5-5');
+        expect(collisions[0]?.detail).toMatch(/anthropic family/);
+    });
+
+    it('is cleared by a second judge from another family, which the report then marks', () => {
+        const roles = resolveRoles({ ...DEFAULT_ROLES, judge: ['anthropic:claude-opus-5-5', 'openai:gpt-6-sol'] });
+        expect(findRoleCollisions(roles)).toEqual([]);
+        expect(roles.judge?.model).toBe('claude-opus-5-5');
+        expect(roles.judges.map((j) => j.model)).toEqual(['claude-opus-5-5', 'gpt-6-sol']);
+    });
+
+    it('still collides when every judge shares the family', () => {
+        const collisions = findRoleCollisions(
+            resolveRoles({ ...DEFAULT_ROLES, judge: ['anthropic:claude-opus-5-5', 'anthropic:claude-haiku-5-5'] })
+        );
+        expect(collisions.map((c) => c.id)).toEqual(['judge-same-family']);
+        expect(collisions[0]?.detail).toMatch(/^every judge/);
     });
 
     it('catches a simulated meditator sharing the facilitator model', () => {
@@ -89,6 +114,66 @@ describe('role collisions', () => {
         expect(described).toMatch(/meditator /);
         expect(described).toMatch(/classifiers /);
         expect(described).toMatch(/judge /);
+    });
+});
+
+describe('model families', () => {
+    it.each([
+        ['claude-opus-5-5', 'anthropic'],
+        ['claude-haiku-4-5-20251001', 'anthropic'],
+        ['gpt-6-sol', 'openai'],
+        ['gpt-5.6-terra', 'openai'],
+        ['gemini-3.5-flash-lite', 'google'],
+        ['gemma4:12b', 'google'],
+        ['moonshotai/kimi-k2', 'moonshot'],
+        ['qwen3.5:4b', 'alibaba'],
+    ])('%s is %s', (model, family) => {
+        expect(modelFamily(model)).toBe(family);
+    });
+
+    it('reads an eval roster id as its provider spec', () => {
+        expect(specOf('opus-5.5')).toBe('anthropic:claude-opus-5-5');
+        expect(specOf('kimi-k2')).toBe('openrouter:moonshotai/kimi-k2');
+        expect(specOf('openai:gpt-6-sol')).toBe('openai:gpt-6-sol');
+        expect(resolveRoles({ ...DEFAULT_ROLES, facilitators: ['gpt-6-sol'] }).facilitators[0]?.model).toBe('gpt-6-sol');
+    });
+});
+
+describe('the models battery', () => {
+    const battery = getBattery('models');
+    // Resolved per test: provider construction needs the keys beforeAll sets.
+    const resolved = () => resolveRoles(battery.roles);
+
+    it('casts what aloud ships as a facilitator', () => {
+        const shipped = ROSTER.filter((m) => m.shipped).map((m) => m.id);
+        expect(SHIPPED_FACILITATORS.length).toBeGreaterThan(3);
+        expect(SHIPPED_FACILITATORS.every((id) => shipped.includes(id))).toBe(true);
+        // Shipped as the recap engine, off the facilitator picker.
+        expect(SHIPPED_FACILITATORS).not.toContain('gpt-5-nano');
+        expect(battery.roles.facilitators).toEqual([...SHIPPED_FACILITATORS]);
+    });
+
+    it('gives every contestant a judge outside its own family, from two families', () => {
+        const roles = resolved();
+        const judges = roles.judges.map((j) => j.model);
+        expect(new Set(judges.map(modelFamily)).size).toBe(2);
+        for (const f of roles.facilitators) {
+            expect(judges.some((j) => !sameFamily(j, f.model)), f.model).toBe(true);
+        }
+    });
+
+    it('keeps its meditator out of the contest', () => {
+        const roles = resolved();
+        expect(roles.facilitators.map((f) => f.model)).not.toContain(roles.user.model);
+        expect(judgeSpecs(battery.roles.judge)).toHaveLength(2);
+    });
+});
+
+describe('run metadata', () => {
+    it('reads the commit off the checkout', () => {
+        const git = gitInfo();
+        expect(git.gitSha).toMatch(/^[0-9a-f]{40}$/);
+        expect(typeof git.gitDirty).toBe('boolean');
     });
 });
 
@@ -199,7 +284,7 @@ describe('report', () => {
         const meta: RunMeta = {
             ...META,
             collisions: [
-                { id: 'judge-is-facilitator', model: 'model-a', detail: 'the judge is the facilitator' },
+                { id: 'judge-same-family', model: 'model-a', detail: 'the judge is the facilitator' },
             ],
         };
         const md = buildReportMd(meta, [report()]);

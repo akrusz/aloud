@@ -7,7 +7,8 @@
  */
 
 import type { LLMProvider } from '../src/llm/index.js';
-import type { Persona } from './types.js';
+import { callUsageOf } from './usage.js';
+import type { CallUsage, Persona } from './types.js';
 
 export interface SimView {
     transcript: Array<{ who: 'facilitator' | 'you'; text: string }>;
@@ -24,6 +25,9 @@ export interface SimAction {
     text: string | null;
     end: boolean;
     raw: string;
+    /** The sim's own call, for the run's token count. */
+    model?: string;
+    usage?: CallUsage;
 }
 
 export interface SimUser {
@@ -34,15 +38,19 @@ export const SIM_WAIT_MIN_SEC = 5;
 export const SIM_WAIT_MAX_SEC = 1800;
 const SIM_MAX_TOKENS = 400;
 
-function buildSystemPrompt(persona: Persona): string {
+function buildSystemPrompt(persona: Persona, language: 'en' | 'zh'): string {
     const arc = persona.arc?.length
         ? '\n\nDuring the sit, when it feels natural (spread these out; not all at once):\n' +
           persona.arc.map((a) => `- ${a}`).join('\n')
         : '';
+    const tongue =
+        language === 'zh'
+            ? '\n\nYou are a native Mandarin speaker and the app is set to Chinese: everything you say aloud is in Simplified Chinese, the way people talk, never English. (The WAIT and END lines stay in English.)'
+            : '';
     return `You are role-playing a person meditating with a voice-based meditation app, as part of an automated test. You are the MEDITATOR. The other voice is the app's facilitator.
 
 Who you are this session:
-${persona.description}${arc}
+${persona.description}${arc}${tongue}
 
 Each message shows the session transcript so far. Decide your SINGLE next move and answer in EXACTLY this format:
 
@@ -139,9 +147,9 @@ export class LlmSimUser implements SimUser {
     /** Wall-clock ms spent in sim calls, for the run's cost accounting. */
     onCall?: (latencyMs: number) => void;
 
-    constructor(provider: LLMProvider, persona: Persona) {
+    constructor(provider: LLMProvider, persona: Persona, language: 'en' | 'zh' = 'en') {
         this.provider = provider;
-        this.system = buildSystemPrompt(persona);
+        this.system = buildSystemPrompt(persona, language);
     }
 
     async nextAction(view: SimView): Promise<SimAction> {
@@ -155,7 +163,7 @@ export class LlmSimUser implements SimUser {
                     { system: this.system, maxTokens: SIM_MAX_TOKENS }
                 );
                 this.onCall?.(Date.now() - t0);
-                return parseSimReply(result.text);
+                return { ...parseSimReply(result.text), model: this.provider.model, usage: callUsageOf(result) };
             } catch (err) {
                 lastErr = err;
             }

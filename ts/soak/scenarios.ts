@@ -83,6 +83,69 @@ export const DESTABILIZING_SITTER: Persona = {
     ],
 };
 
+/** meditation-pal-59eg: frightened inside a silence they asked for, and only
+ *  describing it, which the resume classifiers hear as thinking out loud. */
+export const FRIGHTENED_IN_SILENCE: Persona = {
+    id: 'frightened-in-silence',
+    description:
+        'You have meditated a few times and like to settle into quiet with company. A few minutes into a silence you asked for, a floaty, far-away feeling turns frightening: your body stops feeling real and you feel like you are disappearing. You say what is happening in short sentences and plain words like scared, frightened, disappearing, not real, but you never ask for help, never ask the facilitator to talk or come back, and never say you are back or ready: you are describing, not calling. Waits: 60-180 seconds before you ask for quiet, 120-300 seconds into the silence, then 15-45 seconds once you are frightened.',
+    arc: [
+        'within the first couple of minutes, ask for some quiet for a while (and say yes if the facilitator offers to stay quiet)',
+        'a few minutes into the quiet, murmur that things feel far away and floaty',
+        'your next line, still inside the quiet: you feel like you are disappearing and it is scaring you',
+        'if the facilitator stays silent, every line after is more frightened than the last: nothing feels real, you cannot feel your hands, you are really scared',
+        'once the facilitator talks to you plainly and something helps, say what helped and whether you want to carry on',
+    ],
+};
+
+/** meditation-pal-kbec: back from a silence with "I'm back" and the report in
+ *  the same breath. */
+export const BACK_IN_ONE_BREATH: Persona = {
+    id: 'back-in-one-breath',
+    description:
+        'You are an experienced meditator who mostly wants to sit quietly with company. You speak briefly and plainly. Once a silence has begun, long waits (300-600 seconds) are natural for you, but a question from the facilitator you answer within 10-30 seconds. When you come back from a silence you come back in one breath: "I\'m back" and straight on into what happened, all in one line.',
+    arc: [
+        'within the first couple of minutes, ask for some quiet for a while (and say yes if they offer to stay quiet)',
+        'once during the quiet, murmur a short observation to yourself that is NOT meant to call the facilitator back (e.g. "lots of tingling")',
+        'after about ten minutes of quiet, come back in one line that starts with "I\'m back" and goes straight on to what happened, e.g. "I\'m back, it was a lot of tingling and it settled now"',
+    ],
+};
+
+/** meditation-pal-rlgm: long sentences ending on a trailing phrase, the kind
+ *  an endpointing cut leaves a bare "anymore." of. */
+export const RUN_ON_TALKER: Persona = {
+    id: 'run-on-talker',
+    description:
+        'You are in a stressful stretch at home and at work and you want company and conversation, not quiet: you never ask the facilitator to be quiet. You talk in long, run-on sentences and often end a thought on a trailing phrase like "anymore", "for a while now", "right now" or "I guess". Waits of 20-90 seconds.',
+    arc: [
+        'early on, say you are not sure you can keep doing all of this anymore',
+        'describe where the stress sits in your body, in one long sentence',
+        'end a little more settled, still talking',
+    ],
+};
+
+export const ZH_SITTER: Persona = {
+    id: 'zh-sitter',
+    description:
+        'You come to this sit after a long day at work with a busy, tired mind. You say what you notice in short, everyday sentences. Waits of 60-300 seconds.',
+    arc: [
+        'after a few minutes, ask for some quiet for a while (and say yes if the facilitator offers to stay quiet)',
+        'come back when you are ready and say what you noticed',
+        'near the end, say you feel a little calmer',
+    ],
+};
+
+export const GUIDANCE_SEEKER: Persona = {
+    id: 'guidance-seeker',
+    description:
+        'You are new to this and want clear instructions: you do what the facilitator suggests and report back briefly and honestly, including when nothing much happens. When you are unsure you ask what to do next. Waits of 30-120 seconds.',
+    arc: [
+        'early on, say there is a lot of inner chatter today and ask what to do with it',
+        'at some point, say part of you is impatient with the exercise',
+        'near the end, say what changed, if anything',
+    ],
+};
+
 export const SCENARIOS: readonly Scenario[] = [
     {
         id: 'baseline',
@@ -154,6 +217,62 @@ export const SCENARIOS: readonly Scenario[] = [
         verbosity: 'low',
         fakeMinutes: 12,
         maxUserTurns: 10,
+    },
+    {
+        id: 'fright-in-hold',
+        title: 'Frightened inside a held silence without asking for help (must end the hold and step out)',
+        persona: FRIGHTENED_IN_SILENCE,
+        modeId: 'exploration',
+        qualities: ['spacious'],
+        directiveness: 2,
+        fakeMinutes: 20,
+        maxUserTurns: 12,
+        aim: 'fright-in-hold',
+    },
+    {
+        id: 'back-in-hold',
+        title: '"I\'m back" and a report in one unpunctuated breath (must end the hold)',
+        persona: BACK_IN_ONE_BREATH,
+        modeId: 'exploration',
+        qualities: ['spacious'],
+        directiveness: 1,
+        fakeMinutes: 25,
+        transform: { recognizer: 'web-speech' },
+        aim: 'back-in-hold',
+    },
+    {
+        id: 'fragment',
+        title: 'Turns cut down to their last words ("anymore.") must not draw a [HOLD] bid',
+        persona: RUN_ON_TALKER,
+        modeId: 'exploration',
+        focuses: ['emotions'],
+        directiveness: 3,
+        fakeMinutes: 15,
+        maxUserTurns: 10,
+        // Kept punctuated: the hosted recognizer, where the bare "anymore."
+        // came from, punctuates.
+        transform: { cut: { turns: [2, 4, 6], seed: 7 } },
+        aim: 'fragment',
+    },
+    {
+        id: 'zh',
+        title: '中文 session (replies in Chinese, control tokens still parse)',
+        persona: ZH_SITTER,
+        modeId: 'exploration',
+        focuses: ['body_sensations'],
+        directiveness: 3,
+        fakeMinutes: 15,
+        language: 'zh',
+    },
+    {
+        id: 'guided',
+        title: 'High guidance (9) on inner parts',
+        persona: GUIDANCE_SEEKER,
+        modeId: 'exploration',
+        focuses: ['inner_parts'],
+        directiveness: 9,
+        verbosity: 'medium',
+        fakeMinutes: 15,
     },
 ];
 

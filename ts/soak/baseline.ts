@@ -77,6 +77,18 @@ function cellKey(r: SessionReport): string {
     return `${r.result.scenario.id} · ${r.result.facilitatorModel}`;
 }
 
+/** The first judge's score: the mean of its repeats when it scored more than
+ *  once, so --judge-repeats narrows the noise this diff has to see past. */
+function firstJudgeScore(r: SessionReport): number | null {
+    // No `judge` means the first judge never answered; judgeRuns would then
+    // lead with another judge, whose scale is not comparable.
+    if (!r.judge) return null;
+    const first = r.judgeRuns?.[0]?.judgeModel;
+    const runs = (r.judgeRuns ?? []).filter((j) => j.judgeModel === first);
+    if (runs.length > 0) return runs.reduce((a, j) => a + j.verdict.overall, 0) / runs.length;
+    return r.judge?.overall ?? null;
+}
+
 function toCells(reports: SessionReport[]): Map<string, Cell> {
     const cells = new Map<string, Cell>();
     for (const r of reports) {
@@ -84,7 +96,8 @@ function toCells(reports: SessionReport[]): Map<string, Cell> {
         const cell = cells.get(key) ?? { sessions: 0, fails: new Set<string>(), judge: null, wince: 0 };
         cell.sessions++;
         for (const f of r.findings) if (f.level === 'fail') cell.fails.add(f.id);
-        if (r.judge) cell.judge = (cell.judge ?? 0) + r.judge.overall;
+        const score = firstJudgeScore(r);
+        if (score !== null) cell.judge = (cell.judge ?? 0) + score;
         cell.wince += r.judge?.winceMoments.length ?? 0;
         cells.set(key, cell);
     }

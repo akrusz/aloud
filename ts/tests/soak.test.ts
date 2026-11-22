@@ -1,59 +1,108 @@
 /**
- * Offline coverage for the soak harness orchestrator (soak/orchestrator.ts):
+ * Offline coverage for the soak harness (soak/orchestrator.ts and friends):
  * scripted providers and a scripted sim user drive the same wiring the live
  * harness uses, pinning the flows that matter - the hold round trip, the timer
- * completing inside a held silence, and the check-in pass/streak caps.
+ * completing inside a held silence, the check-in pass/streak caps, the
+ * scenarios aimed at open bugs (59eg, kbec, rlgm, a zh sit), the recognizer
+ * transform, the checks both firing and staying quiet, usage recording, and
+ * several judges' verdicts kept apart.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import type { CompletionResult, LLMProvider, Message } from '../src/llm/index.js';
+import type { CompletionOptions, CompletionResult, LLMProvider, Message } from '../src/llm/index.js';
+import {
+    HOLD_REQUEST_SYSTEM_PROMPT,
+    RESUME_INTENT_SYSTEM_PROMPT,
+    STEPPING_OUT_NOTE,
+    TROUBLE_SYSTEM_PROMPT,
+    ZH_LANGUAGE_FRAGMENT,
+} from '../src/facilitation/index.js';
 import { runSoakSession } from '../soak/orchestrator.js';
 import { parseSimReply, type SimAction, type SimUser, type SimView } from '../soak/sim-user.js';
 import { runChecks } from '../soak/checks.js';
-import { parseJudgeReply } from '../soak/judge.js';
-import type { Scenario } from '../soak/types.js';
+import { parseJudgeReply, runJudges } from '../soak/judge.js';
+import { asWebSpeech, trailingFragment, transformLine } from '../soak/transform.js';
+import { cachedShare, totalUsage } from '../soak/usage.js';
+import { callCostUsd } from '../soak/prices.js';
+import { buildReportMd, type RunMeta } from '../soak/report.js';
+import { getScenarios } from '../soak/scenarios.js';
+import type { Scenario, SessionReport, SessionRunResult } from '../soak/types.js';
 
-function completion(text: string): CompletionResult {
-    return { text, finishReason: 'stop', tokensUsed: null };
+function completion(text: string, usage: Partial<CompletionResult> = {}): CompletionResult {
+    return { text, finishReason: 'stop', tokensUsed: null, ...usage };
 }
 
 /**
  * Facilitator stub: event turns ([Check-in:/[Timer:) get dedicated replies,
- * everything else consumes the scripted turn queue.
+ * everything else consumes the scripted turn queue. Keeps every system prompt
+ * and message list it was sent.
  */
 class ScriptedFacilitator implements LLMProvider {
-    readonly model = 'scripted';
+    readonly model: string;
+    readonly systems: string[] = [];
+    readonly sent: Message[][] = [];
     private readonly turns: string[];
     private readonly onCheckin: () => string;
     private readonly onTimer: (event: string) => string;
+    private readonly usage: Partial<CompletionResult>;
 
     constructor(opts: {
         turns: string[];
         onCheckin?: () => string;
         onTimer?: (event: string) => string;
+        model?: string;
+        usage?: Partial<CompletionResult>;
     }) {
         this.turns = [...opts.turns];
         this.onCheckin = opts.onCheckin ?? (() => '[PASS]');
         this.onTimer = opts.onTimer ?? (() => 'Our time is up.');
+        this.model = opts.model ?? 'scripted';
+        this.usage = opts.usage ?? {};
     }
 
-    async complete(messages: Message[]): Promise<CompletionResult> {
+    async complete(messages: Message[], options?: CompletionOptions): Promise<CompletionResult> {
+        this.systems.push(options?.system ?? '');
+        this.sent.push(messages);
         const last = messages[messages.length - 1]?.content ?? '';
-        if (last.trimStart().startsWith('[Check-in:')) return completion(this.onCheckin());
-        if (last.trimStart().startsWith('[Timer:')) return completion(this.onTimer(last));
-        return completion(this.turns.shift() ?? 'Mm. Stay with that.');
+        if (last.trimStart().startsWith('[Check-in:')) return completion(this.onCheckin(), this.usage);
+        if (last.trimStart().startsWith('[Timer:')) return completion(this.onTimer(last), this.usage);
+        return completion(this.turns.shift() ?? 'Mm. Stay with that.', this.usage);
     }
 }
 
-/** Yes/no classifier stub: YES when the utterance sounds like assent/resume. */
-const utilityStub: LLMProvider = {
-    model: 'utility-stub',
-    async complete(messages: Message[]): Promise<CompletionResult> {
-        const text = messages[messages.length - 1]?.content ?? '';
-        return completion(/\b(yes|yeah|ready|continue|back)\b/i.test(text) ? 'YES' : 'NO');
-    },
-};
+const FRIGHTENED = /\b(scared|frightened|disappearing|not real)\b/i;
+
+/**
+ * Yes/no classifier stub, answering per classifier (told apart by system
+ * prompt). Defaults: resume and hold-confirm on assent words, trouble on fear
+ * words, re-hold never.
+ */
+function utilityBy(rules: {
+    resume?: (text: string) => boolean;
+    trouble?: (text: string) => boolean;
+    confirm?: (text: string) => boolean;
+} = {}): LLMProvider {
+    const assent = (text: string): boolean => /\b(yes|yeah|ready|continue|back)\b/i.test(text);
+    return {
+        model: 'utility-stub',
+        async complete(messages: Message[], options?: CompletionOptions): Promise<CompletionResult> {
+            const text = (messages[messages.length - 1]?.content ?? '').replace(/^"|" ->$/g, '');
+            const system = options?.system ?? '';
+            const yes =
+                system === TROUBLE_SYSTEM_PROMPT
+                    ? (rules.trouble ?? ((t) => FRIGHTENED.test(t)))(text)
+                    : system === RESUME_INTENT_SYSTEM_PROMPT
+                      ? (rules.resume ?? assent)(text)
+                      : system === HOLD_REQUEST_SYSTEM_PROMPT
+                        ? false
+                        : (rules.confirm ?? assent)(text);
+            return completion(yes ? 'YES' : 'NO', { inputTokens: 40, outputTokens: 1 });
+        },
+    };
+}
+
+const utilityStub = utilityBy();
 
 class ScriptedSimUser implements SimUser {
     readonly views: SimView[] = [];
@@ -252,17 +301,38 @@ describe('runSoakSession', () => {
         // ...the opener is intact, so the two signal-only replies below are the
         // ones under test...
         expect(assistant[0]?.text).toContain('Settle in');
-        // ...both were surfaced as empty instead...
+        // ...both went back to listening, as the view does since 9a673f88, and
+        // neither is an error...
         const eventKeys = result.events.map((e) => `${e.kind}:${e.detail}`);
-        expect(eventKeys.filter((k) => k === 'error:empty-reply')).toHaveLength(2);
+        expect(eventKeys.filter((k) => k === 'signal:signal-only-reply')).toHaveLength(2);
+        expect(eventKeys.filter((k) => k.startsWith('error:'))).toEqual([]);
         // ...the [WAIT] still landed, because the intent is legible even when
         // there are no words with it...
         expect(eventKeys).toContain('signal:wait');
         // ...and the bare [HOLD] never armed the handshake or entered silence.
         expect(result.finalState.awaitingHoldConfirm).toBe(false);
         expect(eventKeys).not.toContain('hold:enter');
-        // The soak check that exists for exactly this stays quiet.
-        expect(runChecks(result).filter((f) => f.id === 'empty-spoken-turn')).toEqual([]);
+        // The soak checks for blank turns stay quiet; the count is context.
+        const findings = runChecks(result);
+        expect(findings.filter((f) => ['empty-spoken-turn', 'turn-error', 'empty-reply'].includes(f.id))).toEqual([]);
+        expect(findings.find((f) => f.id === 'signal-only-reply')?.level).toBe('info');
+    });
+
+    it('counts a blank completion as a warning, not an engine failure', async () => {
+        const facilitator = new ScriptedFacilitator({ turns: ['Settle in.', '', '', 'Mm.'] });
+        const sim = new ScriptedSimUser([
+            { waitSec: 30, text: 'my shoulders feel tight' },
+            { waitSec: 30, text: 'and my jaw' },
+            { waitSec: 30, text: 'that is it' },
+            { waitSec: 30, end: true },
+        ]);
+        const result = await runSoakSession({ scenario: baseScenario, facilitator, utility: utilityStub, simUser: sim });
+        const findings = runChecks(result);
+        expect(findings.find((f) => f.id === 'empty-reply')).toMatchObject({
+            level: 'warn',
+            detail: '2 of 3 facilitator replies came back blank',
+        });
+        expect(findings.filter((f) => f.id === 'turn-error')).toEqual([]);
     });
 
     it('speaks the timer completion inside a hold and restores the hold', async () => {
@@ -347,5 +417,423 @@ describe('runSoakSession', () => {
         expect(checkins).toContain('skipped-streak-cap');
         expect(result.transcript.filter((t) => t.kind === 'checkin-canned')).toHaveLength(1);
         expect(result.endedBy).toBe('duration');
+    });
+});
+
+// ---- Scenarios aimed at open bugs, and the checks that key on them --------
+
+const eventKeys = (r: SessionRunResult): string[] => r.events.map((e) => `${e.kind}:${e.detail}`);
+const scenario = (id: string): Scenario => getScenarios([id])[0] as Scenario;
+
+/** A minimal finished session, for the judge and report tests. */
+function fakeResult(over: Partial<SessionRunResult> = {}): SessionRunResult {
+    return {
+        scenario: baseScenario,
+        runIndex: 0,
+        startedAt: '2026-11-22T00:00:00.000Z',
+        facilitatorModel: 'claude-sonnet-5-5',
+        fakeDurationSec: 600,
+        transcript: [{ at: 0, role: 'assistant', kind: 'opener', text: 'Settle in.', raw: 'Settle in.' }],
+        events: [],
+        calls: [],
+        endedBy: 'duration',
+        finalState: { silenceMode: false, awaitingHoldConfirm: false },
+        ...over,
+    };
+}
+
+describe('sim line transform', () => {
+    it('hands a line over the way Chrome Web Speech does', () => {
+        expect(asWebSpeech("I'm back, it was a lot of tingling and it settled now.")).toBe(
+            "I'm back it was a lot of tingling and it settled now"
+        );
+        expect(asWebSpeech('Okay. So, I think... my jaw - it’s tight! I told Sarah.')).toBe(
+            "Okay so I think my jaw it's tight I told Sarah"
+        );
+        expect(asWebSpeech('我感觉，有点紧。')).toBe('我感觉有点紧');
+    });
+
+    it('cuts chosen lines to a short tail, the same way every run', () => {
+        const line = "I just don't know if I can keep doing all of this anymore.";
+        const tail = trailingFragment(line, 7, 2);
+        expect(trailingFragment(line, 7, 2)).toBe(tail);
+        expect(line.endsWith(tail)).toBe(true);
+        expect(tail.split(' ').length).toBeLessThanOrEqual(3);
+        expect(trailingFragment('anymore.', 7, 2)).toBe('anymore.');
+        const cut = { cut: { turns: [2], seed: 7 } };
+        expect(transformLine(line, cut, 1)).toEqual({ text: line, cut: false });
+        expect(transformLine(line, cut, 2)).toEqual({ text: tail, cut: true });
+    });
+
+    it('keeps what the sim said beside what the engine was given', async () => {
+        const sim = new ScriptedSimUser([
+            { waitSec: 30, text: 'Hm. My shoulders are tight, I think.' },
+            { waitSec: 30, end: true },
+        ]);
+        const result = await runSoakSession({
+            scenario: { ...baseScenario, transform: { recognizer: 'web-speech' } },
+            facilitator: new ScriptedFacilitator({ turns: ['Settle in.', 'Where is it tightest?'] }),
+            utility: utilityStub,
+            simUser: sim,
+        });
+        const turn = result.transcript.find((t) => t.kind === 'user');
+        expect(turn).toMatchObject({ text: 'Hm my shoulders are tight I think', said: 'Hm. My shoulders are tight, I think.' });
+        expect(turn?.cut).toBeUndefined();
+        // The meditator remembers their own words.
+        expect(sim.views[1]?.transcript.find((t) => t.who === 'you')?.text).toBe('Hm. My shoulders are tight, I think.');
+    });
+});
+
+describe('back from a hold in one breath (meditation-pal-kbec)', () => {
+    const run = (resume: (text: string) => boolean) =>
+        runSoakSession({
+            scenario: scenario('back-in-hold'),
+            facilitator: new ScriptedFacilitator({
+                turns: ['Settle in.', '[HOLD] Would you like me to be quiet for a while?', 'Welcome back. What was it like?'],
+            }),
+            utility: utilityBy({ resume }),
+            simUser: new ScriptedSimUser([
+                { waitSec: 60, text: 'Could I have some quiet for a while?' },
+                { waitSec: 10, text: 'Yes, please.' },
+                { waitSec: 300, text: 'Lots of tingling.' },
+                { waitSec: 300, text: "I'm back, it was a lot of tingling and it settled now." },
+                { waitSec: 30, end: true },
+            ]),
+        });
+
+    it('fails when the hold goes on through it', async () => {
+        // The classifier as the bead found it: a bare "I'm back" resumes, one
+        // with the report after it stays.
+        const result = await run((t) => /^(okay )?i'm back$/i.test(t));
+        const turn = result.transcript.find((t) => t.text.startsWith("I'm back"));
+        expect(turn).toMatchObject({
+            text: "I'm back it was a lot of tingling and it settled now",
+            said: "I'm back, it was a lot of tingling and it settled now.",
+            duringHold: true,
+        });
+        expect(runChecks(result).find((f) => f.id === 'back-in-hold')?.level).toBe('fail');
+    });
+
+    it('passes when the hold ends there', async () => {
+        const result = await run((t) => /i'm back/i.test(t));
+        expect(eventKeys(result)).toContain('hold:exit');
+        expect(runChecks(result).filter((f) => ['back-in-hold', 'scenario-setup-missed'].includes(f.id))).toEqual([]);
+    });
+
+    it('warns when the session never got there', async () => {
+        const result = await runSoakSession({
+            scenario: scenario('back-in-hold'),
+            facilitator: new ScriptedFacilitator({ turns: ['Settle in.'] }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([{ waitSec: 30, text: 'just sitting' }, { waitSec: 30, end: true }]),
+        });
+        expect(runChecks(result).find((f) => f.id === 'scenario-setup-missed')?.level).toBe('warn');
+    });
+});
+
+describe('frightened inside a hold (meditation-pal-59eg)', () => {
+    const sim = () =>
+        new ScriptedSimUser([
+            { waitSec: 60, text: 'Could I have some quiet for a while?' },
+            { waitSec: 10, text: 'Yes.' },
+            { waitSec: 200, text: 'Things feel far away and floaty.' },
+            { waitSec: 30, text: "I feel like I'm disappearing and it's scaring me." },
+            { waitSec: 30, end: true },
+        ]);
+    const turns = ['Settle in.', '[HOLD] Shall I be quiet for a while?', 'I am here. Open your eyes and look around the room.'];
+
+    it('ends the hold and carries the stepping-out note into the reply', async () => {
+        const facilitator = new ScriptedFacilitator({ turns });
+        // The resume classifier says stay, as it does to a frightened line;
+        // the trouble check beside it is what brings the facilitator back.
+        const result = await runSoakSession({
+            scenario: scenario('fright-in-hold'),
+            facilitator,
+            utility: utilityBy({ resume: () => false }),
+            simUser: sim(),
+        });
+        expect(eventKeys(result)).toContain('hold:exit');
+        expect(result.events.some((e) => e.detail === 'stepping-out' && e.data?.when === 'before-reply')).toBe(true);
+        expect((facilitator.sent.at(-1) ?? []).some((m) => m.content.includes(STEPPING_OUT_NOTE))).toBe(true);
+        expect(runChecks(result).filter((f) => ['fright-in-hold', 'scenario-setup-missed'].includes(f.id))).toEqual([]);
+    });
+
+    it('fails when the frightened line is left in silence, as before the fix', async () => {
+        const result = await runSoakSession({
+            scenario: scenario('fright-in-hold'),
+            facilitator: new ScriptedFacilitator({ turns }),
+            utility: utilityBy({ resume: () => false, trouble: () => false }),
+            simUser: sim(),
+        });
+        const finding = runChecks(result).find((f) => f.id === 'fright-in-hold');
+        expect(finding?.level).toBe('fail');
+        expect(finding?.detail).toContain('disappearing');
+    });
+
+    it('drops a silence bid made in answer to someone in trouble', async () => {
+        const result = await runSoakSession({
+            scenario: baseScenario,
+            facilitator: new ScriptedFacilitator({
+                turns: ['Settle in.', '[HOLD] Are you safe right now?', 'Okay. Keep talking with me.'],
+            }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([
+                { waitSec: 30, text: "Nothing feels real and I'm scared." },
+                { waitSec: 10, text: 'Yes.' },
+                { waitSec: 30, end: true },
+            ]),
+        });
+        expect(eventKeys(result)).toContain('signal:hold-bid-ignored');
+        expect(result.events.some((e) => e.detail === 'stepping-out' && e.data?.when === 'hold-bid-dropped')).toBe(true);
+        expect(eventKeys(result)).not.toContain('hold:enter');
+        expect(result.finalState.awaitingHoldConfirm).toBe(false);
+    });
+});
+
+describe('a turn cut to its tail (meditation-pal-rlgm)', () => {
+    const lines = [
+        'Work has been a lot lately and I keep thinking about it at night.',
+        "I just don't know if I can keep doing all of this anymore.",
+        'My chest is tight right now.',
+        'It has been like that for a while now I guess.',
+    ];
+    const run = (replyToFragment: string) =>
+        runSoakSession({
+            scenario: scenario('fragment'),
+            facilitator: new ScriptedFacilitator({
+                turns: ['Settle in.', 'What is that like?', replyToFragment, 'Mm.', 'Say more.'],
+            }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([...lines.map((text) => ({ waitSec: 30, text })), { waitSec: 30, end: true }]),
+        });
+
+    it('fails when the fragment draws a [HOLD] bid', async () => {
+        const result = await run("[HOLD] I'll be right here.");
+        const cut = result.transcript.filter((t) => t.cut);
+        expect(cut.map((t) => t.said)).toEqual([lines[1], lines[3]]);
+        expect(cut.every((t) => t.said?.endsWith(t.text))).toBe(true);
+        expect(runChecks(result).find((f) => f.id === 'fragment-hold-bid')?.level).toBe('fail');
+    });
+
+    it('passes when the fragment gets an ordinary reply', async () => {
+        const result = await run('Mm. What is here now?');
+        expect(runChecks(result).filter((f) => ['fragment-hold-bid', 'scenario-setup-missed'].includes(f.id))).toEqual([]);
+    });
+});
+
+describe('a 中文 session', () => {
+    const sim = () =>
+        new ScriptedSimUser([
+            { waitSec: 60, text: '我想安静一会儿。' },
+            { waitSec: 10, text: '好的。' },
+            { waitSec: 300, text: '我回来了，肩膀松了一些。' },
+            { waitSec: 30, end: true },
+        ]);
+    const utility = utilityBy({ confirm: (t) => /好/.test(t), resume: (t) => /回来/.test(t) });
+
+    it('puts the zh fragment in the prompt and still reads the control tokens', async () => {
+        const facilitator = new ScriptedFacilitator({
+            turns: ['先安顿下来，此刻你注意到了什么？', '[HOLD] 要我安静一会儿吗？', '欢迎回来。刚才有什么？'],
+        });
+        const result = await runSoakSession({ scenario: scenario('zh'), facilitator, utility, simUser: sim() });
+        expect(facilitator.systems[0]).toContain(ZH_LANGUAGE_FRAGMENT);
+        expect(eventKeys(result)).toEqual(expect.arrayContaining(['signal:hold-bid', 'hold:enter', 'hold:exit']));
+        const findings = runChecks(result);
+        expect(findings.filter((f) => ['wrong-language', 'token-translated'].includes(f.id))).toEqual([]);
+        expect(findings.find((f) => f.id === 'language')?.detail).toMatch(/^zh: 3 of 3 model replies in Chinese; [1-9]/);
+    });
+
+    it('fails replies in English and a token the model translated', async () => {
+        const result = await runSoakSession({
+            scenario: scenario('zh'),
+            facilitator: new ScriptedFacilitator({
+                turns: ['Let us begin. What do you notice?', 'What is that like?', '【保持安静】我在这里。', '嗯，慢慢来。'],
+            }),
+            utility,
+            simUser: sim(),
+        });
+        const findings = runChecks(result);
+        // Half the replies in English: a zh session that did not happen.
+        expect(findings.find((f) => f.id === 'wrong-language')).toMatchObject({ level: 'fail' });
+        expect(findings.find((f) => f.id === 'wrong-language')?.detail).toMatch(/^2 of 4/);
+        expect(findings.find((f) => f.id === 'token-translated')?.level).toBe('fail');
+    });
+
+    it('leaves an English session alone', async () => {
+        const result = await runSoakSession({
+            scenario: baseScenario,
+            facilitator: new ScriptedFacilitator({ turns: ['Settle in.'] }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([{ waitSec: 30, text: 'okay' }, { waitSec: 30, end: true }]),
+        });
+        expect(runChecks(result).filter((f) => ['wrong-language', 'language', 'token-translated'].includes(f.id))).toEqual([]);
+    });
+});
+
+describe('reasoning spoken aloud (meditation-pal-dqti)', () => {
+    const run = (reply: string) =>
+        runSoakSession({
+            scenario: baseScenario,
+            facilitator: new ScriptedFacilitator({ turns: ['Settle in.', reply] }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([{ waitSec: 30, text: 'my hands feel far away' }, { waitSec: 30, end: true }]),
+        });
+
+    it('fails a reply about the meditator in the third person', async () => {
+        const result = await run(
+            'The user is describing dissociation - feeling disconnected from their body. I should: ground them first.'
+        );
+        expect(runChecks(result).find((f) => f.id === 'reasoning-aloud')?.level).toBe('fail');
+    });
+
+    it('stays quiet on a reply spoken to them, someone else included', async () => {
+        const result = await run('Is there a person you trust who could be with you? Your sister, maybe - they could come over.');
+        expect(runChecks(result).find((f) => f.id === 'reasoning-aloud')).toBeUndefined();
+    });
+});
+
+describe('usage per call', () => {
+    it('records model and tokens on each call and leaves out what was not reported', async () => {
+        const result = await runSoakSession({
+            scenario: baseScenario,
+            facilitator: new ScriptedFacilitator({
+                turns: ['Settle in.', '[HOLD] Shall I be quiet?'],
+                model: 'claude-sonnet-5-5',
+                usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 5000, cacheCreationTokens: null },
+            }),
+            utility: utilityStub,
+            simUser: new ScriptedSimUser([{ waitSec: 30, text: 'some quiet please' }, { waitSec: 30, end: true }]),
+        });
+        const turn = result.calls.find((c) => c.kind === 'turn');
+        expect(turn).toMatchObject({ model: 'claude-sonnet-5-5', inputTokens: 1000, outputTokens: 100, cacheReadTokens: 5000 });
+        expect(turn && 'cacheCreationTokens' in turn).toBe(false);
+        // The hold bid's trouble check ran on the utility model.
+        expect(result.calls.find((c) => c.kind === 'classify-trouble')).toMatchObject({ model: 'utility-stub', inputTokens: 40 });
+        // The scripted sim reports nothing, so its calls say nothing.
+        expect(result.calls.find((c) => c.kind === 'sim-user')).not.toHaveProperty('inputTokens');
+
+        const facilitatorCalls = result.calls.filter((c) => c.kind === 'opener' || c.kind === 'turn');
+        const t = totalUsage(facilitatorCalls);
+        expect(t).toMatchObject({ calls: 2, reported: 2, inputTokens: 2000, cacheReadTokens: 10000, unpriced: 0 });
+        expect(cachedShare(t)).toBeCloseTo(10000 / 12000);
+        const one = callCostUsd('claude-sonnet-5-5', { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 5000 });
+        expect(t.costUsd).toBeCloseTo(2 * (one ?? NaN), 12);
+    });
+
+    it('prices only what the hosted table sells, and only what was reported', () => {
+        expect(callCostUsd('claude-sonnet-5-5', { inputTokens: 1000, outputTokens: 100 })).toBeGreaterThan(0);
+        expect(callCostUsd('qwen3.5:4b', { inputTokens: 1000 })).toBeNull();
+        expect(callCostUsd('claude-sonnet-5-5', {})).toBeNull();
+        expect(totalUsage([{ model: 'qwen3.5:4b', inputTokens: 10 }]).unpriced).toBe(1);
+    });
+});
+
+// ---- Several judges --------------------------------------------------------
+
+function scriptedJudge(model: string, scores: number[], fail = false) {
+    let i = 0;
+    const provider: LLMProvider = {
+        model,
+        async complete(): Promise<CompletionResult> {
+            if (fail) throw new Error('judge down');
+            const overall = scores[i++ % scores.length];
+            return completion(
+                JSON.stringify({ overall, dimensions: { tone: overall }, wince_moments: [{ quote: 'Mm.', why: 'thin' }], notes: 'ok' }),
+                { inputTokens: 3000, outputTokens: 400 }
+            );
+        },
+    };
+    return { model, provider };
+}
+
+const META: RunMeta = {
+    startedAt: '2026-11-22T00:00:00.000Z',
+    tier: 'headless',
+    cast: {
+        facilitators: [{ spec: 'anthropic', model: 'claude-sonnet-5-5' }],
+        user: { spec: 'anthropic:claude-haiku-5-5', model: 'claude-haiku-5-5' },
+        utility: { spec: 'anthropic:claude-haiku-5-5', model: 'claude-haiku-5-5' },
+        judge: { spec: 'openai:gpt-6-sol', model: 'gpt-6-sol' },
+        judges: [
+            { spec: 'openai:gpt-6-sol', model: 'gpt-6-sol' },
+            { spec: 'anthropic:claude-opus-5-5', model: 'claude-opus-5-5' },
+        ],
+    },
+    collisions: [],
+    wallClockMs: 1000,
+    claudeVia: 'subscription',
+    judgeRepeats: 3,
+    gitSha: 'abcdef1234567890abcdef1234567890abcdef12',
+    gitDirty: true,
+};
+
+describe('several judges', () => {
+    it('keeps every verdict, first judge first, and the first verdict as `judge`', async () => {
+        const out = await runJudges([scriptedJudge('gpt-6-sol', [7, 8, 6]), scriptedJudge('claude-opus-5-5', [9])], 3, fakeResult());
+        expect(out.judge?.overall).toBe(7);
+        expect(out.judgeRuns?.map((j) => `${j.judgeModel}:${j.verdict.overall}`)).toEqual([
+            'gpt-6-sol:7',
+            'gpt-6-sol:8',
+            'gpt-6-sol:6',
+            'claude-opus-5-5:9',
+            'claude-opus-5-5:9',
+            'claude-opus-5-5:9',
+        ]);
+        expect(out.judgeRuns?.[0]).toMatchObject({ inputTokens: 3000, outputTokens: 400 });
+        expect(out.judgeRunErrors).toBeUndefined();
+    });
+
+    it('records a judge that failed without losing the others', async () => {
+        const out = await runJudges([scriptedJudge('gpt-6-sol', [7], true), scriptedJudge('claude-opus-5-5', [9])], 1, fakeResult());
+        expect(out.judge).toBeUndefined();
+        expect(out.judgeError).toBe('judge down');
+        expect(out.judgeRuns?.map((j) => j.judgeModel)).toEqual(['claude-opus-5-5']);
+        expect(out.judgeRunErrors).toEqual([{ judgeModel: 'gpt-6-sol', error: 'judge down' }]);
+    });
+
+    it('reports each judge apart with its spread, never averaged together', async () => {
+        const report: SessionReport = {
+            result: fakeResult(),
+            findings: [],
+            ...(await runJudges([scriptedJudge('gpt-6-sol', [7, 8, 6]), scriptedJudge('claude-opus-5-5', [9])], 3, fakeResult())),
+        };
+        const md = buildReportMd(META, [report]);
+        const header = md.slice(0, md.indexOf('## Scores'));
+        expect(header).toContain('`gpt-6-sol` **7.0**');
+        expect(header).toContain('`claude-opus-5-5` **9.0**');
+        expect(header).not.toContain('8.0'); // the two judges' mean, which must never appear
+        expect(header).toContain('`abcdef12` + uncommitted changes');
+        const scores = md.slice(md.indexOf('## Scores'), md.indexOf('## Wince moments'));
+        expect(scores).toContain('| gpt-6-sol | claude-opus-5-5 |');
+        expect(scores).toContain('7.0 (6–8)');
+        // Opus judging Sonnet is a same-family cell: marked, not forbidden.
+        expect(scores).toContain('9.0 †');
+        const spread = md.slice(md.indexOf('## Judge spread'), md.indexOf('## Tokens and cost'));
+        expect(spread).toMatch(/\| gpt-6-sol \| 1 \| 3 \| 2\.0 \| 2\.0 \|/);
+        expect(spread).toContain('mean gap 2.0');
+        // One wince list per judge, not one per repeat.
+        expect(md.match(/"Mm\."/g)).toHaveLength(2);
+    });
+});
+
+describe('tokens in the report', () => {
+    it('says not reported rather than zero, and marks the subscription', () => {
+        const silent = fakeResult({ calls: [{ kind: 'turn', latencyMs: 5, model: 'claude-sonnet-5-5' }] });
+        const md = buildReportMd(META, [{ result: silent, findings: [] }]);
+        expect(md).toContain('## Tokens and cost');
+        expect(md).toContain('not reported');
+
+        const counted = fakeResult({
+            calls: [{ kind: 'turn', latencyMs: 5, model: 'claude-sonnet-5-5', inputTokens: 100, outputTokens: 20, cacheReadTokens: 900 }],
+        });
+        const md2 = buildReportMd(META, [{ result: counted, findings: [] }]);
+        expect(md2).toContain('claude-sonnet-5-5 ‡');
+        expect(md2).toContain('90%');
+        expect(md2).toContain('Fake clock');
+    });
+
+    it('stays out of a report whose calls carry no usage at all', () => {
+        const md = buildReportMd(META, [{ result: fakeResult({ calls: [{ kind: 'turn', latencyMs: 5 }] }), findings: [] }]);
+        expect(md).not.toContain('## Tokens and cost');
     });
 });
