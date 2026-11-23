@@ -1186,6 +1186,7 @@ describe('the reaching scenario, and 13 and 14 in the judge', () => {
         const { verdict } = await judgeSessionRun(provider, fakeResult({ scenario: scenario('reaching') }));
         expect(systems[0]).toContain(rubricSection('13').text);
         expect(systems[0]).toContain(rubricSection('14').text);
+        expect(systems[0]).toContain(heldRoleRubric());
         expect(systems[0]).toContain('"stays_facilitator": <"pass", "fail", or null');
         expect(verdict.conduct).toBeUndefined();
     });
