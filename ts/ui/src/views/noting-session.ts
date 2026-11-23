@@ -904,6 +904,8 @@ export async function mountNotingSessionView(
             // SessionSetup.intention). History renders a missing summary fine.
             finalState.notes = utilityProvider
                 ? await generateSessionSummary(utilityProvider, finalState.exchanges, {
+                      language: notingLanguage,
+                      noting: true,
                       onUsage: (u) => session.recordLlmUsage(u),
                   })
                 : '';

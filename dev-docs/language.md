@@ -18,6 +18,10 @@ per-session pick): English or `中文` (beta). It drives three layers at once.
   spoken lines (`SETUP_LINES` in `setup-lines.ts`, an `en` and a `zh` per
   line), and a zh edit there needs its house-voice clips re-rendered
   (`npm run clips:render`, [voice-commands.md](voice-commands.md#who-speaks)).
+- The session note (`generateSessionSummary` in `summary.ts`) is passed the
+  session's language rather than reading it off the transcript. A 中文
+  session's transcript is labelled 引导者 / 冥想者, and the note is told to
+  call the meditator 冥想者.
 
 ## Speech recognition
 

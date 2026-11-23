@@ -58,7 +58,9 @@ and dropped when it stops being true.
    of 18); so did a separate request that hands over the session as a
    transcript. Asking a model to "step out of the facilitator role" reads as a
    request to refuse (meditation-pal-5srs). So: say in the system prompt what
-   will be asked, or make it a separate request with its own role.
+   will be asked, or make it a separate request with its own role. The session
+   note is now the second kind (`generateSessionSummary` in
+   `ts/src/facilitation/summary.ts`).
    (`ts/evals/out/haiku-recaps-real-vs-lab.md`.)
 9. **The reply is heard, not read**, and comes back through speech
    recognition. Write for a voice, and tell a judge so.

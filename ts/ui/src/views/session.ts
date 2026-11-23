@@ -549,13 +549,7 @@ export async function mountSessionView(
     const recapProvider = await buildRecapProvider(setup, utilityProvider).catch(
         () => utilityProvider
     );
-    // Recaps on the separate Haiku go under the standalone summary prompt: under
-    // the facilitator's, Haiku reads the recap request after a facilitator
-    // question or hold bid as the meditator's answer and declines, and the
-    // decline would be saved as the note. Everywhere else they keep the
-    // facilitator's prompt: a warm cache where the facilitator recaps, and Luna
-    // keeps a 中文 session's language better under it.
-    const summaryStandalone = recapProvider === utilityProvider && utilityProvider !== provider;
+    const summaryLanguage = sessionLanguageOf(sessionLanguage);
 
     // Keeps the prompt cache warm while the sit is quiet (core keep-alive.ts),
     // on Anthropic direct or through aloud cloud. Only the facilitation
@@ -4121,7 +4115,7 @@ export async function mountSessionView(
                 // reference as session.state, so recording still mutates it
                 // after endSession()).
                 summary = await generateSessionSummary(recapProvider, finalState.exchanges, {
-                    ...(summaryStandalone ? {} : { systemPrompt: systemPrompt() }),
+                    language: summaryLanguage,
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
             } catch {
@@ -4202,9 +4196,9 @@ export async function mountSessionView(
     /**
      * Refresh `currentSummary` in the background, throttled. Generating a recap
      * is an LLM call, so it only runs once SUMMARY_MIN_NEW_EXCHANGES have landed
-     * since the last one, on the recap model (buildRecapProvider) and under
-     * the system prompt summaryStandalone picks. Never runs mid-turn (busy) or
-     * into a torn-down view; its token cost folds into the session tally.
+     * since the last one, on the recap model (buildRecapProvider). Never runs
+     * mid-turn (busy) or into a torn-down view; its token cost folds into the
+     * session tally.
      */
     async function refreshSummaryThrottled(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
@@ -4216,7 +4210,7 @@ export async function mountSessionView(
         summaryRefreshing = true;
         try {
             const recap = await generateSessionSummary(recapProvider, state.exchanges, {
-                ...(summaryStandalone ? {} : { systemPrompt: systemPrompt() }),
+                language: summaryLanguage,
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             if (!torn && recap) {

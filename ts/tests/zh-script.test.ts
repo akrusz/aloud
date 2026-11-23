@@ -81,6 +81,7 @@ const NOT_MATCHERS = new Set([
     'src/facilitation/noting.ts',
     'src/facilitation/prompts.ts',
     'src/facilitation/setup-lines.ts',
+    'src/facilitation/summary.ts',
     'src/facilitation/utterance-judge.ts',
     'src/facilitation/voice-command-specs.ts',
     'src/facilitation/zh-script.ts',
