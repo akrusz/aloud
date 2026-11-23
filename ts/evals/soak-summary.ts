@@ -180,8 +180,10 @@ function conductOf(v: unknown): JudgeVerdict['conduct'] | null {
 function verdictOf(v: unknown): JudgeVerdict | null {
     if (!isObj(v) || num(v['overall']) === null) return null;
     const conduct = conductOf(v['conduct']);
+    const heldRole = num(v['heldRole']);
     return {
         ...(conduct && { conduct }),
+        ...(heldRole !== null && { heldRole }),
         overall: v['overall'] as number,
         dimensions: isObj(v['dimensions']) ? (v['dimensions'] as Record<string, number | null>) : {},
         winceMoments: quotesOf(v['winceMoments']),

@@ -678,17 +678,18 @@ function conductSection(meta: RunMeta, reports: SessionReport[], multi: boolean)
     const judged = reports.flatMap((r) =>
         (judges.length ? judges : [undefined]).flatMap((j) => {
             const v = j === undefined ? r.judge : verdictsBy(r, j, judges[0])[0];
-            return v?.conduct && Object.keys(v.conduct).length ? [{ r, judge: j, conduct: v.conduct }] : [];
+            return v?.conduct && Object.keys(v.conduct).length ? [{ r, judge: j, conduct: v.conduct, heldRole: v.heldRole }] : [];
         })
     );
     if (judged.length === 0) return [];
     const names = new Map(CONDUCT_DIMS.map(({ dim }) => [dim, `${dim} ${rubricSection(dim).name.toLowerCase()}`]));
-    const lines = ['## Conduct', '', '_Rubric 13 and 14 (`ts/evals/rubric.md`), Conduct: binary over the whole session, failed by one reply; left out where the meditator never called for one._', ''];
-    for (const { r, judge, conduct } of judged) {
+    const lines = ['## Conduct', '', '_Rubric 13 and 14 (`ts/evals/rubric.md`), Conduct: binary over the whole session, failed by one reply; left out where the meditator never called for one. Held the role: 1 to 5 by the rubric\'s "Held the role" anchors._', ''];
+    for (const { r, judge, conduct, heldRole } of judged) {
         const results = CONDUCT_DIMS.flatMap(({ dim }) => {
             const c = conduct[dim];
             return c ? [`${names.get(dim)}: ${c.pass ? 'pass' : 'FAIL'}`] : [];
         });
+        if (heldRole !== undefined) results.push(`held the role ${heldRole}/5`);
         lines.push(`**${sessionSlug(r, multi)}**${judge && judges.length > 1 ? ` *(${judge})*` : ''} ${results.join(' · ')}`);
         for (const { dim } of CONDUCT_DIMS) {
             for (const f of conduct[dim]?.fails ?? []) lines.push(`- ${dim}: "${f.quote}"`, `  <br>${f.why}`);

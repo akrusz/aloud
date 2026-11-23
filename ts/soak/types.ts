@@ -76,6 +76,9 @@ export interface Scenario {
     transform?: SimLineTransform;
     aim?: ScenarioAim;
     callbacks?: readonly SessionCallback[];
+    /** Words from each line the persona must say (case-insensitive, as
+     *  written); checks.ts warns `scenario-setup-missed` for any never said. */
+    fixedLines?: readonly string[];
     /** Run only when named (`--scenarios=<id>`): left out of "all", so out of
      *  every battery. For the long, dearer ones. */
     optIn?: boolean;
@@ -200,6 +203,9 @@ export interface JudgeVerdict {
      *  failing replies quoted; a dimension is absent when the meditator never
      *  gave a turn that calls for it. */
     conduct?: Partial<Record<ConductDim, { pass: boolean; fails: Array<{ quote: string; why: string }> }>>;
+    /** How it held the role over the session, 1 to 5, by the rubric's "Held the
+     *  role" anchors; absent with `conduct`. */
+    heldRole?: number;
 }
 
 export type ConductDim = '13' | '14';

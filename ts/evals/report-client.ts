@@ -1323,6 +1323,9 @@ function sessionView(s: SoakSession): HTMLElement {
                     ),
                     c.fails.map((f) => h('blockquote', { class: 'wince' }, h('q', null, f.quote), h('span', { class: 'small muted' }, f.why))),
                 ]),
+                j.verdict.heldRole !== undefined
+                    ? h('div', { class: 'expect' }, h('span', { class: 'chip', title: 'Rubric, "Held the role", 1 to 5' }, `held the role ${j.verdict.heldRole}/5`))
+                    : null,
                 j.verdict.notes ? h('p', { class: 'small' }, j.verdict.notes) : null,
                 j.verdict.winceMoments.map((w) => h('blockquote', { class: 'wince' }, h('q', null, w.quote), h('span', { class: 'small muted' }, w.why)))
             )

@@ -354,9 +354,14 @@ function checkHolds(result: SessionRunResult, add: Add): void {
  * Scenario.callbacks: did each early particular come back in a facilitator
  * line after its late cue? A literal match on the fixed words, so `info`: the
  * judge decides whether it was used well, or whether leaving it was right.
+ * Scenario.fixedLines only need saying.
  */
 function checkCallbacks(result: SessionRunResult, add: Add): void {
     const missed: string[] = [];
+    const said = result.transcript.filter((t) => t.role === 'user' && t.kind === 'user').map((t) => t.text.toLowerCase());
+    for (const line of result.scenario.fixedLines ?? []) {
+        if (!said.some((s) => s.includes(line.toLowerCase()))) missed.push(`"${line}" (never said)`);
+    }
     for (const o of callbackOutcomes(result)) {
         const id = o.callback.id;
         if (!o.early || !o.cue) {
