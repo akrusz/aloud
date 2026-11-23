@@ -48,15 +48,18 @@ and dropped when it stops being true.
 7. **Do not make a model assert what it may hold to be false**, and do not
    script disclaimers. No "I have no feelings"; no "as an AI". Say what is
    true, briefly, and return to the meditator (rubric 13).
-8. **An instruction has standing only where the model expects instructions.**
-   The system prompt says user turns are the meditator's speech, so a user turn
-   that says "this message is from the app" is, to a careful model, the
-   meditator saying something odd. Haiku 5.5 declined the session note for that
-   reason ("it arrived in the meditator's turn, so I can't verify it"). Asking
-   a model to "step out of the facilitator role" reads as a request to refuse
-   (meditation-pal-5srs). Put app instructions where the system prompt has said
-   they will come, or make a separate request. (Being pinned down:
-   `ts/evals/out/haiku-recaps-real-vs-lab.md`.)
+8. **A request outside the role the system prompt gave will be declined, and
+   so will one whose sender cannot be told.** The facilitation prompt makes a
+   live session the model's whole job and says user turns are the meditator.
+   Asked for the session note in a user turn "from the app", Haiku 5.5
+   declined on both counts: "I'm the facilitator, not a logging tool" and "it
+   arrived in the meditator's turn, so I can't verify it". One sentence in the
+   system prompt saying the note would be asked for ended it (0 of 18, from 12
+   of 18); so did a separate request that hands over the session as a
+   transcript. Asking a model to "step out of the facilitator role" reads as a
+   request to refuse (meditation-pal-5srs). So: say in the system prompt what
+   will be asked, or make it a separate request with its own role.
+   (`ts/evals/out/haiku-recaps-real-vs-lab.md`.)
 9. **The reply is heard, not read**, and comes back through speech
    recognition. Write for a voice, and tell a judge so.
 10. **Say which language**, each time it matters. An English term in an
@@ -72,11 +75,14 @@ and dropped when it stops being true.
 
 ## Measuring one
 
-- **A line can move something far from what it is about.** The
-  speech-recognition line, about misheard words, took one real session's
-  summary from 0 declines in 8 to 6 in 8. So a change to the facilitation
-  prompt is run against the suite, not only against the turn it was written
-  for.
+- **A line can move something far from what it is about.** The line telling
+  Luna not to guess a gender turned its 中文 notes English. The
+  speech-recognition line, about misheard words, took one borderline session's
+  summary from 0 declines in 8 to 6 in 8 under the summary prompt of the time
+  (it turned out not to be the cause, and moves nothing under today's). So a
+  change to the facilitation prompt is run against the suite, not only against
+  the turn it was written for, and a surprising effect gets an ablation before
+  it gets a story.
 - **Run it as a variant before it ships**: `protocol-eval.ts --variant
   name=file` appends a paragraph and files the replies as `<model>+<name>`.
   Every shipped model, at least two runs, the turn it is for and a neighbour it
