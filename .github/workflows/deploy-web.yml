@@ -55,6 +55,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      app_ref: ${{ steps.appref.outputs.ref }}
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       # The site tree (marketing pages, CNAME, 404 redirect) from the trigger.
       - uses: actions/checkout@v7
@@ -130,3 +133,40 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # The live app as a first-time visitor meets it, signed out (ts/smoke/smoke.mjs).
+  # A job of its own, so a failure turns the run red and leaves the deploy
+  # above standing. The suite comes from the app's ref, so it checks the app it
+  # was written against.
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.deploy.outputs.app_ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # --cloud stays at the suite's default, https://aloud-cloud.fly.dev, rather
+      # than vars.ALOUD_CLOUD_URL: the build baked that var in, so checking
+      # against it would catch a dead URL but not a wrong live one.
+      - name: Smoke-test the live app
+        env:
+          APP_REF: ${{ needs.deploy.outputs.app_ref }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          if [ ! -f ts/smoke/smoke.mjs ]; then
+            echo "::notice::$APP_REF predates the smoke suite (ts/smoke/smoke.mjs), so there is nothing to run."
+            exit 0
+          fi
+          # playwright-core alone, at the lockfile's version: it drives the
+          # runner's own Google Chrome, so no npm ci and no browser download.
+          version="$(node -p "require('./ts/package-lock.json').packages['node_modules/playwright-core'].version")"
+          npm install --prefix ts/smoke --no-save --no-package-lock --no-audit --no-fund "playwright-core@$version"
+          node ts/smoke/smoke.mjs --url "${PAGE_URL%/}/app/"

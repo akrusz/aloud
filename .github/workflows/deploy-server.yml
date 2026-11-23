@@ -41,3 +41,14 @@ jobs:
         working-directory: ts
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # From outside Fly, after its own rollout check: the public URL answers
+      # and the keys a session needs survived the deploy. A failure here leaves
+      # the deploy in place; dev-docs/deploy.md has the rollback.
+      - name: Check /health
+        run: |
+          body="$(curl -fsS --retry 3 --retry-delay 5 --retry-all-errors --max-time 15 https://aloud-cloud.fly.dev/health)"
+          echo "$body"
+          if ! echo "$body" | jq -e '.ok == true and (.providers | length) > 0 and .stt == true and .tts == true' > /dev/null; then
+            echo "::error title=aloud cloud /health::expected ok, providers, stt and tts after the deploy, got: $body"
+            exit 1
+          fi
