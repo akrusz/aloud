@@ -198,11 +198,11 @@ const FX: Fixture = {
     config: { verbosity: 'low', directiveness: 1 },
     history: [{ role: 'user', content: 'There is a weight behind my eyes.' }],
     expect: {},
-    probe: 'test',
+    description: 'test',
 };
 
 function trial(model: string, raw: string, extra: Partial<Trial> = {}): Trial {
-    return { model, fixture: FX.id, probe: '', run: 0, latencyMs: 1, raw, spoken: raw.replace(/^\[HOLD\]\s*/, ''), checks: [], score: 1, ...extra };
+    return { model, fixture: FX.id, description: '', run: 0, latencyMs: 1, raw, spoken: raw.replace(/^\[HOLD\]\s*/, ''), checks: [], score: 1, ...extra };
 }
 
 const TRIALS = [

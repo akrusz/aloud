@@ -373,7 +373,7 @@ details.fx > summary {
 details.fx > summary .fx-id { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; }
 details.fx[open] > summary { border-bottom: 1px solid var(--line); }
 .fx-body { padding: 0.75rem; display: grid; gap: 0.75rem; }
-.probe { color: var(--ink-2); max-width: 75ch; }
+.description { color: var(--ink-2); max-width: 75ch; }
 .convo { display: grid; gap: 0.35rem; max-width: 75ch; }
 .turn { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.5rem; }
 .turn .who { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); font-weight: 700; padding-top: 0.15rem; }

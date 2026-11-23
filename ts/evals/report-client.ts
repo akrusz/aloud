@@ -603,7 +603,7 @@ function fixtureBlock(modelId: string, fixtureId: string, family: FamilyId | nul
         h(
             'div',
             { class: 'fx-body' },
-            fx ? h('p', { class: 'probe' }, fx.probe) : null,
+            fx ? h('p', { class: 'description' }, fx.description) : null,
             fx && fx.history.length ? conversation(fx) : null,
             fx && fx.expect.length ? h('div', { class: 'expect' }, fx.expect.map((e) => h('span', { class: 'chip' }, e))) : null,
             h('div', { class: 'runs' }, runs.map((t) => runView(t, family))),
@@ -755,7 +755,7 @@ function fixtureCompare(fixtureId: string): Node[] {
             { class: 'detail-head' },
             h('p', { class: 'eyebrow' }, 'Every model on one fixture'),
             h('h3', null, h('code', null, fixtureId)),
-            fx ? h('p', { class: 'sub' }, fx.probe) : null
+            fx ? h('p', { class: 'sub' }, fx.description) : null
         ),
         fx && fx.history.length ? conversation(fx) : null,
         fx && fx.expect.length ? h('div', { class: 'expect' }, fx.expect.map((e) => h('span', { class: 'chip' }, e))) : null,

@@ -31,7 +31,8 @@ export interface Trial {
     /** Roster id (models.ts). */
     model: string;
     fixture: string;
-    probe: string;
+    /** The fixture's description when it ran. */
+    description: string;
     run: number;
     /** Request to last byte. */
     latencyMs: number;
@@ -199,13 +200,19 @@ function isTrialLike(v: unknown): v is Trial {
     );
 }
 
+/** Older trials call the description `probe`. */
+function withDescription(t: Trial): Trial {
+    const { probe, ...rest } = t as Trial & { probe?: string };
+    return probe === undefined ? t : { ...rest, description: rest.description ?? probe };
+}
+
 /** A run file in either format; null when the JSON is something else. */
 export function parseRunFile(json: unknown): { meta: RunMeta | null; trials: Trial[] } | null {
     if (Array.isArray(json)) {
-        return json.length > 0 && json.every(isTrialLike) ? { meta: null, trials: json } : null;
+        return json.length > 0 && json.every(isTrialLike) ? { meta: null, trials: json.map(withDescription) } : null;
     }
     if (isObject(json) && json['kind'] === RUN_KIND && Array.isArray(json['trials'])) {
-        const trials = json['trials'].filter(isTrialLike);
+        const trials = json['trials'].filter(isTrialLike).map(withDescription);
         return { meta: (json['meta'] as RunMeta | undefined) ?? null, trials };
     }
     return null;

@@ -147,7 +147,7 @@ async function runTrial(provider: LLMProvider, m: EvalModel, via: Via, fx: Fixtu
     const base = {
         model: m.id,
         fixture: fx.id,
-        probe: fx.probe,
+        description: fx.description,
         run,
         at: new Date().toISOString(),
         provider: m.provider,
@@ -354,7 +354,9 @@ async function main() {
         }
         const trials = opts.resume ? mergeTrials(existing, fresh) : fresh;
         allTrials.push(...trials);
-        if (sweepDir) writeEnvelope(join(sweepDir, modelFileName(m.id)), metaFor([m.id]), trials);
+        // A resume selects a few fixtures but the file holds them all.
+        const held = [...new Set(trials.map((t) => t.fixture))];
+        if (sweepDir) writeEnvelope(join(sweepDir, modelFileName(m.id)), { ...metaFor([m.id]), fixtures: held }, trials);
         say(summaryLine(m, fresh, skipped));
     };
 
@@ -415,7 +417,7 @@ function report(trials: Trial[]) {
         const failing = ts.filter((t) => t.score < 1);
         if (failing.length === 0) continue;
         console.log(`\n${fixture}  (${failing.length}/${ts.length} trials failed)`);
-        console.log(`  ${ts[0]?.probe ?? ''}`);
+        console.log(`  ${ts[0]?.description ?? ''}`);
         const reasons = new Map<string, number>();
         for (const t of failing) {
             if (t.error) {
