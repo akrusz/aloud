@@ -45,6 +45,7 @@ params, gotchas. It's the one to keep open.
 | [pacing.md](pacing.md) | Check-ins (canned vs smart content, fixed vs `[WAIT]` timing), the spoken session timer, what a first sit ("Try right now") overrides, and a noting circle's pace. |
 | [voice-commands.md](voice-commands.md) | Mic pre-flight, the commands that need no judge ("mute", "end the session"), voice on the setup screen (its requests, judge tier, house-voice clips, the spoken tour), and the judge-backed spoken commands. |
 | [voice-barge-in.md](voice-barge-in.md) | How interrupting the facilitator mid-sentence works. Entirely client-side; the pathway depends on the STT backend and, on iPhone, headphones. |
+| [prompt-writing.md](prompt-writing.md) | Practices for any text sent to a model as an instruction (facilitation, classifiers, judges, simulated meditators), each with what was measured here, and the layers of review a prompt goes through. |
 | [language.md](language.md) | English / 中文: the prompt fragment, zh pools, STT locale, and the `t()` catalog. |
 
 ## Reference

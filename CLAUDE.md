@@ -63,6 +63,7 @@ CI is typecheck + vitest + ui:build + server tests.
 - **Server before clients**: a client build that uses something new on aloud cloud ships only after the server is deployed.
 - **Before a release**, or when asked: `dev-docs/pre-release-checklist.md`.
 - **Docs name a file and a symbol**, never a line number.
+- **Before writing or changing a prompt** (facilitation, classifier, summary, judge, rubric, simulated meditator): `dev-docs/prompt-writing.md`.
 - **Friction** worth fixing that isn't yours to fix in passing goes in `dev-docs/friction.md`.
 - **Issues** are in Beads (`bd`); the session hook prints its workflow. `bd create` prints no ID, `bd --json create ...` does. `python3 scripts/bd-board.py` writes a browsable board. Two of the hook's defaults do not hold here: commits follow the line above, and memory is split, with preferences and working agreements in the session memory directory and technical findings about the code or devices in `bd remember`. The block `bd setup claude` writes into this file was removed on purpose, since the hook already says it all.
 
