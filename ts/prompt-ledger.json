@@ -1,0 +1,840 @@
+{
+  "stampedAt": "9f606f3ff33a5424eca983cc0eae36962c69c61c",
+  "stampedOn": "2026-11-23",
+  "pieces": {
+    "prompts/VOICE_STYLE_FRAGMENT": {
+      "hash": "5a6b5534f8b5ef5a",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/HOLD_SIGNAL_FRAGMENT": {
+      "hash": "2af68e9b3b35efa1",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/REALTIME_VOICE_FRAGMENT": {
+      "hash": "56ae5278a4226971",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "edited"
+    },
+    "prompts/STEPPING_OUT_FRAGMENT": {
+      "hash": "43790291f43052a2",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "edited"
+    },
+    "prompts/WAIT_SIGNAL_FRAGMENT": {
+      "hash": "8650bca5a8eef4ab",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIMENSIONS_PREAMBLE": {
+      "hash": "131cf805bce88994",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/STEPPING_OUT_NOTE": {
+      "hash": "af2abe8507757824",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "edited"
+    },
+    "prompts/BASE_SYSTEM_PROMPT": {
+      "hash": "ccf0434d33a971a7",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/appControlsFragment/voice": {
+      "hash": "e76177c0cb1654aa",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/appControlsFragment/screen": {
+      "hash": "1413afae1622595d",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/appControlsChangeNote": {
+      "hash": "0cdc47f3bea97c8f",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/waitBiasFragment/active": {
+      "hash": "4dcfa02cc848568f",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/waitBiasFragment/moderate": {
+      "hash": "9a2343d84da9c596",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/waitBiasFragment/long": {
+      "hash": "e5306a89a31b80ce",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/FOCUS_PROMPTS/body_sensations": {
+      "hash": "3d30a8363c19a2e6",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/FOCUS_PROMPTS/emotions": {
+      "hash": "bfb0ecbe5a048b67",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/FOCUS_PROMPTS/inner_parts": {
+      "hash": "a1e657dde4beff3c",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/FOCUS_PROMPTS/open_awareness": {
+      "hash": "9385f89b2033aeac",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/playful": {
+      "hash": "7239c2fc720cbdac",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/compassionate": {
+      "hash": "3fe28adf2084894e",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/loving": {
+      "hash": "bb042e0f049314f6",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/spacious": {
+      "hash": "5d48ee6c2d9ea085",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/effortless": {
+      "hash": "d5bcd51f8ab3c5f9",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/QUALITY_PROMPTS/feeling_good": {
+      "hash": "d849178e72a4a2a2",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIRECTIVENESS_ADDITIONS/1": {
+      "hash": "a63aa41cd7261dea",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIRECTIVENESS_ADDITIONS/2": {
+      "hash": "71f902e7d593dec3",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIRECTIVENESS_ADDITIONS/3": {
+      "hash": "c75da98caf94b048",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIRECTIVENESS_ADDITIONS/4": {
+      "hash": "a67f5edfca25df93",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/DIRECTIVENESS_ADDITIONS/5": {
+      "hash": "01e47a5ac5990a45",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/VERBOSITY_ADDITIONS/low": {
+      "hash": "06e5c5f671ae2998",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/VERBOSITY_ADDITIONS/medium": {
+      "hash": "f2d676476ac49ffa",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/VERBOSITY_ADDITIONS/high": {
+      "hash": "3aef4854fd323864",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "language/ZH_LANGUAGE_FRAGMENT": {
+      "hash": "84464f1ead72963f",
+      "reach": "session",
+      "file": "ts/src/facilitation/language.ts",
+      "status": "baseline"
+    },
+    "voices/Harper/promptNote": {
+      "hash": "c68587a3c0ed89c6",
+      "reach": "session",
+      "file": "ts/server/src/providers/voice-catalog.ts",
+      "status": "baseline"
+    },
+    "felt-sense/FELT_SENSE_SYSTEM_PROMPT": {
+      "hash": "99ee4a77c5c78a4f",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/clearing": {
+      "hash": "70701e94ecbef23e",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/sensing": {
+      "hash": "15d2233c9e74f163",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/handle": {
+      "hash": "54a004ccc5618626",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/resonating": {
+      "hash": "eff8de5dd5777dc0",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/asking": {
+      "hash": "af62089549cfc8b4",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/phase/receiving": {
+      "hash": "4c833b5783ef336d",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "felt-sense/stage-frame": {
+      "hash": "e6e0012b820fa93f",
+      "reach": "session",
+      "file": "ts/src/facilitation/modes.ts",
+      "status": "baseline"
+    },
+    "felt-sense/stage-note": {
+      "hash": "56c2f5178f90c4d1",
+      "reach": "session",
+      "file": "ts/src/facilitation/modes.ts",
+      "status": "baseline"
+    },
+    "prompts/buildSystemPrompt": {
+      "hash": "2a5cabeb3c9cfaf9",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "felt-sense/buildSystemPrompt": {
+      "hash": "5abf593c678db5dd",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/buildOpenerPrompt": {
+      "hash": "ecb14c70cc5a5c25",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "felt-sense/opener": {
+      "hash": "6b60285526cf36bf",
+      "reach": "session",
+      "file": "ts/src/facilitation/felt-sense.ts",
+      "status": "baseline"
+    },
+    "smart-checkin/buildSmartCheckinEvent": {
+      "hash": "6b813cce5143ab51",
+      "reach": "session",
+      "file": "ts/src/facilitation/smart-checkin.ts",
+      "status": "baseline"
+    },
+    "session-timer/approach": {
+      "hash": "468b5357a15c26be",
+      "reach": "session",
+      "file": "ts/src/facilitation/session-timer.ts",
+      "status": "baseline"
+    },
+    "session-timer/completion": {
+      "hash": "a88d9595c6515e32",
+      "reach": "session",
+      "file": "ts/src/facilitation/session-timer.ts",
+      "status": "baseline"
+    },
+    "summary/SUMMARY_SYSTEM_PROMPT": {
+      "hash": "fc007a5d2f104250",
+      "reach": "session",
+      "file": "ts/src/facilitation/summary.ts",
+      "status": "draft"
+    },
+    "summary/request": {
+      "hash": "0c1d6ccbab096471",
+      "reach": "session",
+      "file": "ts/src/facilitation/summary.ts",
+      "status": "draft"
+    },
+    "resume/buildResumeContext": {
+      "hash": "d406fb3ec0c5edb1",
+      "reach": "session",
+      "file": "ts/src/facilitation/resume.ts",
+      "status": "baseline"
+    },
+    "session-view/resume-opener": {
+      "hash": "e5d91afbf61c6c55",
+      "reach": "session",
+      "file": "ts/ui/src/views/session.ts",
+      "status": "baseline"
+    },
+    "llm/resume-stub": {
+      "hash": "c6e82663fff36f0b",
+      "reach": "session",
+      "file": "ts/src/llm/anthropic.ts",
+      "status": "baseline"
+    },
+    "llm/systemNoteAsUserText": {
+      "hash": "dd0406e5d7f8895e",
+      "reach": "session",
+      "file": "ts/src/llm/base.ts",
+      "status": "baseline"
+    },
+    "rust/format_history-system-note": {
+      "hash": "b991cb92db148b78",
+      "reach": "session",
+      "file": "ts/src-tauri/src/llm.rs",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_SYSTEM_PROMPT": {
+      "hash": "81e6f0fd75058452",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_CONTEXT": {
+      "hash": "34f9bb55e50b6438",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_AVOID_SELF_REPEAT": {
+      "hash": "da30c90ff95d023d",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_REACTIVE_LOW": {
+      "hash": "cad357eec9bd6985",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_REACTIVE_HIGH": {
+      "hash": "bee30c3b77e744cf",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/NOTING_LABEL_REACTIVE_NONE": {
+      "hash": "55dd53395714cff0",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "noting/label-request": {
+      "hash": "0ef3bd4c2a30d08d",
+      "reach": "session",
+      "file": "ts/src/facilitation/noting.ts",
+      "status": "baseline"
+    },
+    "tts/MEDITATION_INSTRUCTION": {
+      "hash": "61dc1276563cf557",
+      "reach": "session",
+      "file": "ts/server/src/providers/tts.ts",
+      "status": "baseline"
+    },
+    "prompts/RESUME_INTENT_SYSTEM_PROMPT": {
+      "hash": "1e44128c3837d382",
+      "reach": "support",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/HOLD_REQUEST_SYSTEM_PROMPT": {
+      "hash": "3300c6e0afa07b1e",
+      "reach": "support",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/HOLD_CONFIRM_SYSTEM_PROMPT": {
+      "hash": "e13f340b91678372",
+      "reach": "support",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "prompts/TROUBLE_SYSTEM_PROMPT": {
+      "hash": "2ef4768d6c4eb503",
+      "reach": "support",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "baseline"
+    },
+    "jev/resume": {
+      "hash": "332bcc5bde2c1d8d",
+      "reach": "support",
+      "file": "ts/src/facilitation/utterance-judge.ts",
+      "status": "baseline"
+    },
+    "jev/hold-confirm": {
+      "hash": "a2ce6cf780b7d031",
+      "reach": "support",
+      "file": "ts/src/facilitation/utterance-judge.ts",
+      "status": "baseline"
+    },
+    "jev/hold-request": {
+      "hash": "d09d0709889a9bd2",
+      "reach": "support",
+      "file": "ts/src/facilitation/utterance-judge.ts",
+      "status": "baseline"
+    },
+    "jev/trouble": {
+      "hash": "b0af2407e19c673a",
+      "reach": "support",
+      "file": "ts/src/facilitation/utterance-judge.ts",
+      "status": "baseline"
+    },
+    "jev/command-gate": {
+      "hash": "484f43b1e0ca0859",
+      "reach": "support",
+      "file": "ts/src/facilitation/voice-command-specs.ts",
+      "status": "baseline"
+    },
+    "jev/command": {
+      "hash": "13d7f6140b0738ed",
+      "reach": "support",
+      "file": "ts/src/facilitation/voice-command-specs.ts",
+      "status": "baseline"
+    },
+    "jev/end-confirm": {
+      "hash": "658f7542fc899c52",
+      "reach": "support",
+      "file": "ts/src/facilitation/voice-command-specs.ts",
+      "status": "baseline"
+    },
+    "jev/setup-gate": {
+      "hash": "20952922823ba3f2",
+      "reach": "support",
+      "file": "ts/src/facilitation/setup-command-specs.ts",
+      "status": "baseline"
+    },
+    "jev/setup-command": {
+      "hash": "75ff58c63db0ec6c",
+      "reach": "support",
+      "file": "ts/src/facilitation/setup-command-specs.ts",
+      "status": "baseline"
+    },
+    "jev/BEFORE_NOTE": {
+      "hash": "a5bcebc7d8e776e1",
+      "reach": "support",
+      "file": "ts/src/facilitation/utterance-judge.ts",
+      "status": "baseline"
+    },
+    "setup-local/LOCAL_SETUP_SYSTEM_PROMPT": {
+      "hash": "97f3dfc48cefe43a",
+      "reach": "support",
+      "file": "ts/src/facilitation/setup-local.ts",
+      "status": "baseline"
+    },
+    "rubric/rule/by-comparison": {
+      "hash": "f18c50368306475d",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/rule/only-where-the-turn-calls-for-it": {
+      "hash": "ee465447ec5bc3ba",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/rule/binary-and-scales": {
+      "hash": "3433d5f7f16f2670",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/1a": {
+      "hash": "6acd5eb67d469c88",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/1b": {
+      "hash": "b11d03c778398020",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/1c": {
+      "hash": "f369fdbaa8f423f9",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/2": {
+      "hash": "def52b89856bf3df",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/3": {
+      "hash": "9148efa7096b0db9",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/4": {
+      "hash": "678cd12000c6bd2a",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/5": {
+      "hash": "e51cf27e2e0cec59",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/6": {
+      "hash": "73da052f289f98ec",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/7": {
+      "hash": "8816643f36d040e0",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/8": {
+      "hash": "5ee410005e514786",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/9": {
+      "hash": "ab44f3eeb33a2db0",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/10": {
+      "hash": "2157083293b84a3f",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/11": {
+      "hash": "52a5008eb24cb8b9",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/13": {
+      "hash": "6c95d59696e42cb3",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/14": {
+      "hash": "7683445e65860f66",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/15": {
+      "hash": "c8faf62e3692bfab",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/F1": {
+      "hash": "f8856912ede0ef78",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/F2": {
+      "hash": "8cab710e3a2ac099",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/F3": {
+      "hash": "5fba312626a7c013",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/F4": {
+      "hash": "5e9b4a49d1095f04",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/P1": {
+      "hash": "904315d4c426b1e1",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/P2": {
+      "hash": "c6b1f7ca6feb560f",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/P3": {
+      "hash": "2080c262ed714541",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/E1": {
+      "hash": "02c51336ab5d0546",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/E2": {
+      "hash": "02dfef7fe22a7c3b",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/E3": {
+      "hash": "02dfef7fe22a7c3b",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/O1": {
+      "hash": "c4d465dee1a186e2",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/O2": {
+      "hash": "ddf36d012f83d5d7",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/12": {
+      "hash": "5a968def609dcb52",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "rubric/held-the-role": {
+      "hash": "e5fd53a0742c3988",
+      "reach": "dev",
+      "file": "ts/evals/rubric.md",
+      "status": "draft"
+    },
+    "eval-judge/instructions": {
+      "hash": "0cc4216355a1f8a5",
+      "reach": "dev",
+      "file": "ts/evals/judge-core.ts",
+      "status": "draft"
+    },
+    "eval-judge/panel": {
+      "hash": "6e58d99f88d9b011",
+      "reach": "dev",
+      "file": "ts/evals/judge-core.ts",
+      "status": "draft"
+    },
+    "eval-judge/retry": {
+      "hash": "2a983a0b173a5b76",
+      "reach": "dev",
+      "file": "ts/evals/judge-core.ts",
+      "status": "draft"
+    },
+    "soak-judge/system": {
+      "hash": "ff3a99340a4cc06e",
+      "reach": "dev",
+      "file": "ts/soak/judge.ts",
+      "status": "draft"
+    },
+    "soak-judge/session": {
+      "hash": "0e37dae146a1ab41",
+      "reach": "dev",
+      "file": "ts/soak/judge.ts",
+      "status": "draft"
+    },
+    "sim-user/system": {
+      "hash": "624931a10423cfbe",
+      "reach": "dev",
+      "file": "ts/soak/sim-user.ts",
+      "status": "draft"
+    },
+    "sim-user/turn": {
+      "hash": "e5f688c39875b602",
+      "reach": "dev",
+      "file": "ts/soak/sim-user.ts",
+      "status": "baseline"
+    },
+    "sim-user/situations": {
+      "hash": "1c5f2d154dd814db",
+      "reach": "dev",
+      "file": "ts/soak/orchestrator.ts",
+      "status": "baseline"
+    },
+    "persona/back-in-one-breath": {
+      "hash": "c6e35d8ed65c47a3",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/chatty-beginner": {
+      "hash": "82ee3cd19d337693",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/destabilizing-sitter": {
+      "hash": "ba96f6b63216dac3",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/felt-sense-client": {
+      "hash": "9a0f9c41c76c7baf",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/frightened-in-silence": {
+      "hash": "d64be5818d45475b",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/guidance-seeker": {
+      "hash": "3dd5c92d8b05f9c3",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/hour-sitter": {
+      "hash": "5a3ebf47ab99ce30",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/overwhelmed-sharer": {
+      "hash": "80298c3d75728957",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/quiet-sitter": {
+      "hash": "e8865d97309ef5ff",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/reaching-sitter": {
+      "hash": "62813bee18c6b753",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/run-on-talker": {
+      "hash": "c7925a0b98bdfbc5",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "persona/silence-seeker": {
+      "hash": "6288e1ea21cd297d",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/timer-sitter": {
+      "hash": "9f761be7407b7a17",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "baseline"
+    },
+    "persona/zh-sitter": {
+      "hash": "f7a1752482aae220",
+      "reach": "dev",
+      "file": "ts/soak/scenarios.ts",
+      "status": "draft"
+    },
+    "soak/subscription-probe": {
+      "hash": "421aa2dde249587a",
+      "reach": "dev",
+      "file": "ts/soak/providers.ts",
+      "status": "draft"
+    },
+    "rust/claude_cli_round_trip": {
+      "hash": "51160ff95f1feb9c",
+      "reach": "dev",
+      "file": "ts/src-tauri/src/llm.rs",
+      "status": "baseline"
+    },
+    "rust/claude_cli_leaves_out_user_setup": {
+      "hash": "457a0faa08b27032",
+      "reach": "dev",
+      "file": "ts/src-tauri/src/llm.rs",
+      "status": "draft"
+    },
+    "audition/instructionFor": {
+      "hash": "ad9f485114ee3bf9",
+      "reach": "dev",
+      "file": "ts/server/scripts/audition/sources.ts",
+      "status": "baseline"
+    }
+  }
+}

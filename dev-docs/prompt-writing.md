@@ -158,3 +158,7 @@ Then, by reach:
 - **dev**: commit as a draft, marked `(**open**)` where it is rubric text. Run
   it live once to see that it parses and does what was meant. Say in the
   commit if it makes stored verdicts read as judged at an older rubric.
+
+Nothing to record as you go: at each release, Part E of
+[pre-release-checklist.md](pre-release-checklist.md) lists the prompts changed
+since the last one for Alex to read (`npm --prefix ts run prompts:check`).

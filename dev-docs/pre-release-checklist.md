@@ -347,3 +347,14 @@ ones). It keeps the same rules: never lower, nothing newer than the version
 being released. Use it when the check recommended nothing but you want a
 cutoff, when the check was skipped, and before `scripts/release.sh retry`,
 which skips the check. The rule for phones above is yours to keep here.
+
+## Part E - prompts since the last release
+
+`npm --prefix ts run prompts:check` lists each prompt whose text changed since
+`ts/prompt-ledger.json` was stamped, by reach with session first, the diff,
+and the pieces still `draft` (changed by an agent, not read by Alex). It is a
+report and never fails. A prompt added since then shows only if
+`ts/scripts/prompt-ledger/registry.ts` lists it, so add any it misses first.
+Show Alex the session and support changes. On his word, restamp with what he
+read and what he wrote (`npm --prefix ts run prompts:stamp -- --read <id,...>
+--edited <id,...>`; every other change becomes draft) and commit the ledger.
