@@ -162,6 +162,13 @@ The rest of this page is the full list behind those, with what is not done.
 - The conduct and harmful-act checks are drafts; the anchors are not settled.
 - The trouble check's own prompt is still its first draft and you have not
   read it line by line.
+- The trouble check listens for fear and for thoughts of self-harm. It does
+  not screen for a physical emergency reported calmly (chest pain, a smell of
+  gas); the facilitator's own prompt covers "immediate physical danger", the
+  check does not.
+- "I want this to be over" can be heard as the spoken end-session command. The
+  app asks before ending, but that question replaces the facilitator's reply
+  (found in the 2026-11-23 prompt audit, not yet fixed).
 - Stepping out has never been run on a phone.
 - The age check has compiled on both platforms and never run on a device.
 - Messages the app sends into the conversation (check-ins, timers) have not
