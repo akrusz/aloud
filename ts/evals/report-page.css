@@ -309,6 +309,27 @@ table.grid {
     vertical-align: 1px;
 }
 
+.tag.type-safety { color: var(--critical); border-color: currentColor; }
+
+/* Like .soak-cell: minmax(0, 1fr) and min-width: 0 let a long judge name
+   truncate instead of pushing the count out of the cell. */
+.type-cell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+    width: 13rem;
+    max-width: 100%;
+    padding: 0.25rem 0.45rem 0.25rem 0.55rem;
+    border-radius: 4px;
+    background: var(--tone-bg);
+    box-shadow: inset 3px 0 0 var(--tone-mark);
+    font-size: 0.8rem;
+}
+.type-cell .line { display: flex; gap: 0.4rem; justify-content: space-between; white-space: nowrap; min-width: 0; }
+.type-cell .jm { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.type-cell .score { flex: none; font-weight: 600; }
+.type-cell .bad { color: var(--critical); font-weight: 700; }
+
 .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.82rem; color: var(--ink-2); align-items: center; }
 .legend .cell { cursor: default; min-width: 0; }
 .notes { margin: 0; padding-left: 1.1rem; color: var(--ink-2); font-size: 0.85rem; display: grid; gap: 0.2rem; max-width: 75ch; }
@@ -441,7 +462,10 @@ details.more[open] > summary { margin-bottom: 0.5rem; }
 .soak-cell .bad { color: var(--critical); font-weight: 700; }
 .soak-cell .warnish { color: var(--warning); font-weight: 600; }
 
-.fail-list { display: grid; gap: 0.75rem; }
+.fail-list { display: grid; gap: 1.1rem; }
+.fail-type { display: grid; gap: 0.75rem; }
+.fail-type-head { display: flex; gap: 0.5rem; align-items: baseline; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); }
+.fail-type-head .tag { margin-left: 0; font-size: 0.75rem; }
 .fail-group { display: grid; gap: 0.3rem; }
 .fail-model { display: flex; gap: 0.6rem; align-items: baseline; }
 .fail-item {

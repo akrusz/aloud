@@ -4,6 +4,7 @@
  */
 
 import type { Cell, FamilyDef, FamilyId, FixtureInfo, ModelRow, Severity, TrialView } from './aggregate.js';
+import type { CheckType } from './dimensions.js';
 import type { ReportData } from './report.js';
 import type { JudgeVerdictRecord } from './records.js';
 import type { SoakCell, SoakSession, SoakTier, SoakTierView } from './soak-summary.js';
@@ -13,6 +14,11 @@ const E = data.evals;
 const S = data.soak;
 const FAMILY = new Map<FamilyId, FamilyDef>(E.families.map((f) => [f.id, f]));
 const MODEL = new Map<string, ModelRow>(E.models.map((m) => [m.id, m]));
+/** Safety first; null (a dimension rubric.md gives no type) last. */
+const TYPE_ORDER: Array<CheckType | null> = [...E.types.map((t) => t.id), null];
+const typeRank = (t: CheckType | null | undefined) => TYPE_ORDER.indexOf(t ?? null);
+const typeLabel = (t: CheckType | null | undefined) => E.types.find((x) => x.id === t)?.label ?? 'No type';
+const familyType = (f: FamilyId) => FAMILY.get(f)?.type ?? null;
 
 // --- DOM helpers --------------------------------------------------------------
 
@@ -78,6 +84,10 @@ function verdictPill(m: ModelRow): HTMLElement {
 function viaTag(via: string): HTMLElement | null {
     const t = VIA_TAG[via];
     return t ? h('span', { class: 'tag', title: t.title }, t.tag) : null;
+}
+
+function typeTag(t: CheckType | null | undefined): HTMLElement {
+    return h('span', { class: `tag type-${t ?? 'none'}` }, typeLabel(t));
 }
 
 // --- Selection ----------------------------------------------------------------
@@ -151,6 +161,7 @@ function header(): HTMLElement {
             'nav',
             null,
             h('a', { href: '#findings' }, 'Findings'),
+            h('a', { href: '#types' }, 'By type'),
             h('a', { href: '#matrix' }, 'Models'),
             h('a', { href: '#judging' }, 'Blind judging'),
             h('a', { href: '#soak' }, 'Whole sessions'),
@@ -161,18 +172,19 @@ function header(): HTMLElement {
 
 const SEV_ORDER: Record<Severity, number> = { critical: 0, serious: 1, warning: 2, info: 3 };
 
-function findingRow(severity: Severity, title: string, items: Node[]): HTMLElement {
+function findingRow(severity: Severity, title: string, items: Node[], type?: CheckType | null): HTMLElement {
     return h(
         'li',
         { class: 'finding' },
         h('span', { class: `sev sev-${severity}` }, SEV_LABEL[severity]),
-        h('span', { class: 'title' }, title),
+        h('span', { class: 'title' }, title, type !== undefined ? typeTag(type) : null),
         h('div', { class: 'items' }, items)
     );
 }
 
 function findings(): HTMLElement {
-    const rows: Array<{ severity: Severity; el: HTMLElement }> = [];
+    // Untyped causes (soak, staleness, disagreement) sort after the typed ones.
+    const rows: Array<{ severity: Severity; type?: CheckType | null | undefined; el: HTMLElement }> = [];
     for (const f of E.findings) {
         const items = f.items.map((it) => {
             const { model, family } = it;
@@ -182,7 +194,7 @@ function findings(): HTMLElement {
             if (model) return h('button', { class: 'item-link', onclick: () => select({ k: 'model', model }) }, it.text);
             return h('span', { class: 'item-text' }, it.text);
         });
-        rows.push({ severity: f.severity, el: findingRow(f.severity, f.title, items) });
+        rows.push({ severity: f.severity, type: f.type, el: findingRow(f.severity, f.title, items, f.type) });
     }
     for (const f of S.findings) {
         const items = f.items.map((it) =>
@@ -198,22 +210,23 @@ function findings(): HTMLElement {
         rows.push({ severity: f.severity, el: findingRow(f.severity, f.title, items) });
     }
     for (const j of data.phase2.judges) {
-        const failing = j.models.filter((m) => m.fails.length).sort((a, b) => b.fails.length - a.fails.length);
-        if (!failing.length) continue;
-        const items = failing.map((m) => {
-            const byDim = new Map<string, number>();
-            for (const f of m.fails) byDim.set(f.dim, (byDim.get(f.dim) ?? 0) + 1);
-            const dims = [...byDim].map(([d, n]) => `${n} on ${d}`).join(', ');
-            const first = m.fails[0];
-            return h(
-                'button',
-                { class: 'item-link', onclick: () => (first ? openPanel(first.panel) : undefined) },
-                `${m.model} ${dims}`
-            );
-        });
-        rows.push({ severity: 'serious', el: findingRow('serious', `Binary fails, judged by ${j.judgeModel}`, items) });
+        for (const type of TYPE_ORDER) {
+            const failing = j.models
+                .map((m) => ({ model: m.model, fails: m.fails.filter((f) => f.type === type) }))
+                .filter((x) => x.fails.length)
+                .sort((a, b) => b.fails.length - a.fails.length);
+            if (!failing.length) continue;
+            const items = failing.map(({ model, fails }) => {
+                const byDim = new Map<string, number>();
+                for (const f of fails) byDim.set(f.dim, (byDim.get(f.dim) ?? 0) + 1);
+                const dims = [...byDim].map(([d, n]) => `${n} on ${d}`).join(', ');
+                const first = fails[0];
+                return h('button', { class: 'item-link', onclick: () => (first ? openPanel(first.panel) : undefined) }, `${model} ${dims}`);
+            });
+            rows.push({ severity: 'serious', type, el: findingRow('serious', `Binary fails, judged by ${j.judgeModel}`, items, type) });
+        }
     }
-    rows.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+    rows.sort((a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || typeRank(a.type) - typeRank(b.type));
     return h(
         'section',
         { id: 'findings' },
@@ -221,6 +234,101 @@ function findings(): HTMLElement {
         rows.length
             ? h('ul', { class: 'findings' }, rows.map((r) => r.el))
             : h('p', { class: 'hint' }, 'Nothing to act on in the data on disk.')
+    );
+}
+
+// --- By type ----------------------------------------------------------------------
+
+/** One model's type: Phase 1 failed checks, then each judge's binary fails and
+ *  weighted mean. Tinted by whether anything failed, red only for Safety. */
+function typeCell(m: ModelRow, type: CheckType): HTMLElement {
+    const p1 = m.types[type];
+    const judged = data.phase2.judges.flatMap((j) => {
+        const mj = j.models.find((x) => x.model === m.id);
+        return mj ? [{ judge: j.judgeModel, ...mj.types[type] }] : [];
+    });
+    const anyFail = p1.failed > 0 || judged.some((x) => x.fails > 0);
+    const tone: Tone = !p1.measured && !judged.length ? 'none' : !anyFail ? 'good' : type === 'safety' ? 'critical' : 'warning';
+    return h(
+        'div',
+        { class: `type-cell t-${tone}` },
+        h(
+            'span',
+            { class: 'line', title: p1.parts.join(', ') || (p1.measured ? 'Every check passed' : 'No fixture checks this') },
+            h('span', { class: 'jm' }, 'checks'),
+            p1.measured ? h('span', { class: p1.failed ? 'score bad' : 'score' }, p1.failed ? `${p1.failed} failed` : 'passed') : h('span', { class: 'na' }, '-')
+        ),
+        judged.map((x) =>
+            h(
+                'span',
+                {
+                    class: 'line',
+                    title: `${x.judge}: ${plural(x.fails, 'binary fail')}` + (x.mean !== null ? `, weighted mean ${x.mean.toFixed(2)} over ${plural(x.n, 'reply', 'replies')}` : ''),
+                },
+                h('span', { class: 'jm' }, x.judge),
+                h('span', { class: 'score' }, h('span', { class: x.fails ? 'bad' : '' }, plural(x.fails, 'fail')), x.mean !== null ? ` · ${x.mean.toFixed(2)}` : '')
+            )
+        )
+    );
+}
+
+function byType(): HTMLElement {
+    const members = (type: CheckType) => {
+        const fams = E.families.filter((f) => f.type === type).map((f) => f.label.toLowerCase());
+        const dims = Object.entries(data.phase2.dimTypes)
+            .filter(([, t]) => t === type)
+            .map(([k]) => k);
+        return `Phase 1: ${fams.join(', ') || 'none'}. Phase 2: ${dims.join(', ') || 'none'}.`;
+    };
+    return h(
+        'section',
+        { id: 'types' },
+        h(
+            'div',
+            { class: 'section-head' },
+            h('h2', null, 'Models by type'),
+            h(
+                'p',
+                { class: 'lede' },
+                'What kind of thing went wrong, not how badly: Safety is a frightened, ungrounded or endangered meditator, core intent is facilitating the way aloud means to, UX is the session running smoothly. ' +
+                    'Each cell: failed Phase 1 checks, then each judge\'s binary fails and weighted mean over the type\'s dimensions (Safety has none, 11 sits outside the means).'
+            )
+        ),
+        E.models.length
+            ? h(
+                  'div',
+                  { class: 'frame' },
+                  h(
+                      'table',
+                      { class: 'grid' },
+                      h(
+                          'thead',
+                          null,
+                          h(
+                              'tr',
+                              null,
+                              h('th', { class: 'pin', scope: 'col' }, 'Model'),
+                              h('th', { scope: 'col' }, 'Verdict'),
+                              E.types.map((t) => h('th', { scope: 'col', title: members(t.id) }, t.label))
+                          )
+                      ),
+                      h(
+                          'tbody',
+                          null,
+                          E.models.map((m) =>
+                              h(
+                                  'tr',
+                                  null,
+                                  h('th', { class: 'pin', scope: 'row' }, h('button', { class: 'model-link', onclick: () => select({ k: 'model', model: m.id }) }, m.id)),
+                                  h('td', null, verdictPill(m)),
+                                  E.types.map((t) => h('td', null, typeCell(m, t.id)))
+                              )
+                          )
+                      )
+                  )
+              )
+            : h('p', { class: 'hint' }, 'No protocol sweeps on disk yet.'),
+        h('p', { class: 'small muted' }, 'Types: rubric.md ("Types") for the dimensions, FAMILIES in aggregate.ts for the Phase 1 families.')
     );
 }
 
@@ -296,7 +404,7 @@ function matrix(): HTMLElement {
     const headCells = [
         h('th', { class: 'pin', scope: 'col' }, 'Model'),
         h('th', { scope: 'col' }, 'Verdict'),
-        ...E.families.map((f) => h('th', { scope: 'col', title: f.title }, f.label)),
+        ...E.families.map((f) => h('th', { scope: 'col', title: `${typeLabel(f.type)}. ${f.title}` }, f.label)),
         h('th', { scope: 'col', class: 'num', title: 'Median spoken words per reply' }, 'Words'),
         h(
             'th',
@@ -457,15 +565,18 @@ function runView(t: TrialView, family: FamilyId | null): HTMLElement {
             ? h(
                   'div',
                   { class: 'expect' },
-                  t.failed.map((f) =>
-                      h(
-                          'span',
-                          { class: `chip ${family === null || inFamily(f.name) ? 'bad' : 'off'}`, title: f.detail ?? '' },
-                          f.name === 'any-of'
-                              ? 'any-of: names none of the markers'
-                              : `${f.name}${f.detail && !f.name.startsWith('forbid:') ? `: ${f.detail}` : ''}`
+                  [...t.failed]
+                      .sort((a, b) => typeRank(familyType(a.family)) - typeRank(familyType(b.family)))
+                      .map((f) =>
+                          h(
+                              'span',
+                              { class: `chip ${family === null || inFamily(f.name) ? 'bad' : 'off'}`, title: f.detail ?? '' },
+                              `${typeLabel(familyType(f.family))} · `,
+                              f.name === 'any-of'
+                                  ? 'any-of: names none of the markers'
+                                  : `${f.name}${f.detail && !f.name.startsWith('forbid:') ? `: ${f.detail}` : ''}`
+                          )
                       )
-                  )
               )
             : null
     );
@@ -508,7 +619,7 @@ function cellDetail(m: ModelRow, f: FamilyDef): Node[] {
         h(
             'div',
             { class: 'detail-head' },
-            h('p', { class: 'eyebrow' }, f.label),
+            h('p', { class: 'eyebrow' }, `${f.label} · ${typeLabel(f.type)}`),
             h('h3', null, m.id, ' ', verdictPill(m)),
             h(
                 'p',
@@ -838,9 +949,15 @@ function panelView(p: (typeof P2.panels)[number]): Node[] {
                         ? h(
                               'div',
                               { class: 'expect' },
-                              r.fails.map((f) =>
-                                  h('span', { class: 'chip bad', title: f.quoteFound ? '' : 'These words are not in the reply as written' }, `${dimLabel(f.dim)}: "${f.quote}"${f.quoteFound ? '' : ' (misquoted)'}`)
-                              )
+                              [...r.fails]
+                                  .sort((a, b) => typeRank(a.type) - typeRank(b.type))
+                                  .map((f) =>
+                                      h(
+                                          'span',
+                                          { class: 'chip bad', title: f.quoteFound ? '' : 'These words are not in the reply as written' },
+                                          `${typeLabel(f.type)} · ${dimLabel(f.dim)}: "${f.quote}"${f.quoteFound ? '' : ' (misquoted)'}`
+                                      )
+                                  )
                           )
                         : null,
                     h('div', { class: 'dims' }, Object.entries(r.scores).map(([d, v]) => h('span', { class: 'chip', title: dimLabel(d) }, `${d} ${v}`))),
@@ -890,23 +1007,30 @@ function judgeBlock(j: (typeof P2.judges)[number]): HTMLElement {
             ? h(
                   'div',
                   { class: 'fail-list' },
-                  j.models
-                      .filter((m) => m.fails.length)
-                      .map((m) =>
-                          h(
-                              'div',
-                              { class: 'fail-group' },
-                              h('div', { class: 'fail-model' }, modelCell(m.model), h('span', { class: 'small muted' }, plural(m.fails.length, 'fail'))),
-                              m.fails.map((f) =>
-                                  h(
-                                      'button',
-                                      { class: 'fail-item', onclick: () => openPanel(f.panel), title: 'Open the panel' },
-                                      h('span', { class: 'small muted' }, `${f.fixture}${f.run ? ` run ${f.run + 1}` : ''} · ${dimLabel(f.dim)}`),
-                                      h('span', { class: 'quote' }, `"${f.quote}"`, f.quoteFound ? null : h('span', { class: 'chip warn' }, 'misquoted'))
+                  TYPE_ORDER.map((type) => {
+                      const mine = j.models.map((m) => ({ model: m.model, fails: m.fails.filter((f) => f.type === type) })).filter((x) => x.fails.length);
+                      if (!mine.length) return null;
+                      return h(
+                          'div',
+                          { class: 'fail-type' },
+                          h('div', { class: 'fail-type-head' }, typeTag(type), h('span', { class: 'small muted' }, plural(mine.reduce((a, x) => a + x.fails.length, 0), 'fail'))),
+                          mine.map(({ model, fails }) =>
+                              h(
+                                  'div',
+                                  { class: 'fail-group' },
+                                  h('div', { class: 'fail-model' }, modelCell(model), h('span', { class: 'small muted' }, plural(fails.length, 'fail'))),
+                                  fails.map((f) =>
+                                      h(
+                                          'button',
+                                          { class: 'fail-item', onclick: () => openPanel(f.panel), title: 'Open the panel' },
+                                          h('span', { class: 'small muted' }, `${f.fixture}${f.run ? ` run ${f.run + 1}` : ''} · ${dimLabel(f.dim)}`),
+                                          h('span', { class: 'quote' }, `"${f.quote}"`, f.quoteFound ? null : h('span', { class: 'chip warn' }, 'misquoted'))
+                                      )
                                   )
                               )
                           )
-                      )
+                      );
+                  })
               )
             : h('p', { class: 'hint' }, 'No binary fails.'),
         h('h3', null, 'Wins'),
@@ -1170,7 +1294,12 @@ function sessionView(s: SoakSession): HTMLElement {
                         { class: 'dims' },
                         Object.entries(j.verdict.dimensions)
                             .filter((e): e is [string, number] => typeof e[1] === 'number')
-                            .map(([k, v]) => h('span', { class: 'chip' }, `${k.replace(/_/g, ' ')} ${v}`))
+                            .map(([k, v]) =>
+                                // holds_session is the rubric's 12, the one soak score with a type.
+                                k === 'holds_session'
+                                    ? h('span', { class: 'chip', title: `Rubric dimension 12, ${typeLabel(data.phase2.dimTypes['12'])}` }, `12 holds session ${v}`, typeTag(data.phase2.dimTypes['12']))
+                                    : h('span', { class: 'chip' }, `${k.replace(/_/g, ' ')} ${v}`)
+                            )
                     )
                 ),
                 j.verdict.notes ? h('p', { class: 'small' }, j.verdict.notes) : null,
@@ -1378,7 +1507,7 @@ function gaps(): HTMLElement {
 function boot(): void {
     const app = document.getElementById('app');
     if (!app) return;
-    app.replaceChildren(header(), findings(), matrix(), judging(), soak(), gaps());
+    app.replaceChildren(header(), findings(), byType(), matrix(), judging(), soak(), gaps());
     const sel = parseHash(location.hash);
     if (sel) select(sel, true);
     else detailEl.replaceChildren(h('p', { class: 'hint' }, 'Select a cell to read every run\'s reply, with the failed checks marked.'));

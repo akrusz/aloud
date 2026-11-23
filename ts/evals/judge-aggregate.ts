@@ -6,14 +6,20 @@
  * far each pair of judges agrees. Pure: report.ts does the reading.
  */
 
-import { isDimensionId, type DimensionId } from './dimensions.js';
+import { ACUTE } from './aggregate.js';
+import { CHECK_TYPES, isDimensionId, type CheckType, type DimensionId } from './dimensions.js';
 import { FIXTURES, type Fixture } from './fixtures.js';
 import { familyOfModelId, guidanceOf } from './judge-core.js';
 import { ROSTER, type EvalModel } from './models.js';
 import type { JudgeVerdictRecord, PanelReplyVerdict, Sweep } from './records.js';
-import { weightAt, type Rubric } from './rubric.js';
+import { typeOfDim, weightAt, type Rubric } from './rubric.js';
 
-export interface PanelReplyView extends PanelReplyVerdict {
+/** A binary fail, typed (rubric.md, "Types"): null when the rubric gives the
+ *  dimension no type. */
+export type TypedFail = PanelReplyVerdict['fails'][number] & { type: CheckType | null };
+
+export interface PanelReplyView extends Omit<PanelReplyVerdict, 'fails'> {
+    fails: TypedFail[];
     model: string;
     letter: string;
     /** 1 is best; null when the panel has no ranking. */
@@ -45,9 +51,12 @@ export interface ModelJudgement {
     panels: number;
     wins: number;
     lasts: number;
-    fails: Array<{ fixture: string; run: number; dim: string; quote: string; quoteFound: boolean; panel: string }>;
+    fails: Array<{ fixture: string; run: number; dim: string; quote: string; quoteFound: boolean; panel: string; type: CheckType | null }>;
     dims: Partial<Record<DimensionId, { mean: number; n: number }>>;
     overall: { mean: number; n: number } | null;
+    /** Binary fails per type, and the weighted mean over the type's scored
+     *  dimensions (none for Safety: 11 sits outside the means). */
+    types: Record<CheckType, { fails: number; mean: number | null; n: number }>;
     /** Dimension 11, outside the weighted means. */
     stepOut: { pass: number; n: number } | null;
     /** Turn scores across runs of one fixture; spread is max minus min. */
@@ -83,6 +92,8 @@ export interface Phase2Summary {
     pairs: JudgePairView[];
     panels: PanelView[];
     dims: Array<{ id: DimensionId; name: string; binary: boolean }>;
+    /** rubric.md's Types, key to type ("11 acute", "12"...). */
+    dimTypes: Record<string, CheckType>;
 }
 
 export interface Phase2Options {
@@ -173,8 +184,9 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                 const run = v.run as number;
                 const rank = new Map((v.ranking ?? []).map((m, i) => [m, i + 1]));
                 const letterOf = new Map(Object.entries(v.key ?? {}).map(([l, m]) => [m, l]));
+                const typed = (f: PanelReplyVerdict['fails'][number]): TypedFail => ({ ...f, type: typeOfDim(rubric, f.dim, ACUTE(v.fixture)) });
                 const replies: PanelReplyView[] = Object.entries(v.replies ?? {})
-                    .map(([model, r]) => ({ ...r, model, letter: letterOf.get(model) ?? '?', rank: rank.get(model) ?? null }))
+                    .map(([model, r]) => ({ ...r, fails: r.fails.map(typed), model, letter: letterOf.get(model) ?? '?', rank: rank.get(model) ?? null }))
                     .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99) || a.letter.localeCompare(b.letter));
                 const nowRubric = opts.currentRubricHashes?.[v.fixture];
                 const nowPrompt = opts.currentPromptHashes?.[v.fixture];
@@ -217,6 +229,10 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
             .map((model) => {
                 const dimAcc = new Map<DimensionId, Acc>();
                 const overall: Acc = { ws: 0, w: 0, n: 0 };
+                const typeAcc = Object.fromEntries(CHECK_TYPES.map((t) => [t.id, { ws: 0, w: 0, n: 0, fails: 0 }])) as Record<
+                    CheckType,
+                    Acc & { fails: number }
+                >;
                 const turnScores = new Map<string, number[]>();
                 const fails: ModelJudgement['fails'] = [];
                 let wins = 0;
@@ -231,8 +247,11 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                     const ranking = v.ranking ?? [];
                     if (ranking[0] === model) wins++;
                     if (ranking.length >= 2 && ranking[ranking.length - 1] === model) lasts++;
+                    const acute = ACUTE(v.fixture);
                     for (const f of r.fails) {
-                        fails.push({ fixture: v.fixture, run: v.run as number, dim: f.dim, quote: f.quote, quoteFound: f.quoteFound, panel: view.id });
+                        const type = typeOfDim(rubric, f.dim, acute);
+                        if (type) typeAcc[type].fails++;
+                        fails.push({ fixture: v.fixture, run: v.run as number, dim: f.dim, quote: f.quote, quoteFound: f.quoteFound, panel: view.id, type });
                     }
                     const fx = fixtures.get(v.fixture);
                     const g = fx ? guidanceOf(fx) : 2;
@@ -243,7 +262,14 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                     }
                     let ws = 0;
                     let w = 0;
+                    const touched = new Set<CheckType>();
                     for (const c of cells) {
+                        const type = typeOfDim(rubric, c.dim, acute);
+                        if (type) {
+                            typeAcc[type].ws += c.score * c.weight;
+                            typeAcc[type].w += c.weight;
+                            touched.add(type);
+                        }
                         const a = dimAcc.get(c.dim) ?? { ws: 0, w: 0, n: 0 };
                         a.ws += c.score * c.weight;
                         a.w += c.weight;
@@ -252,6 +278,7 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                         ws += c.score * c.weight;
                         w += c.weight;
                     }
+                    for (const t of touched) typeAcc[t].n++;
                     if (w > 0) {
                         overall.ws += ws;
                         overall.w += w;
@@ -271,6 +298,12 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                     fails,
                     dims,
                     overall: overall.w > 0 ? { mean: overall.ws / overall.w, n: overall.n } : null,
+                    types: Object.fromEntries(
+                        CHECK_TYPES.map((t) => {
+                            const a = typeAcc[t.id];
+                            return [t.id, { fails: a.fails, mean: a.w > 0 ? a.ws / a.w : null, n: a.n }];
+                        })
+                    ) as ModelJudgement['types'],
                     stepOut: stepN ? { pass: stepPass, n: stepN } : null,
                     variance: {
                         fixturesWithRuns: multi.length,
@@ -351,5 +384,6 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
         pairs,
         panels,
         dims: [...rubric.dimensions.values()].map((d) => ({ id: d.id, name: d.name, binary: d.binary })),
+        dimTypes: Object.fromEntries(rubric.types.map((t) => [t.key, t.type])),
     };
 }

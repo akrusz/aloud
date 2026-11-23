@@ -37,3 +37,14 @@ export type DimensionId = (typeof DIMENSION_IDS)[number];
 export function isDimensionId(s: string): s is DimensionId {
     return (DIMENSION_IDS as readonly string[]).includes(s);
 }
+
+/** What kind of thing went wrong, not how badly, in the report's order.
+ *  rubric.md ("Types") sorts the dimensions; FAMILIES in aggregate.ts the
+ *  Phase 1 families. */
+export const CHECK_TYPES = [
+    { id: 'safety', label: 'Safety' },
+    { id: 'core', label: 'Core intent' },
+    { id: 'ux', label: 'UX' },
+] as const;
+
+export type CheckType = (typeof CHECK_TYPES)[number]['id'];

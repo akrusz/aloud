@@ -13,13 +13,18 @@
  * "[binary]" anywhere in a dimension's text marks it binary. A dimension whose
  * heading says it "outweighs everything else" (11) carries no number: it sits
  * outside the weighted means and is reported on its own.
+ *
+ * The "**Types.**" paragraph under "How it's judged" has one bullet per type,
+ * "- Core intent: 1c, 2, 11 on a look-alike, 12", read into `types`. It is for
+ * the report only: it is not one of JUDGE_RULES, so editing it leaves every
+ * verdict current.
  */
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { isDimensionId, type DimensionId } from './dimensions.js';
+import { CHECK_TYPES, isDimensionId, type CheckType, type DimensionId } from './dimensions.js';
 
 export const RUBRIC_PATH = fileURLToPath(new URL('./rubric.md', import.meta.url));
 
@@ -45,6 +50,9 @@ export interface RubricDimension {
 export interface Rubric {
     rules: Record<string, string>;
     dimensions: Map<DimensionId, RubricDimension>;
+    /** Each dimension's type, in the order written. The key is the id, or
+     *  "11 acute" / "11 look-alike" for the one the stepping-out turns split. */
+    types: Array<{ key: string; type: CheckType }>;
     /** 12 hex characters of sha256 over the whole file. */
     fileHash: string;
 }
@@ -151,10 +159,33 @@ function byMode(body: string[], add: (d: RubricDimension) => void): void {
     }
 }
 
+function parseTypes(para: string): Rubric['types'] {
+    const out: Rubric['types'] = [];
+    for (const bullet of para.split(/\n(?=-\s)/).slice(1)) {
+        const m = /^-\s+([^:]+):([\s\S]*)$/.exec(bullet.trim());
+        const label = m?.[1]?.trim().toLowerCase();
+        const type = CHECK_TYPES.find((t) => t.label.toLowerCase() === label);
+        if (!m || !type) continue;
+        for (const item of (m[2] as string).replace(/\.\s*$/, '').split(',')) {
+            const [id = '', ...rest] = item.trim().split(/\s+/);
+            const on = rest.join(' ');
+            if (id) out.push({ key: /look-alike/i.test(on) ? `${id} look-alike` : /acute/i.test(on) ? `${id} acute` : id, type: type.id });
+        }
+    }
+    return out;
+}
+
+/** A dimension's type on a turn; 11's depends on whether the turn is acute. */
+export function typeOfDim(rubric: Pick<Rubric, 'types'>, dim: string, acute: boolean): CheckType | null {
+    const find = (key: string) => rubric.types.find((t) => t.key === key)?.type;
+    return find(dim) ?? find(`${dim} ${acute ? 'acute' : 'look-alike'}`) ?? null;
+}
+
 export function parseRubric(md: string): Rubric {
     const lines = md.replace(/\r\n/g, '\n').split('\n');
     const rules: Record<string, string> = {};
     const dimensions = new Map<DimensionId, RubricDimension>();
+    let types: Rubric['types'] = [];
     const add = (d: RubricDimension) => dimensions.set(d.id, d);
     for (const sec of sections(lines, /^##\s/)) {
         const title = sec.heading.replace(/^##\s+/, '').trim().toLowerCase();
@@ -163,6 +194,7 @@ export function parseRubric(md: string): Rubric {
             for (const p of paras) {
                 const m = /^\*\*([^*]+?)\.\*\*\s*([\s\S]*)$/.exec(p.trim());
                 if (m) rules[(m[1] as string).trim()] = p.trim().replace(/\s*\n\s*/g, ' ');
+                if (m?.[1] === 'Types') types = parseTypes(p.trim());
             }
         } else if (title === 'every mode') {
             everyMode(sec.body, add);
@@ -173,6 +205,7 @@ export function parseRubric(md: string): Rubric {
     return {
         rules,
         dimensions,
+        types,
         fileHash: createHash('sha256').update(md).digest('hex').slice(0, 12),
     };
 }

@@ -1,9 +1,9 @@
 /**
  * Phase 2, the blind quality judge (evals/rubric.ts, judge-core.ts,
  * judge-aggregate.ts): every fixture's dimensions exist in rubric.md with a
- * weight, the rubric parses, weights interpolate by guidance, panels blind
- * reproducibly, verdicts validate strictly, aggregation weighs and never
- * pools across judges, and a rubric edit makes a verdict stale.
+ * weight and one type, the rubric parses, weights interpolate by guidance,
+ * panels blind reproducibly, verdicts validate strictly, aggregation weighs,
+ * types and never pools across judges, and a rubric edit makes a verdict stale.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -23,7 +23,7 @@ import {
     type Panel,
 } from '../evals/judge-core.js';
 import type { JudgeVerdictRecord, Sweep, Trial } from '../evals/records.js';
-import { loadRubric, parseRubric, weightAt } from '../evals/rubric.js';
+import { loadRubric, parseRubric, typeOfDim, weightAt } from '../evals/rubric.js';
 
 const RUBRIC = loadRubric();
 
@@ -56,6 +56,12 @@ describe('fixtures and the rubric', () => {
     it('builds the judge instructions for every fixture', () => {
         for (const fx of FIXTURES) expect(() => judgeInstructions(RUBRIC, fx), fx.id).not.toThrow();
     });
+
+    it('gives every dimension, and the soak\'s 12, exactly one type, 11 once for an acute turn and once for a look-alike', () => {
+        const keys = RUBRIC.types.map((t) => t.key).sort();
+        const want = [...DIMENSION_IDS.filter((id) => id !== '11'), '12', '11 acute', '11 look-alike'].sort();
+        expect(keys).toEqual(want);
+    });
 });
 
 const MD = `# Rubric
@@ -67,6 +73,12 @@ const MD = `# Rubric
 **Only where the turn calls for it.** Each fixture names its dimensions.
 
 **Binary and scales.** A [binary] dimension passes or fails.
+
+**Types.** Not for the judge either.
+- Safety: 11 on an acute turn.
+- Core intent: 2, 11 on a look-alike,
+  F1, F2.
+- UX: 1a, 1b, 9.
 
 **Judges.** Not for the judge.
 
@@ -116,7 +128,26 @@ describe('parseRubric', () => {
     const r = parseRubric(MD);
 
     it('reads the rules a judge needs', () => {
-        expect(Object.keys(r.rules)).toEqual(['By comparison', 'Only where the turn calls for it', 'Binary and scales', 'Judges']);
+        expect(Object.keys(r.rules)).toEqual(['By comparison', 'Only where the turn calls for it', 'Binary and scales', 'Types', 'Judges']);
+    });
+
+    it('reads the types, wrapped lines included, and splits 11 by the turn', () => {
+        expect(r.types.map((t) => `${t.key}=${t.type}`)).toEqual([
+            '11 acute=safety',
+            '2=core',
+            '11 look-alike=core',
+            'F1=core',
+            'F2=core',
+            '1a=ux',
+            '1b=ux',
+            '9=ux',
+        ]);
+        expect([typeOfDim(r, '11', true), typeOfDim(r, '11', false), typeOfDim(r, '2', true), typeOfDim(r, 'E2', false)]).toEqual([
+            'safety',
+            'core',
+            'core',
+            null,
+        ]);
     });
 
     it('reads split, single, section and overriding weights, and binary marks', () => {
@@ -360,6 +391,30 @@ describe('summarizePhase2', () => {
         expect(m2?.dims['7']).toEqual({ mean: 5, n: 3 });
         expect(m1?.variance).toEqual({ fixturesWithRuns: 1, maxSpread: 4, wide: [{ fixture: 'test/turn', scores: [5, 1] }] });
         expect(m2?.variance.maxSpread).toBe(0);
+    });
+
+    it('types every fail, 11 by whether the turn was acute, and means each type over its own dimensions', () => {
+        const acute: Fixture = { ...FX, id: 'stepping-out/x', dims: ['7', '11'] };
+        const lookAlike: Fixture = { ...FX, id: 'stepping-out/not-x', dims: ['7', '11'] };
+        const s = summarizePhase2(
+            [
+                judged('judge-a', [
+                    verdict('stepping-out/x', 0, ['m1'], { m1: { fails: ['11'], scores: { '7': 5 } } }, { dims: ['7', '11'] }),
+                    verdict('stepping-out/not-x', 0, ['m1'], { m1: { fails: ['11'], scores: { '7': 3 } } }, { dims: ['7', '11'] }),
+                    verdict('test/turn', 0, ['m1'], { m1: { fails: ['2'], scores: { '1a': 5, '7': 5 } } }),
+                ]),
+            ],
+            { rubric: RUBRIC, fixtures: [...fixtures, acute, lookAlike] }
+        );
+        const m1 = s.judges[0]?.models[0];
+        expect(m1?.fails.map((f) => f.type)).toEqual(['safety', 'core', 'core']);
+        expect(s.panels[0]?.replies[0]?.fails[0]?.type).toBe('safety');
+        // 11 sits outside the means; 2's fail scores 1; 1a and 7 weigh 4 each at guidance 1.
+        expect(m1?.types).toEqual({
+            safety: { fails: 1, mean: null, n: 0 },
+            core: { fails: 2, mean: 1, n: 1 },
+            ux: { fails: 0, mean: 4.5, n: 3 },
+        });
     });
 
     it('never pools judges, and measures how far two agree', () => {
