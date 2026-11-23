@@ -296,7 +296,8 @@ async function buildRealProvider(setup: SessionSetup): Promise<LLMProvider> {
 
 /**
  * Cheap, fast, NON-reasoning model (Haiku) for the auxiliary calls: the
- * classifiers, noting labels, and the session recap. An always-thinking
+ * classifiers, noting labels, and recaps where no recap model is flagged
+ * (buildRecapProvider). An always-thinking
  * facilitation model spends the classifiers' tiny budgets on reasoning and
  * returns nothing. Where Haiku isn't reachable (Ollama, other BYOK providers)
  * this is the facilitation provider, whose model the user can pick freely.
@@ -332,12 +333,12 @@ export async function buildUtilityProvider(
 }
 
 /**
- * The model for the IN-SESSION recap refreshes only (nrj6). They resend the
- * whole transcript and are most of the utility leg's cost, and the recap is
- * throwaway (the end-of-session summary shown in history stays on Haiku), so
- * hosted sessions run them on the cheapest model. Which one is the server's
- * call: the entry flagged `utility` in server/src/pricing/providers.ts. If the
- * catalog can't be reached this falls back to `utility`.
+ * The model for recaps: the in-session refreshes (nrj6), which resend the
+ * whole transcript and are most of the utility leg's cost, and the
+ * end-of-session summary shown in history. Hosted sessions run them on the
+ * entry flagged `utility` in server/src/pricing/providers.ts, the server's
+ * call. With none flagged and live, or the catalog out of reach, this falls
+ * back to `utility`.
  */
 export async function buildRecapProvider(
     setup: SessionSetup,
@@ -543,11 +544,18 @@ export async function mountSessionView(
     // Falls back to the facilitation provider on any setup hiccup so a
     // helper-model problem can never block the session itself.
     const utilityProvider = await buildUtilityProvider(setup, provider).catch(() => provider);
-    // Background recaps run cheaper still (buildRecapProvider); same
-    // never-block-the-session fallback.
+    // Recaps, in-session and at the end, run on the recap model
+    // (buildRecapProvider); same never-block-the-session fallback.
     const recapProvider = await buildRecapProvider(setup, utilityProvider).catch(
         () => utilityProvider
     );
+    // Recaps on the separate Haiku go under the standalone summary prompt: under
+    // the facilitator's, Haiku reads the recap request after a facilitator
+    // question or hold bid as the meditator's answer and declines, and the
+    // decline would be saved as the note. Everywhere else they keep the
+    // facilitator's prompt: a warm cache where the facilitator recaps, and Luna
+    // keeps a 中文 session's language better under it.
+    const summaryStandalone = recapProvider === utilityProvider && utilityProvider !== provider;
 
     // Keeps the prompt cache warm while the sit is quiet (core keep-alive.ts),
     // on Anthropic direct or through aloud cloud. Only the facilitation
@@ -1869,9 +1877,11 @@ export async function mountSessionView(
     // The current session recap, refreshed in the background on a throttle
     // (refreshSummaryThrottled). Persisted into autosaves so an interrupted
     // session still has a history label AND a cheap-resume seed. Seeded from a
-    // resumed session's prior recap; autosave falls back to the intention.
-    let currentSummary = continueFrom?.notes ?? '';
-    let summaryAtExchangeCount = 0;
+    // resumed session's prior recap (not an intention standing in for one),
+    // counting from the log the resume loaded; autosave falls back to the
+    // intention.
+    let currentSummary = continueFrom?.notesAreRecap ? continueFrom.notes : '';
+    let summaryAtExchangeCount = currentSummary ? (session.state?.exchanges.length ?? 0) : 0;
     let summaryRefreshing = false;
     // Utterances spoken during a silence hold (see handleSilenceUtterance).
     // Cleared on entry to hold.
@@ -4110,8 +4120,8 @@ export async function mountSessionView(
                 // session tally before persisting finalState (same object
                 // reference as session.state, so recording still mutates it
                 // after endSession()).
-                summary = await generateSessionSummary(utilityProvider, finalState.exchanges, {
-                    systemPrompt: systemPrompt(),
+                summary = await generateSessionSummary(recapProvider, finalState.exchanges, {
+                    ...(summaryStandalone ? {} : { systemPrompt: systemPrompt() }),
                     onUsage: (u) => session.recordLlmUsage(u),
                 });
             } catch {
@@ -4121,11 +4131,12 @@ export async function mountSessionView(
             // empty/failed recap (userTurns ok but chars=0) behind the same
             // "Exploration" fallback. Remove once the summary path is confirmed.
             diag(
-                `[summary] provider=${provider.constructor?.name ?? '?'} ` +
+                `[summary] provider=${recapProvider.constructor?.name ?? '?'} ` +
                     `userTurns=${spokenExchanges(finalState.exchanges).filter((e) => e.role === 'user').length} ` +
                     `chars=${summary.length}`
             );
             finalState.notes = summary || setup.intention.trim();
+            finalState.notesAreRecap = summary !== '';
             // Record who facilitated: history shows it, and a later resume can
             // tell a different model who came before (buildResumeContext).
             finalState.model = modelLabel;
@@ -4176,6 +4187,7 @@ export async function mountSessionView(
             ...state,
             endTime: Math.floor(Date.now() / 1000),
             notes: currentSummary || setup.intention.trim(),
+            notesAreRecap: currentSummary !== '',
             model: modelLabel,
             provider: setup.provider,
         };
@@ -4190,11 +4202,9 @@ export async function mountSessionView(
     /**
      * Refresh `currentSummary` in the background, throttled. Generating a recap
      * is an LLM call, so it only runs once SUMMARY_MIN_NEW_EXCHANGES have landed
-     * since the last one, on the cheapest utility model we have
-     * (buildRecapProvider). It sends the facilitation system prompt, so where
-     * that model is also the facilitation model the transcript reads from the
-     * warm prompt cache. Never runs mid-turn (busy) or into a torn-down view;
-     * its token cost folds into the session tally.
+     * since the last one, on the recap model (buildRecapProvider) and under
+     * the system prompt summaryStandalone picks. Never runs mid-turn (busy) or
+     * into a torn-down view; its token cost folds into the session tally.
      */
     async function refreshSummaryThrottled(): Promise<void> {
         if (!appSettings.saveSessionLogs) return;
@@ -4206,7 +4216,7 @@ export async function mountSessionView(
         summaryRefreshing = true;
         try {
             const recap = await generateSessionSummary(recapProvider, state.exchanges, {
-                systemPrompt: systemPrompt(),
+                ...(summaryStandalone ? {} : { systemPrompt: systemPrompt() }),
                 onUsage: (u) => session.recordLlmUsage(u),
             });
             if (!torn && recap) {

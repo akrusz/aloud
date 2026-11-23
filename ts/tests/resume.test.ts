@@ -57,7 +57,7 @@ describe('buildResumeContext', () => {
 
     it('compresses a large transcript to recap + the last RESUME_RECENT_KEEP messages', () => {
         const ex = longTranscript();
-        const s = session({ exchanges: ex, notes: 'explored the breath' });
+        const s = session({ exchanges: ex, notes: 'explored the breath', notesAreRecap: true });
         const ctx = buildResumeContext(s, true);
         expect(ctx).toHaveLength(RESUME_RECENT_KEEP + 1); // recap + recent
         expect(ctx[0]!.role).toBe('user');
@@ -73,7 +73,7 @@ describe('buildResumeContext', () => {
         // A phase note and an event inside the recent stretch.
         ex.splice(ex.length - 2, 0, { role: 'system', content: 'Stage note', kind: 'phase', timestamp: 0 });
         ex.splice(ex.length - 1, 0, { role: 'user', content: '[Check-in: quiet]', kind: 'event', timestamp: 0 });
-        const ctx = buildResumeContext(session({ exchanges: ex, notes: 'a recap' }), true);
+        const ctx = buildResumeContext(session({ exchanges: ex, notes: 'a recap', notesAreRecap: true }), true);
         expect(ctx).toHaveLength(RESUME_RECENT_KEEP + 3); // recap + recent + 2 control
         expect(ctx.find((m) => m.kind === 'phase')?.role).toBe('system');
         expect(ctx.find((m) => m.kind === 'event')?.content).toBe('[Check-in: quiet]');
@@ -88,9 +88,21 @@ describe('buildResumeContext', () => {
     });
 
     it('replays whole when there is no recap to seed from', () => {
-        const s = session({ exchanges: longTranscript(), notes: '   ' });
+        const s = session({ exchanges: longTranscript(), notes: '   ', notesAreRecap: true });
         const ctx = buildResumeContext(s, true);
         expect(ctx.every((m) => !m.content.startsWith('[Continuing'))).toBe(true);
+    });
+
+    it('never seeds from notes that are not a recap', () => {
+        // The intention standing in for a recap that never came (false), or a
+        // session saved before the flag existed (absent): the transcript replays.
+        const ex = longTranscript();
+        for (const s of [
+            session({ exchanges: ex, notes: 'to stop rushing', notesAreRecap: false }),
+            session({ exchanges: ex, notes: 'to stop rushing' }),
+        ]) {
+            expect(buildResumeContext(s, true)).toHaveLength(ex.length);
+        }
     });
 
     it('prepends a hand-off note when a different model resumes (full replay)', () => {
@@ -105,7 +117,7 @@ describe('buildResumeContext', () => {
     });
 
     it('folds the prior model into the recap note when compressing', () => {
-        const s = session({ exchanges: longTranscript(), notes: 'explored the breath' });
+        const s = session({ exchanges: longTranscript(), notes: 'explored the breath', notesAreRecap: true });
         const ctx = buildResumeContext(s, true, {
             priorModelLabel: 'Claude Fable 5',
             currentModelLabel: 'Opus (Subscription)',

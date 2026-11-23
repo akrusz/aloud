@@ -46,7 +46,8 @@ function transcriptChars(exchanges: ResumeMessage[]): number {
 
 /**
  * Build the context fed to the model when continuing `prior`. With `useSummary`
- * on (the default), a stored recap, and a transcript over RESUME_COMPRESS_CHARS,
+ * on (the default), a stored recap (`notesAreRecap`; the intention fallback in
+ * `notes` is not one), and a transcript over RESUME_COMPRESS_CHARS,
  * returns the recap plus the last RESUME_RECENT_KEEP messages; otherwise the
  * full transcript.
  *
@@ -63,7 +64,7 @@ export function buildResumeContext(
         content: e.content,
         ...(e.kind !== undefined && { kind: e.kind }),
     }));
-    const recap = prior.notes?.trim() ?? '';
+    const recap = prior.notesAreRecap ? prior.notes.trim() : '';
     const compress = useSummary && !!recap && transcriptChars(exchanges) > RESUME_COMPRESS_CHARS;
 
     const priorLabel = opts.priorModelLabel?.trim() ?? '';

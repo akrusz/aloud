@@ -135,6 +135,13 @@ export interface SessionState {
     exchanges: Exchange[];
     notes: string;
     /**
+     * True when `notes` is a recap of the session, not the intention standing
+     * in for one. Only a recap may seed a summary-based resume
+     * (buildResumeContext). Absent on sessions saved before the field, which
+     * therefore resume in full.
+     */
+    notesAreRecap?: boolean;
+    /**
      * A ModeSpec id from modes.ts ('exploration', 'noting', 'felt_sense'). A
      * plain string so saved sessions survive modes coming and going across
      * releases. Optional for sessions saved before this field existed; the
