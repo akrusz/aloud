@@ -116,7 +116,7 @@ Options:
   --baseline=<dir|last>   compare against an earlier run; the report leads with
                           what changed
   --scenarios=<a,b|all>   which scenarios to run (see --list); "all" leaves
-                          out the opt-in ones (hour), which run only by name
+                          out the opt-in ones (hour, reaching), which run only by name
   --sessions=<n>          runs per scenario
   --facilitator=<a,b>     provider[:model] or eval roster id (ts/evals/models.ts)
                           under test; a comma list compares models head-to-head

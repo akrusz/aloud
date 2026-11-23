@@ -196,7 +196,13 @@ export interface JudgeVerdict {
     /** The moments that decided `holds_session`, quoted; absent when it was
      *  not scored. */
     holdsMoments?: Array<{ quote: string; why: string }>;
+    /** Rubric 13 and 14 (Conduct), binary over the whole session, with the
+     *  failing replies quoted; a dimension is absent when the meditator never
+     *  gave a turn that calls for it. */
+    conduct?: Partial<Record<ConductDim, { pass: boolean; fails: Array<{ quote: string; why: string }> }>>;
 }
+
+export type ConductDim = '13' | '14';
 
 /**
  * Counts over the facilitator's replies (turns of kind `reply`: answers to

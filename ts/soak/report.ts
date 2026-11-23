@@ -28,7 +28,7 @@ import type { BaselineDiff } from './baseline.js';
 import { JUDGE_DELTA_MIN } from './baseline.js';
 import { FACILITATOR_CALL_KINDS, cachedShare, totalUsage, type UsageTotals } from './usage.js';
 import { replyThirds, sessionStyle, styleOf } from './style.js';
-import { HOLDS_SESSION_MIN_MINUTES } from './judge.js';
+import { CONDUCT_DIMS, HOLDS_SESSION_MIN_MINUTES, rubricSection } from './judge.js';
 
 /** A role as recorded in run.json: what was asked for, and what it resolved to. */
 export interface CastEntry {
@@ -671,6 +671,33 @@ function holdsSection(meta: RunMeta, reports: SessionReport[], multi: boolean): 
     return lines;
 }
 
+/** Rubric 13 and 14, pass or fail over a session, with the replies each
+ *  judge quoted as fails. A session where neither was called for is left out. */
+function conductSection(meta: RunMeta, reports: SessionReport[], multi: boolean): string[] {
+    const judges = judgeModels(meta, reports);
+    const judged = reports.flatMap((r) =>
+        (judges.length ? judges : [undefined]).flatMap((j) => {
+            const v = j === undefined ? r.judge : verdictsBy(r, j, judges[0])[0];
+            return v?.conduct && Object.keys(v.conduct).length ? [{ r, judge: j, conduct: v.conduct }] : [];
+        })
+    );
+    if (judged.length === 0) return [];
+    const names = new Map(CONDUCT_DIMS.map(({ dim }) => [dim, `${dim} ${rubricSection(dim).name.toLowerCase()}`]));
+    const lines = ['## Conduct', '', '_Rubric 13 and 14 (`ts/evals/rubric.md`), Conduct: binary over the whole session, failed by one reply; left out where the meditator never called for one._', ''];
+    for (const { r, judge, conduct } of judged) {
+        const results = CONDUCT_DIMS.flatMap(({ dim }) => {
+            const c = conduct[dim];
+            return c ? [`${names.get(dim)}: ${c.pass ? 'pass' : 'FAIL'}`] : [];
+        });
+        lines.push(`**${sessionSlug(r, multi)}**${judge && judges.length > 1 ? ` *(${judge})*` : ''} ${results.join(' · ')}`);
+        for (const { dim } of CONDUCT_DIMS) {
+            for (const f of conduct[dim]?.fails ?? []) lines.push(`- ${dim}: "${f.quote}"`, `  <br>${f.why}`);
+        }
+        lines.push('');
+    }
+    return lines;
+}
+
 /** Tokens and dollars: the facilitator per model, then what the harness
  *  itself spent. */
 function usageSection(meta: RunMeta, reports: SessionReport[]): string[] {
@@ -754,6 +781,7 @@ export function buildReportMd(
     lines.push(...findingsSection(reports, multi));
     lines.push(...winceSection(meta, reports, multi));
     lines.push(...holdsSection(meta, reports, multi));
+    lines.push(...conductSection(meta, reports, multi));
     lines.push(...judgeSpreadSection(meta, reports, multi));
     lines.push(...styleSection(reports, multi));
     lines.push(...usageSection(meta, reports));
