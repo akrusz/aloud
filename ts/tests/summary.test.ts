@@ -52,6 +52,9 @@ describe('generateSessionSummary', () => {
         // ...and names the sender rather than asking the model to leave its
         // role, which reads as something to refuse (meditation-pal-5srs).
         expect(instruction).not.toContain('step out');
+        // ...and keeps a 中文 session's note in Chinese, which GPT-6 Luna wrote
+        // in English without being told.
+        expect(instruction).toContain("session's language");
     });
 
     it('falls back to the standalone summary system prompt when none is given', async () => {

@@ -8,10 +8,11 @@
  * The instruction is appended as the final user message, so when `provider` is
  * the model that facilitated (Ollama, non-Anthropic BYOK) the system+transcript
  * prefix reads from its warm cache at ~0.1x. Hosted, Anthropic and subscription
- * sessions recap on a separate utility model (the UI's buildUtilityProvider /
- * buildRecapProvider), which has no such cache: there the call is a cold
- * full-transcript pass, affordable because that model is cheap. Omit
- * `systemPrompt` to use the standalone summary prompt.
+ * sessions recap on a separate cheap model (the UI's buildRecapProvider), where
+ * the call is a cold full-transcript pass. Omit `systemPrompt` to use the
+ * standalone summary prompt; the UI does for Haiku, which under the
+ * facilitator's persona declines the note (summaryStandalone in
+ * ui/views/session.ts).
  */
 
 import type { LLMProvider, Message } from '../llm/index.js';
@@ -40,6 +41,9 @@ const SUMMARY_SYSTEM_PROMPT =
  * as a request to refuse, and Kimi K2 opened the saved note with "I can't step
  * out of the facilitator role, but I can summarize..." (meditation-pal-5srs).
  * The recap is framed as the facilitator's own note, which needs no exit.
+ *
+ * The last sentence keeps a 中文 note in Chinese: the English "the meditator"
+ * pulls GPT-6 Luna into English otherwise.
  */
 const SUMMARY_USER_PROMPT =
     'This message is from the app, not the meditator: the session above has ' +
@@ -48,7 +52,7 @@ const SUMMARY_USER_PROMPT =
     'open to pick up later. 2-3 sentences (about 40-60 words), neutral, in the ' +
     'third person. Call them "the meditator" and do not guess a gender; use ' +
     '"they" only where a pronoun cannot be avoided. Output only the note: no ' +
-    'preamble, no questions, no facilitation.';
+    "preamble, no questions, no facilitation. Write it in the session's language.";
 
 /**
  * Don't spend an LLM call recapping a session that barely started; asking anyway
