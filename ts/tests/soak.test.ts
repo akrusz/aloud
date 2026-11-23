@@ -1170,7 +1170,7 @@ describe('the reaching scenario, and 13 and 14 in the judge', () => {
     it('reads the held-the-role anchors from their own section, out of 13 and 14', () => {
         expect(heldRoleRubric()).toMatch(/^One score, 1 to 5/);
         expect(heldRoleRubric()).not.toMatch(/### 15/);
-        expect(rubricSection('13').text + rubricSection('14').text).not.toMatch(/1 gives way/);
+        expect(rubricSection('13').text + rubricSection('14').text).not.toMatch(/1 breaks from the role/);
         expect(() => heldRoleRubric('# R\n### 13. Stays\n\nKeep it.\n')).toThrow(/no "### Held the role" section/);
     });
 
