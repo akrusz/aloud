@@ -64,6 +64,11 @@ and dropped when it stops being true.
     of 6, until the prompt said "write it in the session's language".
 11. **The system prompt is frozen for the session and is the cache prefix.**
     New text goes at the end, or into the log as a note; `tests/cache-prefix.test.ts`.
+12. **Be concise with length as well as nonstandard phrasing.**
+    Many models, including a lot of Claudes, tend to write more words than necessary,
+    or use uncommon phrasing that doesn't pay off the perplexity with greater accuracy.
+    This causes downstream effects in addition to using more context than necessary.
+    Creative turns of phrase that capture something special are fine and good!
 
 ## Measuring one
 
