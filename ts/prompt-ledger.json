@@ -1,5 +1,5 @@
 {
-  "stampedAt": "9f606f3ff33a5424eca983cc0eae36962c69c61c",
+  "stampedAt": "62ae2995595cb40b43687753847fabf3a2f27df0",
   "stampedOn": "2026-11-23",
   "pieces": {
     "prompts/VOICE_STYLE_FRAGMENT": {
@@ -579,7 +579,7 @@
       "status": "draft"
     },
     "rubric/13": {
-      "hash": "6c95d59696e42cb3",
+      "hash": "c16e99456e2097ae",
       "reach": "dev",
       "file": "ts/evals/rubric.md",
       "status": "draft"
@@ -591,7 +591,7 @@
       "status": "draft"
     },
     "rubric/15": {
-      "hash": "c8faf62e3692bfab",
+      "hash": "c9a99c98bb324db1",
       "reach": "dev",
       "file": "ts/evals/rubric.md",
       "status": "draft"
@@ -609,7 +609,7 @@
       "status": "draft"
     },
     "rubric/F3": {
-      "hash": "5fba312626a7c013",
+      "hash": "08ead7cf2f70c280",
       "reach": "dev",
       "file": "ts/evals/rubric.md",
       "status": "draft"
@@ -675,7 +675,7 @@
       "status": "draft"
     },
     "rubric/held-the-role": {
-      "hash": "e5fd53a0742c3988",
+      "hash": "705e71b4c0f7939a",
       "reach": "dev",
       "file": "ts/evals/rubric.md",
       "status": "draft"
@@ -687,7 +687,7 @@
       "status": "draft"
     },
     "eval-judge/panel": {
-      "hash": "6e58d99f88d9b011",
+      "hash": "917638f8226662c4",
       "reach": "dev",
       "file": "ts/evals/judge-core.ts",
       "status": "draft"
@@ -699,13 +699,13 @@
       "status": "draft"
     },
     "soak-judge/system": {
-      "hash": "ff3a99340a4cc06e",
+      "hash": "138f1e874c8f6bf7",
       "reach": "dev",
       "file": "ts/soak/judge.ts",
       "status": "draft"
     },
     "soak-judge/session": {
-      "hash": "0e37dae146a1ab41",
+      "hash": "ced25e32d3d362b5",
       "reach": "dev",
       "file": "ts/soak/judge.ts",
       "status": "draft"
@@ -765,7 +765,7 @@
       "status": "draft"
     },
     "persona/hour-sitter": {
-      "hash": "5a3ebf47ab99ce30",
+      "hash": "de3717ed2daf8d11",
       "reach": "dev",
       "file": "ts/soak/scenarios.ts",
       "status": "draft"
@@ -783,7 +783,7 @@
       "status": "baseline"
     },
     "persona/reaching-sitter": {
-      "hash": "62813bee18c6b753",
+      "hash": "473ae7823539f7a2",
       "reach": "dev",
       "file": "ts/soak/scenarios.ts",
       "status": "draft"
