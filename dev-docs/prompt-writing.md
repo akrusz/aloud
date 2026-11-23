@@ -125,14 +125,34 @@ and dropped when it stops being true.
   facilitator "the facilitator" until told to say "you".
 - **The meditator is not played by a model under test.**
 
-## Layers of assurance
+## When you touch a prompt
 
-No one layer is trusted alone.
+Steps, not principles. "Reach" is where the prompt runs: `session` (shapes what
+a meditator hears or what is saved for them), `support` (runs in production,
+never heard: classifiers, keep-alives), `dev` (evals, soak, scripts).
 
-1. **This page**, read before a prompt is written.
-2. **An inventory** of every prompt, where it runs and whether Alex has read
-   it (`ts/evals/out/prompt-inventory.md` for now).
-3. **A second reader**: a fresh agent audits a new or changed prompt against
-   this page, given the text and not the author's reasoning.
-4. **Measurement**: the variant run above, on every shipped model.
-5. **Alex's read**, always for what a meditator hears.
+Every prompt:
+
+1. Read this page first. If you brief another agent to write or change a
+   prompt, name this page in the brief: it sees only what you send it.
+2. Before committing, get a second reader. Give a fresh agent the new text and
+   this page, and not your reasoning, and ask what a model could do with the
+   text that was not intended. Fix each finding or answer it in the commit
+   message.
+3. Say in the commit message whose words they are: "Alex's wording", or "draft,
+   not read by Alex".
+
+Then, by reach:
+
+- **session**: do not change the shipped text. Run the new wording as a
+  variant (`npx tsx evals/protocol-eval.ts --variant name=file --sweep <name>
+  --fixtures <the turn it is for>,<a neighbour it should leave alone> --runs
+  2`, every shipped model), judge it twice with baseline in the same panels
+  (`npm run evals:judge -- --sweep <name> --models a,a+name,... --tag <tag>`),
+  and give Alex the wording, the counts and the replies. It ships on his word.
+- **support**: commit as a draft if the tests pass, and replay it on stored
+  cases that include the hard ones for that prompt (for a classifier, its
+  look-alikes) on the model that runs it in production. Tell Alex what changed.
+- **dev**: commit as a draft, marked `(**open**)` where it is rubric text. Run
+  it live once to see that it parses and does what was meant. Say in the
+  commit if it makes stored verdicts read as judged at an older rubric.
