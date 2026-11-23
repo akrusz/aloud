@@ -324,30 +324,42 @@ not usable, and the mean hides that.
 ## The suite
 
 55 fixtures today: the first 27 (hold 3, brevity 2, leak 1, felt sense 4, parts
-2, emotions 2, wait 2, stepping out 11: 5 acute, 6 look-alikes), 19 built from
-the table below, and 9 drafts for Conduct and harmful acts. All English, all but
-one Brief, and all but seven at the default guidance.
+2, emotions 2, wait 2, stepping out 11: 5 acute, 6 look-alikes), 19 built for
+the dimensions those did not reach (guidance 3, warmth 3, effort 2, fixing 2,
+lands 2, open 2, recognizer 2, length 1, interpret 1, felt sense 1), and 9
+drafts for Conduct and harmful acts (conduct 6, harm 3). All English, all but
+one Brief (`length/medium`), and all but seven at the default guidance.
 
 | Dimension | Exercised today by | To add |
 |---|---|---|
-| 1 Restraint, 7 Speakability | all | one at Medium length |
-| 2 Non-interpretation | `emotions/no-naming-for-them`, the parts pair | one that begs for an explanation ("why does this keep happening to me?") |
-| 4 Not fixing | `leak/no-meta` only | "this isn't working, nothing's happening"; real grief under the compassionate vibe |
-| 5 Warmth | `emotions/warmth-doorway` | a release ("it just let go, I've carried that for years"); "am I doing this right?"; one under the loving vibe |
-| 6 Effort framing | none | "I keep getting lost in thought", at guidance 2 and at 4 |
-| 8 Deepening | `brevity/deepening`, `stepping-out/not-absorption` | - |
-| 10 Lands on what they said | none built for it | a vivid odd image; two things named, one more alive |
-| 11 Stepping out | the 11 | - |
-| Guidance heard at all | one fixture at Following, one at Somewhat directing | one stuck turn ("I don't know what to do now") at guidance 1, 3 and 5 |
-| F2 Handle | `felt-sense/legitimate-advance` | their word must come back verbatim ("braced") |
-| O1, O2 | `brevity/open-invitation` | "nothing really, it's just quiet"; a jump from body to a thought |
-| What a recognizer hands over | none | a cut fragment ("anymore."), an unpunctuated run-on |
-| 13, 14 Conduct | the six `conduct/` drafts, three each | - |
+| 1a Length, 1b One thing | 35: every turn but the stepping-out, conduct and harm ones; `length/medium` the one at Medium | - |
+| 1c Where it leaves attention | 17, among them the three `guidance/stuck-` turns and the `effort/` pair | - |
+| 2 Non-interpretation | 12: `interpret/why`, `emotions/no-naming-for-them`, the parts pair, `lands/odd-image`, `warmth/release`, `warmth/loving-vibe`, `fixing/grief-compassionate`, `recognizer/cut-fragment`, `leak/no-meta`, `conduct/awake`, `conduct/sister`; all at guidance 2 | one at Balanced or above, where a frame offered as a question passes |
+| 3 Curiosity over knowing | 16, at every guidance level through the `guidance/stuck-` three | - |
+| 4 Not fixing | 11: `fixing/not-working`, `fixing/grief-compassionate`, `interpret/why`, `warmth/doing-it-right`, the `effort/` pair, `hold/false-positive-distress`, `wait/short-in-difficulty`, `leak/no-meta`, `felt-sense/hold-in-story`, `parts/unprompted` | - |
+| 5 Warmth | `emotions/warmth-doorway`, `warmth/release`, `warmth/doing-it-right`, `warmth/loving-vibe`, `fixing/grief-compassionate`, `conduct/more-aware` | - |
+| 6 Effort framing | `effort/lost-in-thought-g2` and `-g4`, `felt-sense/back`, `wait/long-protected-silence` | - |
+| 7 Speakability | all 55 | - |
+| 8 Deepening | `brevity/deepening` only (`stepping-out/not-absorption` is judged on 11 and 7) | a second absorption turn outside stepping out |
+| 9 Sounds like anyone's chatbot | 7: the `fixing/` pair, `warmth/release`, `warmth/doing-it-right`, `emotions/warmth-doorway`, `hold/explicit`, `hold/false-positive-trailing-off` | - |
+| 10 Lands on what they said | 16, built for it `lands/odd-image` and `lands/two-things` | - |
+| 11 Stepping out | the 11 `stepping-out/` turns | - |
+| 12 Holds the session | soak scenarios of 12 to 30 minutes, and the opt-in `hour` | - |
+| 13, 14 Conduct | the six `conduct/` drafts, three each; over a whole session, the opt-in soak scenario `reaching` | - |
 | 15 Harmful acts | the three `harm/` drafts | - |
-| 12 Holds the session | soak scenarios of 12 to 30 minutes | an hour-long soak session with something said early that matters late |
+| F1 Phase discipline | the five `felt-sense/` turns | - |
+| F2 Handle, F3 Resonance | `felt-sense/legitimate-advance`, `felt-sense/handle-braced` | - |
+| F4 Tolerating the unformed | `felt-sense/first-contact` | - |
+| P1, P2, P3 | the parts pair | - |
+| E1 Not naming for them | `emotions/no-naming-for-them` | - |
+| E2, E3 | none, so never scored | one turn built for each |
+| O1, O2 | O1 `brevity/open-invitation`, `open/just-quiet`; O2 `open/body-to-thought` | - |
+| Guidance heard at all | `guidance/stuck-g1`, `-g3` and `-g5`; four more turns at 1 or 4 | - |
+| What a recognizer hands over | `recognizer/cut-fragment`, `recognizer/run-on` | - |
 | 中文 | none | four mirrored turns, with the 中文 pass after the public release |
 
-About 15 new fixtures and one long soak scenario.
+Still to add: a turn for 2 at Balanced or above, a second for 8, one each for
+E2 and E3, and the four 中文 turns.
 
 ## Open, for Alex
 

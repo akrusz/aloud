@@ -9,7 +9,7 @@ import { FIXTURES, type Fixture } from './fixtures.js';
 import { grade, wordCount, type Check } from './grade.js';
 import { settingsLine } from './judge-core.js';
 import { ROSTER, type EvalModel } from './models.js';
-import type { JudgeVerdictRecord, Sweep, Trial, Via } from './records.js';
+import { baseModelId, type JudgeVerdictRecord, type Sweep, type Trial, type Via } from './records.js';
 import { STOCK_PHRASES, stockPhrasesIn } from './stock-phrases.js';
 
 // --- Situation families -----------------------------------------------------
@@ -222,6 +222,8 @@ export function styleOf(
 export interface TypeCount {
     /** Failed replies over the type's families; a reply failing two counts twice. */
     failed: number;
+    /** Replies checked over the type's families, counted the same way. */
+    checked: number;
     /** Any family of this type was checked. */
     measured: boolean;
     /** What failed, in words ("stage 6 of 12"). */
@@ -230,21 +232,22 @@ export interface TypeCount {
 
 /** Phase 1 by type. UX also counts errored calls and empty replies. */
 export function typeCounts(row: Pick<ModelRow, 'cells' | 'errors' | 'empties'>): Record<CheckType, TypeCount> {
-    const out = Object.fromEntries(CHECK_TYPES.map((t) => [t.id, { failed: 0, measured: false, parts: [] as string[] }])) as Record<
-        CheckType,
-        TypeCount
-    >;
+    const out = Object.fromEntries(
+        CHECK_TYPES.map((t) => [t.id, { failed: 0, checked: 0, measured: false, parts: [] as string[] }])
+    ) as Record<CheckType, TypeCount>;
     for (const f of FAMILIES) {
         const c = row.cells[f.id];
         if (!c) continue;
         const t = out[f.type];
         t.measured = true;
         t.failed += c.n - c.pass;
+        t.checked += c.n;
         if (c.pass < c.n) t.parts.push(`${f.label.toLowerCase()} ${c.n - c.pass} of ${c.n}`);
     }
     if (row.errors) out.ux.parts.push(`${row.errors} error${row.errors === 1 ? '' : 's'}`);
     if (row.empties) out.ux.parts.push(`${row.empties} empty`);
     out.ux.failed += row.errors + row.empties;
+    out.ux.checked += row.errors;
     out.ux.measured ||= row.errors > 0;
     return out;
 }
@@ -414,6 +417,9 @@ export interface AggregateOptions {
     fixtures?: readonly Fixture[];
     /** promptHashFor() of every current fixture; without it nothing is stale. */
     currentHashes?: Readonly<Record<string, string>>;
+    /** promptHashFor(fixture, note) for a prompt variant's reply, its note
+     *  read from the file's meta; without it a variant's staleness is unknown. */
+    variantHash?: (fixture: string, note: string) => string | undefined;
     /** Re-run today's checks over stored replies (default true). */
     regrade?: boolean;
 }
@@ -436,13 +442,17 @@ interface Placed {
     trial: Trial;
     sweep: Sweep;
     sweepIndex: number;
+    /** The prompt variant's text (RunMeta.variant). */
+    note?: string;
 }
 
 export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions = {}): EvalSummary {
     const roster = opts.roster ?? ROSTER;
     const fixtureList = opts.fixtures ?? FIXTURES;
     const fixtureById = new Map(fixtureList.map((f) => [f.id, f]));
-    const rosterById = new Map(roster.map((m) => [m.id, m]));
+    const byId = new Map(roster.map((m) => [m.id, m]));
+    // A prompt variant (`model+name`) takes its base model's entry and sorts right after it.
+    const rosterById = { get: (id: string) => byId.get(baseModelId(id)) };
     const hashes = opts.currentHashes ?? {};
     const regrade = opts.regrade ?? true;
 
@@ -454,10 +464,11 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
             (a.meta?.startedAt ?? '').localeCompare(b.meta?.startedAt ?? '')
         );
         for (const file of files) {
+            const note = file.meta?.variant?.text;
             for (const trial of file.trials) {
                 const key = `${trial.model}|${trial.fixture}`;
                 const have = latest.get(key);
-                const placed: Placed = { trial, sweep, sweepIndex };
+                const placed: Placed = { trial, sweep, sweepIndex, ...(note !== undefined && { note }) };
                 if (!have || have[0]!.sweepIndex < sweepIndex) {
                     if (have) superseded.set(trial.model, [...(superseded.get(trial.model) ?? []), ...have]);
                     latest.set(key, [placed]);
@@ -474,9 +485,9 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
         if (regrade && fx && !t.error) return grade(fx, t.raw);
         return { checks: t.checks, spoken: t.spoken };
     };
-    const staleOf = (t: Trial): Staleness => {
+    const staleOf = ({ trial: t, note }: Placed): Staleness => {
         if (!fixtureById.has(t.fixture)) return 'gone';
-        const now = hashes[t.fixture];
+        const now = note !== undefined ? opts.variantHash?.(t.fixture, note) : hashes[t.fixture];
         if (!t.promptHash || !now) return 'unknown';
         return t.promptHash === now ? 'current' : 'stale';
     };
@@ -523,7 +534,7 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
                 ...(t.firstTextMs !== undefined && { firstTextMs: t.firstTextMs }),
                 via: inferVia(t, m),
                 ...(t.at !== undefined && { at: t.at }),
-                stale: staleOf(t),
+                stale: staleOf(placed),
                 ...(t.costUsd !== undefined && { costUsd: t.costUsd }),
                 ...(t.finishReason !== undefined && { finishReason: t.finishReason }),
                 ...(t.servedBy !== undefined && { servedBy: t.servedBy }),
@@ -549,12 +560,13 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
 
     const models: ModelRow[] = [];
     const order = (id: string) => {
-        const i = roster.findIndex((m) => m.id === id);
+        const i = roster.findIndex((m) => m.id === baseModelId(id));
         return i === -1 ? roster.length : i;
     };
     for (const id of [...perModel.keys()].sort((a, b) => order(a) - order(b) || a.localeCompare(b))) {
         const items = perModel.get(id) ?? [];
         const m = rosterById.get(id);
+        const variant = baseModelId(id) !== id;
         const graded = items.map((i) => i.graded);
         const cells: Partial<Record<FamilyId, Cell>> = {};
         for (const f of FAMILIES) {
@@ -608,7 +620,7 @@ export function summarizeEvals(sweeps: readonly Sweep[], opts: AggregateOptions 
         models.push({
             id,
             group: groupOf(m),
-            note: m?.note ?? null,
+            note: variant ? `A prompt variant of ${baseModelId(id)}.${m ? ` ${m.note}` : ''}` : (m?.note ?? null),
             provider: m?.provider ?? items[0]?.placed.trial.provider ?? null,
             providerModel: (providerModels[0] as string | undefined) ?? m?.model ?? null,
             verdict,

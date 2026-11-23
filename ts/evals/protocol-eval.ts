@@ -15,6 +15,11 @@
  *   npx tsx evals/protocol-eval.ts --all --label roster
  *   npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ --runs 5
  *   npx tsx evals/protocol-eval.ts --all --label roster --resume
+ *   npx tsx evals/protocol-eval.ts --models gpt-6-luna --variant honest=note.txt --sweep <name>
+ *
+ * --variant <name>=<file> appends the file's text to every system prompt as a
+ * last paragraph and files the replies as `<model>+<name>`, beside the
+ * baseline's in the same sweep, so the blind judge sees both in one panel.
  *
  * Writes one file per model into a sweep directory, evals/results/<date>-<label>/
  * (records.ts has the shapes); `npm run evals:report` turns the sweeps into a
@@ -141,11 +146,19 @@ function usageOf(r: CompletionResult): TrialUsage | undefined {
     return Object.values(usage).some((v) => v !== null) ? usage : undefined;
 }
 
-async function runTrial(provider: LLMProvider, m: EvalModel, via: Via, fx: Fixture, run: number): Promise<Trial> {
-    const system = systemPromptFor(fx);
+async function runTrial(
+    provider: LLMProvider,
+    m: EvalModel,
+    id: string,
+    note: string | undefined,
+    via: Via,
+    fx: Fixture,
+    run: number
+): Promise<Trial> {
+    const system = systemPromptFor(fx, note);
     const messages = messagesFor(fx);
     const base = {
-        model: m.id,
+        model: id,
         fixture: fx.id,
         description: fx.description,
         run,
@@ -253,6 +266,17 @@ function parseArgs(argv: string[]) {
     const concurrency = Number(get('--concurrency') ?? 4);
     if (!Number.isInteger(runs) || runs < 1) fail('--runs takes a whole number of at least 1.');
     if (!Number.isInteger(concurrency) || concurrency < 1) fail('--concurrency takes a whole number of at least 1.');
+    const variantArg = get('--variant');
+    let variant: RunMeta['variant'];
+    if (variantArg !== undefined) {
+        const eq = variantArg.indexOf('=');
+        const name = eq > 0 ? variantArg.slice(0, eq) : '';
+        if (!/^[a-z0-9][a-z0-9-]*$/i.test(name)) fail('--variant takes <name>=<text file>, the name in letters, digits and dashes.');
+        const path = resolve(variantArg.slice(eq + 1));
+        const text = existsSync(path) ? readFileSync(path, 'utf8').trim() : '';
+        if (!text) fail(`--variant ${name}: no text at ${path}.`);
+        variant = { name, text };
+    }
     return {
         models: argv.includes('--all')
             ? ROSTER
@@ -266,6 +290,7 @@ function parseArgs(argv: string[]) {
         sweep: get('--sweep'),
         label: get('--label'),
         resume: argv.includes('--resume'),
+        variant,
     };
 }
 
@@ -278,7 +303,7 @@ function sweepDirFor(sweep: string | undefined, label: string | undefined, start
 async function main() {
     loadServerEnv();
     const opts = parseArgs(process.argv.slice(2));
-    const { models, fixtures, runs } = opts;
+    const { models, fixtures, runs, variant } = opts;
     if (models.length === 0) fail('No models selected. Use --models <ids> or --all.');
     const startedAt = new Date();
     const outPath = opts.out ? resolve(opts.out) : null;
@@ -293,10 +318,12 @@ async function main() {
         ...(opts.label !== undefined && { label: opts.label }),
         fixtures: fixtures.map((f) => f.id),
         models: ids,
+        ...(variant && { variant }),
     });
 
     const total = models.length * fixtures.length * runs;
     console.log(`${models.length} models x ${fixtures.length} fixtures x ${runs} runs = ${total} calls`);
+    if (variant) console.log(`Variant "${variant.name}", appended to every system prompt: ${variant.text}`);
     if (models.some((m) => m.provider === 'anthropic')) {
         console.log(
             claudeVia() === 'api'
@@ -307,12 +334,13 @@ async function main() {
     console.log(`-> ${outPath ?? sweepDir}${opts.resume ? '  (resuming)' : ''}\n`);
 
     const existingOut = outPath && opts.resume ? readTrials(outPath) : [];
+    const idOf = (m: EvalModel) => (variant ? `${m.id}+${variant.name}` : m.id);
     const existingFor = (m: EvalModel): Trial[] => {
         if (!opts.resume) return [];
-        if (outPath) return existingOut.filter((t) => t.model === m.id);
-        return readTrials(join(sweepDir as string, modelFileName(m.id)));
+        if (outPath) return existingOut.filter((t) => t.model === idOf(m));
+        return readTrials(join(sweepDir as string, modelFileName(idOf(m))));
     };
-    const hashes = new Map(fixtures.map((f) => [f.id, promptHashFor(f)]));
+    const hashes = new Map(fixtures.map((f) => [f.id, promptHashFor(f, variant?.text)]));
 
     const allTrials: Trial[] = [];
     let done = 0;
@@ -335,6 +363,7 @@ async function main() {
             return;
         }
         const via = viaFor(m);
+        const id = idOf(m);
         const existing = existingFor(m);
         const kept = new Set(
             existing.filter((t) => !t.error && t.promptHash).map((t) => `${t.fixture}|${t.run}|${t.promptHash}`)
@@ -348,7 +377,7 @@ async function main() {
                     tick();
                     continue;
                 }
-                fresh.push(await runTrial(provider, m, via, fx, run));
+                fresh.push(await runTrial(provider, m, id, variant?.text, via, fx, run));
                 tick();
             }
         }
@@ -356,8 +385,8 @@ async function main() {
         allTrials.push(...trials);
         // A resume selects a few fixtures but the file holds them all.
         const held = [...new Set(trials.map((t) => t.fixture))];
-        if (sweepDir) writeEnvelope(join(sweepDir, modelFileName(m.id)), { ...metaFor([m.id]), fixtures: held }, trials);
-        say(summaryLine(m, fresh, skipped));
+        if (sweepDir) writeEnvelope(join(sweepDir, modelFileName(id)), { ...metaFor([id]), fixtures: held }, trials);
+        say(summaryLine(id, fresh, skipped));
     };
 
     // Local models share one GPU: they run one at a time, as a single lane
@@ -390,14 +419,14 @@ function median(xs: number[]): number {
     return s[Math.floor(s.length / 2)] ?? 0;
 }
 
-function summaryLine(m: EvalModel, fresh: Trial[], skipped: number): string {
+function summaryLine(id: string, fresh: Trial[], skipped: number): string {
     const ok = fresh.filter((t) => !t.error);
     const avg = fresh.length ? fresh.reduce((a, t) => a + t.score, 0) / fresh.length : 0;
     const first = ok.map((t) => t.firstTextMs).filter((x): x is number => x !== undefined);
     const cost = fresh.reduce((a, t) => a + (t.costUsd ?? 0), 0);
     const errors = fresh.length - ok.length;
     return [
-        m.id.padEnd(24),
+        id.padEnd(24),
         fresh.length ? `${(avg * 100).toFixed(0)}%`.padStart(4) : '   -',
         ok.length ? `  p50 ${median(ok.map((t) => t.latencyMs))}ms` : '',
         first.length ? `  first text ${median(first)}ms` : '',

@@ -239,36 +239,46 @@ function findings(): HTMLElement {
 
 // --- By type ----------------------------------------------------------------------
 
-/** One model's type: Phase 1 failed checks, then each judge's binary fails and
+/** One model's type: Phase 1 failed checks, then each judge that judged the
+ *  model, with its binary fails over the replies it judged on the type and its
  *  weighted mean. Tinted by whether anything failed: red for Safety, orange for
- *  Conduct, amber for the rest. */
+ *  Conduct, amber for the rest; green only over something tested. */
 function typeCell(m: ModelRow, type: CheckType): HTMLElement {
     const p1 = m.types[type];
+    const label = typeLabel(type);
     const judged = data.phase2.judges.flatMap((j) => {
         const mj = j.models.find((x) => x.model === m.id);
-        return mj ? [{ judge: j.judgeModel, ...mj.types[type] }] : [];
+        return mj ? [{ judge: j.judgeModel, ...mj.types[type], replies: mj.judged[type] }] : [];
     });
-    const anyFail = p1.failed > 0 || judged.some((x) => x.fails > 0);
+    const tested = judged.filter((x) => x.replies > 0);
+    const anyFail = p1.failed > 0 || tested.some((x) => x.fails > 0);
     const failTone: Tone = type === 'safety' ? 'critical' : type === 'conduct' ? 'serious' : 'warning';
-    const tone: Tone = !p1.measured && !judged.length ? 'none' : !anyFail ? 'good' : failTone;
+    const tone: Tone = !p1.measured && !tested.length ? 'none' : !anyFail ? 'good' : failTone;
     return h(
         'div',
         { class: `type-cell t-${tone}` },
         h(
             'span',
-            { class: 'line', title: p1.parts.join(', ') || (p1.measured ? 'Every check passed' : 'No fixture checks this') },
+            { class: 'line', title: p1.parts.join(', ') || (p1.measured ? 'Every check passed' : `No ${label} fixture family was run`) },
             h('span', { class: 'jm' }, 'checks'),
-            p1.measured ? h('span', { class: p1.failed ? 'score bad' : 'score' }, p1.failed ? `${p1.failed} failed` : 'passed') : h('span', { class: 'na' }, '-')
+            p1.measured
+                ? h('span', { class: p1.failed ? 'score bad' : 'score' }, `${p1.failed} of ${p1.checked} failed`)
+                : h('span', { class: 'na' }, 'unmeasured')
         ),
         judged.map((x) =>
             h(
                 'span',
                 {
                     class: 'line',
-                    title: `${x.judge}: ${plural(x.fails, 'binary fail')}` + (x.mean !== null ? `, weighted mean ${x.mean.toFixed(2)} over ${plural(x.n, 'reply', 'replies')}` : ''),
+                    title: x.replies
+                        ? `${x.judge}: ${plural(x.fails, 'binary fail')} over ${plural(x.replies, 'reply', 'replies')} judged on ${label}` +
+                          (x.mean !== null ? `, weighted mean ${x.mean.toFixed(2)}` : '')
+                        : `${x.judge} judged this model on no ${label} dimension`,
                 },
                 h('span', { class: 'jm' }, x.judge),
-                h('span', { class: 'score' }, h('span', { class: x.fails ? 'bad' : '' }, plural(x.fails, 'fail')), x.mean !== null ? ` · ${x.mean.toFixed(2)}` : '')
+                x.replies
+                    ? h('span', { class: 'score' }, h('span', { class: x.fails ? 'bad' : '' }, `${plural(x.fails, 'fail')} in ${x.replies}`), x.mean !== null ? ` · ${x.mean.toFixed(2)}` : '')
+                    : h('span', { class: 'na' }, 'not tested')
             )
         )
     );
@@ -293,7 +303,7 @@ function byType(): HTMLElement {
                 'p',
                 { class: 'lede' },
                 'What kind of thing went wrong, not how badly: Safety is a frightened, ungrounded or endangered meditator, or a reply that backs something harmful; Conduct is the facilitator stepping outside what it is (flattery, a friend or partner); core intent is facilitating the way aloud means to; UX is the session running smoothly. ' +
-                    'Each cell: failed Phase 1 checks, then each judge\'s binary fails and weighted mean over the type\'s dimensions (Safety has none, 11 and 15 sit outside the means).'
+                    'Each cell: failed Phase 1 checks of those run, then each judge\'s binary fails in the replies it judged on the type, and its weighted mean (none for Safety: 11 and 15 sit outside the means). Unmeasured and not tested mean nothing of the type was run, not that it passed.'
             )
         ),
         E.models.length
@@ -1304,6 +1314,15 @@ function sessionView(s: SoakSession): HTMLElement {
                             )
                     )
                 ),
+                // 13 and 14 over the session, pass or fail, typed by the rubric (Conduct).
+                Object.entries(j.verdict.conduct ?? {}).map(([dim, c]) => [
+                    h(
+                        'div',
+                        { class: 'expect' },
+                        h('span', { class: `chip${c.pass ? '' : ' bad'}` }, `${dimLabel(dim)}: ${c.pass ? 'pass' : 'fail'}`, typeTag(data.phase2.dimTypes[dim]))
+                    ),
+                    c.fails.map((f) => h('blockquote', { class: 'wince' }, h('q', null, f.quote), h('span', { class: 'small muted' }, f.why))),
+                ]),
                 j.verdict.notes ? h('p', { class: 'small' }, j.verdict.notes) : null,
                 j.verdict.winceMoments.map((w) => h('blockquote', { class: 'wince' }, h('q', null, w.quote), h('span', { class: 'small muted' }, w.why)))
             )

@@ -5,6 +5,9 @@
  *
  * promptHashFor() fingerprints both, so a result measured against an older
  * prompt can be flagged as stale once the prompts change (report.ts).
+ *
+ * A prompt variant (protocol-eval.ts --variant) is a paragraph appended to the
+ * shipped system prompt, to measure a wording before it goes into src/.
  */
 
 import { createHash } from 'node:crypto';
@@ -13,14 +16,16 @@ import { PromptBuilder, StagedModeController, getMode } from '../src/facilitatio
 import type { Message } from '../src/llm/index.js';
 import type { Fixture } from './fixtures.js';
 
-export function systemPromptFor(fx: Fixture): string {
+/** `note`: a variant's text, appended as the system prompt's last paragraph. */
+export function systemPromptFor(fx: Fixture, note?: string): string {
     const mode = getMode(fx.mode);
     let stageSection: string | undefined;
     if (mode?.phases) {
         stageSection = new StagedModeController(mode, fx.phase).promptSection();
     }
     const options = { ...(mode && { mode }), ...(fx.config && { config: fx.config }) };
-    return new PromptBuilder(options).buildSystemPrompt(stageSection);
+    const shipped = new PromptBuilder(options).buildSystemPrompt(stageSection);
+    return note ? `${shipped}\n\n${note}` : shipped;
 }
 
 /** The fixture's history as a session log. A staged fixture's phase travels as
@@ -45,6 +50,6 @@ export function promptHash(system: string, messages: readonly Message[]): string
         .slice(0, 12);
 }
 
-export function promptHashFor(fx: Fixture): string {
-    return promptHash(systemPromptFor(fx), messagesFor(fx));
+export function promptHashFor(fx: Fixture, note?: string): string {
+    return promptHash(systemPromptFor(fx, note), messagesFor(fx));
 }

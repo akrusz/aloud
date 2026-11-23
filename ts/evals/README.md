@@ -27,8 +27,15 @@ npx tsx evals/protocol-eval.ts --fixtures felt-sense/,hold/ # only these fixture
 npx tsx evals/protocol-eval.ts --all --label roster         # -> results/<date>-roster/
 npx tsx evals/protocol-eval.ts --all --label roster --resume  # only the cells not done yet
 npx tsx evals/protocol-eval.ts --all --out evals/out/1.json # one file instead of a sweep
+npx tsx evals/protocol-eval.ts --models gpt-6-luna --variant honest=note.txt --sweep <name>
 npm run evals:report                                        # -> evals/out/report.html
 ```
+
+`--variant <name>=<file>` measures a wording before it goes into `src/`: the
+file's text is appended to every system prompt as a last paragraph, and the
+replies are filed as `<model>+<name>` (`meta.variant` holds the text; the
+`promptHash` covers it). Run the baseline into the same sweep, and the judge
+sees both in one panel.
 
 Keys from the environment or `ts/server/.env` (`soak/env.ts`): `OPENAI_API_KEY`,
 `GOOGLE_API_KEY` or `GEMINI_API_KEY`, `OPENROUTER_API_KEY`. Models whose key is
@@ -61,7 +68,10 @@ npm run evals:judge -- --sweep ollama-tiers-2026-11-14 --every 3 --allow-stale
 `--latest` takes the newest reply per model across sweeps; replies measured at an
 older prompt are left out unless `--allow-stale` (then the verdict says so).
 `--judge` is repeatable (specs as in `soak/providers.ts`); `--every N` judges one
-run index in N; `--fixtures`, `--models`, `--concurrency`; `--resume` skips panels
+run index in N; `--fixtures`, `--models`, `--concurrency`; `--tag <name>` makes a
+separate judging (its own blind order, file and name in the report,
+`<judge>#<name>`): a second pass to see where the judge disagrees with itself,
+or a `--models` subset judged as panels of its own; `--resume` skips panels
 already judged at the same prompt and rubric hashes; `--dry-run` prints the first
 panel's prompt. Errors and empty replies never reach the judge (Phase 1 reports
 them); an answer that fails validation is retried once, then recorded as an error.

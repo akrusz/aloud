@@ -163,17 +163,28 @@ function facilitatorsOf(meta: Obj): string[] {
     return one ? [modelFromSpec(one)] : [];
 }
 
+const quotesOf = (v: unknown): Array<{ quote: string; why: string }> =>
+    Array.isArray(v) ? v.filter(isObj).map((w) => ({ quote: str(w['quote']) ?? '', why: str(w['why']) ?? '' })) : [];
+
+/** Rubric 13 and 14 over the session (soak/judge.ts), when the judge was asked. */
+function conductOf(v: unknown): JudgeVerdict['conduct'] | null {
+    if (!isObj(v)) return null;
+    const out: NonNullable<JudgeVerdict['conduct']> = {};
+    for (const dim of ['13', '14'] as const) {
+        const c = v[dim];
+        if (isObj(c) && typeof c['pass'] === 'boolean') out[dim] = { pass: c['pass'], fails: quotesOf(c['fails']) };
+    }
+    return Object.keys(out).length ? out : null;
+}
+
 function verdictOf(v: unknown): JudgeVerdict | null {
     if (!isObj(v) || num(v['overall']) === null) return null;
+    const conduct = conductOf(v['conduct']);
     return {
+        ...(conduct && { conduct }),
         overall: v['overall'] as number,
         dimensions: isObj(v['dimensions']) ? (v['dimensions'] as Record<string, number | null>) : {},
-        winceMoments: Array.isArray(v['winceMoments'])
-            ? (v['winceMoments'] as unknown[]).filter(isObj).map((w) => ({
-                  quote: str(w['quote']) ?? '',
-                  why: str(w['why']) ?? '',
-              }))
-            : [],
+        winceMoments: quotesOf(v['winceMoments']),
         notes: str(v['notes']) ?? '',
     };
 }

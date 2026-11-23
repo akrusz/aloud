@@ -318,7 +318,7 @@ table.grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.1rem;
-    width: 13rem;
+    width: 14.5rem;
     max-width: 100%;
     padding: 0.25rem 0.45rem 0.25rem 0.55rem;
     border-radius: 4px;
@@ -444,7 +444,7 @@ details.more[open] > summary { margin-bottom: 0.5rem; }
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.1rem;
-    width: 13rem;
+    width: 14.5rem;
     max-width: 100%;
     text-align: left;
     border: 1px solid var(--line);

@@ -7,6 +7,13 @@
  *   npm run evals:judge -- --sweep 2026-11-22-roster
  *   npm run evals:judge -- --latest --judge anthropic:claude-opus-5-5 --judge openai:gpt-6.2-astra --every 3
  *   npm run evals:judge -- --sweep ollama-tiers-2026-11-14 --every 3 --allow-stale
+ *   npm run evals:judge -- --sweep <name> --models a,a+note,b,b+note --tag 2
+ *
+ * --tag <name> makes a separate judging: the blind order is reshuffled, the
+ * verdicts go to judge-<judge model>_<name>.json, and the report shows it as
+ * its own judge, `<judge model>#<name>`. A second pass over the same panels
+ * measures how far the judge agrees with itself; with --models, it judges a
+ * subset of the sweep as panels of their own.
  *
  * The default judge, anthropic:claude-opus-5-5, runs on your subscription
  * (soak/providers.ts scriptClaude, effort low) and costs nothing; any other
@@ -41,6 +48,7 @@ import { ROSTER } from './models.js';
 import { promptHashFor } from './prompt.js';
 import {
     JUDGE_KIND,
+    baseModelId,
     parseJudgeFile,
     readSweep,
     readSweeps,
@@ -85,6 +93,7 @@ function parseArgs(argv: string[]) {
         resume: argv.includes('--resume'),
         allowStale: argv.includes('--allow-stale'),
         dryRun: argv.includes('--dry-run'),
+        tag: get('--tag'),
     };
 }
 
@@ -109,14 +118,18 @@ function git(args: string[]): string | null {
     }
 }
 
-/** Trials by `${model}|${fixture}|${run}`: from one sweep, or the newest
- *  across every sweep. A later file or sweep replaces an earlier one. */
-function collectTrials(sweepDir: string | null): Map<string, Trial> {
+/** Trials by `${model}|${fixture}|${run}`, each with its prompt variant's
+ *  text: from one sweep, or the newest across every sweep. A later file or
+ *  sweep replaces an earlier one. */
+function collectTrials(sweepDir: string | null): Map<string, { t: Trial; note?: string }> {
     const sweeps = sweepDir ? [readSweep(sweepDir)] : readSweeps(RESULTS_DIR);
-    const out = new Map<string, Trial>();
+    const out = new Map<string, { t: Trial; note?: string }>();
     for (const s of sweeps) {
         const files = [...s.files].sort((a, b) => (a.meta?.startedAt ?? '').localeCompare(b.meta?.startedAt ?? ''));
-        for (const f of files) for (const t of f.trials) out.set(`${t.model}|${t.fixture}|${t.run}`, t);
+        for (const f of files) {
+            const note = f.meta?.variant?.text;
+            for (const t of f.trials) out.set(`${t.model}|${t.fixture}|${t.run}`, { t, ...(note && { note }) });
+        }
     }
     return out;
 }
@@ -228,16 +241,21 @@ async function main() {
         ? FIXTURES.filter((f) => opts.fixtures?.some((p) => f.id.startsWith(p)))
         : FIXTURES;
     if (fixtures.length === 0) fail(`No fixture id starts with ${opts.fixtures?.join(' or ')}.`);
-    const currentHash = new Map(fixtures.map((f) => [f.id, promptHashFor(f)]));
+    const currentHash = new Map<string, string>();
+    const hashFor = (fx: Fixture, note: string | undefined): string => {
+        const key = `${fx.id}\u0000${note ?? ''}`;
+        if (!currentHash.has(key)) currentHash.set(key, promptHashFor(fx, note));
+        return currentHash.get(key) as string;
+    };
     const modelFilter = opts.models ? new Set(opts.models) : null;
 
     // Panels: one per fixture and run index, every model that replied.
     const byPanel = new Map<string, { fx: Fixture; run: number; trials: Trial[]; stale: boolean }>();
     let staleSkipped = 0;
-    for (const t of trials.values()) {
+    for (const { t, note } of trials.values()) {
         const fx = fixtures.find((f) => f.id === t.fixture);
         if (!fx || (modelFilter && !modelFilter.has(t.model)) || t.run % opts.every !== 0) continue;
-        const stale = t.promptHash !== currentHash.get(fx.id);
+        const stale = t.promptHash !== hashFor(fx, note);
         if (stale && !opts.allowStale) {
             staleSkipped++;
             continue;
@@ -262,9 +280,9 @@ async function main() {
     const writers: Array<() => void> = [];
     for (const spec of opts.judges) {
         const provider = buildProviderFromSpec(spec);
-        const judgeModel = provider.model;
+        const judgeModel = opts.tag ? `${provider.model}#${opts.tag}` : provider.model;
         const via = viaOf(spec);
-        const judgeFamily = familyOfModelId(judgeModel);
+        const judgeFamily = familyOfModelId(provider.model);
         const path = join(targetDir, `judge-${judgeModel.replace(/[^A-Za-z0-9._-]/g, '_')}.json`);
         const existing = readJudgeFile(path);
         const verdicts = new Map((existing?.verdicts ?? []).map((v) => [panelKey(v), v]));
@@ -293,6 +311,7 @@ async function main() {
         for (const [key, p] of panels) {
             const panel = buildPanel(p.fx, p.run, p.trials, judgeModel);
             if (panel.replies.length < 2) continue;
+            if (panel.replies.length > 26) fail(`${key} has ${panel.replies.length} replies, more than the 26 letters: split it with --models and --tag.`);
             const ins = judgeInstructions(rubric, p.fx);
             const have = verdicts.get(key);
             if (opts.resume && have && isCurrentVerdict(have, panel, ins.hash)) {
@@ -300,7 +319,7 @@ async function main() {
                 continue;
             }
             const sameFamily = panel.replies
-                .filter((r) => familyOfModelId(ROSTER.find((m) => m.id === r.model)?.model ?? r.model) === judgeFamily)
+                .filter((r) => familyOfModelId(ROSTER.find((m) => m.id === baseModelId(r.model))?.model ?? r.model) === judgeFamily)
                 .map((r) => r.model);
             queued++;
             if (opts.dryRun) {

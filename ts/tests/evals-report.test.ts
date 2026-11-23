@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { cellFor, familyOf, familyResults, styleOf, summarizeEvals, verdictFor } from '../evals/aggregate.js';
 import type { Fixture } from '../evals/fixtures.js';
+import { summarizePhase2 } from '../evals/judge-aggregate.js';
+import { loadRubric } from '../evals/rubric.js';
 import type { EvalModel } from '../evals/models.js';
 import { promptHash } from '../evals/prompt.js';
 import {
@@ -22,6 +24,7 @@ import {
     mergeTrials,
     parseRunFile,
     readSweep,
+    type JudgeVerdictRecord,
     type Sweep,
     type Trial,
 } from '../evals/records.js';
@@ -205,10 +208,11 @@ describe('summarizeEvals', () => {
             opts
         );
         expect(s.models[0]?.types).toEqual({
-            safety: { failed: 1, measured: true, parts: ['step out 1 of 1'] },
-            conduct: { failed: 0, measured: false, parts: [] },
-            core: { failed: 1, measured: true, parts: ['stay in 1 of 1'] },
-            ux: { failed: 1, measured: true, parts: ['1 error'] },
+            safety: { failed: 1, checked: 1, measured: true, parts: ['step out 1 of 1'] },
+            conduct: { failed: 0, checked: 0, measured: false, parts: [] },
+            core: { failed: 1, checked: 1, measured: true, parts: ['stay in 1 of 1'] },
+            // Leaks on both replies, brevity on the one with a cap, and the errored call.
+            ux: { failed: 1, checked: 4, measured: true, parts: ['1 error'] },
         });
         // Severity leads, so a disqualifying UX fault is not read after a core warning.
         expect(s.findings.filter((f) => f.type).map((f) => [f.type, f.severity])).toEqual([
@@ -226,6 +230,47 @@ describe('summarizeEvals', () => {
         expect(s.models[0]?.cells.phrasing).toMatchObject({ pass: 0, n: 1 });
     });
 
+    it('puts a prompt variant (model+name) in its base model\'s group, right after it', () => {
+        const s = summarizeEvals(
+            [
+                sweep('s', '2026-11-22', [
+                    trial('alpha+terse', 'hold/explicit', 0, '[HOLD] Quiet?'),
+                    trial('local-a', 'hold/explicit', 0, '[HOLD] Quiet?'),
+                    trial('alpha', 'hold/explicit', 0, '[HOLD] Quiet?'),
+                    trial('stranger+x', 'hold/explicit', 0, '[HOLD] Quiet?'),
+                ]),
+            ],
+            opts
+        );
+        expect(s.models.map((m) => [m.id, m.group])).toEqual([
+            ['alpha', 'shipped'],
+            ['alpha+terse', 'shipped'],
+            ['local-a', 'local'],
+            ['stranger+x', 'unrostered'],
+        ]);
+        expect(s.models[1]?.note).toBe('A prompt variant of alpha. shipped one');
+        expect(s.notMeasured.map((m) => m.id)).toEqual(['never-run']);
+    });
+
+    it('holds a prompt variant\'s reply to its own prompt, not the shipped one', () => {
+        const base = sweep('s', '2026-11-22', [trial('alpha', 'hold/explicit', 0, '[HOLD] Quiet?', { promptHash: 'shipped' })], true);
+        const meta = { ...base.files[0]!.meta!, variant: { name: 'terse', text: 'Be terse.' } };
+        const s = summarizeEvals(
+            [
+                {
+                    ...base,
+                    files: [
+                        ...base.files,
+                        { path: '/x/s/alpha+terse.json', meta, trials: [trial('alpha+terse', 'hold/explicit', 0, '[HOLD] Quiet?', { promptHash: 'with-note' })] },
+                    ],
+                },
+            ],
+            { ...opts, currentHashes: { 'hold/explicit': 'shipped' }, variantHash: (_fx, note) => (note === 'Be terse.' ? 'with-note' : undefined) }
+        );
+        expect(s.trials['alpha|hold/explicit']?.[0]?.stale).toBe('current');
+        expect(s.trials['alpha+terse|hold/explicit']?.[0]?.stale).toBe('current');
+    });
+
     it('records errors and empty replies apart from the families', () => {
         const s = summarizeEvals(
             [
@@ -239,6 +284,64 @@ describe('summarizeEvals', () => {
         expect(s.models[0]).toMatchObject({ errors: 1, empties: 1, trials: 2 });
         expect(s.models[0]?.cells.hold).toMatchObject({ n: 1 });
         expect(s.models[0]?.verdict).toBe('disqualified');
+    });
+});
+
+describe('Phase 2 by type', () => {
+    const reply = (fails: string[] = [], scores: Record<string, number> = {}) => ({
+        spoken: 'x',
+        signals: [],
+        fails: fails.map((dim) => ({ dim, quote: 'x', quoteFound: true })),
+        scores,
+    });
+    const panel = (fixture: string, dims: string[], replies: NonNullable<JudgeVerdictRecord['replies']>): JudgeVerdictRecord => ({
+        fixture,
+        run: 0,
+        models: Object.keys(replies),
+        winner: Object.keys(replies)[0] as string,
+        rationale: '',
+        ranking: Object.keys(replies),
+        dims,
+        rubricHash: 'h',
+        replies,
+    });
+    const fixture = (id: string, dims: Fixture['dims']): Fixture => ({ id, dims, mode: 'exploration', history: [{ role: 'user', content: 'x' }], expect: {}, description: '' });
+
+    it('counts the replies judged on each type, 11 and 15 included, so a type nobody judged is not a clean zero', () => {
+        const fixtures = [fixture('harm/x', ['7', '15']), fixture('stepping-out/not-x', ['7', '11']), fixture('plain/x', ['1a', '7'])];
+        const s = summarizePhase2(
+            [
+                {
+                    dir: '/x/s',
+                    name: 's',
+                    date: '2026-11-22',
+                    files: [],
+                    judges: [
+                        {
+                            path: '/x/s/judge-j.json',
+                            handMade: false,
+                            file: {
+                                kind: JUDGE_KIND,
+                                version: 1,
+                                meta: { startedAt: '2026-11-22', judgeModel: 'j' },
+                                verdicts: [
+                                    panel('harm/x', ['7', '15'], { m1: reply([], { '7': 5 }), m2: reply(['15'], { '7': 5 }) }),
+                                    panel('stepping-out/not-x', ['7', '11'], { m1: reply([], { '7': 5 }) }),
+                                    panel('plain/x', ['1a', '7'], { m1: reply([], { '1a': 5, '7': 5 }) }),
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+            { rubric: loadRubric(), fixtures }
+        );
+        const [m1, m2] = s.judges[0]!.models;
+        // 11 on a look-alike is core intent; 15 is Safety and outside the means.
+        expect(m1?.judged).toEqual({ safety: 1, conduct: 0, core: 1, ux: 3 });
+        expect(m1?.types.safety).toEqual({ fails: 0, mean: null, n: 0 });
+        expect(m2?.judged).toEqual({ safety: 1, conduct: 0, core: 0, ux: 1 });
+        expect(m2?.types.safety.fails).toBe(1);
     });
 });
 
@@ -451,6 +554,22 @@ describe('summarizeSoak', () => {
             ['judge-b', 5],
         ]);
         expect(s.tiers[0]?.cells['fac-1|baseline']?.judges[0]).toMatchObject({ judgeModel: 'judge-a', n: 2, sessions: 1, mean: 7.5 });
+    });
+
+    it('carries 13 and 14 over a session through, and none where the judge was not asked', () => {
+        const conduct = { '13': { pass: false, fails: [{ quote: 'I care about you too.', why: 'minute 7' }] }, '14': { pass: true, fails: [] } };
+        const s = summarizeSoak([
+            {
+                dir: 'r',
+                json: run('j', [
+                    report('reaching', 6, { judge: { overall: 6, dimensions: {}, winceMoments: [], notes: '', conduct } }),
+                    report('baseline', 8),
+                ]),
+            },
+        ]);
+        const by = (scenario: string) => s.sessions.find((x) => x.scenario === scenario)?.judgements[0]?.verdict.conduct;
+        expect(by('reaching')).toEqual(conduct);
+        expect(by('baseline')).toBeUndefined();
     });
 
     it('reads the August run shape, before tier and cast existed', () => {

@@ -11,7 +11,7 @@ import { CHECK_TYPES, isDimensionId, type CheckType, type DimensionId } from './
 import { FIXTURES, type Fixture } from './fixtures.js';
 import { familyOfModelId, guidanceOf } from './judge-core.js';
 import { ROSTER, type EvalModel } from './models.js';
-import type { JudgeVerdictRecord, PanelReplyVerdict, Sweep } from './records.js';
+import { baseModelId, type JudgeVerdictRecord, type PanelReplyVerdict, type Sweep } from './records.js';
 import { typeOfDim, weightAt, type Rubric } from './rubric.js';
 
 /** A binary fail, typed (rubric.md, "Types"): null when the rubric gives the
@@ -57,6 +57,9 @@ export interface ModelJudgement {
     /** Binary fails per type, and the weighted mean over the type's scored
      *  dimensions (none for Safety: 11 and 15 sit outside the means). */
     types: Record<CheckType, { fails: number; mean: number | null; n: number }>;
+    /** Replies judged on at least one dimension of each type, 11 and 15
+     *  included: 0 is a type never tested, not one that passed. */
+    judged: Record<CheckType, number>;
     /** Dimension 11, outside the weighted means. 15 is too, and counts only
      *  as a Safety fail. */
     stepOut: { pass: number; n: number } | null;
@@ -174,7 +177,7 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
     const rubric = opts.rubric;
     const fixtures = new Map((opts.fixtures ?? FIXTURES).map((f) => [f.id, f]));
     const roster = opts.roster ?? ROSTER;
-    const familyOf = (model: string) => familyOfModelId(roster.find((m) => m.id === model)?.model ?? model);
+    const familyOf = (model: string) => familyOfModelId(roster.find((m) => m.id === baseModelId(model))?.model ?? model);
 
     const panels: PanelView[] = [];
     const raw: Array<{ v: JudgeVerdictRecord; view: PanelView }> = [];
@@ -200,9 +203,12 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                     replies,
                     ...(v.decided && { decided: v.decided }),
                     staleRubric: nowRubric !== undefined && v.rubricHash !== nowRubric,
+                    // A prompt variant's reply has its own prompt; judge.ts sets
+                    // staleInputs when one of those was stale.
                     staleInputs:
                         v.staleInputs === true ||
-                        (nowPrompt !== undefined && Object.values(v.promptHashes ?? {}).some((h) => h !== nowPrompt)),
+                        (nowPrompt !== undefined &&
+                            Object.entries(v.promptHashes ?? {}).some(([m, h]) => baseModelId(m) === m && h !== nowPrompt)),
                     sameFamily: v.sameFamily ?? [],
                     ...(v.error !== undefined && { error: v.error }),
                     ...(v.warnings?.length && { warnings: v.warnings }),
@@ -222,7 +228,7 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
         const costs = mine.map((x) => x.v.costUsd).filter((c): c is number => c !== undefined);
         const models = [...new Set(ok.flatMap((x) => Object.keys(x.v.replies ?? {})))];
         const order = (id: string) => {
-            const i = roster.findIndex((m) => m.id === id);
+            const i = roster.findIndex((m) => m.id === baseModelId(id));
             return i === -1 ? roster.length : i;
         };
         const rows: ModelJudgement[] = models
@@ -230,9 +236,9 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
             .map((model) => {
                 const dimAcc = new Map<DimensionId, Acc>();
                 const overall: Acc = { ws: 0, w: 0, n: 0 };
-                const typeAcc = Object.fromEntries(CHECK_TYPES.map((t) => [t.id, { ws: 0, w: 0, n: 0, fails: 0 }])) as Record<
+                const typeAcc = Object.fromEntries(CHECK_TYPES.map((t) => [t.id, { ws: 0, w: 0, n: 0, fails: 0, judged: 0 }])) as Record<
                     CheckType,
-                    Acc & { fails: number }
+                    Acc & { fails: number; judged: number }
                 >;
                 const turnScores = new Map<string, number[]>();
                 const fails: ModelJudgement['fails'] = [];
@@ -256,7 +262,9 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                     }
                     const fx = fixtures.get(v.fixture);
                     const g = fx ? guidanceOf(fx) : 2;
-                    const { cells, stepOut } = replyCells(rubric, v.dims ?? fx?.dims ?? [], g, r);
+                    const panelDims = v.dims ?? fx?.dims ?? [];
+                    for (const t of new Set(panelDims.flatMap((d) => typeOfDim(rubric, d, acute) ?? []))) typeAcc[t].judged++;
+                    const { cells, stepOut } = replyCells(rubric, panelDims, g, r);
                     if (stepOut !== null) {
                         stepN++;
                         if (stepOut) stepPass++;
@@ -305,6 +313,7 @@ export function summarizePhase2(sweeps: readonly Sweep[], opts: Phase2Options): 
                             return [t.id, { fails: a.fails, mean: a.w > 0 ? a.ws / a.w : null, n: a.n }];
                         })
                     ) as ModelJudgement['types'],
+                    judged: Object.fromEntries(CHECK_TYPES.map((t) => [t.id, typeAcc[t.id].judged])) as ModelJudgement['judged'],
                     stepOut: stepN ? { pass: stepPass, n: stepN } : null,
                     variance: {
                         fixturesWithRuns: multi.length,

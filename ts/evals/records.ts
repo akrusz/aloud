@@ -3,7 +3,8 @@
  * report.ts reads, and the reader for a results directory.
  *
  * Layout: ts/evals/results/<sweep>/, one sweep per directory.
- *   <model-id>.json    a RunEnvelope (or, before 2026-11-22, a bare Trial[])
+ *   <model-id>.json    a RunEnvelope (or, before 2026-11-22, a bare Trial[]);
+ *                      a prompt variant's under <model-id>+<variant>.json
  *   judge-<name>.json  a JudgeFile: Phase 2 blind verdicts over this sweep
  *   verdict-<name>.json + key-<name>.json
  *                      a blind comparison made by hand before JudgeFile
@@ -28,7 +29,8 @@ export interface TrialUsage {
 }
 
 export interface Trial {
-    /** Roster id (models.ts). */
+    /** Roster id (models.ts), or `<roster id>+<variant>` for a reply to a
+     *  prompt variant (RunMeta.variant). */
     model: string;
     fixture: string;
     /** The fixture's description when it ran. */
@@ -74,6 +76,10 @@ export interface RunMeta {
     fixtures: string[];
     /** Roster ids in this file. */
     models: string[];
+    /** Every call in this file had `text` appended to its system prompt as a
+     *  last paragraph (protocol-eval.ts --variant); its trials are filed under
+     *  `<roster id>+<name>`. */
+    variant?: { name: string; text: string };
 }
 
 export interface RunEnvelope {
@@ -153,8 +159,9 @@ export interface JudgeFile {
     version: 1;
     meta: {
         startedAt: string;
-        /** Provider-native id, or 'unrecorded' for a hand-made verdict-/key-
-         *  pair whose sweep has no blind-judge.json. */
+        /** Provider-native id, `#<tag>` after it for a tagged judging (judge.ts
+         *  --tag), or 'unrecorded' for a hand-made verdict-/key- pair whose
+         *  sweep has no blind-judge.json. */
         judgeModel: string;
         judgeVia?: Via;
         label?: string;
@@ -337,5 +344,10 @@ export function mergeTrials(existing: readonly Trial[], fresh: readonly Trial[])
 
 /** The file name a model's trials live under in a sweep directory. */
 export function modelFileName(modelId: string): string {
-    return `${modelId.replace(/[^A-Za-z0-9._-]/g, '_')}.json`;
+    return `${modelId.replace(/[^A-Za-z0-9._+-]/g, '_')}.json`;
+}
+
+/** The roster id under a trial's model id: `gpt-6-luna+honest` -> `gpt-6-luna`. */
+export function baseModelId(modelId: string): string {
+    return modelId.split('+')[0] as string;
 }

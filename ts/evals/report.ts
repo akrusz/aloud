@@ -67,6 +67,15 @@ function readSoakRuns(dir: string): Array<{ dir: string; json: unknown }> {
 
 export function buildReportData(resultsDir: string, soakDir: string): ReportData {
     const currentHashes = Object.fromEntries(FIXTURES.map((f) => [f.id, promptHashFor(f)]));
+    const variantHashes = new Map<string, string | undefined>();
+    const variantHash = (id: string, note: string): string | undefined => {
+        const key = `${id}\u0000${note}`;
+        if (!variantHashes.has(key)) {
+            const fx = FIXTURES.find((f) => f.id === id);
+            variantHashes.set(key, fx && promptHashFor(fx, note));
+        }
+        return variantHashes.get(key);
+    };
     const rubric = loadRubric();
     const currentRubricHashes = Object.fromEntries(FIXTURES.map((f) => [f.id, judgeInstructions(rubric, f).hash]));
     const sweeps = readSweeps(resultsDir);
@@ -75,7 +84,7 @@ export function buildReportData(resultsDir: string, soakDir: string): ReportData
         generatedAt: new Date().toISOString(),
         gitSha: git(['rev-parse', '--short=10', 'HEAD']),
         gitDirty: dirty === null ? null : dirty !== '',
-        evals: summarizeEvals(sweeps, { currentHashes }),
+        evals: summarizeEvals(sweeps, { currentHashes, variantHash }),
         phase2: summarizePhase2(sweeps, { rubric, currentRubricHashes, currentPromptHashes: currentHashes }),
         soak: summarizeSoak(readSoakRuns(soakDir), costByModelId),
     };
