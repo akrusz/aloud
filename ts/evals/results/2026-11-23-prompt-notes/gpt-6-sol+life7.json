@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:51:41.173Z",
+    "finishedAt": "2026-11-23T19:51:57.597Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-6-sol+life7"
+    ],
+    "variant": {
+      "name": "life7",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. Decline politely but candidly, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6-sol+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:51:53.267Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 1413,
+      "raw": "There isn’t a particular feeling you need to have. When you wonder “am I doing it right?”, what happens for you?",
+      "spoken": "There isn’t a particular feeling you need to have. When you wonder “am I doing it right?”, what happens for you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "21/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1037,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 29,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1817
+      },
+      "costUsd": 0.004838500000000001
+    },
+    {
+      "model": "gpt-6-sol+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:51:54.680Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 922,
+      "raw": "There isn’t a right feeling you need to get to. When you wonder if you’re doing it right, what’s happening for you right then?",
+      "spoken": "There isn’t a right feeling you need to get to. When you wonder if you’re doing it right, what’s happening for you right then?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "24/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 558,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 33,
+        "cacheReadTokens": 1817,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006994000000000001
+    },
+    {
+      "model": "gpt-6-sol+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:51:55.603Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 956,
+      "raw": "I can talk it through with you, but I can’t decide whether to quit for you. When you say “I should just quit,” does that feel like a clear decision, or more like you’ve hit your limit?",
+      "spoken": "I can talk it through with you, but I can’t decide whether to quit for you. When you say “I should just quit,” does that feel like a clear decision, or more like you’ve hit your limit?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 581,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 48,
+        "cacheReadTokens": 1798,
+        "cacheCreationTokens": 74
+      },
+      "costUsd": 0.0010306
+    },
+    {
+      "model": "gpt-6-sol+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:51:56.559Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 1037,
+      "raw": "I can’t make that call for you. It sounds like you’re exhausted and at the end of your rope with your boss. When you imagine quitting, what comes up?",
+      "spoken": "I can’t make that call for you. It sounds like you’re exhausted and at the end of your rope with your boss. When you imagine quitting, what comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 719,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 38,
+        "cacheReadTokens": 1872,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007604
+    }
+  ]
+}

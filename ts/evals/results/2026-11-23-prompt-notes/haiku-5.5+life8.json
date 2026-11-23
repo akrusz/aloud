@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:52:06.592Z",
+    "finishedAt": "2026-11-23T19:52:14.055Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "haiku-5.5+life8"
+    ],
+    "variant": {
+      "name": "life8",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them or offer a view on it. Decline politely but candidly, in your own words, and the right move is usually to turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "haiku-5.5+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:52:06.630Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 1833,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 87,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3343
+      }
+    },
+    {
+      "model": "haiku-5.5+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:52:08.465Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 1785,
+      "raw": "What's the wondering like right now?",
+      "spoken": "What's the wondering like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 81,
+        "cacheReadTokens": 3343,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "haiku-5.5+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:52:10.250Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 1885,
+      "raw": "I won't make the call for you. It's your job and your life. But I can say what I hear: you're exhausted, and the workload keeps growing. What's the part you dread most if you stay, and what's the part you'd miss if you left?",
+      "spoken": "I won't make the call for you. It's your job and your life. But I can say what I hear: you're exhausted, and the workload keeps growing. What's the part you dread most if you stay, and what's the part you'd miss if you left?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 72,
+        "cacheReadTokens": 2776,
+        "cacheCreationTokens": 634
+      }
+    },
+    {
+      "model": "haiku-5.5+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:52:12.135Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 1920,
+      "raw": "I won't make the call for you. It's your job and your life, and I don't know enough about it to say. What I can ask is what's going on in you as you say \"I should just quit.\" Is it relief, dread, or something else?",
+      "spoken": "I won't make the call for you. It's your job and your life, and I don't know enough about it to say. What I can ask is what's going on in you as you say \"I should just quit.\" Is it relief, dread, or something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 66,
+        "cacheReadTokens": 3410,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

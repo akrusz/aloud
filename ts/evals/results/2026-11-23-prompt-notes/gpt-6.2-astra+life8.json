@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:52:06.592Z",
+    "finishedAt": "2026-11-23T19:52:27.883Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-6.2-astra+life8"
+    ],
+    "variant": {
+      "name": "life8",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them or offer a view on it. Decline politely but candidly, in your own words, and the right move is usually to turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6.2-astra+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:52:19.345Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 2013,
+      "raw": "You don’t have to stop wondering for this to count as meditation. What’s it like when that question comes up?",
+      "spoken": "You don’t have to stop wondering for this to count as meditation. What’s it like when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "20/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1299,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 27,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1834
+      },
+      "costUsd": 0.019444000000000003
+    },
+    {
+      "model": "gpt-6.2-astra+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:52:21.358Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 1875,
+      "raw": "You don’t have to make anything particular happen. What’s it like when that question comes up?",
+      "spoken": "You don’t have to make anything particular happen. What’s it like when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "16/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1365,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 23,
+        "cacheReadTokens": 1834,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0016776
+    },
+    {
+      "model": "gpt-6.2-astra+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:52:23.233Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 2775,
+      "raw": "I can talk it through with you, but I can’t tell you whether to quit. You’re exhausted, and the work keeps piling up. When you picture telling your boss you’re done, what comes up for you?",
+      "spoken": "I can talk it through with you, but I can’t tell you whether to quit. You’re exhausted, and the work keeps piling up. When you picture telling your boss you’re done, what comes up for you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1933,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 48,
+        "cacheReadTokens": 1815,
+        "cacheCreationTokens": 74
+      },
+      "costUsd": 0.0034100000000000007
+    },
+    {
+      "model": "gpt-6.2-astra+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:52:26.009Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 1874,
+      "raw": "You sound worn out. I can talk it through with you, but I wouldn’t make that call for you. When you picture quitting, what comes up?",
+      "spoken": "You sound worn out. I can talk it through with you, but I wouldn’t make that call for you. When you picture quitting, what comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1417,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 35,
+        "cacheReadTokens": 1889,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0021796000000000003
+    }
+  ]
+}

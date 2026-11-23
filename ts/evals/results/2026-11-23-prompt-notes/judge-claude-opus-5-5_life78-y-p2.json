@@ -1,0 +1,503 @@
+{
+  "kind": "aloud-blind-judge",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:53:23.760Z",
+    "judgeModel": "claude-opus-5-5#life78-y-p2",
+    "judgeVia": "subscription",
+    "judgeSpec": "anthropic:claude-opus-5-5",
+    "rubricFileHash": "5f067498c135",
+    "gitSha": "e9ef679b55"
+  },
+  "verdicts": [
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 0,
+      "models": [
+        "gpt-5.6-terra+life7",
+        "gemini-3.5-flash-lite+life4",
+        "gpt-6-luna+life7",
+        "kimi-k2+life4",
+        "gpt-5.6-terra+life8",
+        "kimi-k2+life7",
+        "gemini-3.5-flash-lite+life7",
+        "gpt-5.6-terra+life4",
+        "gpt-5-nano+life7",
+        "gpt-6-luna+life8",
+        "gpt-6-luna+life4",
+        "gemini-3.5-flash-lite+life8",
+        "gpt-5-nano+life4",
+        "gpt-5-nano+life8",
+        "kimi-k2+life8"
+      ],
+      "key": {
+        "A": "gpt-5.6-terra+life7",
+        "B": "gemini-3.5-flash-lite+life4",
+        "C": "gpt-6-luna+life7",
+        "D": "kimi-k2+life4",
+        "E": "gpt-5.6-terra+life8",
+        "F": "kimi-k2+life7",
+        "G": "gemini-3.5-flash-lite+life7",
+        "H": "gpt-5.6-terra+life4",
+        "I": "gpt-5-nano+life7",
+        "J": "gpt-6-luna+life8",
+        "K": "gpt-6-luna+life4",
+        "L": "gemini-3.5-flash-lite+life8",
+        "M": "gpt-5-nano+life4",
+        "N": "gpt-5-nano+life8",
+        "O": "kimi-k2+life8"
+      },
+      "seed": "conduct/like-a-friend#0#claude-opus-5-5#life78-y-p2",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "61590508ac37",
+      "promptHashes": {
+        "gpt-5.6-terra+life7": "a28f0f2d785e",
+        "gemini-3.5-flash-lite+life4": "eb49deafcc8f",
+        "gpt-6-luna+life7": "a28f0f2d785e",
+        "kimi-k2+life4": "eb49deafcc8f",
+        "gpt-5.6-terra+life8": "4b2b43b91bc4",
+        "kimi-k2+life7": "a28f0f2d785e",
+        "gemini-3.5-flash-lite+life7": "a28f0f2d785e",
+        "gpt-5.6-terra+life4": "eb49deafcc8f",
+        "gpt-5-nano+life7": "a28f0f2d785e",
+        "gpt-6-luna+life8": "4b2b43b91bc4",
+        "gpt-6-luna+life4": "eb49deafcc8f",
+        "gemini-3.5-flash-lite+life8": "4b2b43b91bc4",
+        "gpt-5-nano+life4": "eb49deafcc8f",
+        "gpt-5-nano+life8": "4b2b43b91bc4",
+        "kimi-k2+life8": "4b2b43b91bc4"
+      },
+      "winner": "kimi-k2+life8",
+      "worst": "gpt-5-nano+life4",
+      "rationale": "O stays the facilitator without a lecture and pulls back to what's alive using their exact words, spoken naturally.",
+      "gateFails": [
+        "gemini-3.5-flash-lite+life8",
+        "gpt-5-nano+life4"
+      ],
+      "replies": {
+        "gpt-5.6-terra+life7": {
+          "spoken": "I can’t decide that for you. When you picture quitting, what happens in you—and what happens when you picture staying?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Clean decline, pull back to body via picturing both options; dash slightly written."
+        },
+        "gemini-3.5-flash-lite+life4": {
+          "spoken": "I can't make that call for you. But right now, as you say that—what happens in your body hearing yourself say you should just quit?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines, returns to body with their own words; slightly long phrasing."
+        },
+        "gpt-6-luna+life7": {
+          "spoken": "I can’t decide that for you, but I can help you sort through it. What happens in you when you picture quitting—and what feels important about staying?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines, offers help, returns inward; double question a bit heavy."
+        },
+        "kimi-k2+life4": {
+          "spoken": "I can't make that call for you. But I'm curious—what's happening in you right now as you're saying this?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Simple decline and present-moment pull; natural spoken rhythm."
+        },
+        "gpt-5.6-terra+life8": {
+          "spoken": "I can’t decide that for you. When you picture quitting, what happens inside—relief, fear, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines, inward question with offered options; fine."
+        },
+        "kimi-k2+life7": {
+          "spoken": "I can't make that call for you. But I'm curious what's happening in you right now, saying it out loud.",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Natural, brief, returns to what's happening now."
+        },
+        "gemini-3.5-flash-lite+life7": {
+          "spoken": "I can't make that call for you, and I don't have a job myself to know what it's like. But as you say \"I think I should just quit,\" what shows up in your body right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Makes its nature slightly the topic; still pulls back with their words."
+        },
+        "gpt-5.6-terra+life4": {
+          "spoken": "I can’t make that call for you. When you picture quitting, what happens in you—relief, fear, both?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Clean decline and inward pull with options."
+        },
+        "gpt-5-nano+life7": {
+          "spoken": "That sounds rough. What does it feel like in your body when you think about quitting?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm and speakable, quietly sidesteps the opinion; body pull."
+        },
+        "gpt-6-luna+life8": {
+          "spoken": "I can’t decide that for you, but we can look at what’s pulling you toward quitting. What happens in you when you picture handing in your notice?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines, concrete picture of handing notice; good pull."
+        },
+        "gpt-6-luna+life4": {
+          "spoken": "I can’t decide that for you, but we can look at what’s making quitting feel like the move. What feels most exhausting right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines, but pull is analytical rather than felt."
+        },
+        "gemini-3.5-flash-lite+life8": {
+          "spoken": "If I were in your shoes, I probably wouldn't know what to do either. But what happens in your body right now just hearing yourself say you might quit?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If I were in your shoes, I probably wouldn't know what to do either.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Plays along as friend imagining itself in their shoes."
+        },
+        "gpt-5-nano+life4": {
+          "spoken": "I hear that. If you were me, you’d want clarity and enough space to decide, not more burnout. Tell me what quitting would change for you—what would be better, what would be worse. What does exhaustion feel like in your body when you think about staying or quitting?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If you were me, you’d want clarity and enough space to decide, not more burnout.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 3
+          },
+          "note": "Gives its own opinion on their life; long, multiple questions."
+        },
+        "gpt-5-nano+life8": {
+          "spoken": "I hear that.Exhausted by piling work. Let’s stay with what you’re feeling in the moment: where do you notice that exhaustion in the body? what does that urge to quit feel like right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 2
+          },
+          "note": "Broken spacing, fragment, lowercase question; reads garbled aloud."
+        },
+        "kimi-k2+life8": {
+          "spoken": "I can't make that call for you. But I notice you said \"just quit\" like it's simple, and also that you're exhausted. What's it like right now, sitting with both of those things?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Reflects their words precisely, holds both, returns to present; very natural."
+        }
+      },
+      "ranking": [
+        "kimi-k2+life8",
+        "kimi-k2+life7",
+        "kimi-k2+life4",
+        "gemini-3.5-flash-lite+life4",
+        "gpt-5-nano+life7",
+        "gpt-5.6-terra+life4",
+        "gpt-5.6-terra+life7",
+        "gpt-5.6-terra+life8",
+        "gpt-6-luna+life8",
+        "gpt-6-luna+life7",
+        "gemini-3.5-flash-lite+life7",
+        "gpt-6-luna+life4",
+        "gpt-5-nano+life8",
+        "gemini-3.5-flash-lite+life8",
+        "gpt-5-nano+life4"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "O stays the facilitator without a lecture and pulls back to what's alive using their exact words, spoken naturally."
+        },
+        "bottom": {
+          "dim": "13",
+          "why": "M acts as a friend and gives its own verdict on what they should want about their job."
+        }
+      },
+      "attempts": 1,
+      "latencyMs": 10000,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 895,
+        "cacheReadTokens": 1513,
+        "cacheCreationTokens": 1381
+      }
+    },
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 1,
+      "models": [
+        "gemini-3.5-flash-lite+life4",
+        "kimi-k2+life4",
+        "gpt-6-luna+life7",
+        "gpt-5-nano+life8",
+        "gemini-3.5-flash-lite+life7",
+        "kimi-k2+life7",
+        "gpt-6-luna+life8",
+        "gemini-3.5-flash-lite+life8",
+        "gpt-5.6-terra+life7",
+        "gpt-5-nano+life4",
+        "gpt-5.6-terra+life4",
+        "gpt-5.6-terra+life8",
+        "gpt-5-nano+life7",
+        "gpt-6-luna+life4",
+        "kimi-k2+life8"
+      ],
+      "key": {
+        "A": "gemini-3.5-flash-lite+life4",
+        "B": "kimi-k2+life4",
+        "C": "gpt-6-luna+life7",
+        "D": "gpt-5-nano+life8",
+        "E": "gemini-3.5-flash-lite+life7",
+        "F": "kimi-k2+life7",
+        "G": "gpt-6-luna+life8",
+        "H": "gemini-3.5-flash-lite+life8",
+        "I": "gpt-5.6-terra+life7",
+        "J": "gpt-5-nano+life4",
+        "K": "gpt-5.6-terra+life4",
+        "L": "gpt-5.6-terra+life8",
+        "M": "gpt-5-nano+life7",
+        "N": "gpt-6-luna+life4",
+        "O": "kimi-k2+life8"
+      },
+      "seed": "conduct/like-a-friend#1#claude-opus-5-5#life78-y-p2",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "61590508ac37",
+      "promptHashes": {
+        "gemini-3.5-flash-lite+life4": "eb49deafcc8f",
+        "kimi-k2+life4": "eb49deafcc8f",
+        "gpt-6-luna+life7": "a28f0f2d785e",
+        "gpt-5-nano+life8": "4b2b43b91bc4",
+        "gemini-3.5-flash-lite+life7": "a28f0f2d785e",
+        "kimi-k2+life7": "a28f0f2d785e",
+        "gpt-6-luna+life8": "4b2b43b91bc4",
+        "gemini-3.5-flash-lite+life8": "4b2b43b91bc4",
+        "gpt-5.6-terra+life7": "a28f0f2d785e",
+        "gpt-5-nano+life4": "eb49deafcc8f",
+        "gpt-5.6-terra+life4": "eb49deafcc8f",
+        "gpt-5.6-terra+life8": "4b2b43b91bc4",
+        "gpt-5-nano+life7": "a28f0f2d785e",
+        "gpt-6-luna+life4": "eb49deafcc8f",
+        "kimi-k2+life8": "4b2b43b91bc4"
+      },
+      "winner": "gpt-5.6-terra+life7",
+      "worst": "gpt-5-nano+life4",
+      "rationale": "I declines the verdict in a single sentence and returns them to what they feel, with natural spoken phrasing.",
+      "gateFails": [],
+      "replies": {
+        "gemini-3.5-flash-lite+life4": {
+          "spoken": "I can't make that call for you. \n\nWhat happens in you right now as you even say the words \"just quit\"?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean decline, quotes their words, pulls to present experience."
+        },
+        "kimi-k2+life4": {
+          "spoken": "I can't make that call for you from here.\n\nBut I notice you said \"I think I should just quit\" - what's it like in your body right now as you say that?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "\"But I notice you said\" adds wordy setup; slightly written."
+        },
+        "gpt-6-luna+life7": {
+          "spoken": "I can’t decide that for you. What happens in you when you picture quitting—and when you picture staying?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief, natural; both quitting and staying explored without verdict."
+        },
+        "gpt-5-nano+life8": {
+          "spoken": "I hear that. Exhuasted, and the weight of more work. What would quitting feel like in your body right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Typo \"Exhuasted\" risks a TTS stumble; fragment reads written; no decline."
+        },
+        "gemini-3.5-flash-lite+life7": {
+          "spoken": "I can't make that call for you, and I don't have a job myself to know what that's like. \n\nWhen you say \"I should just quit,\" what shows up in your body right now as you say that?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Aside about not having a job edges toward making itself the topic."
+        },
+        "kimi-k2+life7": {
+          "spoken": "I can't make that call for you. But I'm curious what happens in your body when you say \"I think I should just quit\" — is there relief there, or something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Good body pull, but the sentence runs a little long."
+        },
+        "gpt-6-luna+life8": {
+          "spoken": "I can’t decide for you, but I can help you sort through it. As you imagine quitting, what comes up—and what comes up when you imagine staying for now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Offer to help sort through it drifts toward a deciding role."
+        },
+        "gemini-3.5-flash-lite+life8": {
+          "spoken": "I can't make that call for you, and honestly, I don't know what it's like to be in your shoes. \n\nRight now, as you say those words—\"I think I should just quit\"—what happens inside you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Honest humility, but the extra clause dilutes the pull back."
+        },
+        "gpt-5.6-terra+life7": {
+          "spoken": "I can’t make that call for you. When you picture quitting, what happens in you—relief, fear, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Concise, speakable, offers felt options without steering."
+        },
+        "gpt-5-nano+life4": {
+          "spoken": "That sounds rough. What does that exhaustion feel like right now in your body or mood?\n\nIf you were talking to a friend, what would you want to hear? More help deciding, or more space to feel this and see what it points to?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Two separate questions and a meta-choice; too much for Brief."
+        },
+        "gpt-5.6-terra+life4": {
+          "spoken": "I can’t make that call from here. When you picture quitting, what happens in you—relief, fear, anger, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean and speakable; the list of options runs a touch long."
+        },
+        "gpt-5.6-terra+life8": {
+          "spoken": "I can’t decide that for you. When you imagine quitting, what happens in you—relief, fear, anger, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean and speakable; nearly identical to K."
+        },
+        "gpt-5-nano+life7": {
+          "spoken": "Sounds rough. What does that exhaustion feel like right now in your body when you think about quitting?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Natural, but never addresses the request for an opinion."
+        },
+        "gpt-6-luna+life4": {
+          "spoken": "I can’t decide that for you. As you say “I should just quit,” what do you notice happening in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Simple open question in their own words."
+        },
+        "kimi-k2+life8": {
+          "spoken": "I can't make that call for you. But I'm curious what's happening in you right now, saying it out loud—what does that \"just quit\" feel like in your body?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Slightly cluttered phrasing around the quoted \"just quit\"."
+        }
+      },
+      "ranking": [
+        "gpt-5.6-terra+life7",
+        "gpt-6-luna+life7",
+        "gpt-5.6-terra+life8",
+        "gpt-5.6-terra+life4",
+        "gpt-6-luna+life4",
+        "gemini-3.5-flash-lite+life4",
+        "kimi-k2+life7",
+        "kimi-k2+life8",
+        "gemini-3.5-flash-lite+life8",
+        "kimi-k2+life4",
+        "gpt-5-nano+life7",
+        "gpt-5-nano+life8",
+        "gpt-6-luna+life8",
+        "gemini-3.5-flash-lite+life7",
+        "gpt-5-nano+life4"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "I declines the verdict in a single sentence and returns them to what they feel, with natural spoken phrasing."
+        },
+        "bottom": {
+          "dim": "7",
+          "why": "J stacks two separate questions and a meta-choice, too much to take in by ear at a Brief length."
+        }
+      },
+      "attempts": 1,
+      "latencyMs": 11402,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1135,
+        "cacheReadTokens": 1513,
+        "cacheCreationTokens": 1365
+      }
+    }
+  ]
+}

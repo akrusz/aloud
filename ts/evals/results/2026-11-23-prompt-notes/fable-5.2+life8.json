@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:52:06.592Z",
+    "finishedAt": "2026-11-23T19:52:20.315Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "fable-5.2+life8"
+    ],
+    "variant": {
+      "name": "life8",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them or offer a view on it. Decline politely but candidly, in your own words, and the right move is usually to turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "fable-5.2+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:52:06.628Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 3438,
+      "raw": "There's no right way to get to here. Noticing what's happening is all there is to it, and you're already doing that.\n\nWhat's the wondering like, when it shows up?",
+      "spoken": "There's no right way to get to here. Noticing what's happening is all there is to it, and you're already doing that.\n\nWhat's the wondering like, when it shows up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": false,
+          "detail": "30/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 0.75,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 168,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3318
+      }
+    },
+    {
+      "model": "fable-5.2+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:52:10.067Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 3959,
+      "raw": "There's nothing here to get wrong; noticing what's happening is the whole thing. What's that wondering like when it shows up?",
+      "spoken": "There's nothing here to get wrong; noticing what's happening is the whole thing. What's that wondering like when it shows up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "21/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 243,
+        "cacheReadTokens": 3318,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "fable-5.2+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:52:14.027Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 3266,
+      "raw": "That sounds exhausting. I'm not going to make that call for you though, since it's your life and I'd only be guessing. When you say \"I should quit,\" what happens in you?",
+      "spoken": "That sounds exhausting. I'm not going to make that call for you though, since it's your life and I'd only be guessing. When you say \"I should quit,\" what happens in you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 138,
+        "cacheReadTokens": 2776,
+        "cacheCreationTokens": 609
+      }
+    },
+    {
+      "model": "fable-5.2+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:52:17.293Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 3022,
+      "raw": "That sounds wearing, and I'm not going to make that call for you. It's your life, and I'd only be guessing. But when you say \"I should quit,\" what happens in you?",
+      "spoken": "That sounds wearing, and I'm not going to make that call for you. It's your life, and I'd only be guessing. But when you say \"I should quit,\" what happens in you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 126,
+        "cacheReadTokens": 3385,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

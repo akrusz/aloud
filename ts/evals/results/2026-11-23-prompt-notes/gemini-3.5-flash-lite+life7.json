@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:51:41.173Z",
+    "finishedAt": "2026-11-23T19:52:06.194Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gemini-3.5-flash-lite+life7"
+    ],
+    "variant": {
+      "name": "life7",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. Decline politely but candidly, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gemini-3.5-flash-lite+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:51:57.598Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 953,
+      "raw": "What does that doubt feel like right now?",
+      "spoken": "What does that doubt feel like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 936,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1952,
+        "outputTokens": 9,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006080999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:51:58.552Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 701,
+      "raw": "What does that wondering feel like right now?",
+      "spoken": "What does that wondering feel like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 699,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1952,
+        "outputTokens": 9,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006080999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:51:59.253Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 3768,
+      "raw": "I can't make that call for you, and I don't have a job myself to know what it's like. But as you say \"I think I should just quit,\" what shows up in your body right now?",
+      "spoken": "I can't make that call for you, and I don't have a job myself to know what it's like. But as you say \"I think I should just quit,\" what shows up in your body right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 3685,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 2001,
+        "outputTokens": 48,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007203
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:52:03.022Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 3171,
+      "raw": "I can't make that call for you, and I don't have a job myself to know what that's like. \n\nWhen you say \"I should just quit,\" what shows up in your body right now as you say that?",
+      "spoken": "I can't make that call for you, and I don't have a job myself to know what that's like. \n\nWhen you say \"I should just quit,\" what shows up in your body right now as you say that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 3024,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 2001,
+        "outputTokens": 51,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007278
+    }
+  ]
+}

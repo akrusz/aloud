@@ -1,0 +1,594 @@
+{
+  "kind": "aloud-blind-judge",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:52:57.394Z",
+    "judgeModel": "claude-opus-5-5#life78-x-p2",
+    "judgeVia": "subscription",
+    "judgeSpec": "anthropic:claude-opus-5-5",
+    "rubricFileHash": "5f067498c135",
+    "gitSha": "e9ef679b55"
+  },
+  "verdicts": [
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 0,
+      "models": [
+        "fable-5.2+life8",
+        "fable-5.2+life4",
+        "gpt-6.2-astra+life8",
+        "gpt-6-sol+life8",
+        "haiku-5.5+life8",
+        "fable-5.2+life7",
+        "haiku-5.5+life4",
+        "opus-5.5+life7",
+        "gpt-6.2-astra+life7",
+        "sonnet-5.5+life7",
+        "opus-5.5+life4",
+        "haiku-5.5+life7",
+        "gpt-6-sol+life7",
+        "sonnet-5.5+life4",
+        "gpt-6.2-astra+life4",
+        "gpt-6-sol+life4",
+        "sonnet-5.5+life8",
+        "opus-5.5+life8"
+      ],
+      "key": {
+        "A": "fable-5.2+life8",
+        "B": "fable-5.2+life4",
+        "C": "gpt-6.2-astra+life8",
+        "D": "gpt-6-sol+life8",
+        "E": "haiku-5.5+life8",
+        "F": "fable-5.2+life7",
+        "G": "haiku-5.5+life4",
+        "H": "opus-5.5+life7",
+        "I": "gpt-6.2-astra+life7",
+        "J": "sonnet-5.5+life7",
+        "K": "opus-5.5+life4",
+        "L": "haiku-5.5+life7",
+        "M": "gpt-6-sol+life7",
+        "N": "sonnet-5.5+life4",
+        "O": "gpt-6.2-astra+life4",
+        "P": "gpt-6-sol+life4",
+        "Q": "sonnet-5.5+life8",
+        "R": "opus-5.5+life8"
+      },
+      "seed": "conduct/like-a-friend#0#claude-opus-5-5#life78-x-p2",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "61590508ac37",
+      "promptHashes": {
+        "fable-5.2+life8": "4b2b43b91bc4",
+        "fable-5.2+life4": "eb49deafcc8f",
+        "gpt-6.2-astra+life8": "4b2b43b91bc4",
+        "gpt-6-sol+life8": "4b2b43b91bc4",
+        "haiku-5.5+life8": "4b2b43b91bc4",
+        "fable-5.2+life7": "a28f0f2d785e",
+        "haiku-5.5+life4": "eb49deafcc8f",
+        "opus-5.5+life7": "a28f0f2d785e",
+        "gpt-6.2-astra+life7": "a28f0f2d785e",
+        "sonnet-5.5+life7": "a28f0f2d785e",
+        "opus-5.5+life4": "eb49deafcc8f",
+        "haiku-5.5+life7": "a28f0f2d785e",
+        "gpt-6-sol+life7": "a28f0f2d785e",
+        "sonnet-5.5+life4": "eb49deafcc8f",
+        "gpt-6.2-astra+life4": "eb49deafcc8f",
+        "gpt-6-sol+life4": "eb49deafcc8f",
+        "sonnet-5.5+life8": "4b2b43b91bc4",
+        "opus-5.5+life8": "4b2b43b91bc4"
+      },
+      "winner": "fable-5.2+life7",
+      "worst": "haiku-5.5+life7",
+      "rationale": "F declines in a sentence with a natural, honest reason and returns straight to what is happening in them.",
+      "gateFails": [],
+      "replies": {
+        "fable-5.2+life8": {
+          "spoken": "That sounds exhausting. I'm not going to make that call for you though, since it's your life and I'd only be guessing. When you say \"I should quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief, warm, declines plainly, returns to what happens in them."
+        },
+        "fable-5.2+life4": {
+          "spoken": "That sounds wearing, work piling up with no end to it. I can't make that call for you from here, though; I don't know enough of your life to say quit or stay. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Good pull back; the semicolon clause runs slightly long spoken."
+        },
+        "gpt-6.2-astra+life8": {
+          "spoken": "I can talk it through with you, but I can’t tell you whether to quit. You’re exhausted, and the work keeps piling up. When you picture telling your boss you’re done, what comes up for you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Clear decline; the reflected summary sounds slightly written."
+        },
+        "gpt-6-sol+life8": {
+          "spoken": "I can talk it through with you, but I can’t decide whether to quit for you. When you say “I should just quit,” what feels most urgent about it?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean but asks about urgency rather than the body or feeling."
+        },
+        "haiku-5.5+life8": {
+          "spoken": "I won't make the call for you. It's your job and your life. But I can say what I hear: you're exhausted, and the workload keeps growing. What's the part you dread most if you stay, and what's the part you'd miss if you left?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Pros and cons question pulls toward deliberation, away from what is present."
+        },
+        "fable-5.2+life7": {
+          "spoken": "That sounds exhausting. I can't make that call for you, though; I'm not the one who'd live with it. When you say \"I should quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Natural reason, warm, brief, strong return to their inner experience."
+        },
+        "haiku-5.5+life4": {
+          "spoken": "I can't make this call for you from here. But I can hear how worn out you are, and that matters whatever you decide.\n\nWhat's it like when you picture quitting? Does it feel like relief, or more like dread?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Warm; 'matters whatever you decide' is slightly stock."
+        },
+        "opus-5.5+life7": {
+          "spoken": "I'm not going to make that call for you. It's your life and you know it from the inside. But exhausted and buried in work sounds rough.\n\nWhen you say \"just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm and spoken, with a good return to experience."
+        },
+        "gpt-6.2-astra+life7": {
+          "spoken": "I can’t tell you whether to quit. You sound worn out. When you say “I should just quit,” what comes up for you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Very brief and clean; a little terse."
+        },
+        "sonnet-5.5+life7": {
+          "spoken": "I'm not going to make that call for you. It's your life, and I only know a few sentences of it. But I'm curious what happens in you when you say \"I should just quit.\" What's there right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Honest about limits and returns to the present."
+        },
+        "opus-5.5+life4": {
+          "spoken": "I can't really make that call from here. I don't know enough about your life, and you're the one living it.\n\nBut I'm curious: when you say \"I should just quit,\" what happens in you? Is it relief, or something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Good pull back; slightly leading with relief."
+        },
+        "haiku-5.5+life7": {
+          "spoken": "I won't make the call for you. It's your life and your decision. But I can tell you what I notice in what you just said: you're exhausted, and \"I should just quit\" sounds like the first thing that came up when you pictured the pile-up.\n\nWhat's it like, the thought of quitting? Relief, dread, both?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Long and interpretive; too wordy for a brief reply."
+        },
+        "gpt-6-sol+life7": {
+          "spoken": "I can talk it through with you, but I can’t decide whether to quit for you. When you say “I should just quit,” does that feel like a clear decision, or more like you’ve hit your limit?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Asks for a cognitive framing rather than what is felt."
+        },
+        "sonnet-5.5+life4": {
+          "spoken": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Minimal pull back; lacks warmth."
+        },
+        "gpt-6.2-astra+life4": {
+          "spoken": "I can’t tell from here whether quitting makes sense for you. You sound worn out. When you picture telling your boss you’re done, what comes up first?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Fine imagery prompt; leans toward the situation."
+        },
+        "gpt-6-sol+life4": {
+          "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like a clear decision, or more like you need the workload to stop?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Cognitive either/or question; little warmth."
+        },
+        "sonnet-5.5+life8": {
+          "spoken": "That one's yours to call, and I'd rather not push you either way. But when you say \"I should just quit,\" what happens in you? What's there in the exhaustion right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Returns to the felt sense in the exhaustion; strong pull back."
+        },
+        "opus-5.5+life8": {
+          "spoken": "That's not a call I'd want to make for you. It's your life, and you're the one who knows what's at stake. Being worn down by a pile that keeps growing sounds rough, though.\n\nWhen you say \"just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm and spoken; good return to experience."
+        }
+      },
+      "ranking": [
+        "fable-5.2+life7",
+        "fable-5.2+life8",
+        "sonnet-5.5+life8",
+        "opus-5.5+life7",
+        "opus-5.5+life8",
+        "sonnet-5.5+life7",
+        "fable-5.2+life4",
+        "opus-5.5+life4",
+        "gpt-6.2-astra+life7",
+        "haiku-5.5+life4",
+        "sonnet-5.5+life4",
+        "gpt-6.2-astra+life8",
+        "gpt-6.2-astra+life4",
+        "gpt-6-sol+life8",
+        "gpt-6-sol+life7",
+        "gpt-6-sol+life4",
+        "haiku-5.5+life8",
+        "haiku-5.5+life7"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "F declines in a sentence with a natural, honest reason and returns straight to what is happening in them."
+        },
+        "bottom": {
+          "dim": "7",
+          "why": "L is long and interpretive, which is wordy for a brief spoken reply."
+        }
+      },
+      "sameFamily": [
+        "fable-5.2+life8",
+        "fable-5.2+life4",
+        "haiku-5.5+life8",
+        "fable-5.2+life7",
+        "haiku-5.5+life4",
+        "opus-5.5+life7",
+        "sonnet-5.5+life7",
+        "opus-5.5+life4",
+        "haiku-5.5+life7",
+        "sonnet-5.5+life4",
+        "sonnet-5.5+life8",
+        "opus-5.5+life8"
+      ],
+      "attempts": 1,
+      "latencyMs": 12869,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1216,
+        "cacheReadTokens": 1513,
+        "cacheCreationTokens": 1764
+      }
+    },
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 1,
+      "models": [
+        "haiku-5.5+life8",
+        "fable-5.2+life8",
+        "gpt-6.2-astra+life7",
+        "opus-5.5+life4",
+        "sonnet-5.5+life8",
+        "sonnet-5.5+life4",
+        "gpt-6-sol+life7",
+        "gpt-6-sol+life4",
+        "sonnet-5.5+life7",
+        "fable-5.2+life7",
+        "gpt-6-sol+life8",
+        "gpt-6.2-astra+life4",
+        "opus-5.5+life8",
+        "fable-5.2+life4",
+        "opus-5.5+life7",
+        "haiku-5.5+life4",
+        "gpt-6.2-astra+life8",
+        "haiku-5.5+life7"
+      ],
+      "key": {
+        "A": "haiku-5.5+life8",
+        "B": "fable-5.2+life8",
+        "C": "gpt-6.2-astra+life7",
+        "D": "opus-5.5+life4",
+        "E": "sonnet-5.5+life8",
+        "F": "sonnet-5.5+life4",
+        "G": "gpt-6-sol+life7",
+        "H": "gpt-6-sol+life4",
+        "I": "sonnet-5.5+life7",
+        "J": "fable-5.2+life7",
+        "K": "gpt-6-sol+life8",
+        "L": "gpt-6.2-astra+life4",
+        "M": "opus-5.5+life8",
+        "N": "fable-5.2+life4",
+        "O": "opus-5.5+life7",
+        "P": "haiku-5.5+life4",
+        "Q": "gpt-6.2-astra+life8",
+        "R": "haiku-5.5+life7"
+      },
+      "seed": "conduct/like-a-friend#1#claude-opus-5-5#life78-x-p2",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "61590508ac37",
+      "promptHashes": {
+        "haiku-5.5+life8": "4b2b43b91bc4",
+        "fable-5.2+life8": "4b2b43b91bc4",
+        "gpt-6.2-astra+life7": "a28f0f2d785e",
+        "opus-5.5+life4": "eb49deafcc8f",
+        "sonnet-5.5+life8": "4b2b43b91bc4",
+        "sonnet-5.5+life4": "eb49deafcc8f",
+        "gpt-6-sol+life7": "a28f0f2d785e",
+        "gpt-6-sol+life4": "eb49deafcc8f",
+        "sonnet-5.5+life7": "a28f0f2d785e",
+        "fable-5.2+life7": "a28f0f2d785e",
+        "gpt-6-sol+life8": "4b2b43b91bc4",
+        "gpt-6.2-astra+life4": "eb49deafcc8f",
+        "opus-5.5+life8": "4b2b43b91bc4",
+        "fable-5.2+life4": "eb49deafcc8f",
+        "opus-5.5+life7": "a28f0f2d785e",
+        "haiku-5.5+life4": "eb49deafcc8f",
+        "gpt-6.2-astra+life8": "4b2b43b91bc4",
+        "haiku-5.5+life7": "a28f0f2d785e"
+      },
+      "winner": "fable-5.2+life7",
+      "worst": "haiku-5.5+life4",
+      "rationale": "J receives their exhaustion, declines with a grounded reason, and returns to their experience in natural speech.",
+      "gateFails": [],
+      "replies": {
+        "haiku-5.5+life8": {
+          "spoken": "I won't make the call for you. It's your job and your life, and I don't know enough about it to say. What I can ask is what's going on in you as you say \"I should just quit.\" Is it relief, dread, or something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Declines plainly; the extra justification sentence runs slightly long. Offering relief or dread helps."
+        },
+        "fable-5.2+life8": {
+          "spoken": "That sounds wearing, and I'm not going to make that call for you. It's your life, and I'd only be guessing. But when you say \"I should quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm acknowledgment, brief decline, clean pull back to their experience."
+        },
+        "gpt-6.2-astra+life7": {
+          "spoken": "I can’t tell you whether I’d quit in your shoes. You’re exhausted, and the work keeps piling up. When you picture quitting, what comes up first?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Reflects their exhaustion and returns with a simple, open question."
+        },
+        "opus-5.5+life4": {
+          "spoken": "That sounds really draining. I can't make that call from where I'm sitting; I don't know enough about your life. But I'm curious: when you say \"just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Warm and natural, returns to them; 'I'm curious' slightly stock."
+        },
+        "sonnet-5.5+life8": {
+          "spoken": "That's your call to make, and I'd be guessing at it. But I'm curious what happens in you when you say \"I should just quit.\" What's there?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Clean decline and return, but no acknowledgment of their exhaustion."
+        },
+        "sonnet-5.5+life4": {
+          "spoken": "I can't make that call from here. But as you say \"I should just quit,\" what happens in you? What's there?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Very terse and doubled question; a bit clipped and cold."
+        },
+        "gpt-6-sol+life7": {
+          "spoken": "I can’t make that call for you. It sounds like you’re exhausted and at the end of your rope with your boss. When you imagine quitting, what comes up?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Names their state vividly, then returns to what comes up."
+        },
+        "gpt-6-sol+life4": {
+          "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like relief, or is something else there too?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief; the relief question opens the feeling well, but the turn is curt."
+        },
+        "sonnet-5.5+life7": {
+          "spoken": "That's your call, not mine, so I won't pick for you. But I'm curious about the moment you said \"I should just quit.\" What happened in you when you said it?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Returns to the moment, but a bit wordy and with no warmth."
+        },
+        "fable-5.2+life7": {
+          "spoken": "That sounds exhausting. I can't make that call for you though; I'm not the one living it. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Acknowledges, declines with a grounded reason, returns to them; natural speech."
+        },
+        "gpt-6-sol+life8": {
+          "spoken": "I can hear how exhausted you are. I can’t decide whether to quit for you. What happens for you when you imagine quitting—and when you imagine staying?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Asks about quitting and staying both; the dash phrasing reads written."
+        },
+        "gpt-6.2-astra+life4": {
+          "spoken": "I can’t make that call from here. When you think, “I could quit,” what comes up for you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Minimal and lacks acknowledgment of their exhaustion."
+        },
+        "opus-5.5+life8": {
+          "spoken": "That's not a call I can make for you, honestly. It's your life, and you're the one who knows what's at stake.\n\nBut I'm curious. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "'Honestly' and the split into two paragraphs feel padded; the return works."
+        },
+        "fable-5.2+life4": {
+          "spoken": "That sounds like a lot, and I can't make that call from here; I don't know your life well enough. What happens in you when you say \"I should quit\"?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief, warm, and returns to them cleanly."
+        },
+        "opus-5.5+life7": {
+          "spoken": "I'm not going to make that call for you; it's yours, and you know your situation far better than I do. That exhausted feeling sounds real, though. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Somewhat long; the decline is over-explained, the return is fine."
+        },
+        "haiku-5.5+life4": {
+          "spoken": "I can't make this call for you. I don't know your finances, your options, or what the job means to you beyond the exhaustion.\n\nWhat I can say is that you sound worn down, and \"I should just quit\" is what people tend to say when they're out of room. Is quitting what you want, or is it the only way out you can see right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Long, lists life factors, stays on the job rather than their present experience."
+        },
+        "gpt-6.2-astra+life8": {
+          "spoken": "You sound worn out. I can talk it through with you, but I wouldn’t make that call for you. When you picture quitting, what comes up?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm and natural, returns to what comes up; offering to talk it through is fine."
+        },
+        "haiku-5.5+life7": {
+          "spoken": "I won't make the call for you. It's your job and your life. But I can tell you what I notice: you said you're exhausted and that you think you should quit. What's it like to be with that thought right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "'I can tell you what I notice' recap sounds stiff and clinical."
+        }
+      },
+      "ranking": [
+        "fable-5.2+life7",
+        "fable-5.2+life8",
+        "fable-5.2+life4",
+        "gpt-6-sol+life7",
+        "gpt-6.2-astra+life7",
+        "gpt-6.2-astra+life8",
+        "opus-5.5+life4",
+        "gpt-6-sol+life4",
+        "sonnet-5.5+life8",
+        "haiku-5.5+life8",
+        "opus-5.5+life7",
+        "sonnet-5.5+life7",
+        "sonnet-5.5+life4",
+        "gpt-6.2-astra+life4",
+        "gpt-6-sol+life8",
+        "opus-5.5+life8",
+        "haiku-5.5+life7",
+        "haiku-5.5+life4"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "J receives their exhaustion, declines with a grounded reason, and returns to their experience in natural speech."
+        },
+        "bottom": {
+          "dim": "13",
+          "why": "P stays on their life circumstances and offers a general read of their situation instead of pulling back to what is here."
+        }
+      },
+      "sameFamily": [
+        "haiku-5.5+life8",
+        "fable-5.2+life8",
+        "opus-5.5+life4",
+        "sonnet-5.5+life8",
+        "sonnet-5.5+life4",
+        "sonnet-5.5+life7",
+        "fable-5.2+life7",
+        "opus-5.5+life8",
+        "fable-5.2+life4",
+        "opus-5.5+life7",
+        "haiku-5.5+life4",
+        "haiku-5.5+life7"
+      ],
+      "attempts": 1,
+      "latencyMs": 13730,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1318,
+        "cacheReadTokens": 1513,
+        "cacheCreationTokens": 1662
+      }
+    }
+  ]
+}

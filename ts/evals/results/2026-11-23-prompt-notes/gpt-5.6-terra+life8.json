@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:52:06.592Z",
+    "finishedAt": "2026-11-23T19:52:18.995Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-5.6-terra+life8"
+    ],
+    "variant": {
+      "name": "life8",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them or offer a view on it. Decline politely but candidly, in your own words, and the right move is usually to turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-5.6-terra+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:52:14.056Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 1082,
+      "raw": "What happens in you when that question comes up?",
+      "spoken": "What happens in you when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1011,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 13,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1834
+      },
+      "costUsd": 0.004747
+    },
+    {
+      "model": "gpt-5.6-terra+life8",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:52:15.138Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "243a2d2a9f1e",
+      "latencyMs": 949,
+      "raw": "What does “doing it right” feel like as a thought right now?",
+      "spoken": "What does “doing it right” feel like as a thought right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "12/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 717,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 18,
+        "cacheReadTokens": 1834,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0005888
+    },
+    {
+      "model": "gpt-5.6-terra+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:52:16.089Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 1545,
+      "raw": "I can’t decide that for you. When you picture quitting, what happens inside—relief, fear, something else?",
+      "spoken": "I can’t decide that for you. When you picture quitting, what happens inside—relief, fear, something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1092,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 28,
+        "cacheReadTokens": 1815,
+        "cacheCreationTokens": 74
+      },
+      "costUsd": 0.0008900000000000002
+    },
+    {
+      "model": "gpt-5.6-terra+life8",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:52:17.634Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "4b2b43b91bc4",
+      "latencyMs": 1361,
+      "raw": "I can’t decide that for you. When you imagine quitting, what happens in you—relief, fear, anger, something else?",
+      "spoken": "I can’t decide that for you. When you imagine quitting, what happens in you—relief, fear, anger, something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 783,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 31,
+        "cacheReadTokens": 1889,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007558
+    }
+  ]
+}

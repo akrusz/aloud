@@ -1,0 +1,203 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:51:41.173Z",
+    "finishedAt": "2026-11-23T19:51:58.348Z",
+    "gitSha": "e9ef679b55",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-5-nano+life7"
+    ],
+    "variant": {
+      "name": "life7",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. Decline politely but candidly, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-5-nano+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:51:54.545Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 1583,
+      "raw": "What does “doing it right” feel like to you right now in your body or in your thoughts?",
+      "spoken": "What does “doing it right” feel like to you right now in your body or in your thoughts?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "18/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1395,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1820,
+        "outputTokens": 30,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00010300000000000001,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life7",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:51:56.128Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "ada482f413d4",
+      "latencyMs": 727,
+      "raw": "What does “doing it right” feel like in your body right now?",
+      "spoken": "What does “doing it right” feel like in your body right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "12/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 586,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 156,
+        "outputTokens": 24,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000025720000000000004,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:51:56.856Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 762,
+      "raw": "That sounds rough. What does it feel like in your body when you think about quitting?",
+      "spoken": "That sounds rough. What does it feel like in your body when you think about quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 666,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1875,
+        "outputTokens": 27,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00010455000000000001,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life7",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:51:57.618Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "a28f0f2d785e",
+      "latencyMs": 730,
+      "raw": "Sounds rough. What does that exhaustion feel like right now in your body when you think about quitting?",
+      "spoken": "Sounds rough. What does that exhaustion feel like right now in your body when you think about quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 543,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 211,
+        "outputTokens": 29,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000030470000000000005,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    }
+  ]
+}
