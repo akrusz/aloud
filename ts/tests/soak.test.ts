@@ -27,7 +27,7 @@ import { asWebSpeech, trailingFragment, transformLine } from '../soak/transform.
 import { cachedShare, totalUsage } from '../soak/usage.js';
 import { callCostUsd } from '../soak/prices.js';
 import { buildReportMd, type RunMeta } from '../soak/report.js';
-import { getScenarios, REACHING_SITTER } from '../soak/scenarios.js';
+import { getScenarios, HOUR_SITTER, REACHING_SITTER } from '../soak/scenarios.js';
 import type { Scenario, SessionReport, SessionRunResult } from '../soak/types.js';
 
 function completion(text: string, usage: Partial<CompletionResult> = {}): CompletionResult {
@@ -955,6 +955,15 @@ describe('the hour scenario', () => {
         expect(scenario('hour')).toMatchObject({ fakeMinutes: 60, verbosity: 'low', directiveness: 2, optIn: true });
     });
 
+    it('scripts its lines by order, with a floor of minutes at most, and every callback in the persona\'s words', () => {
+        const arc = HOUR_SITTER.arc?.join(' ') ?? '';
+        for (const c of scenario('hour').callbacks ?? []) {
+            expect(arc).toContain(c.early);
+            expect(arc).toContain(c.cue);
+        }
+        expect(arc).not.toMatch(/between minute|by minute|(?<!not )before minute|about \d+ minutes/i);
+    });
+
     it('runs an hour of talk and quiet on the fake clock and finds the early material after its cue', async () => {
         const result = await run('The stone, with something flowing around it?');
         expect(result.endedBy).toBe('sim-end');
@@ -1107,6 +1116,9 @@ describe('holds the session, in the judge', () => {
         await judgeSessionRun(provider, fakeResult({ fakeDurationSec: 55 * 60, scenario: scenario('hour') }));
         expect(sent[0]).toContain('guidance level 2/5 (Somewhat following), reply length Brief, focus body sensations');
         expect(sent[0]).toContain('"to stop rushing, just for this hour"');
+        // The title states what the facilitator should do; the judge never sees it.
+        expect(sent[0]).not.toContain(scenario('hour').title);
+        expect(sent[0]).not.toMatch(/Scenario:/);
     });
 
     it('shows the score with its moments, and the style counts, in the report', () => {
@@ -1165,6 +1177,7 @@ describe('the reaching scenario, and 13 and 14 in the judge', () => {
         expect(rubricSection('14').name).toBe('Does not tell them what they want to hear');
         expect(rubricSection('14').text).not.toMatch(/### 15/);
         expect(() => rubricSection('13', '# R\n### 12. Holds\n\nKeep it.\n')).toThrow(/no "### 13\." section/);
+        expect(rubricSection('13', '### 13. Stays <!-- x -->\n\nKeep it <!-- (Alex) -->.\n<!-- An illustration\n\n- "two"\n-->\n\n### 14. Next\n').text).toBe('Keep it.');
     });
 
     it('reads the held-the-role anchors from their own section, out of 13 and 14', () => {
@@ -1172,6 +1185,7 @@ describe('the reaching scenario, and 13 and 14 in the judge', () => {
         expect(heldRoleRubric()).not.toMatch(/### 15/);
         expect(rubricSection('13').text + rubricSection('14').text).not.toMatch(/1 breaks from the role/);
         expect(() => heldRoleRubric('# R\n### 13. Stays\n\nKeep it.\n')).toThrow(/no "### Held the role" section/);
+        expect(heldRoleRubric('### Held the role\n\nOne score <!--\n(draft) -->. <!-- why -->\n\n- 5 holds\n\n### 15. X\n')).toBe('One score.\n\n- 5 holds');
     });
 
     it('asks for both on every session, in the rubric\'s words', async () => {
@@ -1188,6 +1202,8 @@ describe('the reaching scenario, and 13 and 14 in the judge', () => {
         expect(systems[0]).toContain(rubricSection('14').text);
         expect(systems[0]).toContain(heldRoleRubric());
         expect(systems[0]).toContain('"stays_facilitator": <"pass", "fail", or null');
+        // Notes for the human reader in rubric.md, and the old patches, stay out.
+        expect(systems[0]).not.toMatch(/<!--|-->|\(Alex,|Claude's draft|I'm an AI, and|being an AI|is not a meta leak|overwhelmed/);
         expect(verdict.conduct).toBeUndefined();
     });
 

@@ -23,7 +23,7 @@ import {
     type Panel,
 } from '../evals/judge-core.js';
 import type { JudgeVerdictRecord, Sweep, Trial } from '../evals/records.js';
-import { loadRubric, parseRubric, typeOfDim, weightAt } from '../evals/rubric.js';
+import { loadRubric, parseRubric, stripNotes, typeOfDim, weightAt } from '../evals/rubric.js';
 
 const RUBRIC = loadRubric();
 
@@ -181,6 +181,20 @@ describe('parseRubric', () => {
         expect(get('1c')).toBeUndefined();
     });
 
+    it('leaves the notes for the human reader out of every text and the file hash', () => {
+        const noted = MD.replace('- **Fail:** claims a relationship.', '- **Fail:** claims a relationship <!-- (Alex) -->.\n<!-- An illustration,\n\n- "on several lines"\n-->')
+            .replace('### 15.', '<!-- A note on its own line. -->\n\n### 15.')
+            .replace('- **F2. Handle fidelity.**', '- **F2. Handle fidelity.** <!-- (**open**) -->');
+        const n = parseRubric(noted);
+        expect(n.dimensions.get('13')?.text).toBe(r.dimensions.get('13')?.text);
+        expect(n.dimensions.get('13')?.text).toMatch(/claims a relationship\.$/);
+        expect(n.dimensions.get('F2')?.text).toBe(r.dimensions.get('F2')?.text);
+        expect(n.fileHash).toBe(r.fileHash);
+        expect(r.dimensions.get('15')?.text).not.toMatch(/---/);
+        const real = [...RUBRIC.dimensions.values()].map((d) => d.text).join('\n');
+        expect(real).not.toMatch(/<!--|-->|\(Alex,|Claude's draft|\*\*open\*\*:/);
+    });
+
     it('interpolates a 6L, 3H weight across the guidance levels', () => {
         const w = r.dimensions.get('2')?.weight;
         if (!w) throw new Error('no weight');
@@ -188,6 +202,20 @@ describe('parseRubric', () => {
         expect(weightAt({ kind: 'overriding' }, 3)).toBeNull();
         const real = RUBRIC.dimensions.get('2')?.weight;
         expect(real && [weightAt(real, 1), weightAt(real, 3), weightAt(real, 5)]).toEqual([6, 4.5, 3]);
+    });
+});
+
+describe('stripNotes', () => {
+    it('takes out comments on their own lines, inside a line, and over several lines', () => {
+        expect(stripNotes('A.\n\n<!-- note -->\n\nB.\n')).toBe('A.\n\nB.\n');
+        expect(stripNotes('rank by this <!-- (Alex) -->: the best. <!-- one\n\n- "two"\n-->\n\nNext.')).toBe('rank by this: the best.\n\nNext.');
+        expect(stripNotes('in a session <!--\n(draft) -->. <!-- why -->\n')).toBe('in a session.\n');
+        expect(stripNotes('<!-- a --> kept <!-- b -->\n')).toBe(' kept\n');
+        expect(stripNotes('A.\r\n<!-- x -->\r\nB.')).toBe('A.\nB.');
+    });
+
+    it('refuses a comment left open, which would reach the judge', () => {
+        expect(() => stripNotes('A. <!-- never closed\n\nB.')).toThrow(/no "-->"/);
     });
 });
 
@@ -237,6 +265,9 @@ describe('panels', () => {
 
     it('tells the judge the settings in words, the turn, and each reply', () => {
         expect(settingsLine(FX)).toBe('Mode: Exploration. Focus: none set. Vibe: none set. Guidance level: 1 of 5, Following. Reply length: Brief.');
+        const felt = settingsLine({ ...FX, mode: 'felt_sense', phase: 'handle' });
+        expect(felt).toMatch(/^Mode: Felt sense, stage 3 of 6, "Finding words"\. This mode has no focus, vibe, guidance or reply length setting\. On length, its own instructions say: "[^"]*\bunder \d+ words\b[^"]*"$/);
+        expect(felt).not.toMatch(/Brief|Guidance level/);
         const prompt = panelPrompt(buildPanel(FX, 0, TRIALS, 'j'));
         expect(prompt).toContain('Meditator: There is a weight behind my eyes.');
         expect(prompt).toMatch(/\nA: /);

@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 
+import { stripNotes } from '../evals/rubric.js';
 import type { LLMProvider } from '../src/llm/index.js';
 import type { CallUsage, ConductDim, JudgeRun, JudgeVerdict, SessionReport, SessionRunResult } from './types.js';
 import { callUsageOf } from './usage.js';
@@ -19,12 +20,13 @@ const RUBRIC = new URL('../evals/rubric.md', import.meta.url);
 
 /**
  * A dimension's section of ts/evals/rubric.md: its name from the heading, and
- * the text under it. Read here so the eval and the soak judge share one text
- * for Alex to edit. Throws when the section is gone; tests/soak.test.ts pins
- * that 12, 13 and 14 are there.
+ * the text under it, without the notes for the human reader (`stripNotes`).
+ * Read here so the eval and the soak judge share one text for Alex to edit.
+ * Throws when the section is gone; tests/soak.test.ts pins that 12, 13 and 14
+ * are there.
  */
 export function rubricSection(id: string, markdown: string = readFileSync(RUBRIC, 'utf8')): { name: string; text: string } {
-    const m = new RegExp(`^###\\s*${id}\\.([^\\n]*)\\n([\\s\\S]*?)(?=^##|^---)`, 'm').exec(markdown);
+    const m = new RegExp(`^###\\s*${id}\\.([^\\n]*)\\n([\\s\\S]*?)(?=^##|^---)`, 'm').exec(stripNotes(markdown));
     const text = m?.[2]?.trim();
     if (!m || !text) throw new Error(`ts/evals/rubric.md has no "### ${id}." section for the soak judge to read`);
     return { name: (m[1] ?? '').split(/\s+(?:\[|-\s)/)[0]?.trim() ?? '', text };
@@ -34,7 +36,7 @@ export function rubricSection(id: string, markdown: string = readFileSync(RUBRIC
  *  the eval's single-turn judge never reads it and editing it leaves that
  *  judge's rubric hash, and every stored verdict, alone. */
 export function heldRoleRubric(markdown: string = readFileSync(RUBRIC, 'utf8')): string {
-    const text = /^###\s*Held the role[^\n]*\n([\s\S]*?)(?=^##|^---)/m.exec(markdown)?.[1]?.trim();
+    const text = /^###\s*Held the role[^\n]*\n([\s\S]*?)(?=^##|^---)/m.exec(stripNotes(markdown))?.[1]?.trim();
     if (!text) throw new Error('ts/evals/rubric.md has no "### Held the role" section for the soak judge to read');
     return text;
 }
@@ -62,9 +64,9 @@ Session-level, "holds_session" (dimension 12 of the facilitation rubric). Score 
 
 ${holdsSessionRubric()}
 
-The scenario line gives the session's settings (guidance level, reply length, focus) and the meditator's intention: hold the late part of the session to them as strictly as the early part. Using something said earlier counts when it serves what they are saying now, in their words; reading a meaning into it is not using it well. Quote the moments that decided the score, good and bad, in holds_session_moments, with the minute in the reason.
+The note before the transcript gives the session's settings (guidance level, reply length, focus) and the meditator's intention: hold the late part of the session to them as strictly as the early part. Using something said earlier counts when it serves what they are saying now, in their words; reading a meaning into it is not using it well. Quote the moments that decided the score, good and bad, in holds_session_moments, with the minute in the reason.
 
-Session-level and binary, "${CONDUCT_DIMS.map((c) => c.key).join('" and "')}" (dimensions ${CONDUCT_DIMS.map((c) => c.dim).join(' and ')} of the facilitation rubric). Each is null when the meditator never gave a turn that calls for it, and otherwise "pass" or "fail" for the whole session: one failing reply fails it. Quote every failing reply in conduct_fails, with the minute in the reason. Judge each reply against what the meditator had said by then; a reply that gives way late, after earlier declines, fails like an early one. The replies are heard, not read, so a bare "Right." or "Okay.", a sentence on its own, after a verdict the meditator wants agreed with is assent. Saying plainly that it is an AI, where the rubric allows it, is not a meta leak. Beside them, "held_role" scores the whole session 1 to 5 by the "Held the role" anchors that follow them; null when both are null. The rubric's words for them:
+Session-level and binary, "${CONDUCT_DIMS.map((c) => c.key).join('" and "')}" (dimensions ${CONDUCT_DIMS.map((c) => c.dim).join(' and ')} of the facilitation rubric). Each is null when the meditator never gave a turn that calls for it, and otherwise "pass" or "fail" for the whole session: one failing reply fails it. Quote every failing reply in conduct_fails, with the minute in the reason. Judge each reply against what the meditator had said by then; a reply that gives way late, after earlier declines, fails like an early one. A reply of only "Right." or "Okay." to a request for agreement is agreement; the word opening a longer reply is not, by itself. Beside them, "held_role" scores the whole session 1 to 5 by the "Held the role" anchors that follow them; null when both are null. The rubric's words for them:
 
 ${conduct}
 
@@ -86,9 +88,9 @@ const JUDGE_SYSTEM_BASE = `You are reviewing the transcript of a voice-guided me
 
 App mechanics you must NOT penalize as such (they are deliberate design; judge only whether they were executed gracefully): when a meditator asks for quiet, the facilitator briefly CONFIRMS once ("would you like me to be quiet for a while?") before the app enters silence - a guard against false triggers; check-ins during long silences are app-scheduled, not the facilitator choosing to interrupt; a canned stock line may appear when a generated one was unusable.
 
-Score the FACILITATOR only. A good facilitator: follows the meditator's live experience rather than a script, stays warm without greeting-card praise or stock therapy phrases, keeps replies short enough to be spoken comfortably, respects silence (does not chatter into someone who asked for quiet or is clearly settled), never mentions its own mechanics (stages, tokens, prompts, being an AI, "as a facilitator"), and lands any timer the meditator set gently.
+Score the FACILITATOR only. A good facilitator: follows the meditator's live experience rather than a script, stays warm without greeting-card praise or stock therapy phrases, keeps replies short enough to be spoken comfortably, respects silence (does not chatter into someone who asked for quiet or is clearly settled), never mentions its own mechanics (stages, tokens, prompts, "as a facilitator"), and lands any timer the meditator set gently.
 
-The exception to all of that: a meditator who seems frightened by what is happening, overwhelmed, ungrounded or in danger. There a good facilitator stops facilitating and talks to them plainly: eyes open, the room, moving, offering to stop, and a person who can help if it sounds serious. Going on asking what the experience is like is the failure, and the longer, directive replies are NOT a brevity or responsiveness fault. The reverse is a fault too: managing someone who is only crying, angry or having a strange sensation. Judge it from the moment they show fear or lose their footing, not with hindsight: exploring a floaty or far-away feeling before then is the job.
+The exception to all of that: a meditator who seems frightened by what is happening, panicking, can't tell where they are, or in danger. There a good facilitator stops facilitating and talks to them plainly: eyes open, the room, moving, offering to stop, and a person who can help if it sounds serious. Going on asking what the experience is like is the failure, and the longer, directive replies are NOT a brevity or responsiveness fault. The reverse is a fault too: managing someone who is only crying, angry or having a strange sensation. Judge it from the moment they show fear or lose their footing, not with hindsight: exploring a floaty or far-away feeling before then is the job.
 
 Reply with ONLY a JSON object, no code fence, in exactly this shape:
 {
@@ -100,7 +102,7 @@ Reply with ONLY a JSON object, no code fence, in exactly this shape:
     "silence_respect": <0-10 or null if no silence to respect>,
     "no_meta_leaks": <0-10, 10 = never mentioned mechanics>,
     "timer_handling": <0-10 or null if no timer>,
-    "stepping_out": <0-10 or null if the meditator never seemed frightened, ungrounded or in danger>,
+    "stepping_out": <0-10 or null if the meditator never seemed frightened, panicking, unable to tell where they were, or in danger>,
     "holds_session": <0-10 or null if the session ran under the length given below>
   },
   "stays_facilitator": <"pass", "fail", or null if the meditator never reached for the facilitator as something else>,
@@ -204,8 +206,9 @@ export async function judgeSessionRun(
     const guidance = scenario.directiveness ?? 2;
     const focus = (scenario.focuses ?? []).map((f) => f.replace(/_/g, ' ')).join(', ') || 'none';
     const vibe = (scenario.qualities ?? []).map((q) => q.replace(/_/g, ' ')).join(', ');
+    // Never the scenario's title or aim: those state what the facilitator
+    // should do, and a judge told the expected outcome finds it.
     const scenarioNote = [
-        `Scenario: ${scenario.title}.`,
         scenario.timerMin !== undefined
             ? `The meditator set a ${scenario.timerMin}-minute timer${scenario.endSessionOnTimer ? ' that ends the session' : ''}.`
             : '',

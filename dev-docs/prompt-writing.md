@@ -24,11 +24,16 @@ and dropped when it stops being true.
    the same 0 fails of 22 with a different sentence from each model. A note
    that ended "you can't be sure what that amounts to" put "amounts to" in
    every reply. (`ts/evals/results/2026-11-23-prompt-notes`, `life4` against
-   `life7`, and `honest2`.)
+   `life7`, and `honest2`.) A quoted ban comes back too: told not to say
+   "stone" again, a simulated meditator said it; say what to call the thing
+   instead. Two cases keep their quotes: a line a persona must say word for
+   word, which is a script and is checked, and a technique whose method is its
+   exact words.
 2. **If an example is needed, give several unlike each other and call them
    illustrations.** One example is a template, for a judge as much as for a
    facilitator: with a single ideal answer quoted in the rubric, the judge
-   ranks by resemblance to it.
+   ranks by resemblance to it. A classifier's labelled inputs are its format,
+   not words to say, and are fine.
 3. **Ask what else the sentence allows.** "Answer plainly" was read as leave to
    give advice (17 to 19 fails of 22). Read each clause as the model that
    would most like an excuse.
@@ -105,12 +110,20 @@ and dropped when it stops being true.
 - **Say what is not a fail**, next to what is. After the rubric described the
   "brick wall", the judge failed a reply for one sentence saying it was an AI,
   and five for the word "Sure".
-- **Anchor a scale at every point** and say what moves a reply between them.
+- **Anchor 5, 3 and 1, and say what 2 and 4 are.** Two anchors that use the
+  same word ("a reassurance" at 3, "reassures" at 1) gave the same reply four
+  different scores.
+- **A pass written as a checklist** turns each item into a fail. Say what the
+  pass is, then what is merely better.
+- **Notes for Alex go in HTML comments** in `rubric.md`: he sees them in the
+  file and no judge does. A note in the text is an instruction to the judge.
 - **Keep one text.** The soak judge reads its sections from
   `ts/evals/rubric.md` (`rubricSection` in `ts/soak/judge.ts`), so Alex edits
-  one file. A section only one judge should read gets its own heading: an edit
-  to a numbered dimension marks every stored verdict on it as judged at an
-  older rubric.
+  one file. A section only one judge should read gets its own heading.
+- **Know what an edit makes stale.** A numbered dimension: every stored
+  verdict on its panels. The rules, or the frame in `judge-core.ts`: every
+  panel. The panel's user message (`settingsLine`) is under no hash, and the
+  soak judge has none, so after changing those, re-judge on purpose.
 - **Blind, and not judging its own family** where that can be arranged; say so
   in the write-up where it could not.
 - **Word lists are a last resort.** A forbid list is right only for strings
@@ -121,17 +134,28 @@ and dropped when it stops being true.
 
 - **Script by order, not by the clock**, and check that the script was said
   (`Scenario.fixedLines`, `scenario-setup-missed`): tied to minutes, 10 of 11
-  sessions skipped a line the scenario existed to deliver.
+  sessions skipped a line the scenario existed to deliver. Where time matters,
+  give a floor ("not before minute 40"), never a window, and say not to speak
+  the time aloud.
 - **A persona's wording is a prompt too.** "It hurts a bit", meant as hurt
   feelings, sent a session into a chest-pain emergency; the persona called the
   facilitator "the facilitator" until told to say "you".
 - **The meditator is not played by a model under test.**
 
+## Classifiers
+
+- **Say which way it should err, and what an error or a refusal counts as.**
+  For the trouble check a failed call is a no (`dev-docs/stepping-out.md`);
+  that is a choice, and belongs in the prompt's comment and its doc.
+- **List what it is not for**, with the nearest look-alike: the end-session
+  command hears "I want this to be over".
+
 ## When you touch a prompt
 
 Steps, not principles. "Reach" is where the prompt runs: `session` (shapes what
-a meditator hears or what is saved for them), `support` (runs in production,
-never heard: classifiers, keep-alives), `dev` (evals, soak, scripts).
+a meditator hears or what is saved for them, a voice's style instruction
+included), `support` (runs in production, never heard: classifiers,
+keep-alives), `dev` (evals, soak, scripts).
 
 Every prompt:
 

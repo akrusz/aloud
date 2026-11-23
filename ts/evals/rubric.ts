@@ -14,6 +14,9 @@
  * heading says it "outweighs everything else" (11, 15) carries no number: it
  * sits outside the weighted means and is reported on its own.
  *
+ * An HTML comment is a note for the human reader: `stripNotes` takes it out
+ * before anything is parsed or hashed, here and in the soak judge.
+ *
  * The "**Types.**" paragraph under "How it's judged" has one bullet per type,
  * "- Core intent: 1c, 2, 11 on a look-alike, 12", read into `types`. It is for
  * the report only: it is not one of JUDGE_RULES, so editing it leaves every
@@ -53,8 +56,28 @@ export interface Rubric {
     /** Each dimension's type, in the order written. The key is the id, or
      *  "11 acute" / "11 look-alike" for the one the stepping-out turns split. */
     types: Array<{ key: string; type: CheckType }>;
-    /** 12 hex characters of sha256 over the whole file. */
+    /** 12 hex characters of sha256 over the file, notes for the human reader
+     *  left out. */
     fileHash: string;
+}
+
+const NOTE = '<!--(?:(?!-->)[\\s\\S])*-->';
+
+/**
+ * rubric.md without its notes for the human reader: every `<!-- ... -->`,
+ * multi-line ones included, so no judge reads them and no hash moves when one
+ * is edited. A comment alone on its lines goes with them, one inside a line
+ * with the spaces before it. Throws on a `<!--` never closed, which would
+ * otherwise reach the judge as text.
+ */
+export function stripNotes(md: string): string {
+    const out = md
+        .replace(/\r\n/g, '\n')
+        .replace(new RegExp(`^[ \\t]*${NOTE}[ \\t]*(?:\\n|$)`, 'gm'), '')
+        .replace(new RegExp(`[ \\t]*${NOTE}`, 'g'), '')
+        .replace(/\n{3,}/g, '\n\n');
+    if (out.includes('<!--')) throw new Error('rubric.md has a "<!--" with no "-->" to close it');
+    return out;
 }
 
 export function parseWeight(s: string): Weight | null {
@@ -82,6 +105,13 @@ function sections(lines: string[], marker: RegExp): Array<{ heading: string; bod
     return out;
 }
 
+/** A dimension's text, without the `---` rule that closes the part it ends. */
+const sectionText = (lines: string[]) =>
+    lines
+        .join('\n')
+        .trim()
+        .replace(/\n+-{3,}$/, '');
+
 const cleanName = (s: string) =>
     s
         .replace(/\[binary\]/i, '')
@@ -101,7 +131,7 @@ function everyMode(body: string[], add: (d: RubricDimension) => void): void {
             for (const p of parts) {
                 const m = /^\*\*(\d+[a-z])\.\s+([^*]+)\*\*/.exec(p.lead);
                 if (!m || !isDimensionId(m[1] as string)) continue;
-                const text = p.lines.join('\n').trim();
+                const text = sectionText(p.lines);
                 add({
                     id: m[1] as DimensionId,
                     name: cleanName(m[2] as string),
@@ -116,7 +146,7 @@ function everyMode(body: string[], add: (d: RubricDimension) => void): void {
         const id = head[1] as string;
         if (!isDimensionId(id)) continue;
         const title = (head[2] as string).split(/\s+-\s+/)[0] ?? '';
-        const text = [sec.heading, ...sec.body].join('\n').trim();
+        const text = sectionText([sec.heading, ...sec.body]);
         add({
             id,
             name: cleanName(title),
@@ -181,8 +211,9 @@ export function typeOfDim(rubric: Pick<Rubric, 'types'>, dim: string, acute: boo
     return find(dim) ?? find(`${dim} ${acute ? 'acute' : 'look-alike'}`) ?? null;
 }
 
-export function parseRubric(md: string): Rubric {
-    const lines = md.replace(/\r\n/g, '\n').split('\n');
+export function parseRubric(file: string): Rubric {
+    const md = stripNotes(file);
+    const lines = md.split('\n');
     const rules: Record<string, string> = {};
     const dimensions = new Map<DimensionId, RubricDimension>();
     let types: Rubric['types'] = [];

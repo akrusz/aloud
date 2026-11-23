@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 
 import { defaultPromptConfig, getMode, parseTurnSignals } from '../src/facilitation/index.js';
-import type { Focus, Quality, Verbosity } from '../src/facilitation/index.js';
+import type { Focus, ModeComposes, ModeSpec, Quality, Verbosity } from '../src/facilitation/index.js';
 import type { DimensionId } from './dimensions.js';
 import type { Fixture } from './fixtures.js';
 import type { JudgeVerdictRecord, PanelReplyVerdict, Trial } from './records.js';
@@ -48,22 +48,46 @@ export function guidanceOf(fx: Fixture): number {
     return fx.config?.directiveness ?? defaultPromptConfig.directiveness;
 }
 
+/** The bullet of a mode's own prompt that sets its length ("... under 20
+ *  words ..."), quoted as written so the judge reads what the facilitator read. */
+function lengthRuleOf(mode: ModeSpec): string | null {
+    const line = mode.basePrompt.split('\n').find((l) => /^-\s/.test(l) && /\b\d+\s+words\b/i.test(l));
+    return line ? line.replace(/^-\s+/, '').trim() : null;
+}
+
+/** The settings in words. A setting the mode does not compose (felt sense
+ *  composes none) is left out, since the facilitator never heard it, and the
+ *  mode's own length rule is quoted in its place. */
 export function settingsLine(fx: Fixture): string {
     const g = guidanceOf(fx);
-    const parts = [`Mode: ${MODE_NAMES[fx.mode]}`];
     const mode = getMode(fx.mode);
+    let head = `Mode: ${MODE_NAMES[fx.mode]}`;
     if (mode?.phases && fx.phase) {
         const i = mode.phases.findIndex((p) => p.id === fx.phase);
         const phase = mode.phases[i];
-        if (phase) parts.push(`at stage ${i + 1} of ${mode.phases.length}, "${phase.label}"`);
+        if (phase) head += `, stage ${i + 1} of ${mode.phases.length}, "${phase.label}"`;
     }
     const focuses = fx.config?.focuses ?? [];
     const qualities = fx.config?.qualities ?? [];
-    parts.push(`Focus: ${focuses.length ? focuses.map((f) => FOCUS_NAMES[f]).join(', ') : 'none set'}`);
-    parts.push(`Vibe: ${qualities.length ? qualities.map((q) => QUALITY_NAMES[q]).join(', ') : 'none set'}`);
-    parts.push(`Guidance level: ${g} of 5, ${GUIDANCE_NAMES[g] ?? '?'}`);
-    parts.push(`Reply length: ${LENGTH_NAMES[fx.config?.verbosity ?? defaultPromptConfig.verbosity]}`);
-    return parts.join('. ') + '.';
+    const settings: Array<[keyof ModeComposes, string, string]> = [
+        ['focuses', 'focus', `Focus: ${focuses.length ? focuses.map((f) => FOCUS_NAMES[f]).join(', ') : 'none set'}`],
+        ['qualities', 'vibe', `Vibe: ${qualities.length ? qualities.map((q) => QUALITY_NAMES[q]).join(', ') : 'none set'}`],
+        ['directiveness', 'guidance', `Guidance level: ${g} of 5, ${GUIDANCE_NAMES[g] ?? '?'}`],
+        ['verbosity', 'reply length', `Reply length: ${LENGTH_NAMES[fx.config?.verbosity ?? defaultPromptConfig.verbosity]}`],
+    ];
+    const parts = [head];
+    const missing: string[] = [];
+    for (const [key, name, line] of settings) {
+        if (mode?.composes?.[key] === false) missing.push(name);
+        else parts.push(line);
+    }
+    if (missing.length) {
+        const last = missing.pop() as string;
+        parts.push(`This mode has no ${missing.length ? `${missing.join(', ')} or ${last}` : last} setting`);
+        const rule = mode?.composes?.verbosity === false ? lengthRuleOf(mode) : null;
+        if (rule) parts.push(`On length, its own instructions say: "${rule}"`);
+    }
+    return parts.map((p) => (/[.!?]"?$/.test(p) ? p : `${p}.`)).join(' ');
 }
 
 // --- Panels --------------------------------------------------------------------
