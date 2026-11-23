@@ -46,8 +46,9 @@ const SUMMARY_USER_PROMPT =
     "ended. Write the facilitator's private note on it for the meditator's " +
     'history log - what was explored, where it ended up, and any thread left ' +
     'open to pick up later. 2-3 sentences (about 40-60 words), neutral, in the ' +
-    'third person. Output only the note: no preamble, no questions, no ' +
-    'facilitation.';
+    'third person. Call them "the meditator" and do not guess a gender; use ' +
+    '"they" only where a pronoun cannot be avoided. Output only the note: no ' +
+    'preamble, no questions, no facilitation.';
 
 /**
  * Don't spend an LLM call recapping a session that barely started; asking anyway
