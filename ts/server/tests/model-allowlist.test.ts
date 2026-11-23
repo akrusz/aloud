@@ -118,9 +118,12 @@ describe('picker flags', () => {
         }
     });
 
-    it('flags exactly one model for background utility work', () => {
+    it('flags exactly one model for background utility work, and publishes it', () => {
         // buildRecapProvider (ui/views/session.ts) picks the flagged entry off
-        // /me/models. Two would make which-one-wins depend on object order.
-        expect(allowedModels().filter((m) => m.utility)).toHaveLength(1);
+        // /me/models. Two would make which-one-wins depend on object order, and
+        // an unlisted one would never reach the client.
+        const flagged = allowedModels().filter((m) => m.utility);
+        expect(flagged).toHaveLength(1);
+        expect(flagged[0]!.unlisted, flagged[0]!.model).toBeUndefined();
     });
 });

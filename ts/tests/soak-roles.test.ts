@@ -148,7 +148,7 @@ describe('the models battery', () => {
         const shipped = ROSTER.filter((m) => m.shipped).map((m) => m.id);
         expect(SHIPPED_FACILITATORS.length).toBeGreaterThan(3);
         expect(SHIPPED_FACILITATORS.every((id) => shipped.includes(id))).toBe(true);
-        // Shipped as the recap engine, off the facilitator picker.
+        // In the roster as shipped, but unlisted in the price table.
         expect(SHIPPED_FACILITATORS).not.toContain('gpt-5-nano');
         expect(battery.roles.facilitators).toEqual([...SHIPPED_FACILITATORS]);
     });

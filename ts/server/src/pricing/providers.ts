@@ -338,24 +338,16 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 0.3 / M,
         cacheCreation1h: 0.3 / M, // no 1h write on automatic caching; never accrues
     },
-    // The floor, and the recap engine (`utility` above), picked over Flash Lite
-    // for CACHE CERTAINTY: OpenAI reports and discounts cached_tokens, while
-    // meditation-pal-1etx is open on whether Gemini's implicit-cache discount
-    // reaches the bill, and recaps re-send the whole transcript. Pre-5.6 GPT-5:
-    // no cache-write reporting, so cacheCreation is a never-accrues
-    // placeholder. ts/src/llm/openai.ts pins its reasoning to 'minimal'. Not
-    // ear-tested as a facilitator (checklist item 5); recaps emit no control
-    // tokens.
+    // Unlisted but priced for clients that still name it (a session that read
+    // the catalog while it was the recap engine). OpenAI shuts it down
+    // 2026-12-11; the entry can go after that. Off the facilitator picker: on
+    // the stepping-out fixtures it kept facilitating through 14 of 15 acute
+    // turns (dev-docs/stepping-out.md). Pre-5.6 GPT-5: no cache-write
+    // reporting, so cacheCreation is a never-accrues placeholder.
     'openai:gpt-5-nano': {
         provider: 'openai',
         model: 'gpt-5-nano',
-        expanded: true,
-        utility: true,
-        // Off the facilitator picker (Nov 2026): on the stepping-out fixtures it
-        // kept facilitating through 14 of 15 acute turns, and answered a panic
-        // with "Would you like me to be quiet for a bit?" (dev-docs/stepping-out.md).
-        // GPT-6 Luna is the budget OpenAI pick, at 15 of 15.
-        utilityOnly: true,
+        unlisted: true,
         input: 0.05 / M,
         output: 0.4 / M,
         cacheRead: 0.005 / M,
@@ -397,12 +389,18 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 10 / M, // real 1.25x write fee
         cacheCreation1h: 10 / M, // no 1h tier on Chat Completions; never accrues
     },
-    // GPT-6 Luna, the 6 family's small tier: same contract as 6 Sol. Dearer
-    // than gpt-5-nano, which keeps the utility (recap) flag.
+    // GPT-6 Luna, the 6 family's small tier: same contract as 6 Sol, so a
+    // recap that misses the cache pays the 1.25x write fee on its whole prompt.
+    // Also the recap engine (`utility` above), on OpenAI over Flash Lite for
+    // CACHE CERTAINTY: OpenAI reports and discounts cached_tokens, while
+    // meditation-pal-1etx is open on whether Gemini's implicit-cache discount
+    // reaches the bill, and recaps re-send the whole transcript. Takes effort
+    // 'none' (openai.ts lowestReasoningEffort).
     'openai:gpt-6-luna': {
         provider: 'openai',
         model: 'gpt-6-luna',
         expanded: true,
+        utility: true,
         input: 0.1 / M,
         output: 0.5 / M,
         cacheRead: 0.01 / M,

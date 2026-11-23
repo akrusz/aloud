@@ -213,14 +213,15 @@ export function estimateModels(): ModelEstimate[] {
  *  facilitation provider is 'aloud' - BYOK Anthropic runs Haiku on the user's
  *  own key, claude_proxy on their subscription, and everything else reuses the
  *  facilitation model - so the client adds this to the composed estimate only
- *  for aloud-cloud sessions. MODELLED, not yet measured: Aug 2026 telemetry
- *  put the whole leg at ~0.3 cr/hr on Haiku 4.5 with the recap still on it.
- *  Haiku 5.5 runs the same text at about an eighth of that (a tenth the rate,
- *  ~30% more tokens) and the recap is on a cheaper model again, so the leg
- *  should come out near 0.05; 0.1 leaves headroom. Reseed from the admin per-hour
- *  report once 5.5 has some hours behind it. Not per-badge: the same flat leg
- *  whichever facilitation model is picked (nrj6). */
-export const UTILITY_CREDITS_PER_HOUR = 0.1;
+ *  for aloud-cloud sessions. Measured on the admin per-hour report (Nov 2026,
+ *  30 days, 8.6 h): Haiku 5.5 0.057 cr/hr, recaps on gpt-5-nano 0.024 (6.3 an
+ *  hour, ~2,900 tokens in and ~80 out each). Recaps are ~10 minutes apart, so
+ *  on GPT-6 Luna most miss the cache and pay its 1.25x write fee: 2,900 x
+ *  $0.125/M + 80 x $0.50/M = $0.0004, 0.008 cr a recap, 0.05 cr/hr. About
+ *  0.11 in all (0.13 on the last 14 days); 0.15 leaves headroom. Not
+ *  per-badge: the same flat leg whichever facilitation model is picked
+ *  (nrj6). */
+export const UTILITY_CREDITS_PER_HOUR = 0.15;
 
 /** Cloud STT leg for a hosted model (default: DEFAULT_STT_MODEL), priced through the same meter code that bills. */
 export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {

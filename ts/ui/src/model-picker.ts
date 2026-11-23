@@ -291,7 +291,7 @@ let providerStatusCache: Record<string, { available: boolean; models?: string[] 
  *  recap model) adds to every aloud-cloud session, on top of the picked model's
  *  badge. Seed matches the server's UTILITY_CREDITS_PER_HOUR; /me/models
  *  overwrites it when the catalog loads, so it can't drift into a real charge. */
-const FALLBACK_UTILITY_CREDITS_PER_HOUR = 0.1;
+const FALLBACK_UTILITY_CREDITS_PER_HOUR = 0.15;
 
 let utilityCreditsPerHour = FALLBACK_UTILITY_CREDITS_PER_HOUR;
 

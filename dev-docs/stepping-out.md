@@ -40,8 +40,8 @@ alone (`evals/results/2026-11-22-astra-first-look`). Ordinary turns were left al
 18 everywhere but one qwen miss. The
 markers are crude; read transcripts before trusting a fail.
 
-GPT-5 nano is off the facilitator picker on this result (`utilityOnly` in
-`server/src/pricing/providers.ts`; it stays the recap engine). A new model gets
+GPT-5 nano is off the facilitator picker on this result (`unlisted` in
+`server/src/pricing/providers.ts`; the recap engine is GPT-6 Luna). A new model gets
 the same read before it ships: `ts/evals/README.md`, "Adding a model".
 
 ## Layer 2: the trouble check

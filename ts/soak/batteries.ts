@@ -19,8 +19,8 @@ import type { RoleSpecs } from './roles.js';
 
 /**
  * What aloud offers as a facilitator today, as eval roster ids: the roster's
- * shipped models that the hosted price table puts on the picker (gpt-5-nano
- * ships as the recap engine only). Read at load, so the models battery
+ * shipped models that the hosted price table puts on the picker (not an
+ * unlisted or utility-only entry). Read at load, so the models battery
  * follows the allowlist without an edit here.
  */
 export const SHIPPED_FACILITATORS: readonly string[] = ROSTER.filter(

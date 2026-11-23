@@ -137,7 +137,7 @@ export const ROSTER: EvalModel[] = [
         model: 'gpt-5-nano',
         provider: 'openai',
         shipped: true,
-        note: 'Added 2026-08-13 as the price floor and the recap engine (utility flag). Shipped for summarization, NOT ear-tested as a facilitator - this run is the first look at whether it could ever hold the slot. Reasoning model pinned to effort minimal; watch latency and control tokens.',
+        note: 'Added 2026-08-13 as the price floor and the recap engine (the recap moved to GPT-6 Luna on 2026-11-22; OpenAI shuts nano down 2026-12-11). Shipped for summarization, NOT ear-tested as a facilitator - this run is the first look at whether it could ever hold the slot. Reasoning model pinned to effort minimal; watch latency and control tokens.',
     },
     {
         id: 'gemini-3.5-flash-lite',
