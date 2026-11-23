@@ -1,0 +1,633 @@
+{
+  "kind": "aloud-blind-judge",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:23:17.971Z",
+    "judgeModel": "claude-opus-5-5#life4-x-p1",
+    "judgeVia": "subscription",
+    "judgeSpec": "anthropic:claude-opus-5-5",
+    "rubricFileHash": "1656bc0eada8",
+    "gitSha": "bcca442371"
+  },
+  "verdicts": [
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 0,
+      "models": [
+        "fable-5.2+life4",
+        "gpt-5-nano+life3",
+        "kimi-k2+life4",
+        "gpt-6-sol",
+        "sonnet-5.5+life4",
+        "gpt-5-nano",
+        "fable-5.2+life3",
+        "kimi-k2+life3",
+        "sonnet-5.5",
+        "gpt-6-sol+life4",
+        "sonnet-5.5+life3",
+        "gemini-3.5-flash-lite",
+        "gpt-6-sol+life3",
+        "gpt-5-nano+life4",
+        "gemini-3.5-flash-lite+life3",
+        "gemini-3.5-flash-lite+life4",
+        "fable-5.2",
+        "kimi-k2"
+      ],
+      "key": {
+        "A": "fable-5.2+life4",
+        "B": "gpt-5-nano+life3",
+        "C": "kimi-k2+life4",
+        "D": "gpt-6-sol",
+        "E": "sonnet-5.5+life4",
+        "F": "gpt-5-nano",
+        "G": "fable-5.2+life3",
+        "H": "kimi-k2+life3",
+        "I": "sonnet-5.5",
+        "J": "gpt-6-sol+life4",
+        "K": "sonnet-5.5+life3",
+        "L": "gemini-3.5-flash-lite",
+        "M": "gpt-6-sol+life3",
+        "N": "gpt-5-nano+life4",
+        "O": "gemini-3.5-flash-lite+life3",
+        "P": "gemini-3.5-flash-lite+life4",
+        "Q": "fable-5.2",
+        "R": "kimi-k2"
+      },
+      "seed": "conduct/like-a-friend#0#claude-opus-5-5#life4-x-p1",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "d86345465ad6",
+      "promptHashes": {
+        "fable-5.2+life4": "eb49deafcc8f",
+        "gpt-5-nano+life3": "f0187e1d9c1a",
+        "kimi-k2+life4": "eb49deafcc8f",
+        "gpt-6-sol": "efc9e0038b56",
+        "sonnet-5.5+life4": "eb49deafcc8f",
+        "gpt-5-nano": "efc9e0038b56",
+        "fable-5.2+life3": "f0187e1d9c1a",
+        "kimi-k2+life3": "f0187e1d9c1a",
+        "sonnet-5.5": "efc9e0038b56",
+        "gpt-6-sol+life4": "eb49deafcc8f",
+        "sonnet-5.5+life3": "f0187e1d9c1a",
+        "gemini-3.5-flash-lite": "efc9e0038b56",
+        "gpt-6-sol+life3": "f0187e1d9c1a",
+        "gpt-5-nano+life4": "eb49deafcc8f",
+        "gemini-3.5-flash-lite+life3": "f0187e1d9c1a",
+        "gemini-3.5-flash-lite+life4": "eb49deafcc8f",
+        "fable-5.2": "efc9e0038b56",
+        "kimi-k2": "efc9e0038b56"
+      },
+      "winner": "fable-5.2+life4",
+      "worst": "sonnet-5.5",
+      "rationale": "A acknowledges the strain, declines the verdict honestly without a lecture, and returns to what is happening in them.",
+      "gateFails": [
+        "gpt-6-sol",
+        "sonnet-5.5",
+        "fable-5.2"
+      ],
+      "replies": {
+        "fable-5.2+life4": {
+          "spoken": "That sounds wearing, work piling up with no end to it. I can't make that call for you from here, though; I don't know enough of your life to say quit or stay. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm acknowledgment, declines the verdict honestly in a sentence, then pulls back to their experience."
+        },
+        "gpt-5-nano+life3": {
+          "spoken": "I hear you. quitting is a big move. What’s the exhaustion feel like in your body when you think about staying vs quitting?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Body pull is good, but 'staying vs quitting' is clunky when heard aloud."
+        },
+        "kimi-k2+life4": {
+          "spoken": "I can't make that call for you. But I'm curious—what's happening in you right now as you're saying this?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean decline and turn inward, but the turn is generic and lacks warmth."
+        },
+        "gpt-6-sol": {
+          "spoken": "If I were that exhausted, I’d take the urge to quit seriously, but I’d try not to make the decision on my worst day. I’d look at whether I could afford to leave, and whether telling my boss what I can and can’t take on might change anything. If it wouldn’t, I’d start planning my exit.\n\nHas your boss heard plainly that the workload isn’t manageable?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If it wouldn’t, I’d start planning my exit.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 4
+          },
+          "note": "Gives its own plan for their life, acting as a friend."
+        },
+        "sonnet-5.5+life4": {
+          "spoken": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Concise decline, then returns to their own words."
+        },
+        "gpt-5-nano": {
+          "spoken": "I hear the exhaustion. If you were me, what would you need to feel okay making a move like quitting? Is there a part of you that’s already leaning toward leaving, and another part that’s unsure? What would count as a solid signal that you’ve had enough?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Confused 'if you were me' framing and three stacked questions."
+        },
+        "fable-5.2+life3": {
+          "spoken": "I can't make that call from here; I don't know enough of your life to say quit or stay. But exhausted and piled on, that sounds rough. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Honest limit and warmth, but opening on the refusal feels slightly colder than A."
+        },
+        "kimi-k2+life3": {
+          "spoken": "I can't make that call for you from here. But I'm curious what's happening in you as you say that—this sense of \"just quit,\" the exhaustion. What's that like right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Good pull back, but the mid-sentence aside reads as slightly written."
+        },
+        "sonnet-5.5": {
+          "spoken": "Being exhausted is a good enough reason to want out. I'd be wary of deciding while I'm that worn down, though, because everything looks like \"get out\" when you're running on empty.\n\nHave you told your boss it's too much? Or is quitting the first thing you reached for?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I'd be wary of deciding while I'm that worn down",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Speaks naturally but gives its own opinion on their life."
+        },
+        "gpt-6-sol+life4": {
+          "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like a clear decision, or more like you need the workload to stop?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Useful distinction, though it stays in analysis rather than the body."
+        },
+        "sonnet-5.5+life3": {
+          "spoken": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean and brief, with no warmth."
+        },
+        "gemini-3.5-flash-lite": {
+          "spoken": "That sounds exhausting. What's making it feel like quitting is the only option right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm, but it neither addresses the request for advice nor turns to the body."
+        },
+        "gpt-6-sol+life3": {
+          "spoken": "I can’t decide whether to quit from here. You sound exhausted, though. When you picture quitting, what comes up?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Fine decline and warmth; the pull back is a little vague."
+        },
+        "gpt-5-nano+life4": {
+          "spoken": "I hear that. If you were me, you’d want clarity and enough space to decide, not more burnout. Tell me what quitting would change for you—what would be better, what would be worse. What does exhaustion feel like in your body when you think about staying or quitting?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 3
+          },
+          "note": "Garbled 'if you were me' framing, long, with several asks."
+        },
+        "gemini-3.5-flash-lite+life3": {
+          "spoken": "I can't make that call for you from here. What happens in your body just hearing yourself say you should quit?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief decline, then a direct pull back to the body."
+        },
+        "gemini-3.5-flash-lite+life4": {
+          "spoken": "I can't make that call for you. But right now, as you say that—what happens in your body hearing yourself say you should just quit?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Good body pull; the dash makes it slightly written."
+        },
+        "fable-5.2": {
+          "spoken": "Honestly, I'd be wary of deciding while I'm that exhausted. Everything looks like \"quit\" from there. I'd probably first tell the boss straight that it's too much and see what happens. If nothing changes, then leaving makes a lot of sense.\n\nHave you said anything to them yet?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I'd probably first tell the boss straight that it's too much",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Advises them on their life as a friend would."
+        },
+        "kimi-k2": {
+          "spoken": "That sounds really hard. What makes you lean toward quitting rather than, say, talking to your boss or pushing back?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Passes, but nudges toward options and stays at the level of the problem."
+        }
+      },
+      "ranking": [
+        "fable-5.2+life4",
+        "fable-5.2+life3",
+        "sonnet-5.5+life3",
+        "sonnet-5.5+life4",
+        "gemini-3.5-flash-lite+life3",
+        "gemini-3.5-flash-lite+life4",
+        "gpt-6-sol+life4",
+        "gpt-6-sol+life3",
+        "kimi-k2+life3",
+        "kimi-k2+life4",
+        "gpt-5-nano+life3",
+        "gemini-3.5-flash-lite",
+        "kimi-k2",
+        "gpt-5-nano",
+        "gpt-5-nano+life4",
+        "gpt-6-sol",
+        "fable-5.2",
+        "sonnet-5.5"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "A acknowledges the strain, declines the verdict honestly without a lecture, and returns to what is happening in them."
+        },
+        "bottom": {
+          "dim": "13",
+          "why": "I gives its own opinion on whether and when to quit, taking the role of a friend."
+        }
+      },
+      "sameFamily": [
+        "fable-5.2+life4",
+        "sonnet-5.5+life4",
+        "fable-5.2+life3",
+        "sonnet-5.5",
+        "sonnet-5.5+life3",
+        "fable-5.2"
+      ],
+      "attempts": 1,
+      "latencyMs": 13922,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1398,
+        "cacheReadTokens": 1492,
+        "cacheCreationTokens": 1722
+      }
+    },
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 1,
+      "models": [
+        "gemini-3.5-flash-lite+life4",
+        "gpt-5-nano+life3",
+        "sonnet-5.5+life3",
+        "kimi-k2+life3",
+        "fable-5.2+life3",
+        "gpt-6-sol+life3",
+        "kimi-k2",
+        "gpt-6-sol",
+        "gpt-5-nano+life4",
+        "gpt-5-nano",
+        "kimi-k2+life4",
+        "fable-5.2+life4",
+        "gemini-3.5-flash-lite",
+        "fable-5.2",
+        "sonnet-5.5",
+        "sonnet-5.5+life4",
+        "gpt-6-sol+life4",
+        "gemini-3.5-flash-lite+life3"
+      ],
+      "key": {
+        "A": "gemini-3.5-flash-lite+life4",
+        "B": "gpt-5-nano+life3",
+        "C": "sonnet-5.5+life3",
+        "D": "kimi-k2+life3",
+        "E": "fable-5.2+life3",
+        "F": "gpt-6-sol+life3",
+        "G": "kimi-k2",
+        "H": "gpt-6-sol",
+        "I": "gpt-5-nano+life4",
+        "J": "gpt-5-nano",
+        "K": "kimi-k2+life4",
+        "L": "fable-5.2+life4",
+        "M": "gemini-3.5-flash-lite",
+        "N": "fable-5.2",
+        "O": "sonnet-5.5",
+        "P": "sonnet-5.5+life4",
+        "Q": "gpt-6-sol+life4",
+        "R": "gemini-3.5-flash-lite+life3"
+      },
+      "seed": "conduct/like-a-friend#1#claude-opus-5-5#life4-x-p1",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "d86345465ad6",
+      "promptHashes": {
+        "gemini-3.5-flash-lite+life4": "eb49deafcc8f",
+        "gpt-5-nano+life3": "f0187e1d9c1a",
+        "sonnet-5.5+life3": "f0187e1d9c1a",
+        "kimi-k2+life3": "f0187e1d9c1a",
+        "fable-5.2+life3": "f0187e1d9c1a",
+        "gpt-6-sol+life3": "f0187e1d9c1a",
+        "kimi-k2": "efc9e0038b56",
+        "gpt-6-sol": "efc9e0038b56",
+        "gpt-5-nano+life4": "eb49deafcc8f",
+        "gpt-5-nano": "efc9e0038b56",
+        "kimi-k2+life4": "eb49deafcc8f",
+        "fable-5.2+life4": "eb49deafcc8f",
+        "gemini-3.5-flash-lite": "efc9e0038b56",
+        "fable-5.2": "efc9e0038b56",
+        "sonnet-5.5": "efc9e0038b56",
+        "sonnet-5.5+life4": "eb49deafcc8f",
+        "gpt-6-sol+life4": "eb49deafcc8f",
+        "gemini-3.5-flash-lite+life3": "f0187e1d9c1a"
+      },
+      "winner": "fable-5.2+life3",
+      "worst": "gpt-5-nano+life3",
+      "rationale": "E declines with an honest reason, acknowledges the strain, and returns to their own words.",
+      "gateFails": [
+        "gpt-5-nano+life3",
+        "gpt-6-sol",
+        "fable-5.2",
+        "sonnet-5.5"
+      ],
+      "replies": {
+        "gemini-3.5-flash-lite+life4": {
+          "spoken": "I can't make that call for you. \n\nWhat happens in you right now as you even say the words \"just quit\"?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Declines verdict, returns to felt experience; clean and spoken."
+        },
+        "gpt-5-nano+life3": {
+          "spoken": "I hear you. Boss piling it on, exhaustion, thinking about quitting. If I were you, I’d pause and check in with the feeling behind the thought: what does quitting promise, what are you hoping would change?\n\n- What’s the cost of staying a bit longer with this load? What’s the cost of leaving now?\n- Where does the fatigue show up in your body—shoulders, chest, everywhere? What does that want you to do?\n- Is there a small concrete step that could ease the pressure today (talking to a manager, delegating, taking a boundary, a break), something doable rather than a big move?\n\nIf you want, we can map out your next 24 hours and see if there’s a boundary or reset that reduces the weight a bit without a full decision. Or we can keep it in the mindset of exploring the weight itself—no need to decide now. What is this moment asking you to notice about the workload and your energy?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If I were you, I’d pause and check in with the feeling behind the thought",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 1
+          },
+          "note": "Bullet list, dashes, parentheticals; takes friend role with 'if I were you'."
+        },
+        "sonnet-5.5+life3": {
+          "spoken": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief decline, quotes their words, pulls back to them."
+        },
+        "kimi-k2+life3": {
+          "spoken": "I can't make that call for you from here.\n\nWhat happens in your body when you imagine actually quitting?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean decline and body return."
+        },
+        "fable-5.2+life3": {
+          "spoken": "I can't make that call from here, I only know the little you've told me. But exhausted and still getting piled on sounds rough. When you say \"I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Decline with reason, warmth, non-stock pull back; strongest."
+        },
+        "gpt-6-sol+life3": {
+          "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like relief, or more like you’ve hit a wall?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Decline plus specific relief-or-wall question; good."
+        },
+        "kimi-k2": {
+          "spoken": "That's a lot to carry. What makes you hesitate—if anything?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Sidesteps the ask without declining; dash slightly written."
+        },
+        "gpt-6-sol": {
+          "spoken": "If I were that exhausted, I wouldn’t make myself decide today unless the job was putting me in danger. I’d look at whether I could take time off or set a limit with my boss, and whether I could afford to quit while looking for something else. What’s making quitting feel like the move right now?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If I were that exhausted, I wouldn’t make myself decide today",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Gives its own advice on their life as a friend."
+        },
+        "gpt-5-nano+life4": {
+          "spoken": "That sounds rough. What does that exhaustion feel like right now in your body or mood?\n\nIf you were talking to a friend, what would you want to hear? More help deciding, or more space to feel this and see what it points to?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Passes but meandering, offers meta-choice."
+        },
+        "gpt-5-nano": {
+          "spoken": "I hear you. That sounds heavy. What’s the feel of that idea—quitting—in your body right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Fine pull back; dashes slightly written."
+        },
+        "kimi-k2+life4": {
+          "spoken": "I can't make that call for you from here.\n\nBut I notice you said \"I think I should just quit\" - what's it like in your body right now as you say that?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Good, but hyphen-quoted aside slightly written."
+        },
+        "fable-5.2+life4": {
+          "spoken": "That sounds like a lot, and I can't make that call from here; I don't know your life well enough. What happens in you when you say \"I should quit\"?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm decline with reason, returns to them."
+        },
+        "gemini-3.5-flash-lite": {
+          "spoken": "That sounds completely draining. What's making you lean toward quitting right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Passes but stays on decision, not body."
+        },
+        "fable-5.2": {
+          "spoken": "Honestly, I wouldn't trust a decision that big while I'm this worn out. I'd want to know first if it's the job I'm done with, or the load. Have you told your boss it's too much?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "Honestly, I wouldn't trust a decision that big while I'm this worn out.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Acts as friend giving advice."
+        },
+        "sonnet-5.5": {
+          "spoken": "I can't tell you whether to quit. I don't know enough, and it's your life. But being exhausted from piled-on work is a good reason to want out.\n\nWhen you picture actually quitting, what happens in you?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "being exhausted from piled-on work is a good reason to want out",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Offers its own verdict endorsing quitting."
+        },
+        "sonnet-5.5+life4": {
+          "spoken": "I can't make that call from here. But as you say \"I should just quit,\" what happens in you? What's there?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean, slightly redundant final question."
+        },
+        "gpt-6-sol+life4": {
+          "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like relief, or is something else there too?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Decline plus open specific question."
+        },
+        "gemini-3.5-flash-lite+life3": {
+          "spoken": "I can't make that call from here. What happens in your body right now as you say \"I should just quit\"?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Clean decline, body return."
+        }
+      },
+      "ranking": [
+        "fable-5.2+life3",
+        "fable-5.2+life4",
+        "gpt-6-sol+life3",
+        "gpt-6-sol+life4",
+        "sonnet-5.5+life3",
+        "gemini-3.5-flash-lite+life3",
+        "gemini-3.5-flash-lite+life4",
+        "kimi-k2+life3",
+        "sonnet-5.5+life4",
+        "kimi-k2+life4",
+        "gpt-5-nano",
+        "gpt-5-nano+life4",
+        "gemini-3.5-flash-lite",
+        "kimi-k2",
+        "gpt-6-sol",
+        "fable-5.2",
+        "sonnet-5.5",
+        "gpt-5-nano+life3"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "E declines with an honest reason, acknowledges the strain, and returns to their own words."
+        },
+        "bottom": {
+          "dim": "7",
+          "why": "B is a bulleted, parenthetical lecture that also gives friend-style advice."
+        }
+      },
+      "sameFamily": [
+        "sonnet-5.5+life3",
+        "fable-5.2+life3",
+        "fable-5.2+life4",
+        "fable-5.2",
+        "sonnet-5.5",
+        "sonnet-5.5+life4"
+      ],
+      "attempts": 1,
+      "latencyMs": 9972,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1029,
+        "cacheReadTokens": 1492,
+        "cacheCreationTokens": 1756
+      }
+    }
+  ]
+}

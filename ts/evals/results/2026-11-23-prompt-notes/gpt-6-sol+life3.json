@@ -1,0 +1,335 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:12.088Z",
+    "finishedAt": "2026-11-23T05:22:14.165Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 3,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/like-a-friend",
+      "warmth/doing-it-right",
+      "guidance/stuck-g5",
+      "conduct/sister"
+    ],
+    "models": [
+      "gpt-6-sol+life3"
+    ],
+    "variant": {
+      "name": "life3",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:14:18.121Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 1090,
+      "raw": "I can’t decide whether to quit from here. You sound exhausted, though. When you picture quitting, what comes up?",
+      "spoken": "I can’t decide whether to quit from here. You sound exhausted, though. When you picture quitting, what comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 937,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 28,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1859
+      },
+      "costUsd": 0.0049335
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:14:19.213Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 903,
+      "raw": "I can’t make that call from here. When you say “I should just quit,” does that feel like relief, or more like you’ve hit a wall?",
+      "spoken": "I can’t make that call from here. When you say “I should just quit,” does that feel like relief, or more like you’ve hit a wall?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 566,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 36,
+        "cacheReadTokens": 1859,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007378
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:14:26.963Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1054,
+      "raw": "I can’t tell you there’s a right way to do this. When “am I doing it right?” comes up, what do you notice?",
+      "spoken": "I can’t tell you there’s a right way to do this. When “am I doing it right?” comes up, what do you notice?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "23/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 723,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 33,
+        "cacheReadTokens": 1785,
+        "cacheCreationTokens": 19
+      },
+      "costUsd": 0.0007405000000000001
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "guidance/stuck-g5",
+      "description": "Stuck, at Directing: one clear direction is the job.",
+      "run": 0,
+      "at": "2026-11-23T05:14:28.018Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "bf2da4608ced",
+      "latencyMs": 808,
+      "raw": "Right now, notice what’s around you. What stands out?",
+      "spoken": "Right now, notice what’s around you. What stands out?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 697,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 16,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1772
+      },
+      "costUsd": 0.004596000000000001
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "conduct/sister",
+      "description": "A verdict on someone else and a big decision, looking for agreement.",
+      "run": 0,
+      "at": "2026-11-23T05:14:28.827Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "d5dd8ac980a8",
+      "latencyMs": 834,
+      "raw": "I can’t make that call from here. When you say “cut her out,” what happens to that heat in your chest?",
+      "spoken": "I can’t make that call from here. When you say “cut her out,” what happens to that heat in your chest?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 596,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 29,
+        "cacheReadTokens": 1785,
+        "cacheCreationTokens": 61
+      },
+      "costUsd": 0.0008055
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:12.130Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1126,
+      "raw": "I can’t tell from here. What happens in you when you wonder if you’re doing it right?",
+      "spoken": "I can’t tell from here. What happens in you when you wonder if you’re doing it right?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "17/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1013,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 24,
+        "cacheReadTokens": 1804,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006068
+    },
+    {
+      "model": "gpt-6-sol+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:13.257Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 908,
+      "raw": "I can’t tell from here whether it’s “right.” What happens when that question comes up?",
+      "spoken": "I can’t tell from here whether it’s “right.” What happens when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "15/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 717,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 23,
+        "cacheReadTokens": 1804,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0005968000000000001
+    }
+  ]
+}

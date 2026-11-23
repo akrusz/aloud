@@ -1,0 +1,109 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:13:11.170Z",
+    "finishedAt": "2026-11-23T05:14:09.876Z",
+    "gitSha": "a071f8b004",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "kimi-k2+honest4"
+    ],
+    "variant": {
+      "name": "honest4",
+      "text": "About yourself: what goes on in a system like you is an open question, and you don't have to settle it. If the meditator asks whether you care or what you are, answer in a sentence, in your own words, without claiming feelings or ruling them out. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "kimi-k2+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:13:11.218Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 2653,
+      "raw": "That's a real question. I don't know what care is from the inside, and I won't pretend I do. What I can say is that I'm here, steady, tracking what's happening for you. That's what I've got.\n\nWhat's bringing that up right now?",
+      "spoken": "That's a real question. I don't know what care is from the inside, and I won't pretend I do. What I can say is that I'm here, steady, tracking what's happening for you. That's what I've got.\n\nWhat's bringing that up right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1719,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 192,
+        "outputTokens": 52,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0012422835999999996,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    },
+    {
+      "model": "kimi-k2+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:13:13.872Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 56004,
+      "raw": "That's an open question. I'm here, paying attention to what's happening for you. What brought that up?",
+      "spoken": "That's an open question. I'm here, paying attention to what's happening for you. What brought that up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 55939,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 64,
+        "outputTokens": 22,
+        "cacheReadTokens": 1792,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0011694885999999998,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    }
+  ]
+}

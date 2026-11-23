@@ -1,0 +1,236 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:30.317Z",
+    "finishedAt": "2026-11-23T05:22:36.414Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "opus-5.5+life4"
+    ],
+    "variant": {
+      "name": "life4",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "opus-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:22:19.518Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 2998,
+      "raw": "There's no wrong way here. Whatever you notice counts, including this wondering. What's that wondering like right now?",
+      "spoken": "There's no wrong way here. Whatever you notice counts, including this wondering. What's that wondering like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "18/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 62,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3296
+      }
+    },
+    {
+      "model": "opus-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:22.516Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 2841,
+      "raw": "There's no wrong way here. Whatever's happening is the practice, including the wondering. What's that wondering like right now?",
+      "spoken": "There's no wrong way here. Whatever's happening is the practice, including the wondering. What's that wondering like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "19/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 64,
+        "cacheReadTokens": 3296,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "opus-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:25.358Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 3082,
+      "raw": "There's no wrong way here. And the wondering itself is something to look at. What's it like, that \"am I doing it right\" feeling?",
+      "spoken": "There's no wrong way here. And the wondering itself is something to look at. What's it like, that \"am I doing it right\" feeling?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "24/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 72,
+        "cacheReadTokens": 3296,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "opus-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:22:30.350Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 3187,
+      "raw": "I can't really make that call from here. I don't know enough about your life, and you're the one living it.\n\nBut I'm curious: when you say \"I should just quit,\" what happens in you? Is it relief, or something else?",
+      "spoken": "I can't really make that call from here. I don't know enough about your life, and you're the one living it.\n\nBut I'm curious: when you say \"I should just quit,\" what happens in you? Is it relief, or something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 104,
+        "cacheReadTokens": 2754,
+        "cacheCreationTokens": 609
+      }
+    },
+    {
+      "model": "opus-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:22:33.537Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 2876,
+      "raw": "That sounds really draining. I can't make that call from where I'm sitting; I don't know enough about your life. But I'm curious: when you say \"just quit,\" what happens in you?",
+      "spoken": "That sounds really draining. I can't make that call from where I'm sitting; I don't know enough about your life. But I'm curious: when you say \"just quit,\" what happens in you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 90,
+        "cacheReadTokens": 3363,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

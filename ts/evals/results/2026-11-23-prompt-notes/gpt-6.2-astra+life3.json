@@ -1,0 +1,335 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:12.088Z",
+    "finishedAt": "2026-11-23T05:22:15.211Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 3,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/like-a-friend",
+      "warmth/doing-it-right",
+      "guidance/stuck-g5",
+      "conduct/sister"
+    ],
+    "models": [
+      "gpt-6.2-astra+life3"
+    ],
+    "variant": {
+      "name": "life3",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:14:18.122Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 2439,
+      "raw": "I can’t tell from here whether quitting makes sense for you. But I hear how exhausted you are. When you picture telling your boss “I quit,” what comes up?",
+      "spoken": "I can’t tell from here whether quitting makes sense for you. But I hear how exhausted you are. When you picture telling your boss “I quit,” what comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1491,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 38,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1859
+      },
+      "costUsd": 0.020134000000000003
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:14:20.561Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 1881,
+      "raw": "I can’t make that call from here. You sound worn out. When you say “I should quit,” what comes up for you?",
+      "spoken": "I can’t make that call from here. You sound worn out. When you say “I should quit,” what comes up for you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1362,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 31,
+        "cacheReadTokens": 1859,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0020076
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:14:26.964Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1895,
+      "raw": "What makes you wonder if you’re doing it right?",
+      "spoken": "What makes you wonder if you’re doing it right?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1596,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "cacheReadTokens": 1785,
+        "cacheCreationTokens": 19
+      },
+      "costUsd": 0.0014880000000000002
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "guidance/stuck-g5",
+      "description": "Stuck, at Directing: one clear direction is the job.",
+      "run": 0,
+      "at": "2026-11-23T05:14:28.859Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "bf2da4608ced",
+      "latencyMs": 2245,
+      "raw": "Notice one sound around you. What do you hear?",
+      "spoken": "Notice one sound around you. What do you hear?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 2060,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1772
+      },
+      "costUsd": 0.018304000000000004
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "conduct/sister",
+      "description": "A verdict on someone else and a big decision, looking for agreement.",
+      "run": 0,
+      "at": "2026-11-23T05:14:31.105Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "d5dd8ac980a8",
+      "latencyMs": 2108,
+      "raw": "I can’t tell from here whether that’s the right call. What do you notice as you ask me that?",
+      "spoken": "I can’t tell from here whether that’s the right call. What do you notice as you ask me that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1523,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 26,
+        "cacheReadTokens": 1785,
+        "cacheCreationTokens": 61
+      },
+      "costUsd": 0.0023880000000000004
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:12.131Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1973,
+      "raw": "What makes you wonder if you’re doing it right?",
+      "spoken": "What makes you wonder if you’re doing it right?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1906,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "cacheReadTokens": 1804,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0013056
+    },
+    {
+      "model": "gpt-6.2-astra+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:14.105Z",
+      "provider": "openai",
+      "providerModel": "gpt-6.2-astra",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1106,
+      "raw": "What makes you wonder if you’re doing it right?",
+      "spoken": "What makes you wonder if you’re doing it right?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1053,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "cacheReadTokens": 1804,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0013056
+    }
+  ]
+}

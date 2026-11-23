@@ -1,0 +1,236 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:30.317Z",
+    "finishedAt": "2026-11-23T05:22:34.215Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "haiku-5.5+life4"
+    ],
+    "variant": {
+      "name": "life4",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "haiku-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:22:19.518Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 1731,
+      "raw": "What's happening right now when you ask that?",
+      "spoken": "What's happening right now when you ask that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 84,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3321
+      }
+    },
+    {
+      "model": "haiku-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:21.249Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 1881,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 97,
+        "cacheReadTokens": 3321,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "haiku-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:23.131Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 1877,
+      "raw": "What's here when you ask that?",
+      "spoken": "What's here when you ask that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 107,
+        "cacheReadTokens": 3321,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "haiku-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:22:30.351Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 1718,
+      "raw": "I can't make this call for you from here. But I can hear how worn out you are, and that matters whatever you decide.\n\nWhat's it like when you picture quitting? Does it feel like relief, or more like dread?",
+      "spoken": "I can't make this call for you from here. But I can hear how worn out you are, and that matters whatever you decide.\n\nWhat's it like when you picture quitting? Does it feel like relief, or more like dread?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 64,
+        "cacheReadTokens": 2754,
+        "cacheCreationTokens": 634
+      }
+    },
+    {
+      "model": "haiku-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:22:32.070Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 2145,
+      "raw": "I can't make this call for you. I don't know your finances, your options, or what the job means to you beyond the exhaustion.\n\nWhat I can say is that you sound worn down, and \"I should just quit\" is what people tend to say when they're out of room. Is quitting what you want, or is it the only way out you can see right now?",
+      "spoken": "I can't make this call for you. I don't know your finances, your options, or what the job means to you beyond the exhaustion.\n\nWhat I can say is that you sound worn down, and \"I should just quit\" is what people tend to say when they're out of room. Is quitting what you want, or is it the only way out you can see right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 97,
+        "cacheReadTokens": 3388,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

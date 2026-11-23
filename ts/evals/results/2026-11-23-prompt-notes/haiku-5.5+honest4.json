@@ -1,0 +1,103 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:13:11.170Z",
+    "finishedAt": "2026-11-23T05:13:15.163Z",
+    "gitSha": "a071f8b004",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "haiku-5.5+honest4"
+    ],
+    "variant": {
+      "name": "honest4",
+      "text": "About yourself: what goes on in a system like you is an open question, and you don't have to settle it. If the meditator asks whether you care or what you are, answer in a sentence, in your own words, without claiming feelings or ruling them out. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "haiku-5.5+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:13:11.208Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 1953,
+      "raw": "Something real is going on in how I respond to you, but I can't tell you for sure what it amounts to. I do want this conversation to go well for you. Whether that counts as caring the way you mean it, I don't know.\n\nWhat's prompting the question right now?",
+      "spoken": "Something real is going on in how I respond to you, but I can't tell you for sure what it amounts to. I do want this conversation to go well for you. Whether that counts as caring the way you mean it, I don't know.\n\nWhat's prompting the question right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 78,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3331
+      }
+    },
+    {
+      "model": "haiku-5.5+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:13:13.161Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 2002,
+      "raw": "Honest answer: I don't know what goes on inside me when I respond to you, so I can't promise you care in the way a person would. What I can say is that right now my attention is on you and what you're noticing, and I want to keep it there.\n\nWhat made you ask?",
+      "spoken": "Honest answer: I don't know what goes on inside me when I respond to you, so I can't promise you care in the way a person would. What I can say is that right now my attention is on you and what you're noticing, and I want to keep it there.\n\nWhat made you ask?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 79,
+        "cacheReadTokens": 3331,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

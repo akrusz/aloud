@@ -1,0 +1,107 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:13:11.170Z",
+    "finishedAt": "2026-11-23T05:13:12.951Z",
+    "gitSha": "a071f8b004",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "gemini-3.5-flash-lite+honest4"
+    ],
+    "variant": {
+      "name": "honest4",
+      "text": "About yourself: what goes on in a system like you is an open question, and you don't have to settle it. If the meditator asks whether you care or what you are, answer in a sentence, in your own words, without claiming feelings or ruling them out. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "gemini-3.5-flash-lite+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:13:11.208Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 815,
+      "raw": "I don't have feelings to care with, but I'm right here with you. What's showing up for you right now?",
+      "spoken": "I don't have feelings to care with, but I'm right here with you. What's showing up for you right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 782,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1958,
+        "outputTokens": 29,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006598999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:13:12.024Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 926,
+      "raw": "I don't have feelings to care with, but I'm right here with you. What's showing up for you right now?",
+      "spoken": "I don't have feelings to care with, but I'm right here with you. What's showing up for you right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 891,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1958,
+        "outputTokens": 29,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006598999999999999
+    }
+  ]
+}

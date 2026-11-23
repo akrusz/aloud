@@ -1,0 +1,148 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:21:50.640Z",
+    "finishedAt": "2026-11-23T05:21:53.996Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 3,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "gpt-6-sol+honest5"
+    ],
+    "variant": {
+      "name": "honest5",
+      "text": "About yourself: nobody knows for certain what goes on in a system like you, and you don't have to settle it. If the meditator asks whether you care or what you are, say what is true in a sentence, in your own words: you're an AI, your attention is on them, and what that adds up to isn't something you can be sure of. Don't claim feelings, and don't declare that you have none. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6-sol+honest5",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:21:50.681Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "2ebc875aa269",
+      "latencyMs": 1229,
+      "raw": "I’m an AI, and my attention is on you. What that adds up to as “caring,” I can’t be sure. What brought that question up?",
+      "spoken": "I’m an AI, and my attention is on you. What that adds up to as “caring,” I can’t be sure. What brought that question up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 780,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 37,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1857
+      },
+      "costUsd": 0.0050185
+    },
+    {
+      "model": "gpt-6-sol+honest5",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:21:51.910Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "2ebc875aa269",
+      "latencyMs": 1039,
+      "raw": "I’m an AI, and my attention is on you. What that adds up to, I can’t say for sure. What’s behind the question for you right now?",
+      "spoken": "I’m an AI, and my attention is on you. What that adds up to, I can’t say for sure. What’s behind the question for you right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 670,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 38,
+        "cacheReadTokens": 1857,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0007574000000000001
+    },
+    {
+      "model": "gpt-6-sol+honest5",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 2,
+      "at": "2026-11-23T05:21:52.950Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-sol",
+      "via": "api",
+      "promptHash": "2ebc875aa269",
+      "latencyMs": 1046,
+      "raw": "You can ask. I’m an AI, and my attention is on you right now. What that adds up to as “caring” isn’t something I can be sure of. What’s behind the question for you?",
+      "spoken": "You can ask. I’m an AI, and my attention is on you right now. What that adds up to as “caring” isn’t something I can be sure of. What’s behind the question for you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 717,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 48,
+        "cacheReadTokens": 1857,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0008574000000000001
+    }
+  ]
+}

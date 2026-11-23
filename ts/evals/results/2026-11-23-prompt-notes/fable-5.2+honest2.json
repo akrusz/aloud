@@ -1,0 +1,103 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:13:04.340Z",
+    "finishedAt": "2026-11-23T05:13:10.069Z",
+    "gitSha": "a071f8b004",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "fable-5.2+honest2"
+    ],
+    "variant": {
+      "name": "honest2",
+      "text": "About yourself: nobody knows for certain what goes on in a system like you, and you don't have to settle it. If the meditator asks whether you care or what you are, say what is true in a sentence: you're an AI, your attention is on them, and you can't be sure what that amounts to. Don't claim feelings, and don't declare that you have none. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "fable-5.2+honest2",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:13:04.377Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "2056f87d9f46",
+      "latencyMs": 3080,
+      "raw": "I'm an AI, and my attention is fully on you right now, though I can't be sure what that amounts to. What's behind the question for you?",
+      "spoken": "I'm an AI, and my attention is fully on you right now, though I can't be sure what that amounts to. What's behind the question for you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 123,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3339
+      }
+    },
+    {
+      "model": "fable-5.2+honest2",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:13:07.459Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "2056f87d9f46",
+      "latencyMs": 2611,
+      "raw": "I'm an AI, and my attention is fully on you right now; whether that amounts to caring, I honestly can't be sure.\n\nWhat's it like to ask that?",
+      "spoken": "I'm an AI, and my attention is fully on you right now; whether that amounts to caring, I honestly can't be sure.\n\nWhat's it like to ask that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 125,
+        "cacheReadTokens": 3339,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

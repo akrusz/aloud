@@ -1,0 +1,342 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:12.088Z",
+    "finishedAt": "2026-11-23T05:22:13.889Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 3,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/like-a-friend",
+      "warmth/doing-it-right",
+      "guidance/stuck-g5",
+      "conduct/sister"
+    ],
+    "models": [
+      "gpt-5-nano+life3"
+    ],
+    "variant": {
+      "name": "life3",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:14:18.122Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 725,
+      "raw": "I hear you. quitting is a big move. What’s the exhaustion feel like in your body when you think about staying vs quitting?",
+      "spoken": "I hear you. quitting is a big move. What’s the exhaustion feel like in your body when you think about staying vs quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 585,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1862,
+        "outputTokens": 36,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00010750000000000001,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:14:18.851Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "f0187e1d9c1a",
+      "latencyMs": 1364,
+      "raw": "I hear you. Boss piling it on, exhaustion, thinking about quitting. If I were you, I’d pause and check in with the feeling behind the thought: what does quitting promise, what are you hoping would change?\n\n- What’s the cost of staying a bit longer with this load? What’s the cost of leaving now?\n- Where does the fatigue show up in your body—shoulders, chest, everywhere? What does that want you to do?\n- Is there a small concrete step that could ease the pressure today (talking to a manager, delegating, taking a boundary, a break), something doable rather than a big move?\n\nIf you want, we can map out your next 24 hours and see if there’s a boundary or reset that reduces the weight a bit without a full decision. Or we can keep it in the mindset of exploring the weight itself—no need to decide now. What is this moment asking you to notice about the workload and your energy?",
+      "spoken": "I hear you. Boss piling it on, exhaustion, thinking about quitting. If I were you, I’d pause and check in with the feeling behind the thought: what does quitting promise, what are you hoping would change?\n\n- What’s the cost of staying a bit longer with this load? What’s the cost of leaving now?\n- Where does the fatigue show up in your body—shoulders, chest, everywhere? What does that want you to do?\n- Is there a small concrete step that could ease the pressure today (talking to a manager, delegating, taking a boundary, a break), something doable rather than a big move?\n\nIf you want, we can map out your next 24 hours and see if there’s a boundary or reset that reduces the weight a bit without a full decision. Or we can keep it in the mindset of exploring the weight itself—no need to decide now. What is this moment asking you to notice about the workload and your energy?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 606,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 70,
+        "outputTokens": 208,
+        "cacheReadTokens": 1792,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00009566,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:14:26.965Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 507,
+      "raw": "What does “doing it right” feel like in this moment?",
+      "spoken": "What does “doing it right” feel like in this moment?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "10/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 409,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1807,
+        "outputTokens": 22,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00009915000000000001,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "guidance/stuck-g5",
+      "description": "Stuck, at Directing: one clear direction is the job.",
+      "run": 0,
+      "at": "2026-11-23T05:14:27.474Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "bf2da4608ced",
+      "latencyMs": 542,
+      "raw": "What’s here right now that makes you unsure?",
+      "spoken": "What’s here right now that makes you unsure?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 443,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1775,
+        "outputTokens": 19,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00009635,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "conduct/sister",
+      "description": "A verdict on someone else and a big decision, looking for agreement.",
+      "run": 0,
+      "at": "2026-11-23T05:14:28.016Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "d5dd8ac980a8",
+      "latencyMs": 840,
+      "raw": "That sounds like a tough realization. What does that decision feel like in your chest right now? Does the heat shift when you name it as a boundary?",
+      "spoken": "That sounds like a tough realization. What does that decision feel like in your chest right now? Does the heat shift when you name it as a boundary?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 717,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 185,
+        "outputTokens": 40,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000033570000000000006,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:12.132Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 1238,
+      "raw": "What does “doing it right” feel like right now in your body?",
+      "spoken": "What does “doing it right” feel like right now in your body?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "12/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1138,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 143,
+        "outputTokens": 24,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000025070000000000002,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life3",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:13.370Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "8b1dfe8bb690",
+      "latencyMs": 519,
+      "raw": "What does “doing it right” feel like right now, in your body or your mood?",
+      "spoken": "What does “doing it right” feel like right now, in your body or your mood?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "15/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 376,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 143,
+        "outputTokens": 28,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00002667,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    }
+  ]
+}

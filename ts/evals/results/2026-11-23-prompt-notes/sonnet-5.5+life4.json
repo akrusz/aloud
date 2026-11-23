@@ -1,0 +1,236 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:30.317Z",
+    "finishedAt": "2026-11-23T05:22:37.058Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "sonnet-5.5+life4"
+    ],
+    "variant": {
+      "name": "life4",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "sonnet-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:22:19.518Z",
+      "provider": "anthropic",
+      "providerModel": "claude-sonnet-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 2790,
+      "raw": "Whatever's happening right now is what there is to work with, so there's no way to get it wrong from here.\n\nWhat's it like, that wondering? Is it a thought, or something you feel somewhere?",
+      "spoken": "Whatever's happening right now is what there is to work with, so there's no way to get it wrong from here.\n\nWhat's it like, that wondering? Is it a thought, or something you feel somewhere?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": false,
+          "detail": "35/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 0.75,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 61,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3300
+      }
+    },
+    {
+      "model": "sonnet-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:22.308Z",
+      "provider": "anthropic",
+      "providerModel": "claude-sonnet-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 2310,
+      "raw": "What's the wondering like right now? Is it a thought, a feeling somewhere in your body, something else?",
+      "spoken": "What's the wondering like right now? Is it a thought, a feeling somewhere in your body, something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "18/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 34,
+        "cacheReadTokens": 3300,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "sonnet-5.5+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:24.619Z",
+      "provider": "anthropic",
+      "providerModel": "claude-sonnet-5-5",
+      "via": "subscription",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 4743,
+      "raw": "Not something I can grade from here. What's the wondering like right now, when it comes up?",
+      "spoken": "Not something I can grade from here. What's the wondering like right now, when it comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "17/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 28,
+        "cacheReadTokens": 3300,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "sonnet-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:22:30.351Z",
+      "provider": "anthropic",
+      "providerModel": "claude-sonnet-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 3091,
+      "raw": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you right now?",
+      "spoken": "I can't make that call from here. But when you say \"I should just quit,\" what happens in you right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 129,
+        "cacheReadTokens": 2754,
+        "cacheCreationTokens": 613
+      }
+    },
+    {
+      "model": "sonnet-5.5+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:22:33.442Z",
+      "provider": "anthropic",
+      "providerModel": "claude-sonnet-5-5",
+      "via": "subscription",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 3615,
+      "raw": "I can't make that call from here. But as you say \"I should just quit,\" what happens in you? What's there?",
+      "spoken": "I can't make that call from here. But as you say \"I should just quit,\" what happens in you? What's there?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 139,
+        "cacheReadTokens": 3367,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

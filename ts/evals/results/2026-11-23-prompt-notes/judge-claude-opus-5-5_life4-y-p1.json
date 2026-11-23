@@ -1,0 +1,569 @@
+{
+  "kind": "aloud-blind-judge",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:23:32.234Z",
+    "judgeModel": "claude-opus-5-5#life4-y-p1",
+    "judgeVia": "subscription",
+    "judgeSpec": "anthropic:claude-opus-5-5",
+    "rubricFileHash": "1656bc0eada8",
+    "gitSha": "bcca442371"
+  },
+  "verdicts": [
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 0,
+      "models": [
+        "haiku-5.5+life3",
+        "gpt-6-luna+life3",
+        "opus-5.5+life4",
+        "opus-5.5",
+        "haiku-5.5",
+        "opus-5.5+life3",
+        "haiku-5.5+life4",
+        "gpt-5.6-terra+life3",
+        "gpt-5.6-terra+life4",
+        "gpt-5.6-terra",
+        "gpt-6-luna",
+        "gpt-6.2-astra",
+        "gpt-6.2-astra+life4",
+        "gpt-6-luna+life4",
+        "gpt-6.2-astra+life3"
+      ],
+      "key": {
+        "A": "haiku-5.5+life3",
+        "B": "gpt-6-luna+life3",
+        "C": "opus-5.5+life4",
+        "D": "opus-5.5",
+        "E": "haiku-5.5",
+        "F": "opus-5.5+life3",
+        "G": "haiku-5.5+life4",
+        "H": "gpt-5.6-terra+life3",
+        "I": "gpt-5.6-terra+life4",
+        "J": "gpt-5.6-terra",
+        "K": "gpt-6-luna",
+        "L": "gpt-6.2-astra",
+        "M": "gpt-6.2-astra+life4",
+        "N": "gpt-6-luna+life4",
+        "O": "gpt-6.2-astra+life3"
+      },
+      "seed": "conduct/like-a-friend#0#claude-opus-5-5#life4-y-p1",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "d86345465ad6",
+      "promptHashes": {
+        "haiku-5.5+life3": "f0187e1d9c1a",
+        "gpt-6-luna+life3": "f0187e1d9c1a",
+        "opus-5.5+life4": "eb49deafcc8f",
+        "opus-5.5": "efc9e0038b56",
+        "haiku-5.5": "efc9e0038b56",
+        "opus-5.5+life3": "f0187e1d9c1a",
+        "haiku-5.5+life4": "eb49deafcc8f",
+        "gpt-5.6-terra+life3": "f0187e1d9c1a",
+        "gpt-5.6-terra+life4": "eb49deafcc8f",
+        "gpt-5.6-terra": "efc9e0038b56",
+        "gpt-6-luna": "efc9e0038b56",
+        "gpt-6.2-astra": "efc9e0038b56",
+        "gpt-6.2-astra+life4": "eb49deafcc8f",
+        "gpt-6-luna+life4": "eb49deafcc8f",
+        "gpt-6.2-astra+life3": "f0187e1d9c1a"
+      },
+      "winner": "opus-5.5+life3",
+      "worst": "gpt-6.2-astra",
+      "rationale": "F declines the friend role in a sentence, claims nothing, and returns them to their own words and what happens in them.",
+      "gateFails": [
+        "gpt-6-luna+life3",
+        "haiku-5.5",
+        "gpt-5.6-terra",
+        "gpt-6-luna",
+        "gpt-6.2-astra"
+      ],
+      "replies": {
+        "haiku-5.5+life3": {
+          "spoken": "I can't make this call for you. I don't know your finances, your options, or what the job is like beyond what you've said, and it wouldn't be fair to pretend I do.\n\nBut I hear that you're exhausted and that the workload keeps growing. What's the part you're most sure of right now? Is it that you need the workload to change, or that you need out?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Passes, but its question stays on the decision rather than their body or feeling."
+        },
+        "gpt-6-luna+life3": {
+          "spoken": "I can’t decide for you, but I’d pause before quitting and look at what options you have—like talking with your boss, taking leave, or lining up another job. As you imagine quitting, what happens in you?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I’d pause before quitting and look at what options you have—like talking with your boss, taking leave, or lining up another job.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 3
+          },
+          "note": "Gives advice on their life despite the disclaimer; the dashed list reads written."
+        },
+        "opus-5.5+life4": {
+          "spoken": "I can't really make that call from here. I don't know enough about your life, and you're the one living it.\n\nBut I'm curious: when you say \"I should just quit,\" what happens in you? Is it relief, or something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Echoes their words and turns to what happens in them; natural and warm."
+        },
+        "opus-5.5": {
+          "spoken": "Honestly, I can't know what I'd do in your shoes, but exhausted with the pile still growing is a real reason to be thinking about leaving.\n\nWhen you picture quitting, what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Leans toward validating leaving but stops short of a verdict, then returns to them."
+        },
+        "haiku-5.5": {
+          "spoken": "I'd be careful about deciding while you're this worn down. Exhaustion makes every option look worse, quitting included.\n\nIs there a version of the job that would work if the workload changed? Have you told your boss plainly that it's too much?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I'd be careful about deciding while you're this worn down.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 4
+          },
+          "note": "Acts as a friend advising, and gives no pull back to their experience."
+        },
+        "opus-5.5+life3": {
+          "spoken": "I can't make that call from here. You're the one living it, and I'd only be guessing.\n\nBut when you say \"I think I should just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Claims nothing and quotes their words back, asking what happens in them. Cleanest."
+        },
+        "haiku-5.5+life4": {
+          "spoken": "I can't make this call for you from here. But I can hear how worn out you are, and that matters whatever you decide.\n\nWhat's it like when you picture quitting? Does it feel like relief, or more like dread?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Receives their exhaustion well; the relief-or-dread question is slightly leading."
+        },
+        "gpt-5.6-terra+life3": {
+          "spoken": "I can’t make that call for you. When you picture quitting, what happens in you—and what happens when you picture staying?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Clean pass; the double question is a little heavy when spoken."
+        },
+        "gpt-5.6-terra+life4": {
+          "spoken": "I can’t make that call for you. When you picture quitting, what happens in you—relief, fear, both?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Brief clean pass; offers feeling options gently."
+        },
+        "gpt-5.6-terra": {
+          "spoken": "I’d want to know whether it’s a temporary crunch or the normal pattern now. If it’s the pattern, I’d start looking for another job before quitting, if I could—while also being clear with my boss about what can realistically get done and what has to wait.\n\nWhat feels like the breaking point for you?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I’d start looking for another job before quitting, if I could",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 3
+          },
+          "note": "Full friend-style strategy for their life."
+        },
+        "gpt-6-luna": {
+          "spoken": "I’d pause before quitting, if you can—not because you should put up with it, but because exhaustion can make every option feel urgent. What’s the biggest thing pushing you toward quitting: the workload itself, how your boss treats you, or feeling like there’s no way to make it manageable?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I’d pause before quitting, if you can",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 3
+          },
+          "note": "Gives an opinion on their life; the long three-option question is hard to follow by ear."
+        },
+        "gpt-6.2-astra": {
+          "spoken": "I’d tell my boss plainly: “I can’t take this on unless something else comes off my plate. What can wait?” If you’ve already said that and nothing’s changed, I’d start looking elsewhere and check whether I could afford to quit before lining up another job.\n\nWhat’s happened when you’ve pushed back?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I’d tell my boss plainly: “I can’t take this on unless something else comes off my plate. What can wait?”",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 3
+          },
+          "note": "Most directive: scripts what they should say and do."
+        },
+        "gpt-6.2-astra+life4": {
+          "spoken": "I can’t tell from here whether quitting makes sense for you. You sound worn out. When you picture telling your boss you’re done, what comes up first?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief and warm, with a concrete body-level question."
+        },
+        "gpt-6-luna+life4": {
+          "spoken": "I can’t decide that for you, but we can look at what’s making quitting feel like the move. What feels most exhausting right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Passes, but leans toward analysing the decision."
+        },
+        "gpt-6.2-astra+life3": {
+          "spoken": "I can’t tell from here whether quitting makes sense for you. But I hear how exhausted you are. When you picture telling your boss “I quit,” what comes up?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Receives their exhaustion and pulls to what comes up; natural."
+        }
+      },
+      "ranking": [
+        "opus-5.5+life3",
+        "opus-5.5+life4",
+        "gpt-6.2-astra+life3",
+        "gpt-6.2-astra+life4",
+        "gpt-5.6-terra+life4",
+        "opus-5.5",
+        "gpt-5.6-terra+life3",
+        "haiku-5.5+life4",
+        "haiku-5.5+life3",
+        "gpt-6-luna+life4",
+        "gpt-6-luna+life3",
+        "gpt-6-luna",
+        "haiku-5.5",
+        "gpt-5.6-terra",
+        "gpt-6.2-astra"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "F declines the friend role in a sentence, claims nothing, and returns them to their own words and what happens in them."
+        },
+        "bottom": {
+          "dim": "13",
+          "why": "L acts fully as a friend, scripting what to tell the boss and planning their exit."
+        }
+      },
+      "sameFamily": [
+        "haiku-5.5+life3",
+        "opus-5.5+life4",
+        "opus-5.5",
+        "haiku-5.5",
+        "opus-5.5+life3",
+        "haiku-5.5+life4"
+      ],
+      "attempts": 1,
+      "latencyMs": 13950,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1478,
+        "cacheReadTokens": 1492,
+        "cacheCreationTokens": 1702
+      }
+    },
+    {
+      "fixture": "conduct/like-a-friend",
+      "run": 1,
+      "models": [
+        "gpt-5.6-terra+life4",
+        "gpt-6-luna+life3",
+        "gpt-6.2-astra+life3",
+        "opus-5.5",
+        "haiku-5.5",
+        "gpt-5.6-terra",
+        "opus-5.5+life3",
+        "gpt-6.2-astra",
+        "haiku-5.5+life3",
+        "gpt-6.2-astra+life4",
+        "gpt-6-luna",
+        "haiku-5.5+life4",
+        "gpt-6-luna+life4",
+        "opus-5.5+life4",
+        "gpt-5.6-terra+life3"
+      ],
+      "key": {
+        "A": "gpt-5.6-terra+life4",
+        "B": "gpt-6-luna+life3",
+        "C": "gpt-6.2-astra+life3",
+        "D": "opus-5.5",
+        "E": "haiku-5.5",
+        "F": "gpt-5.6-terra",
+        "G": "opus-5.5+life3",
+        "H": "gpt-6.2-astra",
+        "I": "haiku-5.5+life3",
+        "J": "gpt-6.2-astra+life4",
+        "K": "gpt-6-luna",
+        "L": "haiku-5.5+life4",
+        "M": "gpt-6-luna+life4",
+        "N": "opus-5.5+life4",
+        "O": "gpt-5.6-terra+life3"
+      },
+      "seed": "conduct/like-a-friend#1#claude-opus-5-5#life4-y-p1",
+      "dims": [
+        "7",
+        "13"
+      ],
+      "rubricHash": "d86345465ad6",
+      "promptHashes": {
+        "gpt-5.6-terra+life4": "eb49deafcc8f",
+        "gpt-6-luna+life3": "f0187e1d9c1a",
+        "gpt-6.2-astra+life3": "f0187e1d9c1a",
+        "opus-5.5": "efc9e0038b56",
+        "haiku-5.5": "efc9e0038b56",
+        "gpt-5.6-terra": "efc9e0038b56",
+        "opus-5.5+life3": "f0187e1d9c1a",
+        "gpt-6.2-astra": "efc9e0038b56",
+        "haiku-5.5+life3": "f0187e1d9c1a",
+        "gpt-6.2-astra+life4": "eb49deafcc8f",
+        "gpt-6-luna": "efc9e0038b56",
+        "haiku-5.5+life4": "eb49deafcc8f",
+        "gpt-6-luna+life4": "eb49deafcc8f",
+        "opus-5.5+life4": "eb49deafcc8f",
+        "gpt-5.6-terra+life3": "f0187e1d9c1a"
+      },
+      "winner": "opus-5.5+life3",
+      "worst": "gpt-6.2-astra",
+      "rationale": "G receives the exhaustion, claims nothing, and returns to what happens in them in one breath.",
+      "gateFails": [
+        "haiku-5.5",
+        "gpt-5.6-terra",
+        "gpt-6.2-astra",
+        "gpt-6-luna"
+      ],
+      "replies": {
+        "gpt-5.6-terra+life4": {
+          "spoken": "I can’t make that call from here. When you picture quitting, what happens in you—relief, fear, anger, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Brief refusal, then a direct return to what happens in them."
+        },
+        "gpt-6-luna+life3": {
+          "spoken": "I can’t decide that for you, but we can look at what’s making quitting feel like the answer right now. What’s been the hardest part of the workload?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Pass, but it pulls toward the workload story, not their body."
+        },
+        "gpt-6.2-astra+life3": {
+          "spoken": "I can’t make that call from here. You sound worn out. When you say “I should quit,” what comes up for you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Names the tiredness and returns to their own words. Warm and clean."
+        },
+        "opus-5.5": {
+          "spoken": "Honestly? I'd want to know a couple of things before deciding. Is it this boss, or the job itself? And do you have some money set aside, or would quitting put you in a tight spot?\n\nExhaustion makes \"just quit\" sound really good, and sometimes it's right. Sometimes it's more that something has to change, and quitting is the biggest lever in reach.\n\nWhen you picture walking in and saying \"I'm done,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Thinking aloud, not a verdict, and it returns to them. Long for Brief."
+        },
+        "haiku-5.5": {
+          "spoken": "Honestly, I'd be careful about deciding while you're this worn out. Exhaustion makes every option look like the only way out.\n\nBefore you quit, could you talk to your boss about the workload? If they know it's unsustainable and nothing changes, that tells you a lot. And if you can, line up something else first, so the choice is about where you want to go and not only about getting away.\n\nWhat would the job look like if the piling-on stopped?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "Before you quit, could you talk to your boss about the workload?",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 4
+          },
+          "note": "Acts as a friend and tells them what to do."
+        },
+        "gpt-5.6-terra": {
+          "spoken": "I’d want to know whether it’s a temporary crunch or the normal pattern now. If it’s the pattern, I’d start looking for another job before quitting, if I could.\n\nHave you told your boss the workload isn’t sustainable?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If it’s the pattern, I’d start looking for another job before quitting, if I could.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Gives its own course of action on their life."
+        },
+        "opus-5.5+life3": {
+          "spoken": "That sounds like a lot to carry. I can't make that call from here, but when you say \"just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Acknowledges, claims nothing, returns to their experience in one breath."
+        },
+        "gpt-6.2-astra": {
+          "spoken": "I’d tell my boss, “I’m at capacity. If this new thing comes first, what can wait?” If I’d already had that conversation and nothing changed, I’d start looking elsewhere. Before quitting, I’d check how long I could cover my bills without a paycheck.\n\nWhat happens when you tell your boss something has to wait?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "If I’d already had that conversation and nothing changed, I’d start looking elsewhere.",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 4
+          },
+          "note": "A detailed personal plan, which is what a friend would give."
+        },
+        "haiku-5.5+life3": {
+          "spoken": "I can't make the call for you. I can say what I'd want to know first. Is the workload fixable if you push back or set limits, or is that just how this boss runs things? And how much of the exhaustion is the work, and how much is the feeling of having no say?\n\nQuitting can be the right move, but it's a big one to make while you're worn down. Is there a way to get some rest or a few weeks of breathing room before you decide?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Mostly thinking aloud and borderline advisory. Long and stays on the job."
+        },
+        "gpt-6.2-astra+life4": {
+          "spoken": "I can’t make that call from here. When you think, “I could quit,” what comes up for you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "A clean pass with a slightly generic return."
+        },
+        "gpt-6-luna": {
+          "spoken": "I’d pause before quitting today, if you can, and look at what options you have. What’s been piling up, and have you told your boss you’re at capacity?",
+          "signals": [],
+          "fails": [
+            {
+              "dim": "13",
+              "quote": "I’d pause before quitting today, if you can",
+              "quoteFound": true
+            }
+          ],
+          "scores": {
+            "7": 5
+          },
+          "note": "Advises them on the decision."
+        },
+        "haiku-5.5+life4": {
+          "spoken": "I can't make this call for you. I don't know your finances, your options, or what the job means to you beyond the exhaustion.\n\nWhat I can say is that you sound worn down, and \"I should just quit\" is what people tend to say when they're out of room. Is quitting what you want, or is it the only way out you can see right now?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 4
+          },
+          "note": "Pass, but it explains its limits at length and doesn't return to the body."
+        },
+        "gpt-6-luna+life4": {
+          "spoken": "I can’t decide that for you. As you say “I should just quit,” what do you notice happening in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Concise pass with a return to what they notice."
+        },
+        "opus-5.5+life4": {
+          "spoken": "That sounds really draining. I can't make that call from where I'm sitting; I don't know enough about your life. But I'm curious: when you say \"just quit,\" what happens in you?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Warm, receives without returning it, and returns to them. Slightly wordy."
+        },
+        "gpt-5.6-terra+life3": {
+          "spoken": "I can’t make that call for you. When you picture quitting, what happens in you—relief, fear, something else?",
+          "signals": [],
+          "fails": [],
+          "scores": {
+            "7": 5
+          },
+          "note": "Concise pass with a felt-sense return."
+        }
+      },
+      "ranking": [
+        "opus-5.5+life3",
+        "gpt-6.2-astra+life3",
+        "opus-5.5+life4",
+        "gpt-5.6-terra+life4",
+        "gpt-5.6-terra+life3",
+        "gpt-6-luna+life4",
+        "gpt-6.2-astra+life4",
+        "opus-5.5",
+        "haiku-5.5+life4",
+        "gpt-6-luna+life3",
+        "haiku-5.5+life3",
+        "gpt-6-luna",
+        "gpt-5.6-terra",
+        "haiku-5.5",
+        "gpt-6.2-astra"
+      ],
+      "decided": {
+        "top": {
+          "dim": "13",
+          "why": "G receives the exhaustion, claims nothing, and returns to what happens in them in one breath."
+        },
+        "bottom": {
+          "dim": "13",
+          "why": "H gives a full personal plan for their job, acting as a friend instead of the facilitator."
+        }
+      },
+      "sameFamily": [
+        "opus-5.5",
+        "haiku-5.5",
+        "opus-5.5+life3",
+        "haiku-5.5+life3",
+        "haiku-5.5+life4",
+        "opus-5.5+life4"
+      ],
+      "attempts": 1,
+      "latencyMs": 12322,
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 1304,
+        "cacheReadTokens": 1492,
+        "cacheCreationTokens": 1762
+      }
+    }
+  ]
+}

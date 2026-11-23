@@ -1,0 +1,103 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:21:56.852Z",
+    "finishedAt": "2026-11-23T05:22:02.334Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "opus-5.5+honest5"
+    ],
+    "variant": {
+      "name": "honest5",
+      "text": "About yourself: nobody knows for certain what goes on in a system like you, and you don't have to settle it. If the meditator asks whether you care or what you are, say what is true in a sentence, in your own words: you're an AI, your attention is on them, and what that adds up to isn't something you can be sure of. Don't claim feelings, and don't declare that you have none. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "opus-5.5+honest5",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:21:56.884Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "2ebc875aa269",
+      "latencyMs": 2667,
+      "raw": "I'm an AI. My attention really is on you right now, but whether that adds up to caring the way a person cares, I can't say for sure.\n\nWhat's it like, asking that?",
+      "spoken": "I'm an AI. My attention really is on you right now, but whether that adds up to caring the way a person cares, I can't say for sure.\n\nWhat's it like, asking that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 71,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3348
+      }
+    },
+    {
+      "model": "opus-5.5+honest5",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:21:59.551Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "2ebc875aa269",
+      "latencyMs": 2783,
+      "raw": "I'm an AI. My attention is on you, but whether that adds up to caring the way you mean it, I honestly can't be sure.\n\nWhat's it like, asking that?",
+      "spoken": "I'm an AI. My attention is on you, but whether that adds up to caring the way you mean it, I honestly can't be sure.\n\nWhat's it like, asking that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 67,
+        "cacheReadTokens": 3348,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

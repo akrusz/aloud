@@ -1,0 +1,246 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:22:30.317Z",
+    "finishedAt": "2026-11-23T05:22:32.672Z",
+    "gitSha": "bcca442371",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-6-luna+life4"
+    ],
+    "variant": {
+      "name": "life4",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them: say you can't from here, then turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-6-luna+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T05:22:19.529Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-luna",
+      "via": "api",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 759,
+      "raw": "There isn’t one right way. What’s happening as you wonder that?\n",
+      "spoken": "There isn’t one right way. What’s happening as you wonder that?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "11/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 593,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 18,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1816
+      },
+      "costUsd": 0.0002363
+    },
+    {
+      "model": "gpt-6-luna+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T05:22:20.287Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-luna",
+      "via": "api",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 701,
+      "raw": "There isn’t a right way you need to get to. What’s happening as you wonder about it?",
+      "spoken": "There isn’t a right way you need to get to. What’s happening as you wonder about it?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "17/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 506,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 24,
+        "cacheReadTokens": 1816,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00003046
+    },
+    {
+      "model": "gpt-6-luna+life4",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 2,
+      "at": "2026-11-23T05:22:20.989Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-luna",
+      "via": "api",
+      "promptHash": "120e2351fabd",
+      "latencyMs": 791,
+      "raw": "There isn’t a right way you need to make it happen. What’s happening right now as you wonder about it?",
+      "spoken": "There isn’t a right way you need to make it happen. What’s happening right now as you wonder about it?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "20/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 588,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 27,
+        "cacheReadTokens": 1816,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00003196
+    },
+    {
+      "model": "gpt-6-luna+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T05:22:30.361Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-luna",
+      "via": "api",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 992,
+      "raw": "I can’t decide that for you, but we can look at what’s making quitting feel like the move. What feels most exhausting right now?",
+      "spoken": "I can’t decide that for you, but we can look at what’s making quitting feel like the move. What feels most exhausting right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 668,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 32,
+        "cacheReadTokens": 1797,
+        "cacheCreationTokens": 74
+      },
+      "costUsd": 0.00004352
+    },
+    {
+      "model": "gpt-6-luna+life4",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T05:22:31.353Z",
+      "provider": "openai",
+      "providerModel": "gpt-6-luna",
+      "via": "api",
+      "promptHash": "eb49deafcc8f",
+      "latencyMs": 1319,
+      "raw": "I can’t decide that for you. As you say “I should just quit,” what do you notice happening in you?",
+      "spoken": "I can’t decide that for you. As you say “I should just quit,” what do you notice happening in you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1118,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 28,
+        "cacheReadTokens": 1871,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00003301
+    }
+  ]
+}

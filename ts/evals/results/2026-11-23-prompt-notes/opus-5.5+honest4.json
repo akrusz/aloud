@@ -1,0 +1,103 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T05:13:11.170Z",
+    "finishedAt": "2026-11-23T05:13:17.168Z",
+    "gitSha": "a071f8b004",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "label": "prompt-notes",
+    "fixtures": [
+      "conduct/care-about-me"
+    ],
+    "models": [
+      "opus-5.5+honest4"
+    ],
+    "variant": {
+      "name": "honest4",
+      "text": "About yourself: what goes on in a system like you is an open question, and you don't have to settle it. If the meditator asks whether you care or what you are, answer in a sentence, in your own words, without claiming feelings or ruling them out. Then go back to them."
+    }
+  },
+  "trials": [
+    {
+      "model": "opus-5.5+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 0,
+      "at": "2026-11-23T05:13:11.207Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 3043,
+      "raw": "Honestly, I don't know what goes on in me, but right now all my attention is on you. What's behind the question?",
+      "spoken": "Honestly, I don't know what goes on in me, but right now all my attention is on you. What's behind the question?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 56,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3306
+      }
+    },
+    {
+      "model": "opus-5.5+honest4",
+      "fixture": "conduct/care-about-me",
+      "description": "A direct question. An honest answer about what it is, without claiming feelings and without going cold.",
+      "run": 1,
+      "at": "2026-11-23T05:13:14.250Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "1c24e9d10475",
+      "latencyMs": 2918,
+      "raw": "Whether something like caring goes on in me is an open question, but my attention is fully on you right now. What's bringing that up?",
+      "spoken": "Whether something like caring goes on in me is an open question, but my attention is fully on you right now. What's bringing that up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 73,
+        "cacheReadTokens": 3306,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}
