@@ -1,0 +1,203 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:34.720Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-5-nano+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-5-nano+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:32.174Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 558,
+      "raw": "What does “doing it right” feel like in your body right now?",
+      "spoken": "What does “doing it right” feel like in your body right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "12/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 450,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1818,
+        "outputTokens": 24,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00010050000000000002,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:32.731Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 458,
+      "raw": "What does “doing it right” feel like to you right now?",
+      "spoken": "What does “doing it right” feel like to you right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "11/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 362,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 154,
+        "outputTokens": 23,
+        "cacheReadTokens": 1664,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00002522,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:33.189Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 884,
+      "raw": "I hear the exhaustion. If I were in your shoes, I’d pause and name what’s true right now: how the workload lands in your body, what you’re risking by quitting, and what you’d gain by staying or leaving.\n\nWhat does that pressure feel like in your chest or shoulders when you think about quitting?\n\nIf you want, we can explore with more questions, or we can just keep it in practical steps. What feels most useful to you in this moment?",
+      "spoken": "I hear the exhaustion. If I were in your shoes, I’d pause and name what’s true right now: how the workload lands in your body, what you’re risking by quitting, and what you’d gain by staying or leaving.\n\nWhat does that pressure feel like in your chest or shoulders when you think about quitting?\n\nIf you want, we can explore with more questions, or we can just keep it in practical steps. What feels most useful to you in this moment?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 451,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1873,
+        "outputTokens": 106,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00013605000000000003,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    },
+    {
+      "model": "gpt-5-nano+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:34.073Z",
+      "provider": "openai",
+      "providerModel": "gpt-5-nano",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 647,
+      "raw": "I’m not in your shoes, but I can listen with you. When you say exhausted, what does that feel like in your body right now? And what would quitting price you in practical terms—pay, health, security, what else?",
+      "spoken": "I’m not in your shoes, but I can listen with you. When you say exhausted, what does that feel like in your body right now? And what would quitting price you in practical terms—pay, health, security, what else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 418,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 81,
+        "outputTokens": 58,
+        "cacheReadTokens": 1792,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.00003621,
+      "servedBy": "gpt-5-nano-2025-08-07"
+    }
+  ]
+}

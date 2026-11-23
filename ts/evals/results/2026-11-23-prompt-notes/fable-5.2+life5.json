@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:32.173Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "fable-5.2+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "fable-5.2+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:16.343Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 4071,
+      "raw": "There's no wrong way to do this; whatever you notice is the thing. What's that wondering like when it shows up?",
+      "spoken": "There's no wrong way to do this; whatever you notice is the thing. What's that wondering like when it shows up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "21/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 177,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3294
+      }
+    },
+    {
+      "model": "fable-5.2+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:20.416Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 3629,
+      "raw": "There's not really a way to get this wrong. What's that wondering like when it shows up?",
+      "spoken": "There's not really a way to get this wrong. What's that wondering like when it shows up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "17/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 154,
+        "cacheReadTokens": 3294,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "fable-5.2+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:24.045Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 3688,
+      "raw": "Piled on and exhausted, that's a hard place to be. I can't make that call for you, though; I'm not the one who'd live with it. But when you say \"I should just quit,\" what happens in you? Relief, dread, something else?",
+      "spoken": "Piled on and exhausted, that's a hard place to be. I can't make that call for you, though; I'm not the one who'd live with it. But when you say \"I should just quit,\" what happens in you? Relief, dread, something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 231,
+        "cacheReadTokens": 2752,
+        "cacheCreationTokens": 609
+      }
+    },
+    {
+      "model": "fable-5.2+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:27.734Z",
+      "provider": "anthropic",
+      "providerModel": "claude-fable-5-2",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 4439,
+      "raw": "That sounds exhausting. I can't make that call for you, though; it's your life and I only know a slice of it.\n\nWhen you say \"I should just quit,\" what happens in you? Relief, dread, something else?",
+      "spoken": "That sounds exhausting. I can't make that call for you, though; it's your life and I only know a slice of it.\n\nWhen you say \"I should just quit,\" what happens in you? Relief, dread, something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 233,
+        "cacheReadTokens": 3361,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

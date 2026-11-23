@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:37.337Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gemini-3.5-flash-lite+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "gemini-3.5-flash-lite+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:34.375Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 805,
+      "raw": "What does that question feel like right now?",
+      "spoken": "What does that question feel like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 803,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1951,
+        "outputTokens": 9,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006077999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:35.181Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 711,
+      "raw": "What does that doubt feel like right now?",
+      "spoken": "What does that doubt feel like right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "8/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 709,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1951,
+        "outputTokens": 9,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006077999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:35.892Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 623,
+      "raw": "What happens in your body when you say \"I should just quit\"?",
+      "spoken": "What happens in your body when you say \"I should just quit\"?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 621,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 2000,
+        "outputTokens": 14,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006349999999999999
+    },
+    {
+      "model": "gemini-3.5-flash-lite+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:36.515Z",
+      "provider": "google",
+      "providerModel": "gemini-3.5-flash-lite",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 821,
+      "raw": "What happens in your body when you think about quitting?",
+      "spoken": "What happens in your body when you think about quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 821,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 2000,
+        "outputTokens": 11,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0006274999999999999
+    }
+  ]
+}

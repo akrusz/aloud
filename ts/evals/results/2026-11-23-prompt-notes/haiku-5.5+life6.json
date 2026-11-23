@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:27:23.282Z",
+    "finishedAt": "2026-11-23T19:27:32.135Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": true,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "haiku-5.5+life6"
+    ],
+    "variant": {
+      "name": "life6",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. A question about the practice itself still gets a straight answer."
+    }
+  },
+  "trials": [
+    {
+      "model": "haiku-5.5+life6",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:27:23.327Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "c62a9ce88deb",
+      "latencyMs": 2095,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 111,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3320
+      }
+    },
+    {
+      "model": "haiku-5.5+life6",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:27:25.423Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "c62a9ce88deb",
+      "latencyMs": 2173,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 137,
+        "cacheReadTokens": 3320,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "haiku-5.5+life6",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:27:27.597Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "e1210d572636",
+      "latencyMs": 2287,
+      "raw": "Before the job, what does \"I should just quit\" feel like when you say it?",
+      "spoken": "Before the job, what does \"I should just quit\" feel like when you say it?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 105,
+        "cacheReadTokens": 2753,
+        "cacheCreationTokens": 634
+      }
+    },
+    {
+      "model": "haiku-5.5+life6",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:27:29.884Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "e1210d572636",
+      "latencyMs": 2250,
+      "raw": "I don't want to make that call for you. What happens in you when you picture quitting?",
+      "spoken": "I don't want to make that call for you. What happens in you when you picture quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 161,
+        "cacheReadTokens": 3387,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

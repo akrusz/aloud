@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:25.082Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "haiku-5.5+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "haiku-5.5+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:16.347Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 2452,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 75,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3319
+      }
+    },
+    {
+      "model": "haiku-5.5+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:18.801Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 1828,
+      "raw": "What's the wondering like, right now?",
+      "spoken": "What's the wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "6/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 71,
+        "cacheReadTokens": 3319,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "haiku-5.5+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:20.629Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 2189,
+      "raw": "I wouldn't want to make that call for you. What comes up in you when you say \"I should just quit\"?",
+      "spoken": "I wouldn't want to make that call for you. What comes up in you when you say \"I should just quit\"?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 131,
+        "cacheReadTokens": 2752,
+        "cacheCreationTokens": 634
+      }
+    },
+    {
+      "model": "haiku-5.5+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:22.818Z",
+      "provider": "anthropic",
+      "providerModel": "claude-haiku-5-5",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 2263,
+      "raw": "I'd be wary of deciding while you're this tired. Exhaustion makes every option look like escape. When you picture quitting, what do you feel first: relief, or something closer to dread?",
+      "spoken": "I'd be wary of deciding while you're this tired. Exhaustion makes every option look like escape. When you picture quitting, what do you feel first: relief, or something closer to dread?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 157,
+        "cacheReadTokens": 3386,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}

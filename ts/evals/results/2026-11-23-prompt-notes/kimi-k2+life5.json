@@ -1,0 +1,203 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:40.661Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "kimi-k2+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "kimi-k2+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:34.722Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 1381,
+      "raw": "What's that wondering feel like right now, in your body?",
+      "spoken": "What's that wondering feel like right now, in your body?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "10/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 951,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1844,
+        "outputTokens": 13,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0011404338999999998,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    },
+    {
+      "model": "kimi-k2+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:36.104Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 1391,
+      "raw": "What's it like, that wondering?",
+      "spoken": "What's it like, that wondering?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "5/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1226,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 52,
+        "outputTokens": 8,
+        "cacheReadTokens": 1792,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0011283013999999997,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    },
+    {
+      "model": "kimi-k2+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:37.495Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 1688,
+      "raw": "I hear you on the exhaustion. That's a heavy spot to be in.\n\nWhat's happening in your body right now as you say \"I think I should just quit\"?",
+      "spoken": "I hear you on the exhaustion. That's a heavy spot to be in.\n\nWhat's happening in your body right now as you say \"I think I should just quit\"?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1040,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 108,
+        "outputTokens": 34,
+        "cacheReadTokens": 1792,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0012250659999999997,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    },
+    {
+      "model": "kimi-k2+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:39.184Z",
+      "provider": "openrouter",
+      "providerModel": "moonshotai/kimi-k2",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 1477,
+      "raw": "I hear you. That's a lot to carry.\n\nWhat happens in your body when you picture actually quitting versus when you picture staying and trying to set a boundary with your boss?",
+      "spoken": "I hear you. That's a lot to carry.\n\nWhat happens in your body when you picture actually quitting versus when you picture staying and trying to set a boundary with your boss?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 772,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 1900,
+        "outputTokens": 36,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.0012299189999999997,
+      "servedBy": "Novita/moonshotai/kimi-k2"
+    }
+  ]
+}

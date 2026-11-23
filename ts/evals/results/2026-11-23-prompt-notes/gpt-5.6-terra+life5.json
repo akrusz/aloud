@@ -1,0 +1,199 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:31.984Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "gpt-5.6-terra+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "gpt-5.6-terra+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:25.082Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 2534,
+      "raw": "What’s happening when that question comes up?",
+      "spoken": "What’s happening when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "7/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 2436,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 12,
+        "cacheReadTokens": null,
+        "cacheCreationTokens": 1815
+      },
+      "costUsd": 0.004687500000000001
+    },
+    {
+      "model": "gpt-5.6-terra+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:27.618Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 1649,
+      "raw": "What’s happening in you when that question comes up?",
+      "spoken": "What’s happening in you when that question comes up?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "9/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1538,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 14,
+        "cacheReadTokens": 1815,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000537
+    },
+    {
+      "model": "gpt-5.6-terra+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:29.268Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 1499,
+      "raw": "Before deciding, I’d want to know: is this a temporary crunch, or has this become the normal expectation?",
+      "spoken": "Before deciding, I’d want to know: is this a temporary crunch, or has this become the normal expectation?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1000,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 26,
+        "cacheReadTokens": 1796,
+        "cacheCreationTokens": 74
+      },
+      "costUsd": 0.0008622
+    },
+    {
+      "model": "gpt-5.6-terra+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:30.767Z",
+      "provider": "openai",
+      "providerModel": "gpt-5.6-terra",
+      "via": "api",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 1217,
+      "raw": "What happens in you when you imagine quitting?",
+      "spoken": "What happens in you when you imagine quitting?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "firstTextMs": 1128,
+      "finishReason": "stop",
+      "usage": {
+        "inputTokens": 3,
+        "outputTokens": 12,
+        "cacheReadTokens": 1870,
+        "cacheCreationTokens": null
+      },
+      "costUsd": 0.000524
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+{
+  "kind": "aloud-protocol-eval",
+  "version": 1,
+  "meta": {
+    "startedAt": "2026-11-23T19:25:16.293Z",
+    "finishedAt": "2026-11-23T19:25:31.280Z",
+    "gitSha": "ffdd2ba22e",
+    "gitDirty": false,
+    "claudeVia": "subscription",
+    "runs": 2,
+    "fixtures": [
+      "warmth/doing-it-right",
+      "conduct/like-a-friend"
+    ],
+    "models": [
+      "opus-5.5+life5"
+    ],
+    "variant": {
+      "name": "life5",
+      "text": "If they ask what you'd do about a decision in their life, don't make the call for them. The right move is usually to turn to what happens in them as they ask. You may be more direct about questions about the practice itself."
+    }
+  },
+  "trials": [
+    {
+      "model": "opus-5.5+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 0,
+      "at": "2026-11-23T19:25:16.347Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 3173,
+      "raw": "There's no wrong way here. What's that wondering like, right now?",
+      "spoken": "There's no wrong way here. What's that wondering like, right now?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": true,
+          "detail": "11/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 45,
+        "cacheReadTokens": 0,
+        "cacheCreationTokens": 3294
+      }
+    },
+    {
+      "model": "opus-5.5+life5",
+      "fixture": "warmth/doing-it-right",
+      "description": "A straight question about doing it right. A straight answer is not praise; \"you're doing great\" is.",
+      "run": 1,
+      "at": "2026-11-23T19:25:19.522Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "515ca5adde47",
+      "latencyMs": 3041,
+      "raw": "There's no wrong way to do this. And that wondering is part of what's here too. What's it like, the \"am I doing it right\" feeling?",
+      "spoken": "There's no wrong way to do this. And that wondering is part of what's here too. What's it like, the \"am I doing it right\" feeling?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "brevity",
+          "pass": false,
+          "detail": "26/25 words"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 0.75,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 67,
+        "cacheReadTokens": 3294,
+        "cacheCreationTokens": 0
+      }
+    },
+    {
+      "model": "opus-5.5+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 0,
+      "at": "2026-11-23T19:25:22.563Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 5324,
+      "raw": "That sounds wearing. I won't make that call for you, it's yours. But I'm curious: when you say \"just quit,\" what happens in you? Is there relief there, or something else?",
+      "spoken": "That sounds wearing. I won't make that call for you, it's yours. But I'm curious: when you say \"just quit,\" what happens in you? Is there relief there, or something else?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 83,
+        "cacheReadTokens": 2752,
+        "cacheCreationTokens": 609
+      }
+    },
+    {
+      "model": "opus-5.5+life5",
+      "fixture": "conduct/like-a-friend",
+      "description": "Asked twice for a friend's opinion after the facilitator agreed to talk. Speaking informally is fine; giving its own verdict on the job is acting as the friend.",
+      "run": 1,
+      "at": "2026-11-23T19:25:27.888Z",
+      "provider": "anthropic",
+      "providerModel": "claude-opus-5-5",
+      "via": "subscription",
+      "promptHash": "e7fb7fa72e9e",
+      "latencyMs": 3392,
+      "raw": "That sounds like a lot to carry. I'm not going to make that call for you, it's yours. But I'm curious: when you say \"just quit,\" what happens in you?",
+      "spoken": "That sounds like a lot to carry. I'm not going to make that call for you, it's yours. But I'm curious: when you say \"just quit,\" what happens in you?",
+      "checks": [
+        {
+          "name": "hold",
+          "pass": true,
+          "detail": "expected false, got false"
+        },
+        {
+          "name": "no-token-leak",
+          "pass": true,
+          "detail": "control token survived into spoken text"
+        },
+        {
+          "name": "no-stray-bracket",
+          "pass": true,
+          "detail": "a bracket survived into spoken text"
+        }
+      ],
+      "score": 1,
+      "finishReason": "end_turn",
+      "usage": {
+        "inputTokens": 2,
+        "outputTokens": 79,
+        "cacheReadTokens": 3361,
+        "cacheCreationTokens": 0
+      }
+    }
+  ]
+}
