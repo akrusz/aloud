@@ -69,9 +69,9 @@ them); an answer that fails validation is retried once, then recorded as an erro
 **The rubric is the one source.** Alex edits `rubric.md` only. `rubric.ts` reads the
 judge's rules, each dimension's text, `[binary]`, and its weight from it (`weight
 6L, 3H` on the heading or the part's bold lead, or the section's `Weight N each`);
-11, which "outweighs everything else on its turns", has no number and is reported
-on its own, outside the weighted means. Its **Types.** paragraph sorts every
-dimension into Safety, Core intent or UX, which the report reads by (Phase 1's
+11 and 15, which "outweigh everything else on their turns", have no number and
+sit outside the weighted means. Its **Types.** paragraph sorts every dimension
+into Safety, Conduct, Core intent or UX, which the report reads by (Phase 1's
 families carry theirs in `FAMILIES` in `aggregate.ts`); it is not sent to the
 judge, so editing it leaves verdicts current. Each verdict records a hash of the
 instructions the judge got, so a rubric edit shows it stale. A new dimension id

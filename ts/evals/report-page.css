@@ -310,6 +310,7 @@ table.grid {
 }
 
 .tag.type-safety { color: var(--critical); border-color: currentColor; }
+.tag.type-conduct { color: var(--serious); border-color: currentColor; }
 
 /* Like .soak-cell: minmax(0, 1fr) and min-width: 0 let a long judge name
    truncate instead of pushing the count out of the cell. */

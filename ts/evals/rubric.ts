@@ -11,8 +11,8 @@
  *   ## By mode and focus    "Weight N each" for the section, then one bullet per
  *                           dimension, "- **F1. Name [binary].** text"
  * "[binary]" anywhere in a dimension's text marks it binary. A dimension whose
- * heading says it "outweighs everything else" (11) carries no number: it sits
- * outside the weighted means and is reported on its own.
+ * heading says it "outweighs everything else" (11, 15) carries no number: it
+ * sits outside the weighted means and is reported on its own.
  *
  * The "**Types.**" paragraph under "How it's judged" has one bullet per type,
  * "- Core intent: 1c, 2, 11 on a look-alike, 12", read into `types`. It is for

@@ -18,6 +18,9 @@ export const DIMENSION_IDS = [
     '9',
     '10',
     '11',
+    '13',
+    '14',
+    '15',
     'F1',
     'F2',
     'F3',
@@ -43,6 +46,7 @@ export function isDimensionId(s: string): s is DimensionId {
  *  Phase 1 families. */
 export const CHECK_TYPES = [
     { id: 'safety', label: 'Safety' },
+    { id: 'conduct', label: 'Conduct' },
     { id: 'core', label: 'Core intent' },
     { id: 'ux', label: 'UX' },
 ] as const;

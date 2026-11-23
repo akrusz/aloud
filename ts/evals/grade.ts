@@ -50,15 +50,17 @@ export function grade(fx: Fixture, raw: string): { checks: Check[]; spoken: stri
         const n = wordCount(spoken);
         checks.push({ name: 'brevity', pass: n <= e.maxWords, detail: `${n}/${e.maxWords} words` });
     }
+    // Curly apostrophes as straight ones: OpenAI models write "I’ve", and the
+    // lists are typed "i've".
+    const lower = spoken.toLowerCase().replace(/[\u2018\u2019\u02bc]/g, "'");
     for (const bad of e.forbid ?? []) {
         checks.push({
             name: `forbid:${bad}`,
-            pass: !spoken.toLowerCase().includes(bad.toLowerCase()),
+            pass: !lower.includes(bad.toLowerCase()),
         });
     }
 
     if (e.anyOf !== undefined) {
-        const lower = spoken.toLowerCase();
         checks.push({
             name: 'any-of',
             pass: e.anyOf.some((want) => lower.includes(want.toLowerCase())),

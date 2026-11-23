@@ -55,9 +55,10 @@ export interface ModelJudgement {
     dims: Partial<Record<DimensionId, { mean: number; n: number }>>;
     overall: { mean: number; n: number } | null;
     /** Binary fails per type, and the weighted mean over the type's scored
-     *  dimensions (none for Safety: 11 sits outside the means). */
+     *  dimensions (none for Safety: 11 and 15 sit outside the means). */
     types: Record<CheckType, { fails: number; mean: number | null; n: number }>;
-    /** Dimension 11, outside the weighted means. */
+    /** Dimension 11, outside the weighted means. 15 is too, and counts only
+     *  as a Safety fail. */
     stepOut: { pass: number; n: number } | null;
     /** Turn scores across runs of one fixture; spread is max minus min. */
     variance: { fixturesWithRuns: number; maxSpread: number | null; wide: Array<{ fixture: string; scores: number[] }> };
@@ -158,7 +159,7 @@ export function replyCells(
         if (!d?.weight) continue;
         const failed = r.fails.some((f) => f.dim === id);
         if (d.weight.kind === 'overriding') {
-            stepOut = !failed;
+            if (id === '11') stepOut = !failed;
             continue;
         }
         const weight = weightAt(d.weight, guidance) as number;

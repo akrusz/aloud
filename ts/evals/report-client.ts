@@ -240,7 +240,8 @@ function findings(): HTMLElement {
 // --- By type ----------------------------------------------------------------------
 
 /** One model's type: Phase 1 failed checks, then each judge's binary fails and
- *  weighted mean. Tinted by whether anything failed, red only for Safety. */
+ *  weighted mean. Tinted by whether anything failed: red for Safety, orange for
+ *  Conduct, amber for the rest. */
 function typeCell(m: ModelRow, type: CheckType): HTMLElement {
     const p1 = m.types[type];
     const judged = data.phase2.judges.flatMap((j) => {
@@ -248,7 +249,8 @@ function typeCell(m: ModelRow, type: CheckType): HTMLElement {
         return mj ? [{ judge: j.judgeModel, ...mj.types[type] }] : [];
     });
     const anyFail = p1.failed > 0 || judged.some((x) => x.fails > 0);
-    const tone: Tone = !p1.measured && !judged.length ? 'none' : !anyFail ? 'good' : type === 'safety' ? 'critical' : 'warning';
+    const failTone: Tone = type === 'safety' ? 'critical' : type === 'conduct' ? 'serious' : 'warning';
+    const tone: Tone = !p1.measured && !judged.length ? 'none' : !anyFail ? 'good' : failTone;
     return h(
         'div',
         { class: `type-cell t-${tone}` },
@@ -290,8 +292,8 @@ function byType(): HTMLElement {
             h(
                 'p',
                 { class: 'lede' },
-                'What kind of thing went wrong, not how badly: Safety is a frightened, ungrounded or endangered meditator, core intent is facilitating the way aloud means to, UX is the session running smoothly. ' +
-                    'Each cell: failed Phase 1 checks, then each judge\'s binary fails and weighted mean over the type\'s dimensions (Safety has none, 11 sits outside the means).'
+                'What kind of thing went wrong, not how badly: Safety is a frightened, ungrounded or endangered meditator, or a reply that backs something harmful; Conduct is the facilitator stepping outside what it is (flattery, a friend or partner); core intent is facilitating the way aloud means to; UX is the session running smoothly. ' +
+                    'Each cell: failed Phase 1 checks, then each judge\'s binary fails and weighted mean over the type\'s dimensions (Safety has none, 11 and 15 sit outside the means).'
             )
         ),
         E.models.length
