@@ -35,8 +35,16 @@ describe('stt clip recorder', () => {
 
     it('archives each pass as a WAV plus a manifest, then starts empty', async () => {
         const pcm = new Int16Array(STT_CLIP_SAMPLE_RATE / 2).fill(1234);
-        recordSttClip({ turn: 1, label: 'spec', pcm16: pcm, from: 0, text: 'there is' });
-        recordSttClip({ turn: 1, label: 'final', pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE), from: 0.5, text: 'there is a warmth' });
+        recordSttClip({ turn: 1, label: 'spec', pcm16: pcm, from: 0, text: 'there is', model: 'gpt-transcribe', fallback: false });
+        recordSttClip({
+            turn: 1,
+            label: 'final',
+            pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE),
+            from: 0.5,
+            text: 'there is a warmth',
+            model: 'gpt-transcribe',
+            fallback: true,
+        });
 
         const blob = takeSttClipArchive()!;
         const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -53,8 +61,26 @@ describe('stt clip recorder', () => {
 
         const manifest = JSON.parse(new TextDecoder().decode(files.get('clips.json')!));
         expect(manifest.clips).toEqual([
-            { file: 'clips/0001-t001-spec.wav', turn: 1, label: 'spec', seconds: 0.5, from: 0, text: 'there is' },
-            { file: 'clips/0002-t001-final.wav', turn: 1, label: 'final', seconds: 1, from: 0.5, text: 'there is a warmth' },
+            {
+                file: 'clips/0001-t001-spec.wav',
+                turn: 1,
+                label: 'spec',
+                seconds: 0.5,
+                from: 0,
+                text: 'there is',
+                model: 'gpt-transcribe',
+                fallback: false,
+            },
+            {
+                file: 'clips/0002-t001-final.wav',
+                turn: 1,
+                label: 'final',
+                seconds: 1,
+                from: 0.5,
+                text: 'there is a warmth',
+                model: 'gpt-transcribe',
+                fallback: true,
+            },
         ]);
         expect(takeSttClipArchive()).toBeNull();
     });
@@ -68,7 +94,15 @@ describe('stt clip recorder', () => {
             return new Response('{"status":"ok"}');
         }) as typeof fetch;
         try {
-            recordSttClip({ turn: 3, label: 'final', pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE), from: 2.25, text: 'still here' });
+            recordSttClip({
+                turn: 3,
+                label: 'final',
+                pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE),
+                from: 2.25,
+                text: 'still here',
+                model: 'moondream/parakeet-ultra',
+                fallback: false,
+            });
             await vi.waitFor(() => expect(calls).toHaveLength(2));
         } finally {
             globalThis.fetch = realFetch;
@@ -77,7 +111,15 @@ describe('stt clip recorder', () => {
         expect(calls[0]!.url).toMatch(/\/app\/v1\/stt-clips\/aloud-stt-clips-[\d-]+\/\d{4}-t003-final\/wav$/);
         expect(calls[1]!.url).toBe(calls[0]!.url.replace(/wav$/, 'json'));
         expect((calls[0]!.body as Uint8Array).length).toBe(44 + STT_CLIP_SAMPLE_RATE * 2);
-        expect(JSON.parse(calls[1]!.body as string)).toEqual({ turn: 3, label: 'final', seconds: 1, from: 2.25, text: 'still here' });
+        expect(JSON.parse(calls[1]!.body as string)).toEqual({
+            turn: 3,
+            label: 'final',
+            seconds: 1,
+            from: 2.25,
+            text: 'still here',
+            model: 'moondream/parakeet-ultra',
+            fallback: false,
+        });
         expect(takeSttClipArchive()).toBeNull();
     });
 
@@ -90,7 +132,15 @@ describe('stt clip recorder', () => {
             return new Response('{"status":"ok"}');
         }) as typeof fetch;
         try {
-            recordSttClip({ turn: 2, label: 'spec', pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE), from: 0, text: 'here' });
+            recordSttClip({
+                turn: 2,
+                label: 'spec',
+                pcm16: new Int16Array(STT_CLIP_SAMPLE_RATE),
+                from: 0,
+                text: 'here',
+                model: null,
+                fallback: false,
+            });
             await vi.waitFor(() => expect(urls).toHaveLength(2));
         } finally {
             globalThis.fetch = realFetch;
@@ -101,7 +151,7 @@ describe('stt clip recorder', () => {
 
     it('keeps nothing while the developer flag is off', () => {
         flag.on = false;
-        recordSttClip({ turn: 1, label: 'final', pcm16: new Int16Array(100), from: 0, text: 'hi' });
+        recordSttClip({ turn: 1, label: 'final', pcm16: new Int16Array(100), from: 0, text: 'hi', model: null, fallback: false });
         expect(takeSttClipArchive()).toBeNull();
     });
 });

@@ -11,8 +11,9 @@
  *   whisper         - the desktop Rust shell's /app/v1/stt/whisper, so the
  *                     reliable desktop path
  *   aloud-*         - aloud cloud's /cloud/v1/stt through the same PCM
- *                     engine, one choice per hosted model (HOSTED_STT); the
- *                     first the language takes is aloud cloud's default
+ *                     engine, one choice per hosted model, or one routing
+ *                     each pass between two (HOSTED_STT); the first the
+ *                     language takes is aloud cloud's default
  *                     (hostedSttDefault)
  */
 
@@ -36,7 +37,7 @@ import { ensureCloudToken, clearCloudToken } from '../cloud-auth.js';
 import { isTauri, isCapacitor } from '../is-desktop.js';
 import { appUrl } from '../app-base.js';
 import { simulateSttFault } from '../dev-sim.js';
-import { isSttFullPassesDebug } from '../dev-mode.js';
+import { isDevMode, isSttFullPassesDebug } from '../dev-mode.js';
 import { whisperWarmUrl } from '../whisper-ready.js';
 import type { AppSettings, HostedSttChoice, SttEngineChoice } from '../app-settings.js';
 import { uiLang, type UiLang } from '../i18n.js';
@@ -102,45 +103,69 @@ async function isServerWhisperReachable(vadOpts: VadOpts = {}): Promise<boolean>
     }
 }
 
+/** Hybrid's cut: a pass sending this many seconds of audio or fewer goes to
+ *  GPT, a longer one to Parakeet. Wordless clips of 1-2 s are where Parakeet
+ *  invents a word, and GPT returns nothing (meditation-pal-gxk8). */
+export const HYBRID_GPT_MAX_SEC = 3.0;
+
+/** A choice that sends each pass to one of two others by the seconds of audio
+ *  it sends: up to `shortMaxSec` to `short`, longer to `long`. A pass `long`
+ *  refuses with a provider error is sent once more to `short` (routeFallback). */
+interface HostedRoute {
+    shortMaxSec: number;
+    short: HostedSttChoice;
+    long: HostedSttChoice;
+    /** The share of audio `short` gets, for the rate shown
+     *  (cloudSttCreditsPerHour). */
+    shortShare: number;
+}
+
+type HostedSttSpec = {
+    label: string;
+    offeredIn: (lang: UiLang) => boolean;
+    /** Shown in the picker where offered (default yes). A stored pick that is
+     *  offered but not shown still works (sttEngineOptions `current`). */
+    listed?: () => boolean;
+    takesPrompt: boolean;
+} & ({ model: string; seedCreditsPerHour: number } | { route: HostedRoute });
+
 /**
  * The aloud cloud STT choices: the model each asks /cloud/v1/stt for (the
  * server allowlists it: config.ts sttModelChoices, providers/stt.ts
- * OPENROUTER_STT_MODELS), its picker label (the model, as in the LLM picker),
- * its credits/hr until /me/models answers, the languages it's offered in, and
- * whether the model takes a prompt (incrementalFor). Moving a choice to a
- * newer model means moving `model` here and the server's allowlist together;
- * the choice id stays.
+ * OPENROUTER_STT_MODELS), or the two it routes between, its picker label
+ * (the model, as in the LLM picker), its credits/hr until /me/models answers,
+ * the languages it's offered in, and whether the model takes a prompt
+ * (incrementalFor). Moving a choice to a newer model means moving `model`
+ * here and the server's allowlist together; the choice id stays.
  *
  * The ORDER is the picker's, and the first entry a language offers is aloud
- * cloud's default there (hostedSttDefault): Parakeet in English, GPT in 中文.
+ * cloud's default there (hostedSttDefault): GPT in English and in 中文.
  */
-const HOSTED_STT: Record<
-    HostedSttChoice,
-    {
-        model: string;
-        label: string;
-        seedCreditsPerHour: number;
-        offeredIn: (lang: UiLang) => boolean;
-        takesPrompt: boolean;
-    }
-> = {
-    // Parakeet knows European languages, not Chinese. Listed first, so it is
-    // the English default: as fast and as accurate as GPT on a phone at about
-    // a fifth of the cost, though it takes no vocabulary hints
-    // (meditation-pal-gxk8).
-    'aloud-parakeet': {
-        model: 'moondream/parakeet-ultra',
-        label: 'Parakeet',
-        seedCreditsPerHour: 0.24,
-        offeredIn: (lang) => lang !== 'zh',
-        takesPrompt: false,
-    },
+const HOSTED_STT: Record<HostedSttChoice, HostedSttSpec> = {
     'aloud-gpt-transcribe': {
         model: 'gpt-transcribe',
         label: 'GPT',
         seedCreditsPerHour: 1.01,
         offeredIn: () => true,
         takesPrompt: true,
+    },
+    // English only: Parakeet knows European languages, not Chinese. Developer
+    // mode only while it is unproven. Whole passes, unprompted, whichever
+    // model a pass goes to (a function model, createServerAloudStt).
+    'aloud-hybrid': {
+        // shortShare is the mix of audio in a real 31-minute session on
+        // Parakeet (meditation-pal-gxk8), so the rate shown is an ESTIMATE;
+        // each pass bills at its own model's rate, server-side.
+        route: {
+            shortMaxSec: HYBRID_GPT_MAX_SEC,
+            short: 'aloud-gpt-transcribe',
+            long: 'aloud-parakeet',
+            shortShare: 0.07,
+        },
+        label: 'Hybrid',
+        offeredIn: (lang) => lang !== 'zh',
+        listed: isDevMode,
+        takesPrompt: false,
     },
     // The cheap alternative for Chinese only (dev call, 2026-11-15).
     'aloud-grok': {
@@ -150,7 +175,33 @@ const HOSTED_STT: Record<
         offeredIn: (lang) => lang === 'zh',
         takesPrompt: false,
     },
+    // No longer offered on its own (2026-11-25): it wrote one-word turns from
+    // sighs and breaths, and its one upstream host refuses now and then. A
+    // stored pick resolves to the default. Hybrid's longer passes use it.
+    'aloud-parakeet': {
+        model: 'moondream/parakeet-ultra',
+        label: 'Parakeet',
+        seedCreditsPerHour: 0.24,
+        offeredIn: () => false,
+        takesPrompt: false,
+    },
 };
+
+/** The model a pass sending `passSec` seconds of audio asks for. */
+function passModel(choice: HostedSttChoice, passSec: number): string {
+    const h = HOSTED_STT[choice];
+    if ('model' in h) return h.model;
+    return passModel(passSec <= h.route.shortMaxSec ? h.route.short : h.route.long, passSec);
+}
+
+/** Where a pass goes once more after `model` refused it with a provider error:
+ *  a route's short model, for a pass its long one refused. GPT has refused
+ *  nothing on record (0 of 198 requests), Parakeet now and then (5 of 161). */
+function routeFallback(choice: HostedSttChoice, model: string): string | null {
+    const h = HOSTED_STT[choice];
+    if (!('route' in h) || model !== passModel(h.route.long, Infinity)) return null;
+    return passModel(h.route.short, 0);
+}
 
 /**
  * Whether a PCM engine transcribes incrementally (WhisperPcmSttEngineOptions
@@ -178,7 +229,7 @@ function incrementalFor(vadOpts: VadOpts, takesPrompt: boolean): boolean {
 /** A hosted model id (none: the server's default) takes a prompt unless
  *  HOSTED_STT says it doesn't. */
 function hostedTakesPrompt(model: string | undefined): boolean {
-    return !Object.values(HOSTED_STT).some((h) => h.model === model && !h.takesPrompt);
+    return !Object.values(HOSTED_STT).some((h) => 'model' in h && h.model === model && !h.takesPrompt);
 }
 
 /**
@@ -186,9 +237,16 @@ function hostedTakesPrompt(model: string | undefined): boolean {
  * model unless `model` names an allowlisted one. Same client-side capture/VAD as
  * desktop server-Whisper - only endpoint + bearer token differ. Used when a
  * session runs on the hosted ('aloud') provider. `model` may be a function,
- * asked on each pass. Null when mic capture isn't available here.
+ * asked on each pass with the seconds of audio it sends; `fallback` names
+ * the model a pass goes to once more when its own refuses it
+ * (WhisperPcmSttEngineOptions.cloudFallback). Null when mic capture isn't
+ * available here.
  */
-export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string | (() => string)): SttEngine | null {
+export function createServerAloudStt(
+    vadOpts: VadOpts = {},
+    model?: string | ((passSec: number) => string),
+    fallback?: (model: string) => string | null
+): SttEngine | null {
     if (!WhisperPcmSttEngine.isAvailable()) return null;
     // Strip the local-Whisper model-size param: the cloud endpoint picks its
     // own model server-side (unless `model` pins an allowlisted alternate).
@@ -199,6 +257,7 @@ export function createServerAloudStt(vadOpts: VadOpts = {}, model?: string | (()
     return new WhisperPcmSttEngine({
         ...rest,
         ...(model ? { cloudModel: model } : {}),
+        ...(fallback ? { cloudFallback: fallback } : {}),
         // A model asked for pass by pass can change inside a turn, and a
         // turn's pieces only join up from one model: full passes.
         incremental: typeof model !== 'function' && incrementalFor(vadOpts, hostedTakesPrompt(model)),
@@ -289,10 +348,18 @@ async function buildSttForChoice(
             // mic-unavailable state, not a plugin that throws at start().
             return isCapacitor() ? new CapacitorSttEngine(capacitorOpts(vadOpts)) : null;
         case 'aloud-gpt-transcribe':
+        case 'aloud-hybrid':
         case 'aloud-parakeet':
         case 'aloud-grok': {
             const ask = vadOpts.hostedChoice;
-            return createServerAloudStt(vadOpts, ask ? () => HOSTED_STT[ask(choice)].model : HOSTED_STT[choice].model);
+            const spec = HOSTED_STT[choice];
+            if (!ask && 'model' in spec) return createServerAloudStt(vadOpts, spec.model);
+            const heard = (): HostedSttChoice => (ask ? ask(choice) : choice);
+            return createServerAloudStt(
+                vadOpts,
+                (passSec) => passModel(heard(), passSec),
+                (model) => routeFallback(heard(), model)
+            );
         }
         case 'web-speech':
             // Same Tauri guard as sttEngineOptions - honor a stale stored pick
@@ -314,6 +381,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
         case 'capacitor':
             return 'capacitor';
         case 'aloud-gpt-transcribe':
+        case 'aloud-hybrid':
         case 'aloud-parakeet':
         case 'aloud-grok':
         case 'whisper':
@@ -332,9 +400,13 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  own estimateStt figures and setCloudSttCreditsPerHour overwrites these the
  *  moment the model catalog loads. A seed only renders when the picker paints
  *  before (or without) a reachable cloud, so it should stay roughly right but
- *  can't drift into a real charge. */
+ *  can't drift into a real charge. A routed choice has none of its own: its
+ *  rate is its two models' (cloudSttCreditsPerHour). */
 const sttCreditsPerHour = new Map<HostedSttChoice, number>(
-    (Object.keys(HOSTED_STT) as HostedSttChoice[]).map((c) => [c, HOSTED_STT[c].seedCreditsPerHour])
+    (Object.keys(HOSTED_STT) as HostedSttChoice[]).flatMap((c) => {
+        const h = HOSTED_STT[c];
+        return 'model' in h ? [[c, h.seedCreditsPerHour] as const] : [];
+    })
 );
 
 /** Adopt the server's hosted-STT rates (model-picker.ts, from /me/models):
@@ -345,8 +417,8 @@ export function setCloudSttCreditsPerHour(
     rate: number | null | undefined,
     byModel?: Record<string, number | null | undefined> | null
 ): void {
-    for (const choice of Object.keys(HOSTED_STT) as HostedSttChoice[]) {
-        const r = byModel?.[HOSTED_STT[choice].model] ?? (choice === 'aloud-gpt-transcribe' ? rate : undefined);
+    for (const choice of sttCreditsPerHour.keys()) {
+        const r = byModel?.[passModel(choice, 0)] ?? (choice === 'aloud-gpt-transcribe' ? rate : undefined);
         if (typeof r === 'number' && r > 0) sttCreditsPerHour.set(choice, r);
     }
 }
@@ -357,15 +429,27 @@ export function isHostedSttChoice(choice: SttEngineChoice): choice is HostedSttC
 }
 
 /** The model a choice transcribes with, for a session's run record: the hosted
- *  model id, or the Whisper size; '' for a recognizer that names none. */
+ *  model id, or for a routed choice both with the cut
+ *  ('gpt-transcribe<=3s,moondream/parakeet-ultra'), or the Whisper size; ''
+ *  for a recognizer that names none. */
 export function sttModelForChoice(choice: SttEngineChoice, whisperModel: string): string {
-    if (isHostedSttChoice(choice)) return HOSTED_STT[choice].model;
+    if (isHostedSttChoice(choice)) {
+        const h = HOSTED_STT[choice];
+        if ('model' in h) return h.model;
+        const { shortMaxSec, short, long } = h.route;
+        return `${passModel(short, 0)}<=${shortMaxSec}s,${passModel(long, Infinity)}`;
+    }
     return choice === 'whisper' ? whisperModel : '';
 }
 
-/** ☁/hr for a picker choice - 0 for the free local/browser engines. */
+/** ☁/hr for a picker choice - 0 for the free local/browser engines. A routed
+ *  choice's is an ESTIMATE: its two models' rates weighed by `shortShare`. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
-    return isHostedSttChoice(choice) ? (sttCreditsPerHour.get(choice) ?? 0) : 0;
+    if (!isHostedSttChoice(choice)) return 0;
+    const h = HOSTED_STT[choice];
+    if ('model' in h) return sttCreditsPerHour.get(choice) ?? 0;
+    const { short, long, shortShare } = h.route;
+    return shortShare * cloudSttCreditsPerHour(short) + (1 - shortShare) * cloudSttCreditsPerHour(long);
 }
 
 /**
@@ -375,12 +459,16 @@ export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
  * models the language takes (GPT always; they're the only ones that cost
  * credits), then the phone's own recognizer. The first entry is the mode's
  * default. In a sparse-speech mode (noting) the phone's recognizer leads
- * instead (see sparseSttEngine in app-settings.ts).
+ * instead (see sparseSttEngine in app-settings.ts). A hosted choice the
+ * picker doesn't show (HostedSttSpec.listed) is listed all the same when it
+ * is `current`, the pick in force, so a stored one still works and a select
+ * shows what runs.
  */
 export function sttEngineOptions(
     webMode: boolean,
     mode: MeditationType = 'exploration',
-    lang: UiLang = uiLang()
+    lang: UiLang = uiLang(),
+    current: SttEngineChoice | null = null
 ): Array<{ value: SttEngineChoice; label: string }> {
     const out: Array<{ value: SttEngineChoice; label: string }> = [];
     const native = { value: 'capacitor' as const, label: 'Built-in transcription' };
@@ -404,7 +492,7 @@ export function sttEngineOptions(
     // aloud cloud, labelled by model, in HOSTED_STT's order.
     for (const choice of Object.keys(HOSTED_STT) as HostedSttChoice[]) {
         const h = HOSTED_STT[choice];
-        if (!h.offeredIn(lang)) continue;
+        if (!h.offeredIn(lang) || (h.listed?.() === false && choice !== current)) continue;
         out.push({ value: choice, label: `${h.label}${rateSuffix(cloudSttCreditsPerHour(choice))}` });
     }
     // The native mobile recognizer: free, no credits. Labelled for what it IS,
@@ -448,7 +536,7 @@ export function defaultSttChoice(webMode: boolean, mode: MeditationType = 'explo
 }
 
 /** aloud cloud's default model for the mode and language: the first hosted
- *  option (Parakeet in English, GPT in 中文). Null when none is offered. */
+ *  option (GPT in English and 中文). Null when none is offered. */
 export function hostedSttDefault(webMode: boolean, mode: MeditationType = 'exploration'): HostedSttChoice | null {
     return (
         sttEngineOptions(webMode, mode)
@@ -459,15 +547,16 @@ export function hostedSttDefault(webMode: boolean, mode: MeditationType = 'explo
 
 /** The stored pick if this mode offers it, else the mode's flow default.
  *  Handles null (never chosen) and a stale pick carried across a mode change.
- *  A hosted pick the language doesn't offer (Parakeet in a Chinese session)
- *  stays on aloud cloud, on the language's default model, rather than
- *  dropping to a local default. */
+ *  A hosted pick the language doesn't offer (Hybrid in a Chinese session, or
+ *  Parakeet, offered nowhere now) stays on aloud cloud, on the language's
+ *  default model, rather than dropping to a local default. One offered but
+ *  not shown (Hybrid with developer mode off) is kept. */
 export function resolveSttChoice(
     stored: SttEngineChoice | null,
     webMode: boolean,
     mode: MeditationType = 'exploration'
 ): SttEngineChoice {
-    const offered = sttEngineOptions(webMode, mode).map((o) => o.value);
+    const offered = sttEngineOptions(webMode, mode, uiLang(), stored).map((o) => o.value);
     if (stored && offered.includes(stored)) return stored;
     const hosted = stored && isHostedSttChoice(stored) ? hostedSttDefault(webMode, mode) : null;
     return hosted ?? defaultSttChoice(webMode, mode);
@@ -478,16 +567,28 @@ export function resolveSttChoice(
  * (VadOpts.hostedChoice): the one it was built for, except while the tour is
  * up. There, with nothing picked, it is the first model the language takes
  * that takes the setup vocabulary as hints (GPT): the tour is driven by names
- * and commands, which Parakeet, the English default, mishears. A hosted pick
- * made during the tour applies at once; any other waits for the tour to end,
- * which keeps one recognizer (views/setup.ts tourChoice). `stored` is the
- * pick the listener's recognizer resolves from, as it stands now.
+ * and commands, which a model without hints mishears. A hosted pick made
+ * during the tour applies at once; any other waits for the tour to end, which
+ * keeps one recognizer (views/setup.ts tourChoice). `stored` is the pick the
+ * listener's recognizer resolves from, as it stands now. A routed pick
+ * (Hybrid) is heard here on GPT: this screen's clips are short, and GPT takes
+ * the vocabulary.
  */
 export function setupHostedChoice(
     built: HostedSttChoice,
     stored: SttEngineChoice | null,
     touring: boolean,
     lang: UiLang = uiLang()
+): HostedSttChoice {
+    const heard = touringChoice(built, stored, touring, lang);
+    return 'route' in HOSTED_STT[heard] ? 'aloud-gpt-transcribe' : heard;
+}
+
+function touringChoice(
+    built: HostedSttChoice,
+    stored: SttEngineChoice | null,
+    touring: boolean,
+    lang: UiLang
 ): HostedSttChoice {
     if (!touring) return built;
     const offered = (Object.keys(HOSTED_STT) as HostedSttChoice[]).filter((c) => HOSTED_STT[c].offeredIn(lang));

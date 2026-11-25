@@ -23,8 +23,8 @@ specific manufacturer's stack.
 ## What the app offers on mobile (the options under test)
 
 - **STT**
-  - aloud cloud, one choice per hosted model: `aloud-parakeet` ("Parakeet", not in zh), `aloud-gpt-transcribe` (OpenAI `gpt-transcribe`, shown as "GPT") and `aloud-grok` ("Grok", zh only).
-    **Costs credits.** Current mobile default for the facilitated modes (since 2026-10-15, see below): Parakeet in English (since 2026-11-20: as fast and accurate as GPT on a phone, about a fifth of the cost, no vocabulary hints), GPT in zh (`hostedSttDefault` in `stt-picker.ts`).
+  - aloud cloud, one choice per hosted model: `aloud-gpt-transcribe` (OpenAI `gpt-transcribe`, shown as "GPT") and `aloud-grok` ("Grok", zh only); with developer mode on, `aloud-hybrid` ("Hybrid", not in zh: GPT for passes of `HYBRID_GPT_MAX_SEC` or less, Parakeet beyond, GPT again for a pass Parakeet refuses). `aloud-parakeet` ("Parakeet") is no longer offered, and a stored pick resolves to GPT.
+    **Costs credits.** Current mobile default for the facilitated modes (since 2026-10-15, see below): GPT in English and zh (`hostedSttDefault` in `stt-picker.ts`; Parakeet was the English default from 2026-11-20 to 2026-11-25, until it wrote one-word turns from sighs and breaths and its one upstream host refused passes, `meditation-pal-gxk8`).
   - `capacitor` - native on-device (SFSpeechRecognizer / Android SpeechRecognizer). **Free.**
     The noting default, under the sparse-speech modes' own pick (`ModeSpec.sparseSpeech`,
     `AppSettings.sparseSttEngine`, `sttSettingKey`): noting hears one-word labels, talks over

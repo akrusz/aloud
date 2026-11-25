@@ -316,7 +316,7 @@ describe.each([
         expect(s.sttEngine).toBeNull();
         expect(s.sparseSttEngine).toBeNull();
         expect(resolveSttChoice(s.sttEngine, true)).toBe(defaultSttChoice(true));
-        expect(setupHostedChoice('aloud-parakeet', s.sttEngine, true, 'en')).toBe('aloud-gpt-transcribe');
+        expect(setupHostedChoice('aloud-gpt-transcribe', s.sttEngine, true, 'en')).toBe('aloud-gpt-transcribe');
         expect(s.defaultVoice).toBeNull();
         expect(s.houseVoice).toBeNull();
         expect(s.defaultModel).toBe(DEFAULT_APP_SETTINGS.defaultModel);

@@ -2964,7 +2964,7 @@ function renderSetupHTML(
     byokOpts: ProviderAvailabilityOpts,
     sttSelected: SttEngineChoice
 ): string {
-    const sttSetupOptions = sttEngineOptions(isWebMode())
+    const sttSetupOptions = sttEngineOptions(isWebMode(), undefined, undefined, sttSelected)
         .map(
             ({ value, label }) =>
                 `<option value="${value}"${value === sttSelected ? ' selected' : ''}>${escapeHtml(t(label))}</option>`

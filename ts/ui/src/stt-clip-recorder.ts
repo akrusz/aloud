@@ -12,7 +12,7 @@
  * exportSessions has the same limit), so the desktop app instead writes each
  * clip through the shell as it is transcribed, to
  * <app-data>/stt-clips/<capture>/NNNN-tNNN-<label>.wav with a .json beside it
- * (turn, label, seconds, from, text). A phone posts each clip the same way to
+ * (turn, label, seconds, from, text, model, fallback). A phone posts each clip the same way to
  * scripts/stt-clip-sink.ts on the dev's machine, over USB (`adb reverse`).
  * That works in a debug build only: android/app/src/debug/AndroidManifest.xml
  * is what allows plain http, so a release build drops its clips.
@@ -45,6 +45,12 @@ interface Clip {
     /** What the turn says through this clip: a piece's reply joined onto the
      *  text before it. */
     text: string;
+    /** The hosted model that transcribed it; null where none was named (the
+     *  desktop's local Whisper, or aloud cloud's default). */
+    model: string | null;
+    /** It went to `model` after the model it was routed to refused it
+     *  (whisper-pcm-stt.ts cloudFallback). */
+    fallback: boolean;
 }
 
 let clips: Clip[] = [];
@@ -65,6 +71,8 @@ const metaOf = (c: Clip) => ({
     seconds: secondsOf(c),
     from: Number(c.from.toFixed(3)),
     text: c.text,
+    model: c.model,
+    fallback: c.fallback,
 });
 
 /** Keep one transcription pass. A no-op unless the developer flag is on. */

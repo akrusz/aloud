@@ -691,9 +691,10 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   (`biasPhrases`: `contextualStrings` on iOS, `EXTRA_BIASING_STRINGS` on
   Android 13+, in the patched plugin; both compile, neither has run on a
   phone). Hosted recognition gets a flag and the server builds the prompt
-  itself, below; only GPT takes it, so Parakeet (the English default) and
-  Grok hear this screen unprompted, and `tour-command.ts` matches their near
-  misses of the tour's words. The tour itself is heard on GPT by someone who
+  itself, below; only GPT takes it, so Grok hears this screen unprompted, as
+  Parakeet did while it was a choice of its own, and `tour-command.ts` matches
+  their near misses of the tour's words. A Hybrid pick is heard here on GPT
+  (`setupHostedChoice`). The tour itself is heard on GPT by someone who
   never picked (The tour, spoken, below). Chrome's browser recognizer gets
   nothing: its phrase biasing is on-device only and makes a cloud recognizer
   fail at start. "Begin" is in none of it, since a prompted word is the one a
@@ -889,23 +890,27 @@ voices and would move them off it.
   start with "Recognition service disconnected", which put the mic to sleep
   for the rest of the tour (Android, 2026-11-19).
 - **On GPT where nothing is picked.** The tour runs on names and commands,
-  which Parakeet, taking no hints, mishears ("Harper", "back"), and GPT gets
-  the setup vocabulary. (In English that vocabulary does not yet carry the
-  voice names or the tour's commands, and GPT on the tour is unmeasured:
-  `meditation-pal-bpgu`.) So with no speech recognition pick stored (in the
-  setting of the tab the tour started on, `tourPickKey`) and a hosted default,
-  the tour is heard on GPT and the default again once it ends, however it
-  ends (`setupHostedChoice` in `adapters/stt-picker.ts`). The model is named
-  on each request (`VadOpts.hostedChoice`; `cloudModel` as a function in
+  which a model taking no hints mishears (Parakeet, the English default in
+  2.21.0: "Harper", "back"), and GPT gets the setup vocabulary. (In English
+  that vocabulary does not yet carry the voice names or the tour's commands,
+  and GPT on the tour is unmeasured: `meditation-pal-bpgu`.) So with no
+  speech recognition pick stored (in the setting of the tab the tour started
+  on, `tourPickKey`) and a hosted default, the tour is heard on GPT and the
+  default again once it ends, however it ends (`setupHostedChoice` in
+  `adapters/stt-picker.ts`). The model is named on each request
+  (`VadOpts.hostedChoice`; `cloudModel` as a function in
   `whisper-pcm-stt.ts`), so the listener and its mic carry on through the
   tour's start and end. The select, the estimate and the session that
-  follows stay on the default. A stored pick is kept, Parakeet included; a
+  follows stay on the default. A stored pick is kept (Hybrid is heard on
+  GPT, as everywhere on this screen; a Parakeet one resolves to GPT); a
   hosted one made during the tour applies at once, any other at its end.
   Setup listening makes only full passes, so nothing of GPT's carries into
   the next request, and the server meters each request by the model it
-  names. 中文 is on GPT already, and a default that is not hosted (local
-  Whisper, the browser's recognizer, a phone's noting) is left alone. A tour
-  replayed later is heard the same way.
+  names. With GPT the hosted default again in both languages
+  (`hostedSttDefault`), this changes nothing today; it stands for a default
+  that takes no hints. A default that is not hosted (local Whisper, the
+  browser's recognizer, a phone's noting) is left alone. A tour replayed
+  later is heard the same way.
 
 ### Not verified on a device
 

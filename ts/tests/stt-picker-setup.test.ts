@@ -115,6 +115,7 @@ describe('incremental passes: the hosted models that take a prompt', () => {
         ['aloud-gpt-transcribe', true],
         ['aloud-parakeet', false],
         ['aloud-grok', false],
+        ['aloud-hybrid', false],
     ] as const)('%s in a session: %s', async (choice, on) => {
         expect(await incrementalFor(choice, { language: 'en' })).toBe(on);
     });
@@ -146,10 +147,10 @@ describe('a session (no setupListening)', () => {
 describe('a hosted model named on each request (VadOpts.hostedChoice)', () => {
     it('asks for the tour\'s model and then the default, from one engine and one capture', async () => {
         let touring = true;
-        const engine = await createSttForChoice('aloud-parakeet', {
+        const engine = await createSttForChoice('aloud-grok', {
             setupListening: true,
-            language: 'en',
-            hostedChoice: (built) => setupHostedChoice(built, null, touring, 'en'),
+            language: 'zh',
+            hostedChoice: (built) => setupHostedChoice(built, null, touring, 'zh'),
         });
         expect(engine).toBeInstanceOf(WhisperPcmSttEngine);
         const transcribe = (engine as unknown as { transcribe: Transcribe }).transcribe.bind(engine);
@@ -158,7 +159,7 @@ describe('a hosted model named on each request (VadOpts.hostedChoice)', () => {
         touring = false;
         await transcribe([frame], 'final', 16_000);
         const posts = urls.filter(isTranscription);
-        expect(posts.map((u) => u.searchParams.get('model'))).toEqual(['gpt-transcribe', 'moondream/parakeet-ultra']);
+        expect(posts.map((u) => u.searchParams.get('model'))).toEqual(['gpt-transcribe', 'x-ai/grok-stt-2.0']);
         // Both as setup listening, with the server's prompt and no client one.
         for (const post of posts) {
             expect(post.searchParams.get('setup')).toBe('1');

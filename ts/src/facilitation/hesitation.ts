@@ -1,7 +1,7 @@
 /**
  * The hesitation sound a recognizer writes ahead of a command: "Uh, next.",
- * "Um, never mind.", 嗯，下一步. GPT never writes one; Parakeet, the English
- * default, does (13 of 299 clips, twice leading; meditation-pal-0ntn). The
+ * "Um, never mind.", 嗯，下一步. GPT never writes one; Parakeet, which takes
+ * Hybrid's longer passes, does (13 of 299 clips, twice leading; meditation-pal-0ntn). The
  * on-device matchers read the whole utterance, so a command behind one read
  * as nothing, and the intention question took "Uh, never mind." as the
  * intention.

@@ -22,10 +22,11 @@ import type { SignatureSound } from './signature-sound.js';
 
 export type ThemeMode = 'auto' | 'dark' | 'light';
 export type TtsEngineChoice = 'cloud' | 'macos' | 'piper' | 'browser' | 'elevenlabs';
-/** The aloud cloud STT choices, labelled by their model (GPT, Parakeet, Grok;
- *  adapters/stt-picker.ts HOSTED_STT). Each id names a model family, not a
- *  version, so a stored pick outlives an upgrade. */
-export type HostedSttChoice = 'aloud-gpt-transcribe' | 'aloud-parakeet' | 'aloud-grok';
+/** The aloud cloud STT choices, labelled by their model (GPT, Grok, and
+ *  Parakeet, no longer offered), or Hybrid, which routes each pass to GPT or
+ *  Parakeet (adapters/stt-picker.ts HOSTED_STT). Each id names a model family,
+ *  not a version, so a stored pick outlives an upgrade. */
+export type HostedSttChoice = 'aloud-gpt-transcribe' | 'aloud-hybrid' | 'aloud-parakeet' | 'aloud-grok';
 /** Speech-to-text source. Always an explicit pick (no hidden "automatic") so
  *  the user controls where audio goes and knows when it costs credits. A stored
  *  null means the mode's flow default (resolveSttChoice in adapters/stt-picker). */

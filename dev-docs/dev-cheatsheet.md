@@ -192,6 +192,13 @@ simulated failures only in dev builds, behind the same compile-time gate as
 their params. A release build therefore honors only `?debug=` and
 `?previewUpdate`, typed or not.
 
+Developer mode also lists the **Hybrid** speech recognition choice (English
+only, unproven): each aloud cloud pass of `HYBRID_GPT_MAX_SEC` (3 s) of audio
+or less goes to GPT, a longer one to Parakeet, and one Parakeet refuses with a
+provider error goes once more to GPT (`HOSTED_STT` in `stt-picker.ts`,
+`cloudFallback` in `whisper-pcm-stt.ts`). A stored Hybrid pick keeps working,
+and stays in the select, with developer mode off.
+
 Four switches also live there with no URL twin:
 
 - **Setup welcome card** (`devQueueWelcome` in `tour/index-guide.ts`, one
@@ -213,7 +220,9 @@ Four switches also live there with no URL twin:
   (`ts/scripts/stt-clip-sink.ts`, which runs `adb reverse` and writes the same
   folder layout); debug builds only, since
   `ts/android/app/src/debug/AndroidManifest.xml` is what allows plain http.
-  Cloud or local Whisper STT. An incremental pass
+  Cloud or local Whisper STT. A clip's `.json` names the hosted model that
+  transcribed it (`model`, null for local Whisper or the server's default)
+  and whether it went there as a fallback (`fallback`). An incremental pass
   (`incremental` in `whisper-pcm-stt.ts`) records only its piece, with `from`
   (seconds of the turn's audio before it) and the turn's joined text;
   `loadCapture` in the replay script chains the pieces back into each pass's

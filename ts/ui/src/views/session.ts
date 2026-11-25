@@ -694,8 +694,9 @@ export async function mountSessionView(
             {
                 label: t('Speech recognition'),
                 value: t(
-                    sttEngineOptions(isWebMode()).find((o) => o.value === sttChoice)?.label ??
-                        sttChoice
+                    sttEngineOptions(isWebMode(), undefined, undefined, sttChoice).find(
+                        (o) => o.value === sttChoice
+                    )?.label ?? sttChoice
                 ),
             },
             {

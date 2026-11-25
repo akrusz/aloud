@@ -62,6 +62,7 @@ export const ZH: Record<string, string> = {
     "Attention Focus": "注意焦点",
     "Attentive": "细致",
     "Transcribed by OpenAI, which runs GPT.": "由运行 GPT 的 OpenAI 转写。",
+    "Short clips go to OpenAI, which runs GPT, longer ones to Prime Intellect, which runs Parakeet.": "短片段交给运行 GPT 的 OpenAI 转写，较长的交给运行 Parakeet 的 Prime Intellect。",
     "Transcribed by Prime Intellect, which runs Parakeet and retains no audio.": "由运行 Parakeet 的 Prime Intellect 转写，不保留任何音频。",
     "Transcribed by xAI, which runs Grok.": "由运行 Grok 的 xAI 转写。",
     "Auto (follow system)": "自动（跟随系统）",

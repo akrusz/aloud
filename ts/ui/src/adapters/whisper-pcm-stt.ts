@@ -56,6 +56,13 @@ const TRANSCRIBE_TIMEOUT_MS = 45_000;
 // re-sends anyway. The desktop's loopback Whisper doesn't retry at all: a
 // refused connection there is a backend that's down, not a network blip.
 export const CLOUD_FINAL_RETRY_BUDGET_MS = 30_000;
+// aloud cloud's provider_error (server contract.ts): the model's upstream
+// failed or refused the clip, which is billed nothing. A pass with a
+// cloudFallback goes once more to the fallback on it, at once, speculative
+// passes too: there is no wait, and a speculative pass's text often stands in
+// for the final. Fly's proxy missing the machine answers 502 too, and there
+// the second request costs nothing either.
+const PROVIDER_ERROR_STATUS = 502;
 // Pause (ms) that fires a speculative transcription so the user sees their
 // words mid-utterance. Skipped when the submit threshold is shorter (nothing to
 // preview). 750 (not 500) trims false trips on between-phrase breaths while
@@ -270,9 +277,17 @@ export interface WhisperPcmSttEngineOptions extends Partial<VadFields> {
     /** Hosted-model override, sent as a `model` query param the cloud /stt
      *  route validates against its backend's allowlist (e.g. 'gpt-transcribe').
      *  Cloud endpoint only - leave unset for the desktop endpoint and for the
-     *  server-default model. A function is asked on each pass, so the model
-     *  can change under one capture (stt-picker.ts setupHostedChoice). */
-    cloudModel?: string | null | (() => string | null);
+     *  server-default model. A function is asked on each pass with the
+     *  seconds of audio the pass sends, so the model can change under one
+     *  capture (stt-picker.ts setupHostedChoice) or by the pass's length
+     *  (stt-picker.ts HYBRID_GPT_MAX_SEC). */
+    cloudModel?: string | null | ((passSec: number) => string | null);
+    /** Given the model a pass asked for, the model it is sent to once more,
+     *  with the same audio, when the server answers with a provider error
+     *  (PROVIDER_ERROR_STATUS); null for none. Once per pass, speculative or
+     *  final, and the pass stays on that model for any re-send after it. Not
+     *  on a dropped connection, a timeout or an abort. */
+    cloudFallback?: ((model: string) => string | null) | null;
     /** Whisper initial prompt, sent as `prompt` on every pass: words the
      *  listener expects, which Whisper favors where the audio is ambiguous.
      *  Local endpoint only (stt-picker.ts localWhisperStt). */
@@ -503,6 +518,7 @@ export class WhisperPcmSttEngine implements SttEngine {
             whisperModelSize: options.whisperModelSize ?? null,
             language: options.language ?? null,
             cloudModel: options.cloudModel ?? null,
+            cloudFallback: options.cloudFallback ?? null,
             initialPrompt: options.initialPrompt ?? null,
             setupListening: options.setupListening ?? false,
             silenceBaseMs: options.silenceBaseMs ?? defaultPacingConfig.silenceBaseMs,
@@ -1426,22 +1442,29 @@ export class WhisperPcmSttEngine implements SttEngine {
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
         }
         const prior = this.incremental ? priorHeader(piece.prior) : null;
-        const cloudModel = typeof this.opts.cloudModel === 'function' ? this.opts.cloudModel() : this.opts.cloudModel;
+        const seconds = downsampled.length / TARGET_SAMPLE_RATE;
+        // The model this pass is on: the one asked for, then the fallback's
+        // once a provider error moved it there (cloudFallback).
+        let cloudModel =
+            typeof this.opts.cloudModel === 'function' ? this.opts.cloudModel(seconds) : this.opts.cloudModel;
+        let fellBack = false;
         let answered = false;
         try {
             // session_id groups the cloud cost report (the desktop ignores
             // it).
-            const query = Object.entries({
-                session_id: getCloudSessionId(),
-                model_size: this.opts.whisperModelSize,
-                lang: this.opts.language,
-                model: cloudModel,
-                prompt: this.opts.initialPrompt,
-                setup: this.opts.setupListening ? '1' : null,
-            })
-                .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
-                .join('');
-            const url = `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${query}`;
+            const urlFor = (model: string | null): string => {
+                const query = Object.entries({
+                    session_id: getCloudSessionId(),
+                    model_size: this.opts.whisperModelSize,
+                    lang: this.opts.language,
+                    model,
+                    prompt: this.opts.initialPrompt,
+                    setup: this.opts.setupListening ? '1' : null,
+                })
+                    .map(([k, v]) => (v ? `&${k}=${encodeURIComponent(v)}` : ''))
+                    .join('');
+                return `${this.opts.endpointUrl}?sample_rate=${TARGET_SAMPLE_RATE}&format=i16${query}`;
+            };
             // The body is under the deadline too: a reply's headers can arrive
             // and its body never. A timeout ends the pass (never re-sent) and
             // aborts its fetch, so the stalled socket is let go.
@@ -1459,7 +1482,7 @@ export class WhisperPcmSttEngine implements SttEngine {
                             const token = await this.opts.authProvider();
                             if (token) headers['authorization'] = `Bearer ${token}`;
                         }
-                        return this.opts.fetchImpl(url, {
+                        return this.opts.fetchImpl(urlFor(cloudModel), {
                             method: 'POST',
                             headers,
                             body: pcm16.buffer as ArrayBuffer,
@@ -1467,16 +1490,35 @@ export class WhisperPcmSttEngine implements SttEngine {
                         });
                     })()
                 );
+            // Self-heal a stale token: one retry on a 401 (see onAuthError).
+            const sendHealed = async (): Promise<Response> => {
+                let res = await send();
+                if (res.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
+                    await this.opts.onAuthError();
+                    res = await send();
+                }
+                return res;
+            };
             const sentAt = performance.now();
             const response = await sendWithNetworkRetry(
                 async () => {
-                    let res = await send();
-                    // Self-heal a stale token: one retry on a 401 (see onAuthError).
-                    if (res.status === 401 && this.opts.authProvider && this.opts.onAuthError) {
-                        await this.opts.onAuthError();
-                        res = await send();
-                    }
-                    return res;
+                    const res = await sendHealed();
+                    // Inside the attempt, so a refused final moves to the
+                    // fallback at once instead of re-sending to the model that
+                    // refused it, and a dropped connection on the fallback is
+                    // ridden out on the fallback.
+                    const fallback =
+                        res.status === PROVIDER_ERROR_STATUS && !fellBack && cloudModel
+                            ? this.opts.cloudFallback?.(cloudModel)
+                            : null;
+                    if (!fallback) return res;
+                    await timed(res.text()).catch(() => '');
+                    console.warn(
+                        `[stt] ${label} pass: ${cloudModel} answered ${res.status}, sent once more to ${fallback}`
+                    );
+                    cloudModel = fallback;
+                    fellBack = true;
+                    return sendHealed();
                 },
                 // No abort on stop(): the session also stops the engine to close
                 // the mic for an unprompted line, and an in-flight final pass has
@@ -1500,12 +1542,12 @@ export class WhisperPcmSttEngine implements SttEngine {
             const data = (await timed(response.json())) as { text?: string; error?: string };
             if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
             const text = (data.text ?? '').trim();
-            const seconds = downsampled.length / TARGET_SAMPLE_RATE;
             diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
             if (diagOn()) {
                 const now = performance.now();
                 diag(
-                    `[stt-time] ${label} ${cloudModel ?? 'default'} round-trip=${Math.round(now - sentAt)}ms ` +
+                    `[stt-time] ${label} ${cloudModel ?? 'default'}${fellBack ? ' fallback=1' : ''} ` +
+                        `round-trip=${Math.round(now - sentAt)}ms ` +
                         `since-speech=${Math.round(now - this.lastSpeechMs)}ms`
                 );
             }
@@ -1513,7 +1555,15 @@ export class WhisperPcmSttEngine implements SttEngine {
             // Provenance for transcript anomalies: a user turn with no
             // matching [stt-text] line did not come from the mic.
             if (label === 'final') diag(`[stt-text] ${turnText.length} chars`);
-            recordSttClip({ turn: this.turnSeq, label, pcm16, text: turnText, from: piece.fromSec });
+            recordSttClip({
+                turn: this.turnSeq,
+                label,
+                pcm16,
+                text: turnText,
+                from: piece.fromSec,
+                model: cloudModel,
+                fallback: fellBack,
+            });
             return { ok: true, text, seconds };
         } catch (err) {
             return { ok: false, error: err, priorUnanswered: !!prior && !answered && isNetworkFailure(err) };
