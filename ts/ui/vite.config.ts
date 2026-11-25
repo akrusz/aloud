@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -12,6 +13,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(
     readFileSync(resolve(__dirname, '../package.json'), 'utf8')
 ).version as string;
+
+// The commit the bundle was built from, baked in as __APP_COMMIT__ for the run
+// record a saved session carries (session-run-record.ts): the short hash, with
+// '-dirty' when tracked files have uncommitted changes, and '' wherever git
+// can't answer (a CI tarball), so a build never fails on it. Read once at
+// config load: a dev server keeps the commit it started on.
+function gitCommit(): string {
+    const git = (args: string[]): string =>
+        execFileSync('git', args, { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    try {
+        const hash = git(['rev-parse', '--short', 'HEAD']);
+        if (!hash) return '';
+        return git(['status', '--porcelain', '--untracked-files=no']) ? `${hash}-dirty` : hash;
+    } catch {
+        return '';
+    }
+}
+const APP_COMMIT = gitCommit();
 
 const OLLAMA_URL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
 // aloud cloud (@aloud/server, Hono). Serves BOTH the app's own backend
@@ -93,6 +112,7 @@ export default defineConfig({
         // declared in vite-env.d.ts). JSON.stringify so it lands as a quoted
         // string literal in the output.
         __APP_VERSION__: JSON.stringify(APP_VERSION),
+        __APP_COMMIT__: JSON.stringify(APP_COMMIT),
     },
     resolve: {
         alias: {

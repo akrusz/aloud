@@ -600,6 +600,12 @@ session under `<app-data>/sessions/`, through `/app/v1/sessions` and
 `ui/src/adapters/backend-session-store.ts` (`BackendSessionStore`, wired in
 `state.ts` only when `isTauri()`).
 
+A saved session's `run` (`SessionRunRecord`, `ts/src/facilitation/session.ts`;
+absent on older ones) holds the build, an allowlist of the settings behind the
+prompt and turn loop, and the frozen system prompt, for replays and eval
+fixtures: built in `ui/src/session-run-record.ts`, stamped by `stampRunRecord`
+in `ui/src/views/session.ts`.
+
 ## Dev gotchas
 
 - **UI strings are localized**: any user-visible literal in `ts/ui/src` goes

@@ -48,6 +48,10 @@ interface ImportMeta {
  *  latest GitHub release. */
 declare const __APP_VERSION__: string;
 
+/** Short git hash of the build, '-dirty' suffixed or '' (vite.config.ts
+ *  gitCommit). Read by session-run-record.ts. */
+declare const __APP_COMMIT__: string;
+
 /** Vite `?url` asset imports (the Silero model + ort WASM binary in
  *  silero-vad.ts): the module resolves to the asset's served URL. Declared
  *  here because the UI tsconfig deliberately omits `vite/client`. */

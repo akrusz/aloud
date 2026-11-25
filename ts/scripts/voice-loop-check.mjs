@@ -314,6 +314,35 @@ try {
         await s.context.close();
     }
 
+    // ---- a saved session says what it ran on ------------------------------------
+    // The stamp swallows its own faults (stampRunRecord in views/session.ts), so
+    // only a saved session can show it ran. The autosave after a turn is enough.
+    {
+        const s = await open({ setupVoice: false, saveSessionLogs: true });
+        await s.setup();
+        await s.begin();
+        await s.until(s.inSession);
+        const calls = s.model.calls;
+        await s.say('There is a warmth in my chest.');
+        await s.modelCalledSince(calls);
+        const savedRun = () =>
+            s.page.evaluate(() => {
+                const ids = JSON.parse(localStorage.getItem('aloud:session:index') || '[]');
+                const saved = JSON.parse(localStorage.getItem(`aloud:session:${ids.at(-1)}`) || 'null');
+                return saved?.run ?? null;
+            });
+        await s.until(async () => (await savedRun()) !== null, 8_000);
+        const run = await savedRun();
+        const prompt = run?.systemPrompt ?? '';
+        check(
+            'a saved session carries the system prompt the model was sent',
+            prompt.length > 0 && s.model.requests[0].includes(JSON.stringify(prompt).slice(1, -1)),
+            `(${prompt.length} chars)`
+        );
+        check('and the settings and build it ran on', run?.settings?.mode === 'exploration' && typeof run?.build?.version === 'string');
+        await s.context.close();
+    }
+
     // ---- stepping out: the trouble check beside the reply ------------------------
     // Only on a model that gets the check (wantsTroubleCheck: the stand-in
     // default, GPT-5 nano, is one).

@@ -2,3 +2,4 @@
  *  import. Vitest defines no such global: at run time it is undefined, which
  *  client-version.ts runningVersion() allows for. */
 declare const __APP_VERSION__: string;
+declare const __APP_COMMIT__: string;

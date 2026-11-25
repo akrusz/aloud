@@ -356,6 +356,13 @@ export function isHostedSttChoice(choice: SttEngineChoice): choice is HostedSttC
     return Object.hasOwn(HOSTED_STT, choice);
 }
 
+/** The model a choice transcribes with, for a session's run record: the hosted
+ *  model id, or the Whisper size; '' for a recognizer that names none. */
+export function sttModelForChoice(choice: SttEngineChoice, whisperModel: string): string {
+    if (isHostedSttChoice(choice)) return HOSTED_STT[choice].model;
+    return choice === 'whisper' ? whisperModel : '';
+}
+
 /** ☁/hr for a picker choice - 0 for the free local/browser engines. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
     return isHostedSttChoice(choice) ? (sttCreditsPerHour.get(choice) ?? 0) : 0;

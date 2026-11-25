@@ -42,7 +42,8 @@ import { showEndConfirm as wireEndConfirm } from './end-confirm.js';
 import { loadAppSettings, patchAppSettings } from '../app-settings.js';
 import { SessionClock } from '../session-clock.js';
 import { createTtsForVoice } from '../adapters/tts-picker.js';
-import { createSttForChoice, sttChoiceForMode } from '../adapters/stt-picker.js';
+import { createSttForChoice, sttChoiceForMode, sttModelForChoice } from '../adapters/stt-picker.js';
+import { buildRunRecord, notingRunSettings, runBuild } from '../session-run-record.js';
 import { WhisperPcmSttEngine } from '../adapters/whisper-pcm-stt.js';
 import { voiceEchoCancelled, waitOutUncancelledVoice } from '../barge-in.js';
 import { isWebMode } from '../app-mode.js';
@@ -388,8 +389,9 @@ export async function mountNotingSessionView(
     // choice, and a separate detection here can disagree with it: a browser
     // with no Web Speech gets asked to sign in for cloud STT and then handed a
     // mic-less session anyway (meditation-pal-j8k1).
+    const sttChoice = sttChoiceForMode(appSettings, isWebMode(), 'noting');
     const stt: SttEngine | null = await createSttForChoice(
-        sttChoiceForMode(appSettings, isWebMode(), 'noting'),
+        sttChoice,
         {
             micDeviceId: appSettings.micDeviceId,
             whisperModelSize: appSettings.sttWhisperModel,
@@ -403,6 +405,13 @@ export async function mountNotingSessionView(
             minSpeechDurationMs: 150,
         }
     );
+    try {
+        const sttModel = sttModelForChoice(sttChoice, appSettings.sttWhisperModel);
+        const settings = notingRunSettings(setup, { engine: sttChoice, model: sttModel });
+        if (session.state) session.state.run = buildRunRecord(runBuild(), settings);
+    } catch (err) {
+        console.warn('Session run record not stamped', err);
+    }
     // The opening sound and the mic, one after the other (playOpening says in
     // which order); the opener waits for both.
     const signatureSound = resolveSignatureSound(appSettings.signatureSound);

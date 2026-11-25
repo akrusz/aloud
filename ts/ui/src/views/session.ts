@@ -133,8 +133,10 @@ import {
     sttEngineOptions,
     isHostedSttChoice,
     hostedSttDefault,
+    sttModelForChoice,
     type SttBackend,
 } from '../adapters/stt-picker.js';
+import { buildRunRecord, conversationRunSettings, runBuild } from '../session-run-record.js';
 import { isWebMode } from '../app-mode.js';
 import { describeCloudError, describeSttError, isConnectionFailure } from '../stt-errors.js';
 import { simulateLlmFault } from '../dev-sim.js';
@@ -449,7 +451,11 @@ export async function mountSessionView(
     // log instead (a phase note, an event turn), never this.
     let frozenSystemPrompt: string | null = null;
     function systemPrompt(): string {
-        return (frozenSystemPrompt ??= builder.buildSystemPrompt(stager?.promptSection()));
+        if (frozenSystemPrompt === null) {
+            frozenSystemPrompt = builder.buildSystemPrompt(stager?.promptSection());
+            stampRunRecord(frozenSystemPrompt);
+        }
+        return frozenSystemPrompt;
     }
     // Stamped at start (not save) so autosave carries it and a resume keeps the
     // language the sit began in.
@@ -3498,6 +3504,37 @@ export async function mountSessionView(
         hostedCatalog = hosted;
         builder.config.voiceNote = hostedVoicePromptNote(setup.voice, setup.provider, hosted);
     });
+
+    /** SessionState.run, stamped as the prompt freezes (systemPrompt), so the
+     *  autosave snapshots and the final save carry it. A fault here must never
+     *  cost the session its reply. */
+    function stampRunRecord(system: string): void {
+        if (!session.state) return;
+        try {
+            const settings = conversationRunSettings({
+                setup,
+                appSettings,
+                prompt: builder.config,
+                mode: mode.id,
+                language: sessionLanguage,
+                continuedFrom: continueFrom?.sessionId ?? null,
+                checkinTiming,
+                checkinContent,
+                checkinWaitSec: checkinTiming === 'smart' ? builder.checkinWaitSeconds() : null,
+                voiceCommands: judgeAccess,
+                silenceBaseMs,
+                silenceMaxMs,
+                timerMin: sessionClock.remainingSec() === null ? null : sessionClock.timerMinutes(),
+                endSessionOnTimer: sessionClock.endsSessionOnComplete(),
+                sttEngine: sttChoice,
+                sttModel: sttModelForChoice(sttChoice, appSettings.sttWhisperModel),
+                wholeReply: replyWhole(),
+            });
+            session.state.run = buildRunRecord(runBuild(), settings, system);
+        } catch (err) {
+            console.warn('Session run record not stamped', err);
+        }
+    }
 
     // Greet first. busy holds check-ins, and the mic on pause-while-busy
     // backends, until the opener finishes. Resuming gets a welcome-back.

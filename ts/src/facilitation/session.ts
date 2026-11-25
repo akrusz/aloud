@@ -173,6 +173,38 @@ export interface SessionState {
     language?: string;
     /** Compute usage tally. Always present on sessions started by this code. */
     usage: SessionUsage;
+    /** What the session ran on, for replays and eval fixtures. Absent on
+     *  sessions saved before the field. */
+    run?: SessionRunRecord;
+}
+
+/** A value in SessionRunRecord.settings: JSON-plain, never an object. */
+export type RunSettingValue = string | number | boolean | null | string[];
+
+export interface SessionRunBuild {
+    /** __APP_VERSION__, '' where none was baked in. */
+    version: string;
+    /** Short git hash of the build, '-dirty' suffixed for a tree with
+     *  uncommitted changes, '' where git wasn't there to ask. */
+    commit: string;
+    /** 'desktop' | 'android' | 'ios' | 'web' (client-version.ts). */
+    platform: string;
+    /** A Vite dev-server build. */
+    dev: boolean;
+}
+
+/**
+ * The build, settings and frozen system prompt a session ran on, stamped once
+ * when the prompt freezes (ui/src/session-run-record.ts builds it). The
+ * settings are an allowlist: no keys, tokens or account details, since a
+ * session file is exported and shared. They are the values at the freeze: a
+ * later change (a voice pick, a rate command, a recognizer swap) is not here.
+ */
+export interface SessionRunRecord {
+    build: SessionRunBuild;
+    settings: Record<string, RunSettingValue>;
+    /** Verbatim. Absent for a noting circle, which has no single prompt. */
+    systemPrompt?: string;
 }
 
 export type ContextStrategy = 'rolling' | 'full';
