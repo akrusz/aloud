@@ -43,7 +43,7 @@ export interface ModelPricing extends TokenRates {
     default?: boolean;
     /** Expanded-tier: hidden from the model picker until the user opts into
      *  "Show all available models" (ui model-picker.ts). For older and niche
-     *  models kept for their distinct voices (Opus 3, Kimi K2) or as price
+     *  models kept for their distinct voices (Opus 3) or as price
      *  variants of a listed sibling, so new users see a short curated list.
      *  Billing and forwarding ignore it - an expanded model is fully served. */
     expanded?: boolean;
@@ -271,7 +271,6 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-haiku-5-5': {
         provider: 'anthropic',
         model: 'claude-haiku-5-5',
-        zhExpanded: true, // zh's budget slot goes to Kimi K2 (zhCurated below)
         input: 0.1 / M,
         output: 0.5 / M,
         cacheRead: 0.01 / M,
@@ -436,25 +435,11 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 5 / M,
         cacheCreation1h: 5 / M, // no 1h write on automatic caching; never accrues
     },
-    // Kimi K2 0711, the original K2 (no reasoning, ~1s to first token; K3's
-    // mandatory reasoning ran 7-12s), via OpenRouter on Novita: the one
-    // openrouter entry, so OPENROUTER_API_KEY must be set. A niche draw like
-    // Opus 3. Single-host slug, so it degrades to kimi-k2-0905 (forward.ts
-    // OPENROUTER_FALLBACKS), a ~4% under-recovery while degraded. No cache
-    // pricing on this endpoint, so every cache field sits at the input rate (a
-    // reported cached token would over-charge, never under-bill); at $0.57
-    // full fresh input still undercuts cached mid-tier models.
-    'openrouter:moonshotai/kimi-k2': {
-        provider: 'openrouter',
-        model: 'moonshotai/kimi-k2',
-        expanded: true, // niche draw, same logic as Opus 3
-        zhCurated: true, // zh shortlist: Moonshot's own model, the budget slot there
-        input: viaOpenRouter(0.57 / M),
-        output: viaOpenRouter(2.3 / M),
-        cacheRead: viaOpenRouter(0.57 / M),
-        cacheCreation: viaOpenRouter(0.57 / M),
-        cacheCreation1h: viaOpenRouter(0.57 / M), // no caching on this endpoint; never accrues
-    },
+    // No openrouter entry at present. Kimi K2 0711 (Novita, the zh shortlist's
+    // budget slot and a niche draw in English) was the one: OpenRouter delisted
+    // it and its 0905 fallback together (model_retired, 2026-11-23). Haiku 5.5
+    // took the zh budget slot back; a Kimi successor goes through the
+    // checklist above like any new model.
 };
 
 /** Per-second provider cost of cloud STT, by model, debited AT COST like every

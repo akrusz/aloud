@@ -136,18 +136,21 @@ describe('HttpModelProber', () => {
     });
 
     it('treats an openrouter slug as live while any link of its fallback chain is listed', async () => {
+        // The chain Kimi K2 had until OpenRouter delisted both links
+        // (2026-11-23); the forwarder's own table is empty since.
+        const chains = { 'moonshotai/kimi-k2': ['moonshotai/kimi-k2', 'moonshotai/kimi-k2-0905'] };
+        const listing = (...ids: string[]): HttpModelProber =>
+            new HttpModelProber(
+                KEYS,
+                (async () => new Response(JSON.stringify({ data: ids.map((id) => ({ id })) }))) as typeof fetch,
+                chains
+            );
         // Primary slug delisted but the 0905 fallback still routable: the
         // forwarder degrades along the chain, so the model still serves.
-        const fallbackOnly = proberWith({
-            status: 200,
-            json: { data: [{ id: 'moonshotai/kimi-k2-0905' }] },
-        });
-        expect(await fallbackOnly.probe('openrouter', 'moonshotai/kimi-k2')).toBe('live');
-
-        const wholeChainGone = proberWith({
-            status: 200,
-            json: { data: [{ id: 'somebody/else' }] },
-        });
-        expect(await wholeChainGone.probe('openrouter', 'moonshotai/kimi-k2')).toBe('gone');
+        expect(await listing('moonshotai/kimi-k2-0905').probe('openrouter', 'moonshotai/kimi-k2')).toBe('live');
+        expect(await listing('somebody/else').probe('openrouter', 'moonshotai/kimi-k2')).toBe('gone');
+        // A slug with no chain stands or falls alone.
+        expect(await listing('somebody/else').probe('openrouter', 'somebody/else')).toBe('live');
+        expect(await listing('moonshotai/kimi-k2-0905').probe('openrouter', 'somebody/else')).toBe('gone');
     });
 });

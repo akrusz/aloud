@@ -29,12 +29,14 @@ const PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * Probes each provider's model-metadata endpoint with the server's own keys.
- * `fetchFn` is injectable for tests; production uses global fetch.
+ * `fetchFn` and `fallbacks` are injectable for tests; production uses global
+ * fetch and the forwarder's own chains.
  */
 export class HttpModelProber implements ModelProber {
     constructor(
         private readonly keys: ProviderKeys,
-        private readonly fetchFn: typeof fetch = fetch
+        private readonly fetchFn: typeof fetch = fetch,
+        private readonly fallbacks: Readonly<Record<string, readonly string[]>> = OPENROUTER_FALLBACKS
     ) {}
 
     async probe(provider: ProviderId, model: string): Promise<ProbeResult> {
@@ -76,7 +78,7 @@ export class HttpModelProber implements ModelProber {
                     const data = (await resp.json()) as { data?: Array<{ id?: string }> };
                     if (!Array.isArray(data.data)) return 'unknown';
                     const listed = new Set(data.data.map((m) => m.id));
-                    const chain = OPENROUTER_FALLBACKS[model] ?? [model];
+                    const chain = this.fallbacks[model] ?? [model];
                     return chain.some((id) => listed.has(id)) ? 'live' : 'gone';
                 }
                 default:

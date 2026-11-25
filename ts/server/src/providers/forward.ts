@@ -43,23 +43,20 @@ export interface ForwardOptions {
  * Server-side OpenRouter fallback chains, sent as the request's `models` array
  * (priority order, primary first; OpenRouter caps the list at 3). OpenRouter
  * walks the array when a slug can't serve (endpoint gone, host downtime, rate
- * limit) so the turn completes instead of erroring.
- *
- * Kimi K2 0711 sits on a single Novita endpoint for a year-old checkpoint, so
- * it degrades to 0905: same K2 generation (the personality break came later,
- * with the Claude-distilled K2 Thinking/K2.5), and its hosts (Novita, Groq) are
- * both US, so the privacy story is unchanged.
+ * limit) so the turn completes instead of erroring. For a single-host slug:
+ * pick a fallback of the same generation whose hosts leave the privacy story
+ * unchanged.
  *
  * Billing during a degraded window: the meter keys on the REQUESTED model, so a
  * fallback turn debits at the primary's table rates while OpenRouter charges
- * the fallback's (0905 $0.60/$2.50 vs 0711 $0.57/$2.30, ~4% under-recovery on
- * this model only). Accepted cost of not dropping sessions; if the primary is
+ * the fallback's. Accepted cost of not dropping sessions; if the primary is
  * permanently gone, swap the pricing-table entry (ADDING A MODEL checklist in
  * pricing/providers.ts).
+ *
+ * Empty at present: its one chain, Kimi K2 0711 to 0905 (~4% under-recovery
+ * while degraded), went when OpenRouter delisted both (2026-11-23).
  */
-export const OPENROUTER_FALLBACKS: Record<string, readonly string[]> = {
-    'moonshotai/kimi-k2': ['moonshotai/kimi-k2', 'moonshotai/kimi-k2-0905'],
-};
+export const OPENROUTER_FALLBACKS: Record<string, readonly string[]> = {};
 
 function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
     const common = { model: opts.model, ...(opts.maxTokens ? { maxTokens: opts.maxTokens } : {}) };

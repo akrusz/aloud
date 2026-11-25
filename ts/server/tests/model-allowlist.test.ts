@@ -67,11 +67,13 @@ describe('POST /cloud/v1/llm/complete accepts every allowlisted provider', () =>
 
 describe('allowlist keys', () => {
     it('allows a model only under its own provider and its full id', () => {
-        const m = allowedModels().find((x) => x.provider === 'openrouter')!;
-        expect(isModelAllowed('openrouter', m.model)).toBe(true);
-        // OpenRouter ids are org-prefixed; the bare model name is not the id.
-        expect(isModelAllowed('openrouter', m.model.split('/')[1]!)).toBe(false);
-        expect(isModelAllowed('anthropic', m.model)).toBe(false);
+        const m = allowedModels().find((x) => x.provider === 'anthropic')!;
+        expect(isModelAllowed('anthropic', m.model)).toBe(true);
+        expect(isModelAllowed('openai', m.model)).toBe(false);
+        // OpenRouter ids are org-prefixed, and nothing is served through it
+        // unless the table says so, a provider's own model least of all.
+        expect(isModelAllowed('openrouter', m.model)).toBe(false);
+        expect(isModelAllowed('openrouter', `anthropic/${m.model}`)).toBe(false);
     });
 });
 
