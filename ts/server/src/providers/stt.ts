@@ -8,6 +8,8 @@
  * persisted (privacy invariant; logger.ts, meditation-pal-dn2).
  */
 
+import { fetchWithRetry, type RetryOptions } from '@aloud/core/llm';
+
 /** A config-selected OpenAI-compatible Whisper backend. */
 export interface SttBackend {
     /** Short label for logs / debit tags, e.g. 'openai'. */
@@ -105,34 +107,51 @@ export const OPENROUTER_STT_MODELS: Readonly<Record<string, { host: string; zdr:
 
 const OPENROUTER_STT_URL = 'https://openrouter.ai/api/v1/audio/transcriptions';
 
-/** Transcribe mono Float32 PCM with one of OPENROUTER_STT_MODELS. Throws on an
- *  unknown model or an upstream error. */
+/**
+ * Transcribe mono Float32 PCM with one of OPENROUTER_STT_MODELS. Throws on an
+ * unknown model or an upstream error.
+ *
+ * A 429 or a transient 5xx is tried again on the providers' shared policy
+ * (core llm/retry.ts fetchWithRetry), inside the one request, so it is billed
+ * once. Each model has a single host and no fallback, so when that host
+ * rate-limits OpenRouter the wait is the only way through, and the host says
+ * how long: Prime Intellect's 429s carried `Retry-After: 2` (production,
+ * 2026-11-19 and -20). The app's own re-send of a failed final (ui
+ * net-retry.ts) starts after half a second, inside that window, and a
+ * speculative pass is never re-sent.
+ */
 export async function transcribeOpenRouter(
     samples: Float32Array,
     sampleRate: number,
     apiKey: string,
     model: string,
     hints: Pick<SttHints, 'language'> = {},
-    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)
+    fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+    retry: RetryOptions = {}
 ): Promise<SttResult> {
     const route = OPENROUTER_STT_MODELS[model];
     if (!route) throw new Error(`STT openrouter: unknown model ${model}`);
     const wav = encodeWav(samples, sampleRate);
-    const res = await fetchImpl(OPENROUTER_STT_URL, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-            model,
-            input_audio: { data: Buffer.from(wav).toString('base64'), format: 'wav' },
-            ...(hints.language ? { language: hints.language } : {}),
-            provider: {
-                only: [route.host],
-                allow_fallbacks: false,
-                data_collection: 'deny',
-                ...(route.zdr ? { zdr: true } : {}),
-            },
-        }),
-    });
+    const res = await fetchWithRetry(
+        fetchImpl,
+        OPENROUTER_STT_URL,
+        {
+            method: 'POST',
+            headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+                model,
+                input_audio: { data: Buffer.from(wav).toString('base64'), format: 'wav' },
+                ...(hints.language ? { language: hints.language } : {}),
+                provider: {
+                    only: [route.host],
+                    allow_fallbacks: false,
+                    data_collection: 'deny',
+                    ...(route.zdr ? { zdr: true } : {}),
+                },
+            }),
+        },
+        retry
+    );
     if (!res.ok) {
         const detail = await res.text().catch(() => '');
         throw new Error(`STT openrouter ${res.status}: ${detail}`);

@@ -32,3 +32,5 @@ export {
 // ClaudeProxyProvider is Node-only (node:child_process); import it directly
 // from './claude-proxy.js'. Keeping it off this barrel keeps node:* out of
 // browser bundles.
+
+export { fetchWithRetry, type RetryOptions } from './retry.js';

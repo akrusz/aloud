@@ -3,7 +3,7 @@ import { setupVocabulary } from '@aloud/core/facilitation';
 import { loadConfig, resolveSttConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import { encodeWav, int16ToFloat32, transcribeWhisper } from '../src/providers/stt.js';
+import { encodeWav, int16ToFloat32, transcribeOpenRouter, transcribeWhisper } from '../src/providers/stt.js';
 import { DailyCap } from '../src/quota/freetier.js';
 import { MAX_STT_PRIOR_CHARS, SETUP_MAX_CLIP_SECONDS, sttPrior } from '../src/routes/stt.js';
 import type { AuthResponse, TranscribeResponse } from '../src/contract.js';
@@ -20,16 +20,29 @@ let sttCalls: Array<{
 }> = [];
 /** JSON bodies sent to OpenRouter's transcription endpoint. */
 let openRouterCalls: Array<Record<string, unknown>> = [];
+/** How many of the next OpenRouter calls its host rate-limits. */
+let openRouterRefusals = 0;
+/** The 429 OpenRouter relays from a rate-limited host (production's, 2026-11-19),
+ *  asking for `retryAfter` seconds. */
+function hostRateLimited(retryAfter: string): Response {
+    return new Response(
+        JSON.stringify({ error: { message: 'Provider returned 429', code: 429, metadata: { retry_after_seconds: Number(retryAfter) } } }),
+        { status: 429, headers: { 'retry-after': retryAfter } }
+    );
+}
 const realFetch = globalThis.fetch;
 
 beforeEach(() => {
     sttCalls = [];
     openRouterCalls = [];
+    openRouterRefusals = 0;
     globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const u = String(url);
         if (u === 'https://openrouter.ai/api/v1/audio/transcriptions') {
             const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
             openRouterCalls.push(body);
+            // Asks for no wait, so the retries cost a test no time.
+            if (openRouterRefusals-- > 0) return hostRateLimited('0');
             const wav = Buffer.from((body['input_audio'] as { data: string }).data, 'base64');
             const seconds = (wav.length - 44) / 2 / 16_000;
             return new Response(JSON.stringify({ text: ' ni hao ', usage: { seconds, cost: 0 } }), { status: 200 });
@@ -666,6 +679,81 @@ describe('POST /cloud/v1/stt through OpenRouter', () => {
         expect(openRouterCalls).toHaveLength(1);
         expect(openRouterCalls[0]).not.toHaveProperty('prompt');
         expect(openRouterCalls[0]).not.toHaveProperty('keyterms');
+    });
+
+    it('rides out a rate-limited host inside the one request, billed once', async () => {
+        const deps = buildDeps(
+            loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20', OPENROUTER_API_KEY: 'or-test' })
+        );
+        const a = createApp(deps);
+        const token = await devToken(a);
+        openRouterRefusals = 2;
+        const res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16&model=moondream%2Fparakeet-ultra', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+            body: pcm16Body(2.5),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as TranscribeResponse;
+        expect(body.text).toBe('ni hao');
+        expect(openRouterCalls).toHaveLength(3);
+        // The clip's one charge, not one per attempt.
+        expect(body.creditsCharged).toBeCloseTo((2.5 * 0.06 * 1.055) / 3600 / 0.05, 8);
+        await new Promise((r) => setTimeout(r, 0)); // incident writes are fire-and-forget
+        expect(await deps.store.incidentsSince(0)).toHaveLength(0);
+    });
+
+    it('gives up on a host that stays rate-limited: a 502, one incident, no charge', async () => {
+        const deps = buildDeps(
+            loadConfig({ ALOUD_ENABLE_DEV_AUTH: '1', OPENAI_API_KEY: 'sk-test', ALOUD_FREE_SIGNUP_CREDITS: '20', OPENROUTER_API_KEY: 'or-test' })
+        );
+        const a = createApp(deps);
+        const token = await devToken(a);
+        const balance = async (): Promise<number> => {
+            const me = await a.request('/cloud/v1/me', { headers: { authorization: `Bearer ${token}` } });
+            return ((await me.json()) as { creditsRemaining: number }).creditsRemaining;
+        };
+        const before = await balance();
+        expect(before).toBe(20);
+        openRouterRefusals = Infinity;
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        let res: Response;
+        try {
+            res = await a.request('/cloud/v1/stt?sample_rate=16000&format=i16&model=moondream%2Fparakeet-ultra', {
+                method: 'POST',
+                headers: { authorization: `Bearer ${token}` },
+                body: pcm16Body(2.5),
+            });
+        } finally {
+            spy.mockRestore();
+        }
+        expect(res.status).toBe(502);
+        expect(openRouterCalls).toHaveLength(4); // the first attempt and three retries
+        expect(await balance()).toBe(before);
+        await new Promise((r) => setTimeout(r, 0));
+        const incidents = await deps.store.incidentsSince(0);
+        expect(incidents.map((i) => i.kind)).toEqual(['stt_error']);
+        expect(incidents[0]!.detail).toContain('STT openrouter 429');
+    });
+
+    it('waits as long as the host asks before the next attempt', async () => {
+        const sleep = vi.fn(async (_ms: number) => {});
+        const answers = [hostRateLimited('2'), new Response(JSON.stringify({ text: 'breathing in' }), { status: 200 })];
+        const fetchImpl = vi.fn(async () => answers.shift()!) as unknown as typeof fetch;
+        const result = await transcribeOpenRouter(new Float32Array(16_000), 16_000, 'or-test', 'moondream/parakeet-ultra', {}, fetchImpl, { sleep });
+        expect(result.text).toBe('breathing in');
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(sleep.mock.calls).toEqual([[2000]]);
+    });
+
+    it('does not retry a refusal that will not change (a 400)', async () => {
+        const sleep = vi.fn(async (_ms: number) => {});
+        const fetchImpl = vi.fn(async () => new Response('bad audio', { status: 400 })) as unknown as typeof fetch;
+        await expect(
+            transcribeOpenRouter(new Float32Array(16_000), 16_000, 'or-test', 'moondream/parakeet-ultra', {}, fetchImpl, { sleep })
+        ).rejects.toThrow('STT openrouter 400: bad audio');
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(sleep).not.toHaveBeenCalled();
     });
 
     it('refuses an OpenRouter model on a server with no OpenRouter key, before any call', async () => {
