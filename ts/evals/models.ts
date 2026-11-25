@@ -154,11 +154,18 @@ export const ROSTER: EvalModel[] = [
         note: 'Predecessor, kept for A/B against 3.5. Google now serves 2.5 only to keys that have used it.',
     },
     {
+        id: 'kimi-k2.6',
+        model: 'moonshotai/kimi-k2.6',
+        provider: 'openrouter',
+        shipped: true,
+        note: 'Serves the Kimi slot since 2026-11-25, under the catalog id moonshotai/kimi-k2 (server/src/pricing/openrouter-hosts.ts). Reasoning off, CoreWeave then Parasail. Its voice is close to K2: several conduct replies came out word for word. Needs the trouble check, as K2 did.',
+    },
+    {
         id: 'kimi-k2',
         model: 'moonshotai/kimi-k2',
         provider: 'openrouter',
-        shipped: true,
-        note: 'Original K2 (July 2025). Kept as the open-weights baseline; K3 is the upgrade candidate.',
+        shipped: false,
+        note: 'Original K2 (July 2025), offered until OpenRouter stopped serving it on 2026-11-23. It can no longer be run; the entry stays so its saved sweeps keep their name. Run kimi-k2.6 for what the slot serves now.',
     },
 
     // --- Candidates: not yet in the allowlist -------------------------------

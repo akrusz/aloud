@@ -135,19 +135,19 @@ describe('HttpModelProber', () => {
         expect(await prober.probe('anthropic', 'claude-opus-5')).toBe('unknown');
     });
 
-    it('treats an openrouter slug as live while any link of its fallback chain is listed', async () => {
-        // Primary slug delisted but the 0905 fallback still routable: the
-        // forwarder degrades along the chain, so the model still serves.
-        const fallbackOnly = proberWith({
+    it("looks for the slug an openrouter model is served by on OpenRouter's public list", async () => {
+        // The Kimi slot's id names a model OpenRouter no longer lists.
+        const served = proberWith({
             status: 200,
-            json: { data: [{ id: 'moonshotai/kimi-k2-0905' }] },
+            json: { data: [{ id: 'moonshotai/kimi-k2.6' }] },
         });
-        expect(await fallbackOnly.probe('openrouter', 'moonshotai/kimi-k2')).toBe('live');
+        expect(await served.probe('openrouter', 'moonshotai/kimi-k2')).toBe('live');
+        expect(await served.probe('openrouter', 'somebody/else')).toBe('gone');
 
-        const wholeChainGone = proberWith({
+        const idOnly = proberWith({
             status: 200,
-            json: { data: [{ id: 'somebody/else' }] },
+            json: { data: [{ id: 'moonshotai/kimi-k2' }] },
         });
-        expect(await wholeChainGone.probe('openrouter', 'moonshotai/kimi-k2')).toBe('gone');
+        expect(await idOnly.probe('openrouter', 'moonshotai/kimi-k2')).toBe('gone');
     });
 });

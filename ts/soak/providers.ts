@@ -23,6 +23,7 @@ import {
 } from '../src/llm/index.js';
 // Node-only, off the browser barrel (as in src/cli.ts).
 import { ClaudeProxyProvider } from '../src/llm/claude-proxy.js';
+import { openRouterRouting } from '../server/src/pricing/openrouter-hosts.js';
 
 const KEY_VARS: Record<string, string> = {
     anthropic: 'ANTHROPIC_API_KEY',
@@ -129,6 +130,13 @@ export async function checkSubscriptionIsolation(
     }
 }
 
+/** The hosts aloud cloud pins an OpenRouter model to, so a run here is
+ *  served where a session would be. Nothing for a model it does not offer. */
+export function openRouterExtra(model: string | undefined): { extraBody?: Record<string, unknown> } {
+    const routing = model ? openRouterRouting(model) : undefined;
+    return routing ? { extraBody: routing } : {};
+}
+
 export function buildProviderFromSpec(spec: string): LLMProvider {
     const sep = spec.indexOf(':');
     const name = sep === -1 ? spec : spec.slice(0, sep);
@@ -140,7 +148,7 @@ export function buildProviderFromSpec(spec: string): LLMProvider {
         case 'openai':
             return new OpenAIProvider({ apiKey: requireKey(name), ...modelOption });
         case 'openrouter':
-            return new OpenRouterProvider({ apiKey: requireKey(name), ...modelOption });
+            return new OpenRouterProvider({ apiKey: requireKey(name), ...modelOption, ...openRouterExtra(model) });
         case 'venice':
             return new VeniceProvider({ apiKey: requireKey(name), ...modelOption });
         case 'groq':

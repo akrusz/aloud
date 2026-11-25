@@ -7,7 +7,8 @@
  * models that can apply a rule mid-reply, and not for the ones that follow a
  * prompt to the letter. Acute turns stepped out, of 15 (evals `stepping-out/`,
  * 2026-11-14), fragment alone -> with the note:
- *   qwen3.5:4b 3 -> 15, gemma4:26b 13 -> 15, Kimi K2 13 -> 15, GPT-5 nano 1 -> 10.
+ *   qwen3.5:4b 3 -> 15, gemma4:26b 13 -> 15, Kimi K2 13 -> 15, GPT-5 nano 1 -> 10
+ *   (and Kimi K2.6 12 -> 15 on 2026-11-25).
  * Every other shipped model was at 15 with the fragment alone, so the check
  * would only cost them a call.
  *
@@ -27,9 +28,10 @@
  */
 
 /** Measured to miss more than about one acute turn in ten with the fragment
- *  alone. Kimi's later lines (K2.5, K3) are unmeasured, so the pattern stops at
- *  K2. */
-const CHECKED_MODELS: readonly RegExp[] = [/kimi-k2(?![.\d])/i, /gpt-5-nano/i];
+ *  alone. Of Kimi's later lines only K2.6 is measured (12 -> 15, 2026-11-25),
+ *  so K2.5 and K3 stay out. aloud cloud's Kimi is K2.6 under K2's id, which is
+ *  what an installed build matches. */
+const CHECKED_MODELS: readonly RegExp[] = [/kimi-k2(?![.\d])/i, /kimi-k2\.6/i, /gpt-5-nano/i];
 
 /**
  * Whether ordinary turns get the trouble check. Every local model does: the two

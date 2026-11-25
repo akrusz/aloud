@@ -43,7 +43,7 @@ export interface ModelPricing extends TokenRates {
     default?: boolean;
     /** Expanded-tier: hidden from the model picker until the user opts into
      *  "Show all available models" (ui model-picker.ts). For older and niche
-     *  models kept for their distinct voices (Opus 3, Kimi K2) or as price
+     *  models kept for their distinct voices (Opus 3, Kimi) or as price
      *  variants of a listed sibling, so new users see a short curated list.
      *  Billing and forwarding ignore it - an expanded model is fully served. */
     expanded?: boolean;
@@ -118,12 +118,12 @@ export function viaOpenRouter(listRate: number): number {
  * 2. Run the math through estimate.ts before calling a model "cheap": a no-cache
  *    $0.57 model and a 50%-cached $1 model come within a cent/hr.
  * 3. OpenRouter slugs: wrap every rate in viaOpenRouter (its credit fee). List the real endpoints
- *    (GET /api/v1/models/<slug>/endpoints) for host, jurisdiction, quantization.
- *    Pin routing (extraBody provider.only) if the host matters, and update the
+ *    (GET /api/v1/models/<slug>/endpoints) for host, quantization and price,
+ *    and GET /api/v1/providers for where each host is: US or EU only. Pin them
+ *    in OPENROUTER_HOSTS (openrouter-hosts.ts), two where the slug has them so a turn survives
+ *    one host dropping the model, price the entry at the first, and update the
  *    privacy policy's provider list (docs/privacy/index.html) to name where
- *    session content actually goes. For single-host slugs, consider a fallback
- *    chain (forward.ts OPENROUTER_FALLBACKS) so the turn survives the host
- *    dropping the model.
+ *    session content actually goes.
  * 4. Reasoning: voice needs ~1s to first token, so mandatory reasoning is
  *    disqualifying (Kimi K3, 7-12s). Update OPENROUTER_MANDATORY_REASONING /
  *    OPENROUTER_REASONING_UNSUPPORTED in ts/src/llm/openai.ts and the "slower"
@@ -271,7 +271,7 @@ const MODELS: Record<string, ModelPricing> = {
     'anthropic:claude-haiku-5-5': {
         provider: 'anthropic',
         model: 'claude-haiku-5-5',
-        zhExpanded: true, // zh's budget slot goes to Kimi K2 (zhCurated below)
+        zhExpanded: true, // zh's budget slot goes to Kimi (zhCurated below)
         input: 0.1 / M,
         output: 0.5 / M,
         cacheRead: 0.01 / M,
@@ -452,24 +452,29 @@ const MODELS: Record<string, ModelPricing> = {
         cacheCreation: 5 / M,
         cacheCreation1h: 5 / M, // no 1h write on automatic caching; never accrues
     },
-    // Kimi K2 0711, the original K2 (no reasoning, ~1s to first token; K3's
-    // mandatory reasoning ran 7-12s), via OpenRouter on Novita: the one
-    // openrouter entry, so OPENROUTER_API_KEY must be set. A niche draw like
-    // Opus 3. Single-host slug, so it degrades to kimi-k2-0905 (forward.ts
-    // OPENROUTER_FALLBACKS), a ~4% under-recovery while degraded. No cache
-    // pricing on this endpoint, so every cache field sits at the input rate (a
-    // reported cached token would over-charge, never under-bill); at $0.57
-    // full fresh input still undercuts cached mid-tier models.
+    // The Kimi slot. THE ID IS NOT THE MODEL: it is served by Kimi K2.6
+    // (openrouter-hosts.ts says why the id stayed), reasoning off, ~0.5s to
+    // first token (K3's mandatory reasoning ran 7-12s). The one openrouter LLM
+    // entry, so OPENROUTER_API_KEY must be set. A niche draw like Opus 3. The
+    // rates are CoreWeave's, the first host in OPENROUTER_HOSTS; a turn that
+    // falls to Parasail costs us $0.75/$3.50, cache reads $0.16, so about 15%
+    // more input than the meter debits while CoreWeave is down. Cache reads
+    // are reported and discounted on both (probed 2026-11-25: usage.cost
+    // matched these rates on a 99%-cached prompt) and neither bills a write,
+    // so the write fields sit at the input rate. A re-read is not always a
+    // hit, though: 4 of 7 were, at gaps of 45s to 9.5 min with no pattern in
+    // the gap, so the picker's hourly figure, which assumes every one hits,
+    // reads low for this model.
     'openrouter:moonshotai/kimi-k2': {
         provider: 'openrouter',
         model: 'moonshotai/kimi-k2',
         expanded: true, // niche draw, same logic as Opus 3
         zhCurated: true, // zh shortlist: Moonshot's own model, the budget slot there
-        input: viaOpenRouter(0.57 / M),
-        output: viaOpenRouter(2.3 / M),
-        cacheRead: viaOpenRouter(0.57 / M),
-        cacheCreation: viaOpenRouter(0.57 / M),
-        cacheCreation1h: viaOpenRouter(0.57 / M), // no caching on this endpoint; never accrues
+        input: viaOpenRouter(0.65 / M),
+        output: viaOpenRouter(3.41 / M),
+        cacheRead: viaOpenRouter(0.15 / M),
+        cacheCreation: viaOpenRouter(0.65 / M),
+        cacheCreation1h: viaOpenRouter(0.65 / M),
     },
 };
 

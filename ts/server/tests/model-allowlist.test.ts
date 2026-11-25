@@ -5,11 +5,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { isModelAllowed, allowedModels } from '../src/pricing/providers.js';
-import { OPENROUTER_FALLBACKS } from '../src/providers/forward.js';
+import { OPENROUTER_HOSTS, openRouterRouting, openRouterSlug } from '../src/pricing/openrouter-hosts.js';
 import { loadConfig } from '../src/config.js';
 import { buildDeps } from '../src/deps.js';
 import { createApp } from '../src/app.js';
-import type { Forwarder } from '../src/providers/forward.js';
+import { Forwarder } from '../src/providers/forward.js';
 import type { AuthResponse } from '../src/contract.js';
 
 /** Route-level turn against a stub forwarder; returns the response. The llm
@@ -75,16 +75,47 @@ describe('allowlist keys', () => {
     });
 });
 
-describe('OpenRouter fallback chains', () => {
-    it('every chain is primary-first and within OpenRouter limits', () => {
-        for (const [primary, chain] of Object.entries(OPENROUTER_FALLBACKS)) {
-            expect(chain[0]).toBe(primary);
-            // OpenRouter rejects lists longer than 3 with a 400.
-            expect(chain.length).toBeLessThanOrEqual(3);
-            // Only allowlisted primaries can be requested, so a chain on an
-            // unlisted key is dead config.
-            expect(isModelAllowed('openrouter', primary)).toBe(true);
+describe('OpenRouter hosts', () => {
+    it('pins every openrouter model to named hosts, and no model that is not offered', () => {
+        // An unpinned slug is served by whichever host OpenRouter picks,
+        // wherever it is, at a price the table does not hold.
+        const slugs = allowedModels()
+            .filter((m) => m.provider === 'openrouter')
+            .map((m) => openRouterSlug(m.model));
+        expect(Object.keys(OPENROUTER_HOSTS).sort()).toEqual(slugs.sort());
+        for (const slug of slugs) {
+            expect(openRouterRouting(slug)?.provider).toMatchObject({
+                order: OPENROUTER_HOSTS[slug],
+                allow_fallbacks: false,
+            });
         }
+        expect(openRouterRouting('somebody/else')).toBeUndefined();
+        expect(openRouterSlug('somebody/else')).toBe('somebody/else');
+    });
+
+    it('asks OpenRouter for the slug behind the Kimi id, on its hosts, with reasoning off', async () => {
+        const realFetch = globalThis.fetch;
+        const bodies: Array<Record<string, unknown>> = [];
+        globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+            bodies.push(JSON.parse(init!.body as string));
+            return new Response(
+                JSON.stringify({ choices: [{ message: { content: 'Mm.' }, finish_reason: 'stop' }], usage: {} }),
+                { status: 200, headers: { 'content-type': 'application/json' } }
+            );
+        }) as typeof fetch;
+        try {
+            await new Forwarder({ openrouter: 'or-test' }).complete([{ role: 'user', content: 'hi' }], {
+                provider: 'openrouter',
+                model: 'moonshotai/kimi-k2',
+            });
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+        expect(bodies[0]).toMatchObject({
+            model: 'moonshotai/kimi-k2.6',
+            provider: { order: ['coreweave', 'parasail'], allow_fallbacks: false, data_collection: 'deny' },
+            reasoning: { enabled: false },
+        });
     });
 });
 

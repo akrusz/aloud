@@ -5,6 +5,7 @@
  */
 
 import { allowedModels, pricingFor, type ModelPricing } from '../server/src/pricing/providers.js';
+import { openRouterSlug } from '../server/src/pricing/openrouter-hosts.js';
 import type { ProviderId } from '../server/src/contract.js';
 import type { TrialUsage } from './records.js';
 
@@ -33,13 +34,16 @@ function costOf(p: ModelPricing, u: TrialUsage): number | null {
 
 export function callCostUsd(provider: string, model: string, usage: TrialUsage): number | null {
     if (!PRICED_PROVIDERS.has(provider)) return null;
-    const p = pricingFor(provider as ProviderId, model);
+    const p =
+        pricingFor(provider as ProviderId, model) ??
+        // An OpenRouter slug the catalog serves under another id (the Kimi slot).
+        allowedModels().find((m) => m.provider === provider && openRouterSlug(m.model) === model);
     return p ? costOf(p, usage) : null;
 }
 
 /** For a call that names only its model (a soak call record): the first
  *  priced entry with that provider-native id. */
 export function costByModelId(model: string, usage: TrialUsage): number | null {
-    const p = allowedModels().find((m) => m.model === model);
+    const p = allowedModels().find((m) => m.model === model || openRouterSlug(m.model) === model);
     return p ? costOf(p, usage) : null;
 }

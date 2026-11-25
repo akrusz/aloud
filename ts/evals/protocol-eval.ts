@@ -47,7 +47,7 @@ import {
 } from '@aloud/core/llm';
 
 import { loadServerEnv } from '../soak/env.js';
-import { claudeVia, scriptClaude } from '../soak/providers.js';
+import { claudeVia, openRouterExtra, scriptClaude } from '../soak/providers.js';
 import { callCostUsd } from './cost.js';
 import { FIXTURES, type Fixture } from './fixtures.js';
 import { grade } from './grade.js';
@@ -86,7 +86,11 @@ function buildProvider(m: EvalModel): LLMProvider {
             // server/.env names it GEMINI_API_KEY.
             return new GoogleProvider({ apiKey: need('GOOGLE_API_KEY', 'GEMINI_API_KEY'), model: m.model });
         case 'openrouter':
-            return new OpenRouterProvider({ apiKey: need('OPENROUTER_API_KEY'), model: m.model });
+            return new OpenRouterProvider({
+                apiKey: need('OPENROUTER_API_KEY'),
+                model: m.model,
+                ...openRouterExtra(m.model),
+            });
         case 'ollama':
             // No key: local daemon. maxTokens matches runTrial's per-call cap so
             // a local candidate isn't scored on a shorter leash than the rest.

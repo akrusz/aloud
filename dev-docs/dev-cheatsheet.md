@@ -588,7 +588,9 @@ The checklist lives as the comment above the `MODELS` table in
 `ts/server/src/pricing/providers.ts` - read it before adding an entry. The
 short version: check the endpoint's **caching policy first** (cacheRead drives
 $/hr, not list price), run the rates through `estimate.ts`, list the real
-OpenRouter endpoints and update the privacy policy's provider list, confirm
+OpenRouter endpoints, pin the US or EU ones (`pricing/openrouter-hosts.ts`,
+which also says why the Kimi entry's id is not the model it serves) and update
+the privacy policy's provider list, confirm
 reasoning can be disabled (or pinned low), place it in the hand-ordered table
 (default first), and ear-test the control tokens in a real session.
 

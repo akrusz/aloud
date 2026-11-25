@@ -14,7 +14,7 @@
 import type { ProviderId } from '../contract.js';
 import type { ProviderKeys } from '../config.js';
 import { allowedModels, type ModelPricing } from './providers.js';
-import { OPENROUTER_FALLBACKS } from '../providers/forward.js';
+import { openRouterSlug } from './openrouter-hosts.js';
 
 export type ProbeResult = 'live' | 'gone' | 'unknown';
 
@@ -66,18 +66,15 @@ export class HttpModelProber implements ModelProber {
                 }
                 case 'openrouter': {
                     // OpenRouter has no per-model GET; its public list is the
-                    // authority. A slug counts as live while ANY link of its
-                    // fallback chain is routable - the forwarder degrades along
-                    // the same chain (forward.ts), so the turn still serves.
+                    // authority.
                     const resp = await this.fetchFn('https://openrouter.ai/api/v1/models', {
                         signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
                     });
                     if (!resp.ok) return 'unknown';
                     const data = (await resp.json()) as { data?: Array<{ id?: string }> };
                     if (!Array.isArray(data.data)) return 'unknown';
-                    const listed = new Set(data.data.map((m) => m.id));
-                    const chain = OPENROUTER_FALLBACKS[model] ?? [model];
-                    return chain.some((id) => listed.has(id)) ? 'live' : 'gone';
+                    const slug = openRouterSlug(model);
+                    return data.data.some((m) => m.id === slug) ? 'live' : 'gone';
                 }
                 default:
                     return 'unknown';

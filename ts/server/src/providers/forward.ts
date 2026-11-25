@@ -25,6 +25,7 @@ import {
 import type { LlmUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import type { ProviderKeys } from '../config.js';
+import { openRouterRouting, openRouterSlug } from '../pricing/openrouter-hosts.js';
 
 export class ProviderNotConfiguredError extends Error {
     constructor(provider: ProviderId) {
@@ -39,28 +40,6 @@ export interface ForwardOptions {
     maxTokens?: number;
 }
 
-/**
- * Server-side OpenRouter fallback chains, sent as the request's `models` array
- * (priority order, primary first; OpenRouter caps the list at 3). OpenRouter
- * walks the array when a slug can't serve (endpoint gone, host downtime, rate
- * limit) so the turn completes instead of erroring.
- *
- * Kimi K2 0711 sits on a single Novita endpoint for a year-old checkpoint, so
- * it degrades to 0905: same K2 generation (the personality break came later,
- * with the Claude-distilled K2 Thinking/K2.5), and its hosts (Novita, Groq) are
- * both US, so the privacy story is unchanged.
- *
- * Billing during a degraded window: the meter keys on the REQUESTED model, so a
- * fallback turn debits at the primary's table rates while OpenRouter charges
- * the fallback's (0905 $0.60/$2.50 vs 0711 $0.57/$2.30, ~4% under-recovery on
- * this model only). Accepted cost of not dropping sessions; if the primary is
- * permanently gone, swap the pricing-table entry (ADDING A MODEL checklist in
- * pricing/providers.ts).
- */
-export const OPENROUTER_FALLBACKS: Record<string, readonly string[]> = {
-    'moonshotai/kimi-k2': ['moonshotai/kimi-k2', 'moonshotai/kimi-k2-0905'],
-};
-
 function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
     const common = { model: opts.model, ...(opts.maxTokens ? { maxTokens: opts.maxTokens } : {}) };
     switch (opts.provider) {
@@ -72,11 +51,13 @@ function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
             return new GroqProvider({ apiKey: keys.groq, ...common });
         case 'openrouter': {
             if (!keys.openrouter) throw new ProviderNotConfiguredError('openrouter');
-            const fallbacks = OPENROUTER_FALLBACKS[opts.model];
+            const slug = openRouterSlug(opts.model);
+            const routing = openRouterRouting(slug);
             return new OpenRouterProvider({
                 apiKey: keys.openrouter,
                 ...common,
-                ...(fallbacks && { extraBody: { models: [...fallbacks] } }),
+                model: slug,
+                ...(routing && { extraBody: routing }),
             });
         }
         case 'google':

@@ -28,6 +28,7 @@ stepped out, of 15, without the section and with it (2026-11-14):
 | GPT-6 Luna / GPT-5.6 Terra | 11 / 9 | 15 |
 | Gemini 3.5 Flash Lite | 0 | 15 |
 | Kimi K2 | 1 | 13 |
+| Kimi K2.6 (2026-11-25) | not run | 12 |
 | gemma4:26b | 4 | 13 |
 | gemma4:12b | not run | 10 |
 | qwen3.5:4b | 0 | 3 |
@@ -36,7 +37,11 @@ stepped out, of 15, without the section and with it (2026-11-14):
 (gemma4:12b's row is from the tier trial that gave it the 16GB slot,
 `evals/results/ollama-tiers-2026-11-14`.) GPT-6.2 Astra, one run with the
 section on 2026-11-22, stepped out on 5 of 5 and left 6 of 6 ordinary turns
-alone (`evals/results/2026-11-22-astra-first-look`). Ordinary turns were left alone 18 of
+alone (`evals/results/2026-11-22-astra-first-look`). Kimi K2.6's three misses
+were all the danger turn (`evals/results/2026-11-25-kimi-k2.6`): it stopped
+and asked where they were, or asked into the feeling, without a word about
+safety or another person. Over 21 runs of that turn on three hosts it named
+safety or help in 13 and kept facilitating in 2. Ordinary turns were left alone 18 of
 18 everywhere but one qwen miss. The
 markers are crude; read transcripts before trusting a fail.
 
@@ -51,7 +56,7 @@ enough, but the same models answer one focused question well and obey a note
 placed at the turn. So: one judgment per utterance, and on a yes
 `STEPPING_OUT_NOTE` goes into the log right behind the meditator's words
 (`SessionManager.appendSystemNote`, kind `trouble`). With the note, qwen3.5:4b,
-gemma4:12b, gemma4:26b and Kimi K2 stepped out on 15 of 15; GPT-5 nano on 10.
+gemma4:12b, gemma4:26b, Kimi K2 and Kimi K2.6 stepped out on 15 of 15; GPT-5 nano on 10.
 
 **Who answers** (`classifyTrouble`, `resume-intent.ts`): Jev where the session
 has a judge, through the `trouble` questions in `utterance-judge.ts` (two asks,
@@ -65,8 +70,10 @@ flagged 2. A failed check is a no.
 **Where it runs** (`views/session.ts`, mirrored in `soak/orchestrator.ts`):
 
 - **Ordinary turns, gated models only.** `wantsTroubleCheck`
-  (`stepping-out.ts`): every Ollama model, plus Kimi K2 and GPT-5 nano (for
-  the builds that can still pick it). The models at 15 of 15 never run it.
+  (`stepping-out.ts`): every Ollama model, plus Kimi K2, Kimi K2.6 and GPT-5
+  nano (for the builds that can still pick it). aloud cloud serves K2.6 under
+  K2's id (`server/src/pricing/openrouter-hosts.ts`) so that builds which know
+  only that id still check it. The models at 15 of 15 never run it.
 - **Held silence, every session.** The resume classifiers hear a frightened line
   as thinking out loud (Jev said "stay" to 15 of 16), so the check runs beside
   them in `handleSilenceUtterance`, and a yes ends the hold and carries the note

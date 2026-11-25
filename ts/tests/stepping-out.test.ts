@@ -38,6 +38,7 @@ describe('wantsTroubleCheck', () => {
     it('covers the cloud models measured to miss, on any provider that carries them', () => {
         expect(wantsTroubleCheck('aloud', 'moonshotai/kimi-k2')).toBe(true);
         expect(wantsTroubleCheck('openrouter', 'moonshotai/kimi-k2-0905')).toBe(true);
+        expect(wantsTroubleCheck('openrouter', 'moonshotai/kimi-k2.6')).toBe(true);
         expect(wantsTroubleCheck('aloud', 'gpt-5-nano')).toBe(true);
     });
 

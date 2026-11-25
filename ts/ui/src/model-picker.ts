@@ -48,7 +48,9 @@ const CLOUD_MODEL_NAMES: Record<string, string> = {
     'gpt-5.6-sol': 'GPT-5.6 Sol',
     'gpt-5.6-terra': 'GPT-5.6 Terra',
     'gpt-5.5': 'GPT-5.5',
-    'moonshotai/kimi-k2': 'Kimi K2',
+    // The slot's id outlived its model: aloud cloud serves it with K2.6
+    // (server/src/pricing/openrouter-hosts.ts).
+    'moonshotai/kimi-k2': 'Kimi K2.6',
 };
 
 export function prettyModelName(model: string): string {
