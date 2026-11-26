@@ -376,8 +376,17 @@ const OPENROUTER_REASONING_UNSUPPORTED = new Set(['moonshotai/kimi-k2']);
  *  content (finish "length"). Headroom lets the answer arrive behind the
  *  preamble; a flipped turn then costs a few hundred extra output tokens on a
  *  cheap model instead of a retry. The incident log's reasoning_chars says
- *  how often it happens (meditation-pal-yi02). */
-const OPENROUTER_UNINVITED_REASONING = new Set(['moonshotai/kimi-k2']);
+ *  how often it happens (meditation-pal-yi02).
+ *
+ *  Kimi K2.6 does it with reasoning turned off, about 1 turn in 20 on every
+ *  host tried (14 of 336, 2026-11-25), and in the CONTENT: 140 to 850 tokens
+ *  opening "The user ...", then the reply, behind a lone </think> on
+ *  CoreWeave and behind nothing at all on Crusoe, DeepInfra and DigitalOcean.
+ *  The same turns do it on each host (a wandering mind, a choice of what to
+ *  follow), so no host avoids it. Without headroom the cap lands mid-thought
+ *  and the turn is blank or a cut-off line. What keeps the thinking from the
+ *  speaker is facilitation/reasoning.ts. */
+const OPENROUTER_UNINVITED_REASONING = new Set(['moonshotai/kimi-k2', 'moonshotai/kimi-k2.6']);
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'deepseek/deepseek-v3.2';

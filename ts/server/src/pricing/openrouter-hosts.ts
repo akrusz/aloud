@@ -25,9 +25,13 @@ export function openRouterSlug(model: string): string {
 /** The hosts a slug may be served by, in the order tried. OpenRouter otherwise
  *  picks among every host of a slug by price and load, and Kimi K2.6's include
  *  Moonshot itself, SiliconFlow (both Singapore) and StreamLake (China). The
- *  price-table entry's rates are the first host's. */
+ *  price-table entry's rates are the first host's.
+ *
+ *  A second host has to answer when the first cannot: Parasail (US, int4) was
+ *  Kimi's until it refused nearly every call as rate-limited upstream for an
+ *  evening (2026-11-25). Time a candidate over spaced single calls first. */
 export const OPENROUTER_HOSTS: Readonly<Record<string, readonly string[]>> = {
-    'moonshotai/kimi-k2.6': ['coreweave', 'parasail'], // both US; fp4 and int4
+    'moonshotai/kimi-k2.6': ['coreweave', 'crusoe'], // both US; fp4 and bf16
 };
 
 /** What a request for `slug` carries beside the messages: its pinned hosts

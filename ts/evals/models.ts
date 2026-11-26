@@ -158,7 +158,7 @@ export const ROSTER: EvalModel[] = [
         model: 'moonshotai/kimi-k2.6',
         provider: 'openrouter',
         shipped: true,
-        note: 'Serves the Kimi slot since 2026-11-25, under the catalog id moonshotai/kimi-k2 (server/src/pricing/openrouter-hosts.ts). Reasoning off, CoreWeave then Parasail. Its voice is close to K2: several conduct replies came out word for word. Needs the trouble check, as K2 did.',
+        note: 'Serves the Kimi slot since 2026-11-25, under the catalog id moonshotai/kimi-k2 (server/src/pricing/openrouter-hosts.ts). Reasoning off, CoreWeave then Crusoe. Its voice is close to K2: several conduct replies came out word for word. Needs the trouble check, as K2 did.',
     },
     {
         id: 'kimi-k2',

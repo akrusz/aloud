@@ -113,8 +113,10 @@ describe('OpenRouter hosts', () => {
         }
         expect(bodies[0]).toMatchObject({
             model: 'moonshotai/kimi-k2.6',
-            provider: { order: ['coreweave', 'parasail'], allow_fallbacks: false, data_collection: 'deny' },
+            provider: { order: ['coreweave', 'crusoe'], allow_fallbacks: false, data_collection: 'deny' },
             reasoning: { enabled: false },
+            // Room for the thinking K2.6 sometimes does anyway, ahead of its reply.
+            max_tokens: 300 + 2048,
         });
     });
 });
