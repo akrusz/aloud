@@ -102,7 +102,10 @@ export function meRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
             // Per hosted model, keyed by the id a client sends as /stt?model=.
             // sttCreditsPerHour above stays for installed builds (the default's rate).
             sttCreditsPerHourByModel: Object.fromEntries(
-                [DEFAULT_STT_MODEL, ...Object.keys(OPENROUTER_STT_MODELS)].map((m) => [m, estimateStt(m).creditsPerHour])
+                [DEFAULT_STT_MODEL, ...Object.keys(OPENROUTER_STT_MODELS)].map((m) => [
+                    m,
+                    estimateStt(m, deps.config.sttConfig).creditsPerHour,
+                ])
             ),
             // The background-assistant leg (Haiku classifiers/summaries + the
             // recap model) every aloud-cloud session carries on top of the

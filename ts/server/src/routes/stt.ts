@@ -51,10 +51,10 @@ import {
     type SttResult,
 } from '../providers/stt.js';
 import {
-    HYBRID_MODEL,
     HYBRID_SHORT_MAX_SEC,
     HYBRID_STAND_IN,
     HedgeFailed,
+    hybridApplies,
     hybridDeadlineMs,
     legIsBilled,
     transcribeHedged,
@@ -167,7 +167,7 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // A Parakeet request runs with gpt-transcribe behind it wherever the
         // backend offers that (providers/stt-hybrid.ts): a short clip goes
         // there instead, a longer one there as well on a failure or a stall.
-        const hybrid = model === HYBRID_MODEL && sttModelChoices(stt).includes(HYBRID_STAND_IN);
+        const hybrid = hybridApplies(model, stt);
         const reroute = hybrid && seconds <= HYBRID_SHORT_MAX_SEC;
         const hedged = hybrid && !reroute;
         const legOf = (legModel: string): SttLegCost => {

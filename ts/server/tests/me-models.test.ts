@@ -56,6 +56,19 @@ describe('GET /cloud/v1/me/models', () => {
         expect(rates['x-ai/grok-stt-2.0']!).toBeLessThan(rates['gpt-transcribe']!);
     });
 
+    it("publishes Parakeet's rate as the hybrid mix where the route runs it so", async () => {
+        const config = loadConfig({ OPENAI_API_KEY: 'sk-test' });
+        const app = createApp(buildDeps(config));
+        const body = (await (await app.request('/cloud/v1/me/models')).json()) as {
+            sttCreditsPerHourByModel: Record<string, number>;
+        };
+        const parakeet = body.sttCreditsPerHourByModel['moondream/parakeet-ultra']!;
+        expect(parakeet).toBe(estimateStt('moondream/parakeet-ultra', config.sttConfig).creditsPerHour);
+        expect(parakeet).toBe(0.31);
+        expect(parakeet).toBeGreaterThan(estimateStt('moondream/parakeet-ultra').creditsPerHour);
+        expect(body.sttCreditsPerHourByModel['gpt-transcribe']).toBe(estimateStt().creditsPerHour);
+    });
+
     it('flags exactly one default model (the picker pre-selection)', async () => {
         const app = createApp(buildDeps(loadConfig({})));
         const res = await app.request('/cloud/v1/me/models');

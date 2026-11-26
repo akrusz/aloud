@@ -422,11 +422,23 @@ describe('Hybrid: GPT for short passes, Parakeet for long ones', () => {
         // Picked during a tour that began on GPT.
         expect(setupHostedChoice('aloud-gpt-transcribe', 'aloud-hybrid', true, 'en')).toBe('aloud-gpt-transcribe');
     });
-    it('shows a rate of 7% GPT and 93% Parakeet, from the server rates', () => {
-        setCloudSttCreditsPerHour(1.01, { 'gpt-transcribe': 1.01, 'moondream/parakeet-ultra': 0.24 });
-        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBeCloseTo(0.07 * 1.01 + 0.93 * 0.24, 10);
+    it("shows Parakeet's published rate, which is already the mix, and nothing of GPT's on top", () => {
+        setCloudSttCreditsPerHour(1.01, { 'gpt-transcribe': 1.01, 'moondream/parakeet-ultra': 0.31 });
+        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBe(0.31);
         setCloudSttCreditsPerHour(2, { 'gpt-transcribe': 2, 'moondream/parakeet-ultra': 1 });
-        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBeCloseTo(0.07 * 2 + 0.93 * 1, 10);
+        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBe(1);
+    });
+    it('shows, before the server rates arrive, the seed the server will publish (estimateStt)', async () => {
+        vi.resetModules();
+        const fresh = await import('../ui/src/adapters/stt-picker.js');
+        expect(fresh.cloudSttCreditsPerHour('aloud-hybrid')).toBe(0.31);
+    });
+    it('renders its badge in the picker', () => {
+        devMode(true);
+        setCloudSttCreditsPerHour(1.01, { 'gpt-transcribe': 1.01, 'moondream/parakeet-ultra': 0.31 });
+        expect(sttEngineOptions(true, 'exploration', 'en').find((o) => o.value === 'aloud-hybrid')!.label).toBe(
+            'Hybrid (<1☁)'
+        );
     });
     it('names both models and the cut in the run record', () => {
         expect(sttModelForChoice('aloud-hybrid', 'base')).toBe('gpt-transcribe<=3s,moondream/parakeet-ultra');
@@ -494,7 +506,7 @@ describe('cloudSttCreditsPerHour - the hosted STT leg of the session estimate', 
         expect(cloudSttCreditsPerHour('aloud-gpt-transcribe')).toBe(1.8);
         expect(cloudSttCreditsPerHour('aloud-parakeet')).toBe(0.4);
         expect(cloudSttCreditsPerHour('aloud-grok')).toBe(0.7);
-        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBeCloseTo(0.07 * 1.8 + 0.93 * 0.4, 10);
+        expect(cloudSttCreditsPerHour('aloud-hybrid')).toBe(0.4);
     });
 
     it("takes an older server's single rate for GPT alone", () => {

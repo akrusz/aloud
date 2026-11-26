@@ -17,12 +17,20 @@
  * none. The route meters every leg legIsBilled says the providers bill.
  */
 
+import { sttModelChoices } from '../config.js';
 import type { SttRoute } from '../contract.js';
-import { SttUpstreamError, type SttResult } from './stt.js';
+import { SttUpstreamError, type SttBackend, type SttResult } from './stt.js';
 
 /** The model this applies to, and the one behind it. */
 export const HYBRID_MODEL = 'moondream/parakeet-ultra';
 export const HYBRID_STAND_IN = 'gpt-transcribe';
+
+/** Whether a request for `model` runs this way on `backend`: Parakeet, where
+ *  the backend offers gpt-transcribe. routes/stt.ts routes by it and
+ *  pricing/estimate.ts prices by it. */
+export function hybridApplies(model: string, backend: SttBackend | undefined): boolean {
+    return model === HYBRID_MODEL && backend !== undefined && sttModelChoices(backend).includes(HYBRID_STAND_IN);
+}
 
 /** A Parakeet request with this many seconds of audio or fewer goes to
  *  gpt-transcribe. Wordless clips of 1-2 s are where Parakeet invents a word

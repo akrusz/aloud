@@ -239,7 +239,11 @@ zero-completion insurance). So a reroute bills gpt-transcribe in whole seconds,
 a fallback after a refusal gpt-transcribe alone, and a hedge both. A request
 that ends in a 502 charges nothing. The credit hold for a longer clip covers
 both models, and a short clip's is at gpt-transcribe's rate (about 4.3x
-Parakeet's a second, more with the rounding), so no outcome outruns it.
+Parakeet's a second, more with the rounding), so no outcome outruns it. The
+hourly figure `/me/models` publishes for Parakeet (`sttCreditsPerHourByModel`,
+`pricing/estimate.ts` `estimateStt`) prices the same mix,
+`HYBRID_STAND_IN_AUDIO_SHARE` of the audio at gpt-transcribe's rate, and the
+client's Hybrid choice shows that figure as it is.
 
 **Rates on production.** Each fallback is an `stt_fallback` incident and each
 hedge an `stt_hedge`, under model `moondream/parakeet-ultra`, with `served=`,

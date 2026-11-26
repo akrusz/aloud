@@ -115,9 +115,6 @@ interface HostedRoute {
     shortMaxSec: number;
     short: HostedSttChoice;
     long: HostedSttChoice;
-    /** The share of audio `short` gets, for the rate shown
-     *  (cloudSttCreditsPerHour). */
-    shortShare: number;
 }
 
 type HostedSttSpec = {
@@ -157,14 +154,13 @@ const HOSTED_STT: Record<HostedSttChoice, HostedSttSpec> = {
     // mode only while it is unproven. Whole passes, unprompted, whichever
     // model a pass goes to (a function model, createServerAloudStt).
     'aloud-hybrid': {
-        // shortShare is the mix of audio in a real 31-minute session on
-        // Parakeet (meditation-pal-gxk8), so the rate shown is an ESTIMATE;
-        // each pass bills at its own model's rate, server-side.
+        // The rate shown is Parakeet's as aloud cloud publishes it, which
+        // already prices this mix (cloudSttCreditsPerHour); each pass bills at
+        // its own model's rate, server-side.
         route: {
             shortMaxSec: HYBRID_GPT_MAX_SEC,
             short: 'aloud-gpt-transcribe',
             long: 'aloud-parakeet',
-            shortShare: 0.07,
         },
         label: 'Hybrid',
         offeredIn: (lang) => lang !== 'zh',
@@ -186,7 +182,10 @@ const HOSTED_STT: Record<HostedSttChoice, HostedSttSpec> = {
     'aloud-parakeet': {
         model: 'moondream/parakeet-ultra',
         label: 'Parakeet',
-        seedCreditsPerHour: 0.24,
+        // The figure aloud cloud publishes for this model: its hybrid mix,
+        // part of the audio at GPT's rate (server pricing/estimate.ts
+        // estimateStt), not Parakeet's rate alone.
+        seedCreditsPerHour: 0.31,
         offeredIn: () => false,
         takesPrompt: false,
         succeededBy: 'aloud-hybrid',
@@ -407,7 +406,7 @@ export function sttBackendForChoice(choice: SttEngineChoice): SttBackend {
  *  moment the model catalog loads. A seed only renders when the picker paints
  *  before (or without) a reachable cloud, so it should stay roughly right but
  *  can't drift into a real charge. A routed choice has none of its own: its
- *  rate is its two models' (cloudSttCreditsPerHour). */
+ *  rate is its long model's (cloudSttCreditsPerHour). */
 const sttCreditsPerHour = new Map<HostedSttChoice, number>(
     (Object.keys(HOSTED_STT) as HostedSttChoice[]).flatMap((c) => {
         const h = HOSTED_STT[c];
@@ -449,13 +448,14 @@ export function sttModelForChoice(choice: SttEngineChoice, whisperModel: string)
 }
 
 /** ☁/hr for a picker choice - 0 for the free local/browser engines. A routed
- *  choice's is an ESTIMATE: its two models' rates weighed by `shortShare`. */
+ *  choice's is its long model's: aloud cloud runs every Parakeet request with
+ *  GPT behind it and publishes Parakeet's rate as that mix, so blending GPT in
+ *  here as well would count the short clips twice. */
 export function cloudSttCreditsPerHour(choice: SttEngineChoice): number {
     if (!isHostedSttChoice(choice)) return 0;
     const h = HOSTED_STT[choice];
     if ('model' in h) return sttCreditsPerHour.get(choice) ?? 0;
-    const { short, long, shortShare } = h.route;
-    return shortShare * cloudSttCreditsPerHour(short) + (1 - shortShare) * cloudSttCreditsPerHour(long);
+    return cloudSttCreditsPerHour(h.route.long);
 }
 
 /**

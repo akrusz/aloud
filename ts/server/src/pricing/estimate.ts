@@ -45,6 +45,8 @@ import type { ProviderId } from '../contract.js';
 import { thinkingPolicy } from '@aloud/core/llm';
 import { priceSession, priceSttSeconds, usdToCredits } from './meter.js';
 import { DEFAULT_STT_MODEL, allowedModels, ttsRateFor } from './providers.js';
+import type { SttBackend } from '../providers/stt.js';
+import { HYBRID_STAND_IN, hybridApplies } from '../providers/stt-hybrid.js';
 import { CURATED_VOICES, type TtsProvider } from '../providers/voice-catalog.js';
 
 /** Representative ~50-min session, history-caching ON. See file header. */
@@ -230,9 +232,29 @@ export function estimateModels(): ModelEstimate[] {
  *  (nrj6). */
 export const UTILITY_CREDITS_PER_HOUR = 0.15;
 
-/** Cloud STT leg for a hosted model (default: DEFAULT_STT_MODEL), priced through the same meter code that bills. */
-export function estimateStt(model: string = DEFAULT_STT_MODEL): LegEstimate {
-    const cost = priceSttSeconds(TYPICAL_SESSION.sttSeconds, model);
+/** The share of a Parakeet session's audio that goes to gpt-transcribe
+ *  (providers/stt-hybrid.ts: clips of HYBRID_SHORT_MAX_SEC or less). Two
+ *  sessions on one phone, 2026-11-25, had 0.07 and 0.117; this sits between.
+ *  Hedges (about 1 long request in 100) and gpt-transcribe's whole-second
+ *  rounding of short clips are left out, so it reads a little low. */
+export const HYBRID_STAND_IN_AUDIO_SHARE = 0.1;
+
+/** Cloud STT leg for a hosted model (default: DEFAULT_STT_MODEL), priced
+ *  through the same meter code that bills. Where `backend` would run the
+ *  model hybrid (hybridApplies), HYBRID_STAND_IN_AUDIO_SHARE of the audio is
+ *  priced at gpt-transcribe's rate; without a backend, the model alone. */
+export function estimateStt(model: string = DEFAULT_STT_MODEL, backend?: SttBackend): LegEstimate {
+    const seconds = TYPICAL_SESSION.sttSeconds;
+    const legs = hybridApplies(model, backend)
+        ? [
+              priceSttSeconds(seconds * HYBRID_STAND_IN_AUDIO_SHARE, HYBRID_STAND_IN),
+              priceSttSeconds(seconds * (1 - HYBRID_STAND_IN_AUDIO_SHARE), model),
+          ]
+        : [priceSttSeconds(seconds, model)];
+    const cost = {
+        providerCostUsd: legs.reduce((sum, l) => sum + l.providerCostUsd, 0),
+        credits: legs.reduce((sum, l) => sum + l.credits, 0),
+    };
     return {
         creditsPerSession: cost.credits,
         creditsPerHour: creditsPerHour(cost.credits),

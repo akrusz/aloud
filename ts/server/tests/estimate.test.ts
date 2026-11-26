@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+    HYBRID_STAND_IN_AUDIO_SHARE,
     TYPICAL_SESSION,
     azureSsmlOverheadFactor,
     estimateModels,
     estimateStt,
     estimateVoices,
 } from '../src/pricing/estimate.js';
-import { priceSession } from '../src/pricing/meter.js';
+import { priceSession, priceSttSeconds } from '../src/pricing/meter.js';
+import { resolveSttConfig } from '../src/config.js';
 import { allowedModels } from '../src/pricing/providers.js';
 import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
@@ -68,6 +70,24 @@ describe('estimateStt', () => {
         expect(estimateStt('gpt-4o-transcribe').creditsPerSession).toBeGreaterThan(
             stt.creditsPerSession
         );
+    });
+
+    it('prices Parakeet as the hybrid mix where the backend offers gpt-transcribe', () => {
+        const PARAKEET = 'moondream/parakeet-ultra';
+        const openai = resolveSttConfig({ OPENAI_API_KEY: 'sk-test' });
+        const s = TYPICAL_SESSION.sttSeconds;
+        expect(HYBRID_STAND_IN_AUDIO_SHARE).toBe(0.1);
+        expect(estimateStt(PARAKEET, openai).creditsPerSession).toBeCloseTo(
+            priceSttSeconds(s * 0.1, 'gpt-transcribe').credits + priceSttSeconds(s * 0.9, PARAKEET).credits,
+            12
+        );
+        expect(estimateStt(PARAKEET, openai).creditsPerHour).toBe(0.31);
+        // Parakeet alone where the route would run it alone.
+        expect(estimateStt(PARAKEET).creditsPerHour).toBe(0.24);
+        expect(estimateStt(PARAKEET, resolveSttConfig({ GROQ_API_KEY: 'gsk-test' })).creditsPerHour).toBe(0.24);
+        // Nothing else mixes.
+        expect(estimateStt('gpt-transcribe', openai)).toEqual(estimateStt('gpt-transcribe'));
+        expect(estimateStt('x-ai/grok-stt-2.0', openai)).toEqual(estimateStt('x-ai/grok-stt-2.0'));
     });
 });
 
