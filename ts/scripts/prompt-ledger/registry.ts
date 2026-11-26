@@ -138,6 +138,7 @@ export async function promptPieces(): Promise<PromptPiece[]> {
         add('session', PROMPTS, `prompts/appControlsFragment/${via}`, prompts.appControlsFragment(via));
     }
     add('session', PROMPTS, 'prompts/appControlsChangeNote', own(variants(...(['voice', 'screen'] as const).map(prompts.appControlsChangeNote))));
+    add('session', PROMPTS, 'prompts/COMMAND_ANSWER_NOTE', prompts.COMMAND_ANSWER_NOTE);
     // The defaults at guidance 4, 3 and 2: the assemblies below meet the last two.
     for (const [tier, sec] of [['active', 90], ['moderate', 180], ['long', 300]] as const) {
         add('session', PROMPTS, `prompts/waitBiasFragment/${tier}`, prompts.waitBiasFragment(sec));
