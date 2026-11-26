@@ -282,7 +282,12 @@ describe('hosted STT by language', () => {
 });
 
 describe('Parakeet alone, no longer offered', () => {
-    afterEach(() => setUiLang('en'));
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        setUiLang('en');
+    });
+    const devMode = (on: boolean) =>
+        vi.stubGlobal('localStorage', { getItem: (k: string) => (on && k === 'aloud:devMode' ? '1' : null) });
 
     it('is in no list, in any language, mode or platform', () => {
         for (const lang of ['en', 'zh'] as const) {
@@ -307,20 +312,55 @@ describe('Parakeet alone, no longer offered', () => {
             'aloud-gpt-transcribe',
         ]);
     });
-    it('resolves a stored pick to GPT, the hosted default, and never to a local one', () => {
-        expect(resolveSttChoice('aloud-parakeet', true)).toBe('aloud-gpt-transcribe');
+    it('runs a stored pick as Hybrid in English with developer mode off, never a local default', () => {
+        devMode(false);
+        expect(resolveSttChoice('aloud-parakeet', true)).toBe('aloud-hybrid');
         isTauriMock.mockReturnValue(true); // desktop: the flow default is Whisper
-        expect(resolveSttChoice('aloud-parakeet', false)).toBe('aloud-gpt-transcribe');
+        expect(resolveSttChoice('aloud-parakeet', false)).toBe('aloud-hybrid');
         isTauriMock.mockReturnValue(false);
         isCapacitorMock.mockReturnValue(true);
         expect(sttChoiceForMode({ sttEngine: 'aloud-parakeet', sparseSttEngine: null }, true, 'exploration')).toBe(
-            'aloud-gpt-transcribe'
+            'aloud-hybrid'
         );
         expect(sttChoiceForMode({ sttEngine: null, sparseSttEngine: 'aloud-parakeet' }, true, 'noting')).toBe(
-            'aloud-gpt-transcribe'
+            'aloud-hybrid'
         );
-        setUiLang('zh');
-        expect(resolveSttChoice('aloud-parakeet', true)).toBe('aloud-gpt-transcribe');
+    });
+    it('keeps that Hybrid in the options as the pick in force, and Hybrid off everyone else\'s', () => {
+        devMode(false);
+        const inForce = resolveSttChoice('aloud-parakeet', true);
+        expect(sttEngineOptions(true, 'exploration', 'en', inForce).map((o) => o.value)).toEqual([
+            'aloud-gpt-transcribe',
+            'aloud-hybrid',
+        ]);
+        expect(sttEngineOptions(true, 'exploration', 'en', resolveSttChoice(null, true)).map((o) => o.value)).toEqual([
+            'aloud-gpt-transcribe',
+        ]);
+    });
+    it('records Hybrid and its two models in the run record', () => {
+        devMode(false);
+        const ran = resolveSttChoice('aloud-parakeet', true);
+        expect(ran).toBe('aloud-hybrid');
+        expect(sttModelForChoice(ran, 'base')).toBe('gpt-transcribe<=3s,moondream/parakeet-ultra');
+    });
+    it('resolves a stored pick to GPT in Chinese, where Hybrid is not offered', () => {
+        for (const on of [false, true]) {
+            devMode(on);
+            setUiLang('zh');
+            expect(resolveSttChoice('aloud-parakeet', true)).toBe('aloud-gpt-transcribe');
+            isTauriMock.mockReturnValue(true);
+            expect(resolveSttChoice('aloud-parakeet', false)).toBe('aloud-gpt-transcribe');
+            isTauriMock.mockReturnValue(false);
+        }
+    });
+    it('leaves someone with no pick on GPT, developer mode or not', () => {
+        for (const on of [false, true]) {
+            devMode(on);
+            expect(resolveSttChoice(null, true)).toBe('aloud-gpt-transcribe');
+            expect(sttChoiceForMode({ sttEngine: null, sparseSttEngine: null }, true, 'exploration')).toBe(
+                'aloud-gpt-transcribe'
+            );
+        }
     });
     it('is heard on GPT on the setup screen, in the tour too', () => {
         for (const touring of [false, true]) {

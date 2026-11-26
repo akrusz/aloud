@@ -196,8 +196,11 @@ Developer mode also lists the **Hybrid** speech recognition choice (English
 only, unproven): each aloud cloud pass of `HYBRID_GPT_MAX_SEC` (3 s) of audio
 or less goes to GPT, a longer one to Parakeet, and one Parakeet refuses with a
 provider error goes once more to GPT (`HOSTED_STT` in `stt-picker.ts`,
-`cloudFallback` in `whisper-pcm-stt.ts`). A stored Hybrid pick keeps working,
-and stays in the select, with developer mode off.
+`cloudFallback` in `whisper-pcm-stt.ts`). aloud cloud now does the same for
+every Parakeet request, and hedges a stall ("Parakeet requests" in
+[ts-server.md](ts-server.md)). A stored Hybrid pick keeps working, and stays in
+the select, with developer mode off, and so does a stored Parakeet pick, which
+runs as Hybrid in English (`succeededBy` in `stt-picker.ts`).
 
 Four switches also live there with no URL twin:
 

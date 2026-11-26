@@ -127,6 +127,10 @@ type HostedSttSpec = {
      *  offered but not shown still works (sttEngineOptions `current`). */
     listed?: () => boolean;
     takesPrompt: boolean;
+    /** Where this choice is not offered and that one is, a stored pick of
+     *  this one runs as that one (resolveSttChoice). Read at resolution, so
+     *  the stored value is never rewritten. */
+    succeededBy?: HostedSttChoice;
 } & ({ model: string; seedCreditsPerHour: number } | { route: HostedRoute });
 
 /**
@@ -175,15 +179,17 @@ const HOSTED_STT: Record<HostedSttChoice, HostedSttSpec> = {
         offeredIn: (lang) => lang === 'zh',
         takesPrompt: false,
     },
-    // No longer offered on its own (2026-11-25): it wrote one-word turns from
-    // sighs and breaths, and its one upstream host refuses now and then. A
-    // stored pick resolves to the default. Hybrid's longer passes use it.
+    // No longer offered on its own: it wrote one-word turns from sighs and
+    // breaths, and its one upstream host refuses now and then. A stored pick
+    // runs as Hybrid where Hybrid is offered, else as the default. Hybrid's
+    // longer passes use it.
     'aloud-parakeet': {
         model: 'moondream/parakeet-ultra',
         label: 'Parakeet',
         seedCreditsPerHour: 0.24,
         offeredIn: () => false,
         takesPrompt: false,
+        succeededBy: 'aloud-hybrid',
     },
 };
 
@@ -547,19 +553,31 @@ export function hostedSttDefault(webMode: boolean, mode: MeditationType = 'explo
 
 /** The stored pick if this mode offers it, else the mode's flow default.
  *  Handles null (never chosen) and a stale pick carried across a mode change.
+ *  A hosted pick of a choice no longer offered runs as its successor where
+ *  that is offered (Parakeet as Hybrid in English: HostedSttSpec.succeededBy).
  *  A hosted pick the language doesn't offer (Hybrid in a Chinese session, or
- *  Parakeet, offered nowhere now) stays on aloud cloud, on the language's
- *  default model, rather than dropping to a local default. One offered but
- *  not shown (Hybrid with developer mode off) is kept. */
+ *  Parakeet there) stays on aloud cloud, on the language's default model,
+ *  rather than dropping to a local default. One offered but not shown (Hybrid
+ *  with developer mode off) is kept, and listed as the pick in force. */
 export function resolveSttChoice(
     stored: SttEngineChoice | null,
     webMode: boolean,
     mode: MeditationType = 'exploration'
 ): SttEngineChoice {
-    const offered = sttEngineOptions(webMode, mode, uiLang(), stored).map((o) => o.value);
-    if (stored && offered.includes(stored)) return stored;
-    const hosted = stored && isHostedSttChoice(stored) ? hostedSttDefault(webMode, mode) : null;
+    const lang = uiLang();
+    const pick = stored && isHostedSttChoice(stored) ? successorIn(stored, lang) : stored;
+    const offered = sttEngineOptions(webMode, mode, lang, pick).map((o) => o.value);
+    if (pick && offered.includes(pick)) return pick;
+    const hosted = pick && isHostedSttChoice(pick) ? hostedSttDefault(webMode, mode) : null;
     return hosted ?? defaultSttChoice(webMode, mode);
+}
+
+/** The choice a stored hosted pick runs as in `lang`: its successor where it
+ *  is not offered and the successor is, else itself. */
+function successorIn(choice: HostedSttChoice, lang: UiLang): HostedSttChoice {
+    const h = HOSTED_STT[choice];
+    const next = h.succeededBy;
+    return next && !h.offeredIn(lang) && HOSTED_STT[next].offeredIn(lang) ? next : choice;
 }
 
 /**
