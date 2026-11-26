@@ -446,7 +446,7 @@ export const COMMAND_LINES = {
             ? zhOr(l, "We've just started.", '我们才刚开始。')
             : zhOr(l, `We've been going about ${minutesEn(min)}.`, `我们已经进行了大约${min}分钟。`),
     respondSooner: fixed("Okay, I'll answer sooner.", '好,我会回应得快一些。'),
-    waitLonger: fixed("Okay, I'll wait longer before I answer.", '好,我会多等一会儿。'),
+    waitLonger: fixed("Okay, I'll wait longer before I answer.", '好,我会多等一会儿再回应。'),
     soonest: fixed("That's as quick as I can be.", '这已经是最快的了。'),
     longest: fixed("That's the longest I can wait.", '这已经是最久的了。'),
     pauseUnsupported: fixed("I can't change that with this microphone mode.", '这种麦克风模式下无法调整。'),
