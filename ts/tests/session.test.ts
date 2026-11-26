@@ -311,13 +311,13 @@ describe('SessionManager — control entries and system notes', () => {
         manager.startSession();
         manager.queueSystemNote('voice commands are on', 'setting');
         manager.addUserMessage('Could you leave a longer gap?');
-        manager.addCommandAnswer("Okay, I'll wait a bit longer.", 'the line above was the app');
+        manager.addCommandAnswer("Okay, I'll wait a bit longer.", 'full note', 'short note');
         manager.addUserMessage('Thanks. My hands feel warm.');
         expect(manager.getContextMessages()).toEqual([
             { role: 'user', content: 'Could you leave a longer gap?' },
             { role: 'system', content: 'voice commands are on' },
             { role: 'assistant', content: "Okay, I'll wait a bit longer." },
-            { role: 'system', content: 'the line above was the app' },
+            { role: 'system', content: 'full note' },
             { role: 'user', content: 'Thanks. My hands feel warm.' },
         ]);
         const exchanges = manager.state!.exchanges;
@@ -327,6 +327,36 @@ describe('SessionManager — control entries and system notes', () => {
             "Okay, I'll wait a bit longer.",
             'Thanks. My hands feel warm.',
         ]);
+    });
+
+    it('gives the full note once per log and the short one after it', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.addUserMessage('Slower, please.');
+        manager.addCommandAnswer('Okay, slower.', 'full note', 'short note');
+        manager.addUserMessage('Hide the clock.');
+        manager.addCommandAnswer('Clock hidden.', 'full note', 'short note');
+        manager.addUserMessage('Embers on.');
+        manager.addCommandAnswer('Embers on.', 'full note', 'short note');
+        const notes = manager.state!.exchanges.filter((e) => e.kind === 'command').map((e) => e.content);
+        expect(notes).toEqual(['full note', 'short note', 'short note']);
+    });
+
+    it('gives the full note again to a resumed log that no longer holds it', () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        // A summary resume keeps a short note and drops the full one before it.
+        manager.loadExchanges([
+            { role: 'user', kind: 'context', content: '[Continuing from a previous session. Recap: ...]' },
+            { role: 'assistant', content: 'Clock hidden.' },
+            { role: 'system', kind: 'command', content: 'short note' },
+        ]);
+        manager.addUserMessage('Slower, please.');
+        manager.addCommandAnswer('Okay, slower.', 'full note', 'short note');
+        manager.addUserMessage('Embers on.');
+        manager.addCommandAnswer('Embers on.', 'full note', 'short note');
+        const notes = manager.state!.exchanges.filter((e) => e.kind === 'command').map((e) => e.content);
+        expect(notes).toEqual(['short note', 'full note', 'short note']);
     });
 });
 

@@ -373,17 +373,23 @@ export class SessionManager {
 
     /**
      * Add the app's own answer to a spoken command, spoken in the facilitator's
-     * voice, and right behind it `note`, which tells the model the line was the
-     * app's. Without the note the model reads the line as its own words and,
-     * told it can't work the app, takes it back (meditation-pal-3zwy).
+     * voice, and right behind it a note telling the model the line was the
+     * app's: `note` the first time the log has none, `noteAgain` (a few words
+     * pointing back to it) after that. Without a note the model reads the line
+     * as its own words and, told it can't work the app, takes it back
+     * (meditation-pal-3zwy).
      *
-     * No API takes a system message straight after an assistant turn, so every
-     * provider sends this note as user text (systemNoteAsUserText), the same
-     * way on every request, and the prefix holds.
+     * "The first time" is read from the log, so a resumed log that lost the
+     * full note gets it again. No API takes a system message straight after an
+     * assistant turn, so every provider sends either as user text
+     * (systemNoteAsUserText), the same way on every request, and the prefix
+     * holds.
      */
-    addCommandAnswer(line: string, note: string): void {
+    addCommandAnswer(line: string, note: string, noteAgain: string): void {
+        const exchanges = this.requireActive().exchanges;
+        const noted = exchanges.some((e) => e.kind === 'command' && e.content === note);
         this.addAssistantMessage(line);
-        this.requireActive().exchanges.push({ role: 'system', content: note, kind: 'command', timestamp: this.clock() });
+        exchanges.push({ role: 'system', content: noted ? noteAgain : note, kind: 'command', timestamp: this.clock() });
     }
 
     /**

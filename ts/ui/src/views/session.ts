@@ -9,6 +9,7 @@ import {
     PromptBuilder,
     appControlsChangeNote,
     COMMAND_ANSWER_NOTE,
+    COMMAND_ANSWER_AGAIN,
     SessionManager,
     PacingController,
     TurnDecision,
@@ -3892,7 +3893,7 @@ export async function mountSessionView(
         awaitingHoldConfirm = false;
         tapFlags({ busy: true, awaitingHoldConfirm: false });
         try {
-            if (kind === 'command') session.addCommandAnswer(text, COMMAND_ANSWER_NOTE);
+            if (kind === 'command') session.addCommandAnswer(text, COMMAND_ANSWER_NOTE, COMMAND_ANSWER_AGAIN);
             else session.addAssistantMessage(text);
             tapTurn('assistant', kind, text);
             // Reveal with the voice, like LLM replies.

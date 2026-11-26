@@ -229,6 +229,7 @@ export {
     PromptBuilder,
     appControlsChangeNote,
     COMMAND_ANSWER_NOTE,
+    COMMAND_ANSWER_AGAIN,
     defaultPromptConfig,
     parseHoldSignal,
     stripHoldPrefix,

@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Every line the session speaks in answer to a spoken command is logged with
-// COMMAND_ANSWER_NOTE behind it (SessionManager.addCommandAnswer, tested in
-// session.test.ts and cache-prefix.test.ts), or the facilitator reads the line
-// as its own and takes it back (meditation-pal-3zwy). Pinned on the source:
-// mounting the session view takes a harness these tests don't have.
+// Every line the session speaks in answer to a spoken command is logged with a
+// note behind it, COMMAND_ANSWER_NOTE the first time and COMMAND_ANSWER_AGAIN
+// after (SessionManager.addCommandAnswer, tested in session.test.ts and
+// cache-prefix.test.ts), or the facilitator reads the line as its own and takes
+// it back (meditation-pal-3zwy). Pinned on the source: mounting the session
+// view takes a harness these tests don't have.
 
 const UI_SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui', 'src');
 
@@ -26,7 +27,7 @@ describe("a spoken command's answer", () => {
 
     it('is logged with the note that it was the app', () => {
         expect(functionBody(session, 'respondWithFacilitatorLine')).toMatch(
-            /if \(kind === 'command'\) session\.addCommandAnswer\(text, COMMAND_ANSWER_NOTE\);\s*else session\.addAssistantMessage\(text\);/
+            /if \(kind === 'command'\) session\.addCommandAnswer\(text, COMMAND_ANSWER_NOTE, COMMAND_ANSWER_AGAIN\);\s*else session\.addAssistantMessage\(text\);/
         );
         expect(functionBody(session, 'speakCommandLine')).toMatch(/await respondWithFacilitatorLine\(line, 'command'\);/);
     });

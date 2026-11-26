@@ -18,6 +18,7 @@ import { runSoakSession } from '../soak/orchestrator.js';
 import type { SimAction, SimUser, SimView } from '../soak/sim-user.js';
 import type { Scenario } from '../soak/types.js';
 import {
+    COMMAND_ANSWER_AGAIN,
     COMMAND_ANSWER_NOTE,
     SessionManager,
     appControlsChangeNote,
@@ -210,7 +211,7 @@ describe.each(['claude-fable-5-2', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'cla
 
 /**
  * A spoken command's answer is logged with a note behind it saying it was the
- * app's (SessionManager.addCommandAnswer). The soak harness has no spoken
+ * app's, in full the first time and short after (SessionManager.addCommandAnswer). The soak harness has no spoken
  * commands, so this drives the session log as views/session.ts does: a turn
  * sends the log, a check-in sends the log plus its event and logs the event
  * only once it speaks.
@@ -230,7 +231,7 @@ describe.each(['claude-opus-5-5', 'claude-haiku-4-5-20251001'])("a command's ans
         session.addUserMessage('My shoulders are tight.');
         await turn();
         session.addUserMessage('Could you leave a longer gap before you answer?');
-        session.addCommandAnswer("Okay, I'll wait a bit longer.", COMMAND_ANSWER_NOTE);
+        session.addCommandAnswer("Okay, I'll wait a bit longer.", COMMAND_ANSWER_NOTE, COMMAND_ANSWER_AGAIN);
         // A check-in right after the command reads the note too.
         const event = '[Check-in: quiet for 3m]';
         const checkin = await provider.complete([...session.getContextMessages(), { role: 'user', content: event }], {
@@ -243,7 +244,7 @@ describe.each(['claude-opus-5-5', 'claude-haiku-4-5-20251001'])("a command's ans
         // A natively placed note next to the command's, where the model takes one.
         session.queueSystemNote(appControlsChangeNote('voice'), 'setting');
         session.addUserMessage('Put a timer on, would you?');
-        session.addCommandAnswer("I didn't catch how long.", COMMAND_ANSWER_NOTE);
+        session.addCommandAnswer("I didn't catch how long.", COMMAND_ANSWER_NOTE, COMMAND_ANSWER_AGAIN);
         session.addUserMessage('Never mind. My jaw is loose now.');
         await turn();
         return bodies;
@@ -259,14 +260,16 @@ describe.each(['claude-opus-5-5', 'claude-haiku-4-5-20251001'])("a command's ans
         }
     });
 
-    it('sends the note as user text right behind each line, on every model', async () => {
+    it('sends the note as user text right behind each line, in full only the first time, on every model', async () => {
         const bodies = await runCommands();
         const last = bodies[bodies.length - 1]!.messages.map(plain);
-        const note = { role: 'user', text: systemNoteAsUserText(COMMAND_ANSWER_NOTE) };
-        for (const line of ["Okay, I'll wait a bit longer.", "I didn't catch how long."]) {
+        for (const [line, note] of [
+            ["Okay, I'll wait a bit longer.", COMMAND_ANSWER_NOTE],
+            ["I didn't catch how long.", COMMAND_ANSWER_AGAIN],
+        ] as const) {
             const at = last.findIndex((m) => m.text === line);
             expect(last[at]?.role).toBe('assistant');
-            expect(last[at + 1]).toEqual(note);
+            expect(last[at + 1]).toEqual({ role: 'user', text: systemNoteAsUserText(note) });
         }
         const setting = last.find((m) => m.text.includes('Setting change'));
         expect(setting?.role).toBe(supportsMidConversationSystem(model) ? 'system' : 'user');

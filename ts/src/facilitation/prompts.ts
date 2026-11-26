@@ -148,19 +148,24 @@ export function appControlsChangeNote(via: 'voice' | 'screen'): string {
 }
 
 /**
- * Follows every line the app speaks in answer to a spoken command
+ * Follows the first line the app speaks in answer to a spoken command
  * (SessionManager.addCommandAnswer): done, not done, a question or the time.
  * The line says which, so one note fits all, and it stays true when the judge
- * misheard. "Did what it says": told only that the line was not its own, Opus
- * asked about a misheard "wait longer" answered "nothing changed on my end",
- * though the wait had changed. The last sentence keeps an answer to the end
- * question, or a "no, I didn't mean that", from being talked past.
+ * misheard. Opus 5.5 failed a probe without each part (meditation-pal-3zwy):
+ * without "did what it says", asked whether a command worked it said no;
+ * without "Let it stand", it took the blame for a misheard one; without
+ * "never mention it aloud", it met an answer to the end question as if the
+ * session were over (2 of 3 runs, so the weakest of the three).
  */
 export const COMMAND_ANSWER_NOTE =
-    "Note (from the app, not the meditator; never mention it aloud): the line above was the app's reply to the " +
-    "meditator's last words, not yours, and the app did what it says. Your App controls guidance is about your " +
-    "own words, so don't take that line back or say whose it was unless they ask. Respond to whatever they say " +
-    'next, which may still be about it.';
+    'Note (from the app, not the meditator; never mention it aloud): the app spoke the line above and did what it says. Let it stand.';
+
+/**
+ * Follows every later one, once the log holds COMMAND_ANSWER_NOTE. Repeated
+ * in full it rides in every request after each command. Probed after a second
+ * command with this alone: no comment on it, and asked whether it worked, yes.
+ */
+export const COMMAND_ANSWER_AGAIN = "The app's line again.";
 
 /** Appended only when smart check-in timing is on (PromptConfig.waitSignal):
  *  no point asking every model for [WAIT] tokens the app would ignore.
