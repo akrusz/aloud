@@ -26,6 +26,7 @@ import type { LlmUsage } from '@aloud/core/facilitation';
 import type { ProviderId } from '../contract.js';
 import type { ProviderKeys } from '../config.js';
 import { openRouterRouting, openRouterSlug } from '../pricing/openrouter-hosts.js';
+import { THINKS_ALOUD, withholdThinking, withoutThinking } from './withheld-thinking.js';
 
 export class ProviderNotConfiguredError extends Error {
     constructor(provider: ProviderId) {
@@ -69,6 +70,10 @@ function buildProvider(keys: ProviderKeys, opts: ForwardOptions): LLMProvider {
     }
 }
 
+function thinksAloud(opts: ForwardOptions): boolean {
+    return opts.provider === 'openrouter' && THINKS_ALOUD.has(openRouterSlug(opts.model));
+}
+
 /** Pull the billing-relevant usage split out of a result/final chunk. */
 export function usageOf(r: CompletionResult | StreamChunk): LlmUsage {
     return {
@@ -88,7 +93,8 @@ export class Forwarder {
         opts: ForwardOptions & { system?: string }
     ): Promise<CompletionResult> {
         const provider = buildProvider(this.keys, opts);
-        return provider.complete(messages, opts.system ? { system: opts.system } : {});
+        const result = await provider.complete(messages, opts.system ? { system: opts.system } : {});
+        return thinksAloud(opts) ? withoutThinking(result) : result;
     }
 
     /** A max_tokens 0 read of the cache entry `complete`/`stream` left for the
@@ -113,10 +119,12 @@ export class Forwarder {
         const provider = buildProvider(this.keys, opts);
         const options = opts.system ? { system: opts.system } : {};
         if (provider.completeStream) {
-            yield* provider.completeStream(messages, options);
+            const stream = provider.completeStream(messages, options);
+            yield* thinksAloud(opts) ? withholdThinking(stream) : stream;
             return;
         }
-        const result = await provider.complete(messages, options);
+        const raw = await provider.complete(messages, options);
+        const result = thinksAloud(opts) ? withoutThinking(raw) : raw;
         yield {
             text: result.text,
             done: true,

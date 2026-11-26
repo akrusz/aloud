@@ -385,7 +385,8 @@ const OPENROUTER_REASONING_UNSUPPORTED = new Set(['moonshotai/kimi-k2']);
  *  The same turns do it on each host (a wandering mind, a choice of what to
  *  follow), so no host avoids it. Without headroom the cap lands mid-thought
  *  and the turn is blank or a cut-off line. What keeps the thinking from the
- *  speaker is facilitation/reasoning.ts. */
+ *  speaker is facilitation/reasoning.ts, and on aloud cloud, ahead of it,
+ *  server providers/withheld-thinking.ts. */
 const OPENROUTER_UNINVITED_REASONING = new Set(['moonshotai/kimi-k2', 'moonshotai/kimi-k2.6']);
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
