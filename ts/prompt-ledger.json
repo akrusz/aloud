@@ -306,13 +306,13 @@
       "hash": "fc007a5d2f104250",
       "reach": "session",
       "file": "ts/src/facilitation/summary.ts",
-      "status": "draft"
+      "status": "read"
     },
     "summary/request": {
       "hash": "0c1d6ccbab096471",
       "reach": "session",
       "file": "ts/src/facilitation/summary.ts",
-      "status": "draft"
+      "status": "read"
     },
     "resume/buildResumeContext": {
       "hash": "d406fb3ec0c5edb1",
