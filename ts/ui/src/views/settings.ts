@@ -593,7 +593,7 @@ export async function mountSettingsView(root: HTMLElement): Promise<SettingsView
                 "Uses your device's built-in speech recognition. Free, but quality varies and speaking won't interrupt the facilitator.",
             'web-speech': "Uses your browser's built-in speech recognition. Free.",
             'aloud-gpt-transcribe': 'Transcribed by OpenAI, which runs GPT.',
-            'aloud-hybrid': 'Short clips go to OpenAI, which runs GPT, longer ones to Prime Intellect, which runs Parakeet.',
+            'aloud-hybrid': 'Clips are routed to OpenAI and/or Prime Intellect to optimize cost and performance.',
             'aloud-parakeet': 'Transcribed by Prime Intellect, which runs Parakeet and retains no audio.',
             'aloud-grok': 'Transcribed by xAI, which runs Grok.',
         };
