@@ -36,6 +36,12 @@ export interface TokenRates {
 export interface ModelPricing extends TokenRates {
     provider: ProviderId;
     model: string;
+    /** For the picker's hourly figure only (estimate.ts estimateModels): the
+     *  share of a session's re-sent prefix this model's host reads from cache
+     *  at a session's pace, where that is measured below 1. The rest is
+     *  figured as fresh input, which is how the host bills it. The meter does
+     *  not read this: it bills what each call reports. */
+    cacheHitRate?: number;
     /** The model the picker pre-selects when the user hasn't chosen one. Exactly
      *  one entry should carry it; the client falls back to the first model if
      *  none does. Independent of list order, so the dropdown can order models
@@ -114,7 +120,10 @@ export function viaOpenRouter(listRate: number): number {
  *    (prompt_tokens_details.cached_tokens / Anthropic's cache fields) - a proxy
  *    hop like OpenRouter can drop the field. If caching is absent or unreported,
  *    pin all cache fields at the input rate: estimates then match real billing,
- *    and if tokens ever do appear we over-charge, never under-bill.
+ *    and if tokens ever do appear we over-charge, never under-bill. (d) on an
+ *    open model's host, whether a re-read hits a minute later: calls seconds
+ *    apart can all hit while a session's own pace misses one in five (Kimi
+ *    K2.6). Replay a transcript with its real gaps and set cacheHitRate.
  * 2. Run the math through estimate.ts before calling a model "cheap": a no-cache
  *    $0.57 model and a 50%-cached $1 model come within a cent/hr.
  * 3. OpenRouter slugs: wrap every rate in viaOpenRouter (its credit fee). List the real endpoints
@@ -457,19 +466,20 @@ const MODELS: Record<string, ModelPricing> = {
     // first token (K3's mandatory reasoning ran 7-12s). The one openrouter LLM
     // entry, so OPENROUTER_API_KEY must be set. A niche draw like Opus 3. The
     // rates are CoreWeave's, the first host in OPENROUTER_HOSTS; a turn that
-    // falls to Parasail costs us $0.75/$3.50, cache reads $0.16, so about 15%
-    // more input than the meter debits while CoreWeave is down. Cache reads
-    // are reported and discounted on both (probed 2026-11-25: usage.cost
-    // matched these rates on a 99%-cached prompt) and neither bills a write,
-    // so the write fields sit at the input rate. A re-read is not always a
-    // hit, though: 4 of 7 were, at gaps of 45s to 9.5 min with no pattern in
-    // the gap, so the picker's hourly figure, which assumes every one hits,
-    // reads low for this model.
+    // falls to Crusoe costs us $0.70/$3.50 and $0.35 for cache reads, more
+    // than twice what the meter debits for a re-read while CoreWeave is down.
+    // Cache reads are reported and discounted on both (probed 2026-11-25:
+    // usage.cost matched these rates on a 99%-cached prompt) and neither
+    // bills a write, so the write fields sit at the input rate. A re-read is
+    // not always a hit: calls seconds apart all were, but replayed at a
+    // session's pace on CoreWeave 54 of 67 were, at gaps of 50s to 4 min with
+    // no pattern in the gap. Hence cacheHitRate.
     'openrouter:moonshotai/kimi-k2': {
         provider: 'openrouter',
         model: 'moonshotai/kimi-k2',
         expanded: true, // niche draw, same logic as Opus 3
         zhCurated: true, // zh shortlist: Moonshot's own model, the budget slot there
+        cacheHitRate: 0.8,
         input: viaOpenRouter(0.65 / M),
         output: viaOpenRouter(3.41 / M),
         cacheRead: viaOpenRouter(0.15 / M),

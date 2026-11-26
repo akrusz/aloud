@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { azureSsmlOverheadFactor, estimateModels, estimateStt, estimateVoices } from '../src/pricing/estimate.js';
+import {
+    TYPICAL_SESSION,
+    azureSsmlOverheadFactor,
+    estimateModels,
+    estimateStt,
+    estimateVoices,
+} from '../src/pricing/estimate.js';
+import { priceSession } from '../src/pricing/meter.js';
+import { allowedModels } from '../src/pricing/providers.js';
 import { CURATED_VOICES, defaultVoice } from '../src/providers/voice-catalog.js';
 
 describe('estimateModels', () => {
@@ -21,6 +29,24 @@ describe('estimateModels', () => {
         expect(usd('claude-sonnet-5-5')).toBeGreaterThan(usd('claude-haiku-5-5'));
         // ~50x on this cache-heavy workload.
         expect(usd('claude-opus-5') / usd('claude-haiku-5-5')).toBeGreaterThan(3);
+    });
+
+    it('figures the re-reads a host misses as fresh input (cacheHitRate)', () => {
+        const llmOnly = { ...TYPICAL_SESSION, sttSeconds: 0, ttsChars: 0 };
+        const partial = allowedModels().filter((m) => m.cacheHitRate !== undefined);
+        expect(partial.length).toBeGreaterThan(0);
+        for (const m of partial) {
+            expect(m.cacheHitRate).toBeGreaterThan(0);
+            expect(m.cacheHitRate).toBeLessThan(1);
+            const shown = models.find((e) => e.provider === m.provider && e.model === m.model)!.creditsPerSession;
+            const allHit = priceSession(m.provider, m.model, llmOnly).credits;
+            const noneHit = priceSession(m.provider, m.model, {
+                ...llmOnly,
+                llmTokensIn: llmOnly.llmTokensIn + llmOnly.llmCacheRead,
+                llmCacheRead: 0,
+            }).credits;
+            expect(shown).toBeCloseTo(allHit + (noneHit - allHit) * (1 - m.cacheHitRate!), 2);
+        }
     });
 
     it('offers only cache-capable models (no Groq — it has no prompt caching)', () => {

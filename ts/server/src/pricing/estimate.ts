@@ -194,7 +194,14 @@ export function estimateModels(): ModelEstimate[] {
     const thinking = THINKING_TOKENS_PER_CALL * TYPICAL_SESSION.llmCalls;
     return allowedModels().map((m) => {
         const thinks = m.provider === 'anthropic' && thinkingPolicy(m.model) === 'always-on';
-        const usage = thinks ? { ...llmOnly, llmTokensOut: llmOnly.llmTokensOut + thinking } : llmOnly;
+        // A re-read the host does not serve from cache is billed as input.
+        const missed = Math.round(llmOnly.llmCacheRead * (1 - (m.cacheHitRate ?? 1)));
+        const usage = {
+            ...llmOnly,
+            llmTokensIn: llmOnly.llmTokensIn + missed,
+            llmCacheRead: llmOnly.llmCacheRead - missed,
+            llmTokensOut: llmOnly.llmTokensOut + (thinks ? thinking : 0),
+        };
         const cost = priceSession(m.provider, m.model, usage);
         return {
             provider: m.provider,
