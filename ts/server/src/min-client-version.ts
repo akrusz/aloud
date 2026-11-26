@@ -14,7 +14,7 @@
 import type { ClientPlatform, MinVersionPlatform } from './contract.js';
 
 export const MIN_CLIENT_VERSION: Readonly<Record<MinVersionPlatform, string>> = {
-    desktop: '0.0.0',
+    desktop: '2.22.0',
     android: '0.0.0',
     ios: '0.0.0',
 };
