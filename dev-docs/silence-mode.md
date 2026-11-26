@@ -28,9 +28,10 @@ one-utterance, no-history classifiers in `resume-intent.ts` gate the silence:
 
 `routeUtterance` (`silence-dispatch.ts`) owns the precedence between them.
 
-An utterance in a hold that opens with "I'm back" (or 我回来了) and goes
-straight on to a new thought resumes with no classifier (`opensWithReturn`,
-`return-command.ts`). An unpunctuated recognizer runs the return and the report
+An utterance in a hold that opens with "I'm back" (or 我回来了), after at most
+a filler or a hesitation ("okay, I'm back", "um, I'm back"), and then ends or
+goes straight on to a new thought resumes with no classifier
+(`opensWithReturn`, `return-command.ts`). An unpunctuated recognizer runs the return and the report
 together, "I'm back the warmth settled", and both classifiers can read that
 as describing and stay. "Back" about a place or a wander ("I'm back in my
 body", "back to the breath", "I'm back there", "I'm back again") still goes to

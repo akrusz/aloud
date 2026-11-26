@@ -130,7 +130,7 @@ export const ROSTER: EvalModel[] = [
         model: 'gpt-6-luna',
         provider: 'openai',
         shipped: true,
-        note: 'Added 2026-09-22 (expanded), the 6 family small tier at $0.10/$0.50.',
+        note: "Added 2026-09-22 (expanded), the 6 family small tier at $0.10/$0.50. aloud cloud's recap engine since 2026-11-22 (`utility` in server pricing/providers.ts), taking over from GPT-5 nano.",
     },
     {
         id: 'gpt-5-nano',

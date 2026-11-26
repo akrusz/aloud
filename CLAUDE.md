@@ -40,7 +40,7 @@ CI is typecheck + vitest + ui:build + server tests.
 ## Key patterns
 
 - **Providers**: LLM and TTS providers implement a shared interface and register in a factory.
-- **Prompts** are composed from dimensions (focus, qualities, directiveness, verbosity), then `STEPPING_OUT_FRAGMENT` in every mode. A hosted voice may append `voiceNote` last; it is empty for every other voice, so the prompt-cache prefix holds.
+- **Prompts** are composed from dimensions (focus, qualities, directiveness, verbosity), then `STEPPING_OUT_FRAGMENT` in every mode. A hosted voice may append `voiceNote` after every composed section (only the meditator's custom instructions follow it); it is empty for every other voice, so the prompt-cache prefix holds.
 - **Modes are data** (`modes.ts`). A staged mode (felt sense) keeps its whole arc in the system prompt; the active phase travels as a note in the log and moves on `[NEXT]`/`[BACK]`.
 - **The session log is append-only** (`SessionState.exchanges`): exactly what the model was sent, so each request extends the last and reads it from prompt cache. The system prompt is frozen for the session; anything later is appended as a control entry or a system note, never edited. The one exception is `cutUnspokenReply`. `tests/cache-prefix.test.ts` pins this.
 - **Turn signals** `[HOLD]`, `[NEXT]`/`[BACK]`, `[WAIT:Nm]`, `[PASS]` are emitted by the LLM and stripped by `parseTurnSignals`.

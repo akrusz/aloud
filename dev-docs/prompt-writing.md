@@ -183,6 +183,8 @@ Then, by reach:
   it live once to see that it parses and does what was meant. Say in the
   commit if it makes stored verdicts read as judged at an older rubric.
 
-Nothing to record as you go: at each release, Part E of
+Nothing to record as you go, except that a new prompt goes into
+`ts/scripts/prompt-ledger/registry.ts`: at each release, Part E of
 [pre-release-checklist.md](pre-release-checklist.md) lists the prompts changed
-since the last one for Alex to read (`npm --prefix ts run prompts:check`).
+since the last one for Alex to read (`npm --prefix ts run prompts:check`), and
+it sees only the prompts that file lists.

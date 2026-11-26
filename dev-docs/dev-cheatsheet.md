@@ -515,6 +515,10 @@ reasoning and the change, asks (Enter is yes), and writes and commits
 (`scripts/lib/min-version.sh`). It never lowers a minimum and skips the step
 for a prerelease. What the minimum does: [ts-server.md](ts-server.md#minimum-client-version).
 
+The checklist's Part E lists the prompts changed since the last release
+(`npm --prefix ts run prompts:check`) for Alex to read; the ledger is
+restamped on his word.
+
 **CI**: publishing the release runs `tauri-release.yml` (desktop bundles for all
 three platforms, signed updater artifacts) and `deploy-release.yml` (server,
 then web app). Build/signing detail: [desktop.md](desktop.md); the deploy side:
@@ -618,7 +622,8 @@ A saved session's `run` (`SessionRunRecord`, `ts/src/facilitation/session.ts`;
 absent on older ones) holds the build, an allowlist of the settings behind the
 prompt and turn loop, and the frozen system prompt, for replays and eval
 fixtures: built in `ui/src/session-run-record.ts`, stamped by `stampRunRecord`
-in `ui/src/views/session.ts`.
+in `ui/src/views/session.ts`. A noting circle's is stamped in
+`ui/src/views/noting-session.ts`, with the build and settings but no prompt.
 
 ## Dev gotchas
 

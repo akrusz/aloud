@@ -7,7 +7,8 @@ sync with code changes, plus other downstream consequences of a change.
 Claude: work through the parts below against the current diff / recent changes.
 Report what's stale and propose fixes; don't assume - grep and read the actual files.
 Part D is a decision rather than drift: whether this release raises the oldest
-app version aloud cloud serves.
+app version aloud cloud serves. Part E is a read: the prompts changed since the
+last release, for Alex.
 
 Also before a release, by hand: `npm run smoke`, the suite the web deploy runs
 afterwards, against a local build of this tree
@@ -165,7 +166,9 @@ check each of these still reflects reality:
   cloud model" table** (it names the voice/speech vendors, not just the LLM
   ones). A hosted STT model reaches the picker only through `HOSTED_STT` in
   `ui/src/adapters/stt-picker.ts` (its label, the languages it is offered in,
-  a seed rate).
+  a seed rate, or for a routed choice such as Hybrid the models it routes
+  between and their `shortShare`; `listed` for one shown only in developer
+  mode, `succeededBy` for one retired into another).
 - **Added/removed/renamed a hosted voice** (`voice-catalog.ts`) → the privacy
   policy's model table names every hosted voice under its provider, so any
   voice in or out means an edit there. A `house` voice says its name in the
@@ -192,7 +195,7 @@ check each of these still reflects reality:
   `voice-command-hints.ts` nudge if it has a by-hand twin, and the command
   examples quoted in README, the site FAQ and the store description.
 - **Added/changed a judge-free command** (`mute-command.ts`, `end-command.ts`,
-  `begin-command.ts`: matched on the device, no judge) → its zh pattern in the
+  `begin-command.ts`, `return-command.ts`: matched on the device, no judge) → its zh pattern in the
   same file, the info panel's no-judge Voice commands row (`views/session.ts`)
   and its zh, the noting circle's listen loop (`views/noting-session.ts`, which
   takes only these), README's "work everywhere" tip, `voice-commands.md`, and a
@@ -279,7 +282,11 @@ check each of these still reflects reality:
 - **Added a stored pick, a setup field or a one-time flag** → its area in
   `ui/src/settings-reset.ts`, or the list of what a reset keeps, and
   `tests/settings-reset.test.ts`, which checks named keys only, so a new flag
-  slips past it.
+  slips past it. A setting that shapes the prompt or the turn loop also goes
+  into `conversationRunSettings` or `notingRunSettings`
+  (`ui/src/session-run-record.ts`), which copy by name into a saved session's
+  run record; never a key, token or account field, since History → Export
+  sessions writes the whole session to a file.
 - **Changed a pricing/estimate assumption** (`pricing/estimate.ts` profile, a
   model's rates, a new metered leg) → the ☁ badges and the setup footer's
   session pill, the "what are ☁?" explainer (`ui/src/clouds-explainer.ts`),

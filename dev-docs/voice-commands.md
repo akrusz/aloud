@@ -94,6 +94,13 @@ listens once (past the echo window, since the question was just spoken), and
 ends on a yes. A reply that is neither yes nor no is taken as the note it most
 likely is.
 
+Inside a held silence one more thing is matched on the device: an utterance
+opening with "I'm back" calls the facilitator back without the resume
+classifier (`opensWithReturn`, `return-command.ts`;
+[silence-mode.md](silence-mode.md)). The zh of all of these is matched in
+simplified characters (`toSimplified`, `zh-script.ts`), so a recognizer that
+writes traditional ones is heard.
+
 Where there is a judge it still hears everything first. These run after it:
 `isEndCommand` when the judge named no command (down, timed out, or missed),
 `endConfirmReply` when its answer to the open question was `other`. The
@@ -708,7 +715,9 @@ it (`ui/src/voice-start.ts`, `voiceStartBlocker`, `listenOnSetup`):
   script: unprompted, Whisper's base model writes traditional characters for
   most Mandarin. `zh-script.ts` (`toSimplified`, `trimHeardZh`) does that for
   begin, the setup parser and the tour's words instead, and a recognizer set
-  to zh-TW needs it anyway.
+  to zh-TW needs it anyway. The session's on-device matchers (mute, end and
+  its yes or no, the timer, hesitations, "I'm back") and `reasoning.ts` read
+  through it too.
 - **Hosted listening here is not billed, inside an allowance.**
   `POST /cloud/v1/stt?setup=1` (`server/src/routes/stt.ts`) costs nothing
   while the clip is short (`SETUP_MAX_CLIP_SECONDS`, 15) and the account has
@@ -902,7 +911,8 @@ voices and would move them off it.
   `whisper-pcm-stt.ts`), so the listener and its mic carry on through the
   tour's start and end. The select, the estimate and the session that
   follows stay on the default. A stored pick is kept (Hybrid is heard on
-  GPT, as everywhere on this screen; a Parakeet one resolves to GPT); a
+  GPT, as everywhere on this screen; a Parakeet one resolves to Hybrid, or in
+  zh to the default, so it is heard on GPT too); a
   hosted one made during the tour applies at once, any other at its end.
   Setup listening makes only full passes, so nothing of GPT's carries into
   the next request, and the server meters each request by the model it
@@ -1042,8 +1052,9 @@ info panel's Voice commands row opens the list.
 ## Changing a command
 
 The judge-free matchers have unit tests (`tests/mute-command.test.ts`,
-`end-command.test.ts`, `begin-command.test.ts`, `setup-command.test.ts`,
-`tour-command.test.ts`), and
+`end-command.test.ts`, `begin-command.test.ts`, `return-command.test.ts`,
+`setup-command.test.ts`, `tour-command.test.ts`, with `hesitation.test.ts`
+and `zh-script.test.ts` for what they share), and
 `node ts/scripts/voice-loop-check.mjs` runs a whole sitting through the real
 web UI with a scripted recognizer and a mocked model (`npm run web:dev` up; no
 mic, no keys), the setup screen's voice controls included. It is the only

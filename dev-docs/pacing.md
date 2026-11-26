@@ -116,7 +116,7 @@ It bends three of the rules above for that session only, and saves none of it:
 - The opener explains the format before the invitation
   (`buildOpenerPrompt`'s `firstSit`).
 - The default smart wait is `FIRST_SIT_CHECKIN_WAIT_SEC`, not the guidance
-  stop's (`PromptConfig.checkinWaitSec`; `PromptBuilder.checkinWaitSeconds`
+  level's (`PromptConfig.checkinWaitSec`; `PromptBuilder.checkinWaitSeconds`
   feeds both the bias fragment and the pacing seed).
 - The clock is seeded with a `FIRST_SIT_TIMER_MIN` timer. `views/session.ts`
   keeps it out of the saved settings until the meditator picks a mode or
