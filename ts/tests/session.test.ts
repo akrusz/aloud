@@ -305,6 +305,29 @@ describe('SessionManager — control entries and system notes', () => {
         ]);
         expect(manager.state!.exchanges[5]!.kind).toBe('phase');
     });
+
+    it("follows the app's answer to a command with a note saying it was the app's", () => {
+        const { manager } = makeManager();
+        manager.startSession();
+        manager.queueSystemNote('voice commands are on', 'setting');
+        manager.addUserMessage('Could you leave a longer gap?');
+        manager.addCommandAnswer("Okay, I'll wait a bit longer.", 'the line above was the app');
+        manager.addUserMessage('Thanks. My hands feel warm.');
+        expect(manager.getContextMessages()).toEqual([
+            { role: 'user', content: 'Could you leave a longer gap?' },
+            { role: 'system', content: 'voice commands are on' },
+            { role: 'assistant', content: "Okay, I'll wait a bit longer." },
+            { role: 'system', content: 'the line above was the app' },
+            { role: 'user', content: 'Thanks. My hands feel warm.' },
+        ]);
+        const exchanges = manager.state!.exchanges;
+        expect(exchanges[3]!.kind).toBe('command');
+        expect(spokenExchanges(exchanges).map((e) => e.content)).toEqual([
+            'Could you leave a longer gap?',
+            "Okay, I'll wait a bit longer.",
+            'Thanks. My hands feel warm.',
+        ]);
+    });
 });
 
 describe('SessionManager — a reply cut off by a barge-in', () => {

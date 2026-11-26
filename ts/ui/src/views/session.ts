@@ -8,6 +8,7 @@
 import {
     PromptBuilder,
     appControlsChangeNote,
+    COMMAND_ANSWER_NOTE,
     SessionManager,
     PacingController,
     TurnDecision,
@@ -2087,7 +2088,8 @@ export async function mountSessionView(
 
     /** Say what a command did. Takes the floor if the facilitator is mid-reply
      *  (the same supersede respondTo does), records both sides so the model
-     *  doesn't later read itself announcing a timer nobody asked for, and keeps
+     *  doesn't later read itself announcing a timer nobody asked for, with a
+     *  note that the line was the app's (respondWithFacilitatorLine), and keeps
      *  a silence hold held - a command is not a call back. */
     async function speakCommandLine(userText: string, line: string): Promise<void> {
         takeFloor();
@@ -3890,7 +3892,8 @@ export async function mountSessionView(
         awaitingHoldConfirm = false;
         tapFlags({ busy: true, awaitingHoldConfirm: false });
         try {
-            session.addAssistantMessage(text);
+            if (kind === 'command') session.addCommandAnswer(text, COMMAND_ANSWER_NOTE);
+            else session.addAssistantMessage(text);
             tapTurn('assistant', kind, text);
             // Reveal with the voice, like LLM replies.
             const reveal = createAssistantReveal();

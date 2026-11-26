@@ -20,9 +20,11 @@ export type Role = 'user' | 'assistant' | 'system';
  *    'system'), e.g. voice commands switched on.
  *  - 'trouble': the stepping-out note for a meditator in trouble (role
  *    'system'; stepping-out.ts).
+ *  - 'command': says the facilitator line before it was the app's answer to
+ *    a spoken command (role 'system'; addCommandAnswer).
  *  - 'context': resume scaffolding (recap, hand-off note).
  */
-export type ExchangeKind = 'opener' | 'event' | 'phase' | 'setting' | 'trouble' | 'context';
+export type ExchangeKind = 'opener' | 'event' | 'phase' | 'setting' | 'trouble' | 'command' | 'context';
 
 /** The kinds that travel as a mid-conversation system note. */
 export type SystemNoteKind = Extract<ExchangeKind, 'phase' | 'setting' | 'trouble'>;
@@ -367,6 +369,21 @@ export class SessionManager {
             }),
         });
         if (hasUsage) this.recordLlmUsage(usage);
+    }
+
+    /**
+     * Add the app's own answer to a spoken command, spoken in the facilitator's
+     * voice, and right behind it `note`, which tells the model the line was the
+     * app's. Without the note the model reads the line as its own words and,
+     * told it can't work the app, takes it back (meditation-pal-3zwy).
+     *
+     * No API takes a system message straight after an assistant turn, so every
+     * provider sends this note as user text (systemNoteAsUserText), the same
+     * way on every request, and the prefix holds.
+     */
+    addCommandAnswer(line: string, note: string): void {
+        this.addAssistantMessage(line);
+        this.requireActive().exchanges.push({ role: 'system', content: note, kind: 'command', timestamp: this.clock() });
     }
 
     /**

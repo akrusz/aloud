@@ -147,6 +147,21 @@ export function appControlsChangeNote(via: 'voice' | 'screen'): string {
     );
 }
 
+/**
+ * Follows every line the app speaks in answer to a spoken command
+ * (SessionManager.addCommandAnswer): done, not done, a question or the time.
+ * The line says which, so one note fits all, and it stays true when the judge
+ * misheard. "Did what it says": told only that the line was not its own, Opus
+ * asked about a misheard "wait longer" answered "nothing changed on my end",
+ * though the wait had changed. The last sentence keeps an answer to the end
+ * question, or a "no, I didn't mean that", from being talked past.
+ */
+export const COMMAND_ANSWER_NOTE =
+    "Note (from the app, not the meditator; never mention it aloud): the line above was the app's reply to the " +
+    "meditator's last words, not yours, and the app did what it says. Your App controls guidance is about your " +
+    "own words, so don't take that line back or say whose it was unless they ask. Respond to whatever they say " +
+    'next, which may still be about it.';
+
 /** Appended only when smart check-in timing is on (PromptConfig.waitSignal):
  *  no point asking every model for [WAIT] tokens the app would ignore.
  *  Followed by waitBiasFragment, which folds the guidance slider into the

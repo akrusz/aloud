@@ -948,6 +948,33 @@ Defined in `voice-command.ts`, with the asks in `voice-command-specs.ts`:
 
 Each command speaks a canned acknowledgment (`COMMAND_LINES`).
 
+**Whose line it is.** The acknowledgment goes into the session log as a
+facilitator line, after the command, so the model never reads itself saying
+"Timer set" with nothing that asked. Taken for its own words, a line like
+"Okay, I'll answer sooner." clashes with `appControlsFragment`, and the model
+corrects itself out loud (meditation-pal-3zwy). So each one is followed by
+`COMMAND_ANSWER_NOTE` (`prompts.ts`), a system note saying the line was the
+app's reply and did what it says, that the App controls guidance is about the
+model's own words, and to answer what comes next, which may still be about
+it. `speakCommandLine` speaks through
+`respondWithFacilitatorLine` with kind `command`, which logs both with
+`SessionManager.addCommandAnswer`; `tests/command-answer-note.test.ts` pins
+that every `COMMAND_LINES` line in `views/session.ts` goes that way.
+
+- One wording fits every line: the line itself says whether it was done, not
+  done, a time or the end question, and the note stays true for a misheard
+  command. Its last sentence is for the end question, whose answer reaches the
+  model when it is neither a yes nor a no, and for "I didn't mean that".
+- "Repeat that" logs nothing on either side, so it has no note.
+- No API takes a system message straight after an assistant turn, so every
+  provider sends this note as user text, the same way on every request
+  (`tests/cache-prefix.test.ts`).
+- Not noted: canned check-ins, timer fallbacks and the hold re-entry line
+  (`HOLD_REENTRY_LINES`), which say what a facilitator would and which nothing
+  in the prompt contradicts. The silence offer is the model's own `[HOLD]`
+  reply. A noting circle logs its end question too, but no facilitator reads
+  its log.
+
 ## How an utterance is checked
 
 1. The bare-mute check (`isMuteCommand`). If the end question is open, the

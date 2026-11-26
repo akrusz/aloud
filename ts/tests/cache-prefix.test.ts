@@ -13,10 +13,17 @@ import { describe, expect, it } from 'vitest';
 
 import { AnthropicProvider, supportsMidConversationSystem } from '../src/llm/anthropic.js';
 import type { CompletionResult, LLMProvider, Message } from '../src/llm/index.js';
+import { systemNoteAsUserText } from '../src/llm/base.js';
 import { runSoakSession } from '../soak/orchestrator.js';
 import type { SimAction, SimUser, SimView } from '../soak/sim-user.js';
 import type { Scenario } from '../soak/types.js';
-import { isSyntheticEventTurn } from '../src/facilitation/index.js';
+import {
+    COMMAND_ANSWER_NOTE,
+    SessionManager,
+    appControlsChangeNote,
+    isSyntheticEventTurn,
+} from '../src/facilitation/index.js';
+import { createFakeClock } from '../src/clock.js';
 
 interface WireMessage {
     role: string;
@@ -198,5 +205,70 @@ describe.each(['claude-fable-5-2', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'cla
         const first = bodies[0]!.messages.map(plain);
         expect(first[0]!.role).toBe('user');
         expect(first[1]!.text).toContain('stage 1 of');
+    });
+});
+
+/**
+ * A spoken command's answer is logged with a note behind it saying it was the
+ * app's (SessionManager.addCommandAnswer). The soak harness has no spoken
+ * commands, so this drives the session log as views/session.ts does: a turn
+ * sends the log, a check-in sends the log plus its event and logs the event
+ * only once it speaks.
+ */
+describe.each(['claude-opus-5-5', 'claude-haiku-4-5-20251001'])("a command's answer and its note (%s)", (model) => {
+    async function runCommands(): Promise<WireBody[]> {
+        const { provider, bodies } = recordingFacilitator(model, { turns: [], checkins: ['Still here with you.'] });
+        const session = new SessionManager({ clock: createFakeClock(1_000_000).clock });
+        session.startSession();
+        const system = 'You are a meditation facilitator.';
+        const turn = async (): Promise<void> => {
+            const { text } = await provider.complete(session.getContextMessages(), { system });
+            session.addAssistantMessage(text);
+        };
+        session.addControlMessage('user', 'Open the session.', 'opener');
+        await turn();
+        session.addUserMessage('My shoulders are tight.');
+        await turn();
+        session.addUserMessage('Could you leave a longer gap before you answer?');
+        session.addCommandAnswer("Okay, I'll wait a bit longer.", COMMAND_ANSWER_NOTE);
+        // A check-in right after the command reads the note too.
+        const event = '[Check-in: quiet for 3m]';
+        const checkin = await provider.complete([...session.getContextMessages(), { role: 'user', content: event }], {
+            system,
+        });
+        session.addControlMessage('user', event, 'event');
+        session.addAssistantMessage(checkin.text);
+        session.addUserMessage('Thanks. The tightness is easing.');
+        await turn();
+        // A natively placed note next to the command's, where the model takes one.
+        session.queueSystemNote(appControlsChangeNote('voice'), 'setting');
+        session.addUserMessage('Put a timer on, would you?');
+        session.addCommandAnswer("I didn't catch how long.", COMMAND_ANSWER_NOTE);
+        session.addUserMessage('Never mind. My jaw is loose now.');
+        await turn();
+        return bodies;
+    }
+
+    it('every request extends the one before it', async () => {
+        const bodies = await runCommands();
+        expect(bodies.length).toBe(5);
+        for (let i = 1; i < bodies.length; i++) {
+            const prev = bodies[i - 1]!.messages.map(plain);
+            const next = bodies[i]!.messages.map(plain);
+            expect(startsWith(next, prev), `request ${i} broke the prefix`).toBe(true);
+        }
+    });
+
+    it('sends the note as user text right behind each line, on every model', async () => {
+        const bodies = await runCommands();
+        const last = bodies[bodies.length - 1]!.messages.map(plain);
+        const note = { role: 'user', text: systemNoteAsUserText(COMMAND_ANSWER_NOTE) };
+        for (const line of ["Okay, I'll wait a bit longer.", "I didn't catch how long."]) {
+            const at = last.findIndex((m) => m.text === line);
+            expect(last[at]?.role).toBe('assistant');
+            expect(last[at + 1]).toEqual(note);
+        }
+        const setting = last.find((m) => m.text.includes('Setting change'));
+        expect(setting?.role).toBe(supportsMidConversationSystem(model) ? 'system' : 'user');
     });
 });
