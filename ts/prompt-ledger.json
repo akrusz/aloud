@@ -835,6 +835,18 @@
       "reach": "dev",
       "file": "ts/server/scripts/audition/sources.ts",
       "status": "baseline"
+    },
+    "prompts/COMMAND_ANSWER_NOTE": {
+      "hash": "98abcd2954ac782b",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "read"
+    },
+    "prompts/COMMAND_ANSWER_AGAIN": {
+      "hash": "b24803f61ab17a7a",
+      "reach": "session",
+      "file": "ts/src/facilitation/prompts.ts",
+      "status": "read"
     }
   }
 }
