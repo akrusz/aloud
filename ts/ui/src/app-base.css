@@ -6913,9 +6913,20 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
         min-height: 2.75rem;
     }
 
+    /* A modal takes the column between the chips, like the page: the chips
+       and the nav column sit above the overlay, so a modal any wider slides
+       under them. With the column to itself it takes the height as well. */
+    .voice-modal-overlay,
+    .about-modal-overlay,
     #signin-modal-overlay,
     #buy-credits-modal-overlay {
-        padding-bottom: calc(1rem + var(--safe-bottom-clear));
+        padding: calc(var(--safe-top) + 0.5rem) var(--chrome-gutter)
+            calc(0.5rem + var(--safe-bottom-clear));
+    }
+    .voice-modal,
+    .about-modal {
+        width: 100%;
+        max-height: 100%;
     }
     /* With no bar beneath them the footers sit on the screen edge and take
        the bottom inset themselves. */
@@ -6936,6 +6947,26 @@ body[data-session-active] .mobile-more-sheet .mobile-more-divider {
     }
     .main:has(.session-container) {
         padding-bottom: var(--safe-bottom-clear);
+    }
+}
+
+/* A smaller phone on its side: the phone chrome with no height to spare, so a
+   modal can't fit between the top chips and the bottom nav, which sit above
+   the overlay: the brand covered its title and the orb its close button. It
+   goes over them instead, dimming them, and takes the whole height. The
+   aspect ratio keeps a phone held upright with its keyboard up out of this. */
+@media (max-width: 767px) and (max-height: 500px) and (min-aspect-ratio: 3/2) {
+    .voice-modal-overlay,
+    .about-modal-overlay,
+    #signin-modal-overlay,
+    #buy-credits-modal-overlay {
+        z-index: 96;
+        padding: calc(var(--safe-top) + 0.5rem) max(0.75rem, var(--safe-right))
+            calc(0.5rem + var(--safe-bottom-clear)) max(0.75rem, var(--safe-left));
+    }
+    .voice-modal,
+    .about-modal {
+        max-height: 100%;
     }
 }
 
