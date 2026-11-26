@@ -6,7 +6,11 @@
  * via env; config.ts resolveSttConfig), or through OpenRouter for the models
  * in providers/stt.ts OPENROUTER_STT_MODELS; debits fractional credits by the
  * audio seconds the provider bills (pricing sttBilledSeconds), returns the
- * transcript.
+ * transcript and the model that wrote it.
+ *
+ * A request for Parakeet may be answered by gpt-transcribe instead, or sent to
+ * both (providers/stt-hybrid.ts); the response's `route` says so, and each
+ * request a provider bills is metered at its own model's rate.
  *
  * Duration is computed server-side from the byte length, so a client can't
  * under-report seconds to underpay. Stateless: audio in, text out, nothing
@@ -30,16 +34,32 @@
 import { Hono } from 'hono';
 import { setupVocabulary } from '@aloud/core/facilitation';
 import { sttModelChoices } from '../config.js';
-import type { TranscribeResponse } from '../contract.js';
+import type { SttRoute, TranscribeResponse } from '../contract.js';
 import type { Deps } from '../deps.js';
 import type { AuthVars } from '../auth/middleware.js';
 import { requireAuth } from '../auth/middleware.js';
-import { priceSttSeconds } from '../pricing/meter.js';
+import { priceSttSeconds, type CostBreakdown } from '../pricing/meter.js';
 import { sttBilledSeconds, sttPromptIsBilled } from '../pricing/providers.js';
 import { serverIncidents } from '../credits/incidents.js';
 import { recordUsage } from '../credits/usage.js';
-import { chargeUpfront, gateUpfront } from './upfront-charge.js';
-import { OPENROUTER_STT_MODELS, int16ToFloat32, transcribeOpenRouter, transcribeWhisper } from '../providers/stt.js';
+import { chargeUpfrontLegs, gateUpfront } from './upfront-charge.js';
+import {
+    OPENROUTER_STT_MODELS,
+    int16ToFloat32,
+    transcribeOpenRouter,
+    transcribeWhisper,
+    type SttResult,
+} from '../providers/stt.js';
+import {
+    HYBRID_MODEL,
+    HYBRID_SHORT_MAX_SEC,
+    HYBRID_STAND_IN,
+    HedgeFailed,
+    hybridDeadlineMs,
+    legIsBilled,
+    transcribeHedged,
+    type SttLeg,
+} from '../providers/stt-hybrid.js';
 import { log } from '../logger.js';
 import { errorJson, sessionIdOf, tooManyRequests } from '../http.js';
 
@@ -86,6 +106,14 @@ export function sttPrior(raw: string | undefined): string | undefined {
     // By code point, so the cut can't split a surrogate pair.
     const tail = Array.from(cleaned).slice(-MAX_STT_PRIOR_CHARS).join('').trimStart();
     return tail || undefined;
+}
+
+/** One model's share of a request: what it bills and where. */
+interface SttLegCost {
+    model: string;
+    provider: string;
+    billedSeconds: number;
+    cost: CostBreakdown;
 }
 
 export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
@@ -136,8 +164,32 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         const sessionId = sessionIdOf(c.req.query('session_id'));
         const incident = serverIncidents(deps.store, { accountId: account.id, provider, model, sessionId });
 
-        const billedSeconds = sttBilledSeconds(seconds, model);
-        const cost = priceSttSeconds(billedSeconds, model);
+        // A Parakeet request runs with gpt-transcribe behind it wherever the
+        // backend offers that (providers/stt-hybrid.ts): a short clip goes
+        // there instead, a longer one there as well on a failure or a stall.
+        const hybrid = model === HYBRID_MODEL && sttModelChoices(stt).includes(HYBRID_STAND_IN);
+        const reroute = hybrid && seconds <= HYBRID_SHORT_MAX_SEC;
+        const hedged = hybrid && !reroute;
+        const legOf = (legModel: string): SttLegCost => {
+            const billed = sttBilledSeconds(seconds, legModel);
+            return {
+                model: legModel,
+                provider: Object.hasOwn(OPENROUTER_STT_MODELS, legModel) ? 'openrouter' : stt.provider,
+                billedSeconds: billed,
+                cost: priceSttSeconds(billed, legModel),
+            };
+        };
+        const planned = legOf(reroute ? HYBRID_STAND_IN : model);
+        const billedSeconds = planned.billedSeconds;
+        // The hold covers the dearest outcome, a hedge both providers bill, so
+        // a request moved to the dearer model can't outrun its reservation.
+        const standInCost = hedged ? legOf(HYBRID_STAND_IN).cost : null;
+        const cost: CostBreakdown = standInCost
+            ? {
+                  providerCostUsd: planned.cost.providerCostUsd + standInCost.providerCostUsd,
+                  credits: planned.cost.credits + standInCost.credits,
+              }
+            : planned.cost;
 
         // Both allowances are checked before either is spent, so a clip the
         // global one refuses doesn't eat into the account's.
@@ -175,7 +227,8 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
         // steering the caller's own result, on a clip billed by its audio
         // length; it keys no billing and is never logged. A free-form
         // `?prompt=` is still ignored. The OpenRouter models take no prompt
-        // (OPENROUTER_STT_MODELS), so there the header goes nowhere.
+        // (OPENROUTER_STT_MODELS), so there the header goes nowhere, and
+        // neither does gpt-transcribe standing in for Parakeet.
         // A model that bills the prompt (sttPromptIsBilled) gets no prior: the
         // meter counts audio only. If STT_MODEL rolls back to one, clients
         // still send pieces, they just go unprompted. The setup vocabulary
@@ -186,48 +239,104 @@ export function sttRoutes(deps: Deps): Hono<{ Variables: AuthVars }> {
               ? undefined
               : sttPrior(c.req.header('x-stt-prior'));
 
+        const send = (legModel: string, signal?: AbortSignal): Promise<SttResult> => {
+            const fetchImpl: typeof fetch | undefined = signal
+                ? (input, init) => globalThis.fetch(input, { ...init, signal })
+                : undefined;
+            return Object.hasOwn(OPENROUTER_STT_MODELS, legModel)
+                ? transcribeOpenRouter(samples, sampleRate, openRouterKey!, legModel, { language }, fetchImpl)
+                : transcribeWhisper(
+                      samples,
+                      sampleRate,
+                      { ...stt, model: legModel },
+                      legModel === model ? { language, prompt } : { language },
+                      fetchImpl
+                  );
+        };
+        const deadlineMs = hybridDeadlineMs(seconds);
+        // What a fallback or hedge did, for its rate on production: timings,
+        // models and an upstream error's first line, never the audio or text.
+        const hybridIncident = (route: 'fallback' | 'hedge', legs: readonly SttLeg[]): void => {
+            const answered = legs.find((l) => l.end === 'answered');
+            const head = [
+                `${seconds.toFixed(1)}s:`,
+                ...(route === 'hedge' ? [`deadline=${deadlineMs}ms`] : []),
+                answered ? `served=${answered.model} at=${answered.ms}ms` : 'served=none',
+            ].join(' ');
+            const failures = legs
+                .filter((l) => l.end === 'failed')
+                .map((l) => `${l.model} failed at ${l.ms}ms: ${String(l.error)}`);
+            incident(route === 'hedge' ? 'stt_hedge' : 'stt_fallback', [head, ...failures].join('; '));
+        };
+
         let text: string;
+        let served = planned;
+        let billed = [planned];
+        let route: SttRoute | undefined = reroute ? 'reroute' : undefined;
         try {
-            const result = viaOpenRouter
-                ? await transcribeOpenRouter(samples, sampleRate, openRouterKey!, model, { language })
-                : await transcribeWhisper(samples, sampleRate, { ...stt, model }, { language, prompt });
+            let result: SttResult;
+            if (hedged) {
+                const h = await transcribeHedged(
+                    { model, send: (signal) => send(model, signal) },
+                    { model: HYBRID_STAND_IN, send: (signal) => send(HYBRID_STAND_IN, signal) },
+                    deadlineMs
+                );
+                result = h.result;
+                served = legOf(h.answered.model);
+                billed = h.legs.filter(legIsBilled).map((l) => legOf(l.model));
+                if (h.route) {
+                    route = h.route;
+                    hybridIncident(h.route, h.legs);
+                }
+            } else {
+                result = await send(planned.model);
+            }
             text = result.text;
             // The charge is our own count; the provider's is the tripwire for
             // a billing rule that has moved under it. Exact-second billers
             // report a float, so a hair of rounding isn't a moved rule.
-            if (result.reportedSeconds !== undefined && Math.abs(result.reportedSeconds - billedSeconds) > 0.01) {
+            if (result.reportedSeconds !== undefined && Math.abs(result.reportedSeconds - served.billedSeconds) > 0.01) {
                 log.warn('stt billed seconds differ from provider usage', {
-                    model,
-                    billedSeconds,
+                    model: served.model,
+                    billedSeconds: served.billedSeconds,
                     reportedSeconds: result.reportedSeconds,
                 });
             }
         } catch (err) {
             gate?.release();
+            if (err instanceof HedgeFailed) hybridIncident(err.route, err.legs);
             log.error('stt forward failed', { err: String(err) });
             incident('stt_error', `${seconds.toFixed(1)}s: ${String(err)}`);
             return errorJson(c, 'provider_error', 'STT upstream error');
         }
 
-        const usage = {
+        const usageOf = (leg: SttLegCost) => ({
             accountId: account.id,
             sessionId,
             kind: 'stt' as const,
-            provider,
-            model,
-            seconds: billedSeconds,
+            provider: leg.provider,
+            model: leg.model,
+            seconds: leg.billedSeconds,
             purpose: setup ? ('setup' as const) : null,
-        };
+        });
+        const answer = { text, model: served.model, ...(route ? { route } : {}) };
         if (!gate) {
-            await recordUsage(deps.store, { ...usage, providerCostUsd: cost.providerCostUsd, credits: 0 });
+            for (const leg of billed) {
+                await recordUsage(deps.store, { ...usageOf(leg), providerCostUsd: leg.cost.providerCostUsd, credits: 0 });
+            }
             return c.json({
-                text,
+                ...answer,
                 creditsCharged: 0,
                 creditsRemaining: await deps.ledger.balance(account.id),
             } satisfies TranscribeResponse);
         }
-        const charged = await chargeUpfront(deps, gate, cost, `stt:${provider}:${billedSeconds.toFixed(1)}s`, usage);
-        return c.json({ text, ...charged } satisfies TranscribeResponse);
+        const charged = await chargeUpfrontLegs(
+            deps,
+            gate,
+            billed.map((leg) => ({ cost: leg.cost, usage: usageOf(leg) })),
+            `stt:${billed.map((leg) => `${leg.provider}:${leg.billedSeconds.toFixed(1)}s`).join('+')}`
+        );
+        return c.json({ ...answer, ...charged } satisfies TranscribeResponse);
     });
 
     return app;

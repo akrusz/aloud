@@ -1539,14 +1539,25 @@ export class WhisperPcmSttEngine implements SttEngine {
                 const detail = await timed(response.text()).catch(() => '');
                 return { ok: false, error: new Error(`Whisper endpoint ${response.status}: ${detail}`) };
             }
-            const data = (await timed(response.json())) as { text?: string; error?: string };
+            const data = (await timed(response.json())) as {
+                text?: string;
+                error?: string;
+                model?: unknown;
+                route?: unknown;
+            };
             if (data.error !== undefined) return { ok: false, error: new Error(data.error) };
             const text = (data.text ?? '').trim();
+            // aloud cloud can answer a Parakeet pass from gpt-transcribe, and
+            // says so (server routes/stt.ts); older servers and the desktop's
+            // own Whisper name no model.
+            const servedBy = typeof data.model === 'string' && data.model ? data.model : cloudModel;
+            const route = typeof data.route === 'string' ? data.route : null;
             diag(`[stt-cost] ${label} billed=${seconds.toFixed(1)}s`);
             if (diagOn()) {
                 const now = performance.now();
                 diag(
-                    `[stt-time] ${label} ${cloudModel ?? 'default'}${fellBack ? ' fallback=1' : ''} ` +
+                    `[stt-time] ${label} ${servedBy ?? 'default'}${fellBack ? ' fallback=1' : ''}` +
+                        `${route ? ` route=${route}` : ''} ` +
                         `round-trip=${Math.round(now - sentAt)}ms ` +
                         `since-speech=${Math.round(now - this.lastSpeechMs)}ms`
                 );
@@ -1561,8 +1572,8 @@ export class WhisperPcmSttEngine implements SttEngine {
                 pcm16,
                 text: turnText,
                 from: piece.fromSec,
-                model: cloudModel,
-                fallback: fellBack,
+                model: servedBy,
+                fallback: fellBack || route === 'fallback',
             });
             return { ok: true, text, seconds };
         } catch (err) {

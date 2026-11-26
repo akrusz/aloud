@@ -56,6 +56,18 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Uint8Array
     return new Uint8Array(buf);
 }
 
+/** An upstream answer with an error status: metered as unbilled, since
+ *  OpenRouter's zero-completion insurance covers it and OpenAI made no
+ *  transcription. Any other failure might have been billed (stt-hybrid.ts
+ *  legIsBilled). */
+export class SttUpstreamError extends Error {
+    readonly status: number;
+    constructor(message: string, status: number) {
+        super(message);
+        this.status = status;
+    }
+}
+
 export interface SttResult {
     text: string;
     /** The audio seconds the provider says it billed, where it says (OpenAI's
@@ -89,9 +101,11 @@ const PROMPTLESS_MODELS = new Set(['gpt-4o-transcribe-diarize']);
  * by the id a client sends as `?model=`. Each is pinned to the one host the
  * privacy policy names for it (docs/privacy/index.html), with fallbacks off:
  * a host that drops out fails the call instead of moving the audio somewhere
- * the policy doesn't say. `zdr` adds OpenRouter's zero-data-retention filter,
- * which the policy's "keeps none of it" rests on, so that call fails closed if
- * the host ever stops qualifying. Neither model takes keyterms through
+ * the policy doesn't say. A Parakeet request's short clip, failure or stall
+ * does go to OpenAI's gpt-transcribe (stt-hybrid.ts), so the policy has to
+ * name OpenAI for a Parakeet pick too. `zdr` adds OpenRouter's
+ * zero-data-retention filter, which the policy's "keeps none of it" rests on,
+ * so that call fails closed if the host ever stops qualifying. Neither model takes keyterms through
  * OpenRouter (400, probed 2026-11-15), so setup listening goes unprompted here.
  */
 export const OPENROUTER_STT_MODELS: Readonly<Record<string, { host: string; zdr: boolean }>> = {
@@ -135,7 +149,7 @@ export async function transcribeOpenRouter(
     });
     if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(`STT openrouter ${res.status}: ${detail}`);
+        throw new SttUpstreamError(`STT openrouter ${res.status}: ${detail}`, res.status);
     }
     const data = (await res.json()) as { text?: string; usage?: { seconds?: unknown } };
     const reported = data.usage?.seconds;
@@ -169,7 +183,7 @@ export async function transcribeWhisper(
     });
     if (!res.ok) {
         const detail = await res.text().catch(() => '');
-        throw new Error(`STT ${backend.provider} ${res.status}: ${detail}`);
+        throw new SttUpstreamError(`STT ${backend.provider} ${res.status}: ${detail}`, res.status);
     }
     const data = (await res.json()) as { text?: string; usage?: { type?: string; seconds?: unknown } };
     const reported = data.usage?.type === 'duration' ? data.usage.seconds : undefined;

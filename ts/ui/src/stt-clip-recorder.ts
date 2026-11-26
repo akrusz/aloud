@@ -49,7 +49,8 @@ interface Clip {
      *  desktop's local Whisper, or aloud cloud's default). */
     model: string | null;
     /** It went to `model` after the model it was routed to refused it
-     *  (whisper-pcm-stt.ts cloudFallback). */
+     *  (whisper-pcm-stt.ts cloudFallback, or aloud cloud's own retry on
+     *  gpt-transcribe: route `fallback`). */
     fallback: boolean;
 }
 

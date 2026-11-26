@@ -219,6 +219,31 @@ describe('Hybrid falls back to GPT when Parakeet refuses a pass', () => {
     });
 });
 
+describe('the server names the model that answered', () => {
+    const served = (text: string, model: string, route?: string): Response =>
+        new Response(JSON.stringify({ text, model, ...(route ? { route } : {}) }), { status: 200 });
+
+    it.each([
+        ['reroute', 2, GPT, false],
+        ['fallback', 5, GPT, true],
+        ['hedge', 5, GPT, false],
+        ['hedge', 5, PARAKEET, false],
+    ] as const)('a Parakeet pass the server answered by %s records %s seconds as %s', async (route, sec, model, fallback) => {
+        answer = () => served('settling', model, route);
+        const engine = await createSttForChoice('aloud-parakeet', { language: 'en' });
+        const transcribe = (engine as unknown as { transcribe: Transcribe }).transcribe.bind(engine);
+        expect(await transcribe(seconds(sec), 'final', RATE)).toMatchObject({ ok: true, text: 'settling' });
+        expect(sent.map((s) => s.model)).toEqual([PARAKEET]);
+        expect(clips).toEqual([{ label: 'final', model, fallback, text: 'settling' }]);
+    });
+
+    it('an answer naming no model keeps the model asked for', async () => {
+        const transcribe = await hybridPass();
+        await transcribe(seconds(5), 'final', RATE);
+        expect(clips[0]).toMatchObject({ model: PARAKEET, fallback: false });
+    });
+});
+
 describe('only Hybrid falls back', () => {
     it.each(['aloud-gpt-transcribe', 'aloud-parakeet'] as const)('%s keeps a refused pass on its model', async (choice) => {
         answer = () => providerError();

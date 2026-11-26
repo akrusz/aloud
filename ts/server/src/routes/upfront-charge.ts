@@ -51,28 +51,54 @@ export async function gateUpfront(deps: Deps, accountId: string, cost: CostBreak
  * paid. Under a pass nothing is debited, but usage records the metered credits
  * so per-retreat spend and the daily-cap sum stay honest.
  */
-export async function chargeUpfront(
+export function chargeUpfront(
     deps: Deps,
     gate: UpfrontGate,
     cost: CostBreakdown,
     reason: string,
-    usage: Omit<UsageInput, 'providerCostUsd' | 'credits' | 'passId'>
+    usage: UpfrontLeg['usage']
+): Promise<{ creditsCharged: number; creditsRemaining: number }> {
+    return chargeUpfrontLegs(deps, gate, [{ cost, usage }], reason);
+}
+
+/** One provider request of a call, as chargeUpfrontLegs meters it. */
+export interface UpfrontLeg {
+    cost: CostBreakdown;
+    usage: Omit<UsageInput, 'providerCostUsd' | 'credits' | 'passId'>;
+}
+
+/** chargeUpfront for a call that cost more than one provider request (an STT
+ *  request Parakeet and gpt-transcribe both ran: routes/stt.ts): one debit for
+ *  their sum and a usage row each. A clamped debit is spread over the rows in
+ *  order, so their credits still add up to what was taken. */
+export async function chargeUpfrontLegs(
+    deps: Deps,
+    gate: UpfrontGate,
+    legs: readonly UpfrontLeg[],
+    reason: string
 ): Promise<{ creditsCharged: number; creditsRemaining: number }> {
     const { pass } = gate;
+    const accountId = legs[0]!.usage.accountId;
+    const total = legs.reduce((sum, leg) => sum + leg.cost.credits, 0);
     let debit = 0;
     try {
-        if (!pass) debit = await deps.ledger.debitUpTo(usage.accountId, cost.credits, reason);
+        if (!pass) debit = await deps.ledger.debitUpTo(accountId, total, reason);
     } finally {
         gate.release();
     }
-    await recordUsage(deps.store, {
-        ...usage,
-        providerCostUsd: cost.providerCostUsd,
-        credits: pass ? cost.credits : debit,
-        passId: pass?.id ?? null,
-    });
+    let left = debit;
+    for (const leg of legs) {
+        const credits = pass ? leg.cost.credits : Math.min(leg.cost.credits, left);
+        left -= pass ? 0 : credits;
+        await recordUsage(deps.store, {
+            ...leg.usage,
+            providerCostUsd: leg.cost.providerCostUsd,
+            credits,
+            passId: pass?.id ?? null,
+        });
+    }
     return {
-        creditsCharged: pass ? 0 : cost.credits,
-        creditsRemaining: await deps.ledger.balance(usage.accountId),
+        creditsCharged: pass ? 0 : total,
+        creditsRemaining: await deps.ledger.balance(accountId),
     };
 }

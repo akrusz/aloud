@@ -404,7 +404,7 @@ describe('POST /cloud/v1/stt?setup=1 (setup-screen listening)', () => {
         const res = await post(2.5);
         expect(res.status).toBe(200);
         const body = (await res.json()) as TranscribeResponse;
-        expect(body).toEqual({ text: 'hello world', creditsCharged: 0, creditsRemaining: 20 });
+        expect(body).toEqual({ text: 'hello world', creditsCharged: 0, creditsRemaining: 20, model: 'gpt-transcribe' });
         expect(await deps.ledger.balance(accountId)).toBe(20);
     });
 
@@ -497,7 +497,7 @@ describe('POST /cloud/v1/stt with x-stt-prior (incremental transcription)', () =
         const deps = buildDeps(config);
         const a = createApp(deps);
         const token = await devToken(a);
-        const post = (prior: string | undefined, query = '') =>
+        const post = (prior: string | undefined, query = '', seconds = 1) =>
             a.request(`/cloud/v1/stt?sample_rate=16000&format=i16${query}`, {
                 method: 'POST',
                 headers: {
@@ -505,7 +505,7 @@ describe('POST /cloud/v1/stt with x-stt-prior (incremental transcription)', () =
                     'content-type': 'application/octet-stream',
                     ...(prior === undefined ? {} : { 'x-stt-prior': prior }),
                 },
-                body: pcm16Body(1),
+                body: pcm16Body(seconds),
             });
         return { deps, post };
     }
@@ -537,11 +537,19 @@ describe('POST /cloud/v1/stt with x-stt-prior (incremental transcription)', () =
 
     it('is ignored for an OpenRouter model (they take no prompt)', async () => {
         const { post } = await priorApp();
-        const res = await post(encodeURIComponent('and then'), '&model=moondream%2Fparakeet-ultra');
+        const res = await post(encodeURIComponent('and then'), '&model=moondream%2Fparakeet-ultra', 4);
         expect(res.status).toBe(200);
         expect(openRouterCalls).toHaveLength(1);
         expect(openRouterCalls[0]).not.toHaveProperty('prompt');
         expect(JSON.stringify(openRouterCalls[0])).not.toContain('and then');
+    });
+
+    it('is not sent to gpt-transcribe standing in for Parakeet', async () => {
+        const { post } = await priorApp();
+        const res = await post(encodeURIComponent('and then'), '&model=moondream%2Fparakeet-ultra', 2);
+        expect(((await res.json()) as TranscribeResponse).route).toBe('reroute');
+        expect(sttCalls).toHaveLength(1);
+        expect(sttCalls[0]!.prompt).toBeNull();
     });
 
     it('is ignored on setup listening: the setup vocabulary still goes', async () => {
@@ -632,11 +640,13 @@ describe('POST /cloud/v1/stt through OpenRouter', () => {
         const res = await a.request(`/cloud/v1/stt?sample_rate=16000&format=i16&lang=zh-CN&model=${encodeURIComponent(model)}`, {
             method: 'POST',
             headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
-            body: pcm16Body(2.5),
+            body: pcm16Body(4.5),
         });
         expect(res.status).toBe(200);
         const body = (await res.json()) as TranscribeResponse;
         expect(body.text).toBe('ni hao');
+        expect(body.model).toBe(model);
+        expect(body.route).toBeUndefined();
         expect(sttCalls).toHaveLength(0); // never the Whisper backend
         expect(openRouterCalls).toHaveLength(1);
         const sent = openRouterCalls[0]!;
@@ -651,8 +661,8 @@ describe('POST /cloud/v1/stt through OpenRouter', () => {
             data_collection: 'deny',
             ...(zdr ? { zdr: true } : {}),
         });
-        // 2.5 s, not rounded up to 3, at list x 1.055 / $0.05 per credit.
-        expect(body.creditsCharged).toBeCloseTo((2.5 * listPerHour * 1.055) / 3600 / 0.05, 8);
+        // 4.5 s, not rounded up to 5, at list x 1.055 / $0.05 per credit.
+        expect(body.creditsCharged).toBeCloseTo((4.5 * listPerHour * 1.055) / 3600 / 0.05, 8);
     });
 
     it('sends no prompt or keyterms on setup listening (neither host takes them)', async () => {
@@ -661,7 +671,7 @@ describe('POST /cloud/v1/stt through OpenRouter', () => {
         await a.request('/cloud/v1/stt?sample_rate=16000&setup=1&lang=en&model=moondream%2Fparakeet-ultra', {
             method: 'POST',
             headers: { authorization: `Bearer ${token}` },
-            body: pcmBody(2),
+            body: pcmBody(4),
         });
         expect(openRouterCalls).toHaveLength(1);
         expect(openRouterCalls[0]).not.toHaveProperty('prompt');

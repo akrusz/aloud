@@ -132,11 +132,23 @@ export interface JudgeResponse {
 // to where the clip begins, percent-encoded (encodeURIComponent), which that
 // backend gets as its prompt (routes/stt.ts sttPrior).
 
+/** Why a request for Parakeet was answered by, or also sent to,
+ *  gpt-transcribe (providers/stt-hybrid.ts): a short clip sent there instead,
+ *  a retry there after Parakeet failed, or a second request there after
+ *  Parakeet's deadline. */
+export type SttRoute = 'reroute' | 'fallback' | 'hedge';
+
 export interface TranscribeResponse {
     text: string;
     /** Fractional credits this transcription cost (priced by audio seconds). */
     creditsCharged: number;
     creditsRemaining: number;
+    /** The model that wrote `text`, which for a Parakeet request can be
+     *  gpt-transcribe. Servers before it sent none. */
+    model: string;
+    /** Present when the request did not simply go to the model it asked for.
+     *  After a hedge either model may have answered: `model` says which. */
+    route?: SttRoute;
 }
 
 // ---- POST /cloud/v1/tts -----------------------------------------------------------

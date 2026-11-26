@@ -61,7 +61,7 @@ load logic is `loadConfig` in `config.ts`.
 | `ALOUD_SESSION_SECRET` | signing session JWTs | `openssl rand -hex 32`; required in prod |
 | `GOOGLE_CLIENT_IDS` | sign-in | comma-sep web/iOS/android client ids; required in prod |
 | `APPLE_CLIENT_IDS` | Apple sign-in | comma-sep Services ID (web) / bundle id (native); empty disables Apple. Email/password needs no config (meditation-pal-s75) |
-| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client. `OPENROUTER_API_KEY` also runs the Parakeet and Grok STT models (`providers/stt.ts` `OPENROUTER_STT_MODELS`): the app's "Grok" choice, and Parakeet, the English default in 2.21.0 and now only the longer passes of the developer-mode "Hybrid" choice; unset, those calls answer "not configured" |
+| `ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` | LLM forwarding | ≥1 required in prod; server-held, never sent to client. `OPENROUTER_API_KEY` also runs the Parakeet and Grok STT models (`providers/stt.ts` `OPENROUTER_STT_MODELS`): the app's "Grok" choice, and Parakeet, the English default in 2.21.0 and now only the longer passes of the developer-mode "Hybrid" choice, which the server backs with gpt-transcribe (Parakeet requests below); unset, those calls answer "not configured" |
 | `GEMINI_API_KEY` | value-tier LLM (Gemini direct) | Google AI Studio key; powers `gemini-3.5-flash-lite` without OpenRouter's fee |
 | `OPENAI_API_KEY` | server STT (default) + premium LLM | one key drives `/cloud/v1/stt` (Whisper; server default `gpt-transcribe`, ≈ $0.27/hr with each clip billed in whole seconds rounded up, which is also what the app's "GPT" STT choice asks for) and the GPT LLM. `OPENAI_STT_API_KEY` splits STT onto its own key |
 | `STT_API_KEY` (+ `STT_PROVIDER` / `STT_BASE_URL` / `STT_MODEL`) | server STT (override) | point STT at any OpenAI-compatible `/audio/transcriptions` host (OpenAI/Groq/self-hosted). See `config.ts` `resolveSttConfig` |
@@ -138,7 +138,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/me/models` `/estimates` `/packs` | public | published pricing (`/packs` also advertises the x402 channel) |
 | `POST /cloud/v1/llm/complete` | session | metered proxy: hold → forward → settle to actual cost (SSE or JSON). `messages` must be role + string content. A turn is refused (402) when its worst-case estimate runs more than `MAX_UNCOVERED_CREDITS` past its hold, counted across the account's turns in flight (`deps.overdraft`): a near-empty account still finishes its last turn, but can't run an oversized prompt, or a burst of turns, on credits it doesn't have. When Anthropic's refusal fallback answers a declined turn (`anthropic.ts` `takesRefusalFallback`), each model's attempt settles at its own rates with a usage row apiece, the declined one tagged `utility`. A Kimi reply that opens with the model's thinking is held back until its closing tag and only what follows is sent, or a blank turn when there is no tag (`providers/withheld-thinking.ts` `withholdThinking`); the tokens bill as reported and the final chunk's `reasoningChars` counts what was held |
 | `POST /cloud/v1/llm/keepalive` | session | prompt-cache keep-alive (see Prompt-cache keep-alive below): `{provider,model,messages,system?,sessionId?}`, the session's last facilitation request without its reply, forwarded at `max_tokens: 0` → `{kept,creditsCharged,creditsRemaining?}`. Same auth, rate guard and request checks as `/llm/complete` (`routes/llm.ts` `checkCall`). A non-Anthropic model, a paused account, or a balance that couldn't cover the prompt written again in full answers `kept: false` and sends nothing upstream; otherwise billed at provider cost through the STT/TTS money path (`upfront-charge.ts`), retreat passes honoured, usage row `purpose: 'keepalive'`. An upstream failure is a 502 and one `llm_error` incident (`keepalive: ...`) |
-| `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send for "GPT"), or OpenRouter for `moondream/parakeet-ultra` ("Parakeet", the English default in 2.21.0; later clients no longer offer it alone and send it only for the passes over `HYBRID_GPT_MAX_SEC` of "Hybrid", a developer-mode choice not offered in zh, re-sending a pass it refuses with `provider_error` to gpt-transcribe: `stt-picker.ts` `HOSTED_STT`) and `x-ai/grok-stt-2.0` ("Grok", zh only), each pinned to its host (`providers/stt.ts` `OPENROUTER_STT_MODELS`, needs `OPENROUTER_API_KEY`) → transcript; debits by the seconds the provider bills (`sttBilledSeconds`: gpt-transcribe rounds each request up to a whole second; OpenRouter bills the exact second, plus its credit fee via `viaOpenRouter`). An `x-stt-prior` header (the turn's transcript so far, percent-encoded; incremental passes send it) becomes the Whisper backend's prompt (`routes/stt.ts` `sttPrior`): never logged, not sent to the OpenRouter models or to a model that bills prompt text (`sttPromptIsBilled`). `?setup=1` is the setup screen's listening: prompted with core `setupVocabulary`, free while the clip is under `SETUP_MAX_CLIP_SECONDS` and the account has `SETUP_STT_SECONDS_PER_DAY` left (`deps.ts`, with an all-accounts ceiling), else metered as usual; usage rows carry `purpose: 'setup'` ([voice-commands.md](voice-commands.md#the-mic)) |
+| `POST /cloud/v1/stt` | session | metered STT: raw mono PCM body (`?format=i16`, or Float32 from older clients) → Whisper (OpenAI by default; `?model=` picks gpt-transcribe, which current clients send for "GPT"), or OpenRouter for `moondream/parakeet-ultra` ("Parakeet", the English default in 2.21.0; later clients no longer offer it alone and send it only for the passes over `HYBRID_GPT_MAX_SEC` of "Hybrid", a developer-mode choice not offered in zh, re-sending a pass it refuses with `provider_error` to gpt-transcribe: `stt-picker.ts` `HOSTED_STT`; the server runs every Parakeet request with gpt-transcribe behind it, see Parakeet requests below) and `x-ai/grok-stt-2.0` ("Grok", zh only), each pinned to its host (`providers/stt.ts` `OPENROUTER_STT_MODELS`, needs `OPENROUTER_API_KEY`) → `{text, model, route?, creditsCharged, creditsRemaining}`, `model` being the one that wrote the text; debits by the seconds the provider bills (`sttBilledSeconds`: gpt-transcribe rounds each request up to a whole second; OpenRouter bills the exact second, plus its credit fee via `viaOpenRouter`). An `x-stt-prior` header (the turn's transcript so far, percent-encoded; incremental passes send it) becomes the Whisper backend's prompt (`routes/stt.ts` `sttPrior`): never logged, not sent to the OpenRouter models or to a model that bills prompt text (`sttPromptIsBilled`). `?setup=1` is the setup screen's listening: prompted with core `setupVocabulary`, free while the clip is under `SETUP_MAX_CLIP_SECONDS` and the account has `SETUP_STT_SECONDS_PER_DAY` left (`deps.ts`, with an all-accounts ceiling), else metered as usual; usage rows carry `purpose: 'setup'` ([voice-commands.md](voice-commands.md#the-mic)) |
 | `POST /cloud/v1/tts` | session | metered TTS: `{text,voice?,rate?,marks?}` → the voice's provider (Azure / Google / Inworld) → audio/mpeg; cost in headers, and with `marks` (a whole reply, see Whole replies below) where each marked sentence begins, in `X-Mark-Times`. A synthesis failure is `provider_error` (502), or `provider_unavailable` (503) when the provider refused aloud's own account (`isProviderAccountFailure`), which the app words as "this voice isn't available" rather than "try again" |
 | `POST /cloud/v1/tts/canned` | session | the fixed out-of-credits / paused apology (`{reason,voice?}`; the store apps ask for `insufficient_credits_plain`, the wording with no purchase in it) → audio/mpeg; unmetered, no balance gate, cached per voice |
 | `GET /cloud/v1/tts/preview` | public | a curated voice's fixed preview phrase (`?voice=&rate=`) → audio/mpeg; unmetered, cached per voice and speed step |
@@ -154,7 +154,7 @@ backend is the separate `/app/v1` group, also served here in browser dev).
 | `GET /cloud/v1/admin/usage` | admin, read | cost-attribution report from usage telemetry (`?sinceHours=&excludeAdmin=1`, plus the real-sit bar: `all=1` for every session, or `sitMinutes=`/`sitTurns=` to override `DEFAULT_REAL_SIT` - 5 turns AND 5 min - which filters distributions and per-hour rates together). Response also carries `perHour.raw` (unweighted total/total beside the account-weighted headline rates), `perHour.tokensPerTurn`, and `sessionRows`: itemized sessions for `ALOUD_ADMIN_EMAILS` accounts only - real users stay aggregate |
 | `GET /cloud/v1/admin/usage/history` | admin, read | daily trend buckets (usage + gross revenue per UTC day), computed live (`?days=&excludeAdmin=1`) |
 | `GET /cloud/v1/admin/usage/provider-daily` | admin, read | per-provider per-UTC-day spend for invoice reconciliation (never filtered) |
-| `GET /cloud/v1/admin/incidents` | admin, read | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, replies cut off at max_tokens (`llm_max_tokens`), safety-classifier refusals (`refusal=<category>` on the row) and turns Anthropic's server-side fallback answered instead (`llm_fallback`), upstream LLM/STT/TTS failures (voice previews and canned clips included, throttled to a row a minute), Stripe checkout failures (`billing_error`), retired models the liveness sweep dropped (`model_retired`), refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`). For the read token a real user's rows carry no account id or label (`account: "user"`); the `ALOUD_ADMIN_EMAILS` accounts keep theirs |
+| `GET /cloud/v1/admin/incidents` | admin, read | incident log (`?sinceHours=&excludeAdmin=1`): what the app handled quietly on the cloud path - blank completions with finish reason + tokens, replies cut off at max_tokens (`llm_max_tokens`), safety-classifier refusals (`refusal=<category>` on the row) and turns Anthropic's server-side fallback answered instead (`llm_fallback`), upstream LLM/STT/TTS failures (voice previews and canned clips included, throttled to a row a minute), a Parakeet request retried on gpt-transcribe after a failure (`stt_fallback`) or sent there too past its deadline (`stt_hedge`), Stripe checkout failures (`billing_error`), retired models the liveness sweep dropped (`model_retired`), refused 402s, and `client_*` rows the app reports itself (`POST /cloud/v1/incidents`). Grouped by kind plus the newest rows; content-free by construction (`credits/incidents.ts`). For the read token a real user's rows carry no account id or label (`account: "user"`); the `ALOUD_ADMIN_EMAILS` accounts keep theirs |
 | `GET /cloud/v1/admin/calls` | none* | per-call page HTML: one session's every metered call (`admin/calls-page.ts`); reuses the panel's stored credential |
 | `GET /cloud/v1/admin/sessions` | admin, read | sessions by client session id (`?sinceHours=`, default 7d) with cost per leg and cold-cache call count; `ALOUD_ADMIN_EMAILS` accounts only |
 | `GET /cloud/v1/admin/sessions/:id` | admin, read | one session's calls in order (gap since the previous facilitation call or keep-alive, cache read/write, cost; keep-alives listed as their own kind, never turns or cold calls), facilitation spend by token type, and its incidents; 404 for a non-admin session |
@@ -203,6 +203,49 @@ The same load names its build once, on the first signed-in `GET /me`
 `lastClient` (version, platform, when; cleared on deletion) and shown in the
 admin accounts list's App column, which the search also matches. The panel
 prints the minimums above that list.
+
+### Parakeet requests
+
+Every `POST /cloud/v1/stt` asking for `moondream/parakeet-ultra` runs with
+gpt-transcribe behind it (`providers/stt-hybrid.ts`), so installed 2.21.0
+clients, whose English default is Parakeet alone, get it as well as the
+current client's "Hybrid". Only where the configured backend offers
+gpt-transcribe (`config.ts` `sttModelChoices`); elsewhere Parakeet runs alone.
+
+- **reroute**: a clip of `HYBRID_SHORT_MAX_SEC` (3.0 s) or less goes to
+  gpt-transcribe instead. Short wordless clips are where Parakeet writes a word
+  from a breath, and gpt-transcribe returns nothing.
+- **fallback**: a longer clip Parakeet fails (an upstream 429 or 5xx, a dropped
+  connection) is sent once to gpt-transcribe.
+- **hedge**: with no answer from Parakeet by `hybridDeadlineMs` (3 s plus 0.1 s
+  per audio second, from the send), the same audio goes to gpt-transcribe too;
+  the first answer wins and the other request is aborted (`transcribeHedged`).
+
+gpt-transcribe gets no prompt on any of these, neither `x-stt-prior` nor the
+setup vocabulary. The response adds `model` (which model wrote the text) and,
+when the request did not simply go where it asked, `route` (`contract.ts`
+`TranscribeResponse`). Old clients ignore both; the current one reads them into
+its `[stt-time]` diag line and the clip recorder's `model`/`fallback`.
+
+**Metering.** Every request a provider bills is metered at its own model's
+rate: one ledger debit for the sum, one usage row per model
+(`upfront-charge.ts` `chargeUpfrontLegs`). `stt-hybrid.ts` `legIsBilled`
+decides: the answer, yes; a leg a hedge cut off, yes (OpenRouter bills an
+aborted non-streaming request in full, which a Parakeet request aborted in
+flight confirmed, and OpenAI documents nothing for an aborted transcription); a leg that failed with no error status, yes, since it
+may have run; a leg refused with an error status, no (OpenRouter's
+zero-completion insurance). So a reroute bills gpt-transcribe in whole seconds,
+a fallback after a refusal gpt-transcribe alone, and a hedge both. A request
+that ends in a 502 charges nothing. The credit hold for a longer clip covers
+both models, and a short clip's is at gpt-transcribe's rate (about 4.3x
+Parakeet's a second, more with the rounding), so no outcome outruns it.
+
+**Rates on production.** Each fallback is an `stt_fallback` incident and each
+hedge an `stt_hedge`, under model `moondream/parakeet-ultra`, with `served=`,
+timings and an upstream error's first line, never audio or text. A reroute is
+routine and leaves no incident. The long Parakeet requests to divide by are the
+Parakeet usage rows plus the `stt_fallback` rows whose Parakeet leg was
+refused, since a refused leg leaves no usage row.
 
 ### Admin control panel
 

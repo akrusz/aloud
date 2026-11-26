@@ -37,6 +37,13 @@ export const SERVER_INCIDENT_KINDS = [
     /** The upstream LLM call failed (stream or non-stream). */
     'llm_error',
     'stt_error',
+    /** Parakeet failed a request (refused or errored) and the same audio went
+     *  to gpt-transcribe (providers/stt-hybrid.ts). served= names the model
+     *  that answered, `none` when that failed too (then also stt_error). */
+    'stt_fallback',
+    /** Parakeet had not answered by its deadline, so the same audio went to
+     *  gpt-transcribe as well and the first answer won (served=, at=). */
+    'stt_hedge',
     'tts_error',
     /** TypeSafe (Jev) failed or timed out. Clients fall back without the user
      *  noticing, so this row is the only sign of an outage. Throttled to one a
