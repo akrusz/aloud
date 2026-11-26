@@ -101,7 +101,7 @@
       <li><strong>Credits and usage.</strong> Your balance and metered usage (audio and text processed, per-session totals such as turn count), for billing, our costs and abuse prevention. It isn't behavioral profiling.</li>
       <li><strong>Payments.</strong> Card payments go through <strong>Stripe</strong>, and we never see your full card details. A stablecoin payment is recorded on a public blockchain by nature; we receive only what's needed to credit your account.</li>
       <li><strong>Abuse prevention.</strong> The IP address you signed up from, deleted after 90 days or when you delete your account. Free credits are given once per person, so we keep a one-way hash of the email address (for some grants, the sign-in ID) that received them, never the address itself, including after you delete your account.</li>
-      <li><strong>Logs and error records.</strong> Short-lived technical logs for diagnostics and security, and, when a relayed call or a credit purchase fails, a record of what went wrong (error code, provider, model, token or byte counts), so we notice problems the app recovers from without showing you.</li>
+      <li><strong>Logs and error records.</strong> Short-lived technical logs for diagnostics and security, and, when a relayed call fails or runs slow, or a credit purchase fails, a record of what happened (error code, provider, model, timing, token or byte counts), so we notice problems the app recovers from without showing you.</li>
     </ul>
     <p>Deleting your account removes your sign-in identities and email-list entry and scrubs your email address and IP from the record. What remains is an anonymous credit ledger and error records, kept for accounting, and the free-credit hashes.</p>
     <p>aloud cloud runs on <strong>Fly.io</strong> in the <strong>United States</strong>, so your account information and the content we relay are processed there wherever you are, the EU and UK included; providers may process data in other regions. The account database is backed up to <strong>Cloudflare R2</strong>, and data removed from it ages out of the backup within about a day. Both serve us as infrastructure providers under data processing agreements.</p>
@@ -124,7 +124,7 @@
       <tbody>
         <tr><th scope="rowgroup" colspan="2">Speech recognition</th></tr>
         <tr><td>GPT</td><td>OpenAI</td></tr>
-        <tr><td>Parakeet, Moondream's model (European languages)</td><td>Prime Intellect, via OpenRouter, under zero data retention</td></tr>
+        <tr><td>Parakeet, Moondream's model (European languages)</td><td>Prime Intellect, via OpenRouter, under zero data retention. A clip of three seconds or less goes to GPT (OpenAI) instead, and so does a longer one when Prime Intellect refuses it or is slow to answer.</td></tr>
         <tr><td>Grok (non-European languages)</td><td>xAI, via OpenRouter</td></tr>
       </tbody>
       <tbody>
@@ -134,7 +134,7 @@
         <tr><td>Luna, Wren, Silas, Clive</td><td>Inworld</td></tr>
       </tbody>
     </table>
-    <p>Whichever facilitator you pick, aloud cloud also sends parts of the session to <strong>Claude Haiku</strong> (Anthropic) and <strong>GPT-6 Luna</strong> (OpenAI) for summarization, and some of the checks above. Short text excerpts of your words are sent to <strong>TypeSafe</strong> (US-hosted) for in-session decisions and voice controls. To skip the summary and notes, turn off Save session logs (locally) in Settings; the checks are part of every aloud cloud session. Until you choose a speech recognition model yourself, the setup screen's spoken tour is transcribed by GPT (OpenAI), which hears its commands more reliably; your sessions use the model Settings shows.</p>
+    <p>Whichever facilitator you pick, aloud cloud also sends parts of the session to <strong>Claude Haiku</strong> (Anthropic) and <strong>GPT-6 Luna</strong> (OpenAI) for summarization, and some of the checks above. Short text excerpts of your words are sent to <strong>TypeSafe</strong> (US-hosted) for in-session decisions and voice controls. To skip the summary and notes, turn off Save session logs (locally) in Settings; the checks are part of every aloud cloud session. Until you choose a speech recognition model yourself, the setup screen's spoken tour is transcribed by GPT (OpenAI), which hears its commands more reliably; your sessions use the model Settings shows, with the exception noted for Parakeet above.</p>
     <p>Through OpenRouter we allow only hosts that don't train on what they receive. Inworld's zero-data-retention setting isn't yet on for our account (we've asked), so until it is, Inworld may keep the reply text it voices; pick another voice to avoid that.</p>
     <p>On this website, the home page video is hosted by <strong>YouTube</strong>, which receives nothing until you press play.</p>
 
