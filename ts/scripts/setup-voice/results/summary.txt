@@ -1,7 +1,7 @@
 SETUP-SCREEN SPEECH THROUGH LOCAL WHISPER (synthetic voices)
 Synthetic macOS voices through one recognizer: good for systematic mishearings and the
 prompt's effect, not a measure of accuracy in a real room with a real voice.
-Scored with the parser as of 2026-11-19T07:10:39.077Z.
+Scored with the parser as of 2026-11-26T08:29:20.196Z.
 
 en: ggml-base.en.bin; voices: Samantha (English (US)), Daniel (English (UK)), Rishi (English (India)), Ava (Premium), Moira (English (Ireland)), Reed (English (US)), Karen, Eddy (English (UK)), Tessa (English (South Africa))
   scope: core voices clean+noisy on every phrase; every third phrase far (one core voice) and one extra voice clean+noisy
@@ -51,9 +51,9 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
         1x "收音咧" -> nothing  [noisy, 0/1 with prompt]
         1x "準備" -> nothing  [far, 0/1 with prompt]
       ... 5 more
-  "跟随" (zh) 11/14 misheard-and-failed; want guidance 0
+  "跟随" (zh) 11/14 misheard-and-failed; want guidance 1
         2x "乾水" -> nothing  [clean/noisy, 0/2 with prompt]
-        2x "，均衡，" -> WRONG: guidance 2  [noisy/far, 2/2 with prompt]
+        2x "，均衡，" -> WRONG: guidance 3  [noisy/far, 2/2 with prompt]
         1x "乾脆" -> nothing  [clean, 0/1 with prompt]
         1x "乾脆!" -> nothing  [noisy, 0/1 with prompt]
         1x "再次回来" -> nothing  [far, 0/1 with prompt]
@@ -231,7 +231,7 @@ rooms: clean (padded 0.5s/1s); noisy (speech -30 dBFS, pink/brown room noise at 
         4x "The game." -> nothing  [noisy/far, 2/4 with prompt]
         1x "again." -> nothing  [noisy, 0/1 with prompt]
         1x "Again." -> nothing  [noisy, 1/1 with prompt]
-  "均衡" (zh) 6/8 misheard-and-failed; want guidance 2
+  "均衡" (zh) 6/8 misheard-and-failed; want guidance 3
         1x "君恒。" -> nothing  [clean, 0/1 with prompt]
         1x "金康" -> nothing  [noisy, 0/1 with prompt]
         1x "請客" -> nothing  [clean, 0/1 with prompt]
